@@ -11,9 +11,16 @@ export default function Navbar({ user }: Props) {
     <header className="bg-brand-700 text-white shadow-sm sticky top-0 z-40">
       <div className="container mx-auto px-3 sm:px-4 max-w-5xl flex items-center justify-between gap-2 h-16">
         {/* ─── Logo ─────────────────────────────────────────────────────────── */}
-        <Link href="/home" className="flex items-center gap-2 font-bold text-xl text-white">
-          <span className="text-2xl">🥑</span>
-          <span>Foody</span>
+        <Link href="/home" className="flex items-center gap-2 font-bold text-xl text-white shrink-0">
+          <Image
+            src="/logo.png"
+            alt="Foody"
+            width={40}
+            height={40}
+            priority
+            className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-md"
+          />
+          <span className="hidden xs:inline sm:inline">Foody</span>
         </Link>
 
         {/* ─── Navigation ───────────────────────────────────────────────────── */}

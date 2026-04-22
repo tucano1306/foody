@@ -7,7 +7,6 @@ import { ToastProvider } from '@/components/ui/Toast';
 export const metadata: Metadata = {
   title: { default: 'Foody', template: '%s | Foody' },
   description: 'Controla tu despensa y pagos mensuales',
-  icons: { icon: '/favicon.ico', apple: '/icons/icon-192.png' },
   manifest: '/manifest.webmanifest',
   applicationName: 'Foody',
   appleWebApp: {

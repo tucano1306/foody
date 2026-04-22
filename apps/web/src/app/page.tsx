@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import RotatingWord from '@/components/home/RotatingWord';
@@ -69,9 +70,14 @@ export default async function Home() {
       <header className="sticky top-0 z-30 bg-navy-900/95 backdrop-blur border-b border-navy-800 text-white">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-black text-xl">
-            <span className="w-9 h-9 rounded-lg bg-brand-500 text-navy-900 flex items-center justify-center text-xl shadow-md shadow-brand-500/40">
-              🥑
-            </span>
+            <Image
+              src="/logo.png"
+              alt="Foody"
+              width={40}
+              height={40}
+              priority
+              className="w-10 h-10 object-contain drop-shadow-md"
+            />
             <span className="tracking-tight">Foody</span>
           </Link>
           <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-navy-100">
@@ -303,9 +309,13 @@ export default async function Home() {
       <footer className="bg-navy-900 text-navy-200 border-t border-navy-800">
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-wrap items-center justify-between gap-4 text-sm">
           <div className="flex items-center gap-2 font-bold text-white">
-            <span className="w-7 h-7 rounded-md bg-brand-500 text-navy-900 flex items-center justify-center">
-              🥑
-            </span>
+            <Image
+              src="/logo.png"
+              alt="Foody"
+              width={28}
+              height={28}
+              className="w-7 h-7 object-contain"
+            />
             <span>Foody</span>
           </div>
           <p className="text-xs text-navy-300">
