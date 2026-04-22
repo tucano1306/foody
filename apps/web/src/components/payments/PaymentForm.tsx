@@ -75,7 +75,7 @@ export default function PaymentForm() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="payment-amount" className="block text-sm font-medium text-stone-700 mb-1">Monto *</label>
           <input
@@ -101,7 +101,7 @@ export default function PaymentForm() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label htmlFor="payment-due-day" className="block text-sm font-medium text-stone-700 mb-1">
             Día de vencimiento (1–31)
@@ -150,7 +150,7 @@ export default function PaymentForm() {
       <button
         type="submit"
         disabled={saving}
-        className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50"
+        className="btn-energy w-full py-3 rounded-xl disabled:opacity-50"
       >
         {saving ? 'Guardando...' : 'Agregar pago'}
       </button>

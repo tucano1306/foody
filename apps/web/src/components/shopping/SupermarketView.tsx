@@ -229,7 +229,7 @@ export default function SupermarketView({ initialItems }: Props) {
 
       {/* ─── Floating complete button ───────────────────────────────────────── */}
       {inCart.length > 0 && (
-        <div className="fixed bottom-4 inset-x-4 z-40 md:left-auto md:right-8 md:w-96">
+        <div className="fixed bottom-4 inset-x-4 z-40 md:left-auto md:right-8 md:w-96 pb-[env(safe-area-inset-bottom)]">
           <button
             onClick={completeShopping}
             disabled={completing}

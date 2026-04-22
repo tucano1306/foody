@@ -119,7 +119,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
           {emptyState ?? <p>No hay productos que coincidan</p>}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
           {visible.map((product) => (
             <ProductCard key={product.id} product={product} showActions={showActions} />
           ))}
@@ -128,7 +128,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-2">
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
           <button
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}

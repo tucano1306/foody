@@ -74,10 +74,10 @@ export default function PaymentCard({ payment }: Props) {
   return (
     <div className={`rounded-2xl border p-4 shadow-sm transition-all ${borderCls}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{icon}</span>
-          <div>
-            <p className={`font-semibold text-sm ${isPaid ? 'text-green-700' : 'text-stone-800'}`}>
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <span className="text-2xl shrink-0">{icon}</span>
+          <div className="min-w-0">
+            <p className={`font-semibold text-sm truncate ${isPaid ? 'text-green-700' : 'text-stone-800'}`}>
               {payment.name}
             </p>
             {payment.description && (
@@ -97,7 +97,7 @@ export default function PaymentCard({ payment }: Props) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         {isPaid ? (
           <span className="text-xs font-medium text-green-700 bg-green-100 px-2.5 py-1 rounded-full">
             ✓ Pagado este mes

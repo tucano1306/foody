@@ -155,18 +155,18 @@ export default function HouseholdManager() {
           <p className="text-sm text-stone-500 mb-3">
             Invita a tu familia a compartir la despensa y la lista del súper.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Ej: Familia García"
-              className="flex-1 px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300"
+              className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300"
             />
             <button
               type="button"
               disabled={working || newName.trim().length < 2}
               onClick={handleCreate}
-              className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 transition"
+              className="btn-energy px-4 py-2.5 rounded-xl disabled:opacity-50"
             >
               Crear
             </button>
@@ -179,13 +179,13 @@ export default function HouseholdManager() {
           <p className="text-sm text-stone-500 mb-3">
             Pide el código de invitación a alguien de tu familia.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               placeholder="ABC123"
               maxLength={10}
-              className="flex-1 px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 uppercase tracking-widest text-center font-mono"
+              className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 uppercase tracking-widest text-center font-mono"
             />
             <button
               type="button"
@@ -275,7 +275,7 @@ export default function HouseholdManager() {
             <button
               type="button"
               onClick={copyCode}
-              className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-3 rounded-xl transition"
+              className="btn-primary px-4 py-3 rounded-xl"
             >
               📋
             </button>
@@ -285,7 +285,7 @@ export default function HouseholdManager() {
             type="button"
             onClick={handleGenerateInvite}
             disabled={working}
-            className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50 transition"
+            className="btn-energy w-full py-3 rounded-xl disabled:opacity-50"
           >
             Generar código
           </button>

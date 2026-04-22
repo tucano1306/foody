@@ -41,7 +41,6 @@ export default async function HomePage() {
       <DashboardStats
         totalProducts={products.length}
         runningLowCount={runningLow.length}
-        shoppingListCount={runningLow.length}
         upcomingPaymentsCount={upcomingPayments.length}
         totalMonthlyExpenses={totalExpenses}
       />

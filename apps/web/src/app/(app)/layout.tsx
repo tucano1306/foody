@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { readonly children: React
     <div className="min-h-screen flex flex-col bg-stone-50">
       <PullToRefresh />
       <Navbar user={{ name: session.name, avatarUrl: session.avatarUrl, email: session.email }} />
-      <main className="flex-1 container mx-auto px-4 py-6 max-w-5xl">
+      <main className="flex-1 container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-5xl pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         {children}
       </main>
       <CommandPalette products={products} />

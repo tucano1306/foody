@@ -4,29 +4,41 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* ─── Brand colors (Fishbowl-inspired: cyan primary) ──────────────────── */
-  --color-brand-50:  #ecf9fe;
-  --color-brand-100: #d0effc;
-  --color-brand-200: #a1dff9;
-  --color-brand-300: #6fcaf5;
-  --color-brand-400: #3fb5ee;
-  --color-brand-500: #00aeef;
-  --color-brand-600: #0098d6;
-  --color-brand-700: #0679ab;
-  --color-brand-800: #0c5f84;
-  --color-brand-900: #0c4d6a;
+  /* ─── Brand colors (FPL-inspired: deep navy primary) ──────────────────── */
+  --color-brand-50:  #e6f0f9;
+  --color-brand-100: #c3d9ee;
+  --color-brand-200: #8fb5dc;
+  --color-brand-300: #5c90c9;
+  --color-brand-400: #2e6eb0;
+  --color-brand-500: #004b8d;
+  --color-brand-600: #003b71;
+  --color-brand-700: #002e58;
+  --color-brand-800: #002344;
+  --color-brand-900: #00172e;
 
-  /* ─── Navy palette (Fishbowl deep-blue hero/nav) ──────────────────────── */
+  /* ─── Navy palette (deeper hero/nav backgrounds) ──────────────────────── */
   --color-navy-50:  #eef2f8;
   --color-navy-100: #d5dfee;
   --color-navy-200: #a7bcd9;
   --color-navy-300: #7a97c2;
   --color-navy-400: #4e73ab;
-  --color-navy-500: #2a5594;
-  --color-navy-600: #1c3f77;
-  --color-navy-700: #142d59;
-  --color-navy-800: #0e2040;
-  --color-navy-900: #071128;
+  --color-navy-500: #1f3a68;
+  --color-navy-600: #142d59;
+  --color-navy-700: #0d2142;
+  --color-navy-800: #08162e;
+  --color-navy-900: #050e1d;
+
+  /* ─── Energy palette (FPL-inspired lime green CTA) ────────────────────── */
+  --color-energy-50:  #f4faea;
+  --color-energy-100: #e6f3cc;
+  --color-energy-200: #d0e89a;
+  --color-energy-300: #b9dc67;
+  --color-energy-400: #a7ce39;
+  --color-energy-500: #8fb836;
+  --color-energy-600: #739931;
+  --color-energy-700: #577628;
+  --color-energy-800: #3f561f;
+  --color-energy-900: #2a3a16;
 
   /* ─── Supermarket mode colors ─────────────────────────────────────────── */
   --color-market-50:  #f0fdf4;
@@ -41,7 +53,7 @@
   --color-market-900: #14532d;
 
   /* ─── Status colors ───────────────────────────────────────────────────── */
-  --color-status-ok:      #22c55e;
+  --color-status-ok:      #8fb836;
   --color-status-low:     #f59e0b;
   --color-status-empty:   #ef4444;
 
@@ -50,6 +62,9 @@
 
   /* ─── Radius ──────────────────────────────────────────────────────────── */
   --radius-card: 1rem;
+
+  /* ─── Easing (smooth FPL-like motion) ─────────────────────────────────── */
+  --ease-smooth: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /* ─── Base styles ─────────────────────────────────────────────────────────── */
@@ -62,6 +77,12 @@ body {
   background-color: #fafaf9;
   color: #1c1917;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 /* ─── Dark theme ──────────────────────────────────────────────────────────── */
@@ -160,27 +181,110 @@ html.dark .skeleton {
   background-size: 800px 100%;
 }
 
-/* ─── Microinteractions: press & focus ───────────────────────────────────── */
+/* ─── Microinteractions: press & focus (FPL-like smooth motion) ─────────── */
 button,
 a,
 [role="button"] {
   transition:
-    transform 0.15s ease-out,
-    box-shadow 0.2s ease-out,
-    background-color 0.2s ease-out,
-    color 0.2s ease-out,
-    border-color 0.2s ease-out;
+    transform 0.25s var(--ease-smooth),
+    box-shadow 0.3s var(--ease-smooth),
+    background-color 0.3s var(--ease-smooth),
+    color 0.25s var(--ease-smooth),
+    border-color 0.25s var(--ease-smooth),
+    opacity 0.25s var(--ease-smooth);
 }
 button:active:not(:disabled),
 a:active,
 [role="button"]:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--color-energy-400);
   outline-offset: 2px;
   border-radius: 0.5rem;
+}
+
+/* ─── FPL-style primary CTA (lime-green energy button) ──────────────────── */
+.btn-energy {
+  background-color: var(--color-energy-400);
+  color: var(--color-brand-800);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 2px rgba(0, 59, 113, 0.08), 0 6px 14px -6px rgba(143, 184, 54, 0.45);
+}
+.btn-energy:hover:not(:disabled) {
+  background-color: var(--color-energy-500);
+  box-shadow: 0 2px 4px rgba(0, 59, 113, 0.1), 0 10px 22px -8px rgba(143, 184, 54, 0.55);
+  transform: translateY(-1px);
+}
+.btn-energy:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ─── FPL-style primary brand button (navy) ─────────────────────────────── */
+.btn-primary {
+  background-color: var(--color-brand-600);
+  color: #ffffff;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 2px rgba(0, 35, 68, 0.1), 0 6px 14px -6px rgba(0, 59, 113, 0.35);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-brand-700);
+  box-shadow: 0 2px 4px rgba(0, 35, 68, 0.15), 0 10px 22px -8px rgba(0, 59, 113, 0.45);
+  transform: translateY(-1px);
+}
+
+/* ─── FPL-style stat card (colored accent bar + big number) ─────────────── */
+.stat-card {
+  position: relative;
+  background: #ffffff;
+  border-radius: 1rem;
+  padding: 1.1rem 1rem 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px -6px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  transition:
+    transform 0.3s var(--ease-smooth),
+    box-shadow 0.3s var(--ease-smooth),
+    border-color 0.3s var(--ease-smooth);
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--color-brand-500);
+  border-radius: 4px 0 0 4px;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 12px 28px -10px rgba(15, 23, 42, 0.15);
+  border-color: var(--color-brand-200);
+}
+.stat-card[data-accent="energy"]::before { background: var(--color-energy-400); }
+.stat-card[data-accent="warn"]::before   { background: var(--color-status-low); }
+.stat-card[data-accent="danger"]::before { background: var(--color-status-empty); }
+.stat-card[data-accent="brand"]::before  { background: var(--color-brand-500); }
+
+html.dark .stat-card {
+  background: #1c1917;
+  border-color: #292524;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px -6px rgba(0, 0, 0, 0.4);
+}
+html.dark .stat-card:hover {
+  border-color: var(--color-brand-600);
+}
+
+/* ─── FPL-style count-up animation for stat values ──────────────────────── */
+@keyframes foody-count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stat-value {
+  animation: foody-count-up 0.5s var(--ease-smooth) both;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Neomorphism ────────────────────────────────────────────────────────── */

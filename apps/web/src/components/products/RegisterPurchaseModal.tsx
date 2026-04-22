@@ -129,8 +129,8 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
       onClose={onClose}
       className="m-0 w-full max-w-none h-full max-h-none bg-transparent backdrop:bg-black/50 backdrop:backdrop-blur-sm"
     >
-      <div className="fixed inset-0 flex items-end sm:items-center justify-center pointer-events-none">
-        <section className="pointer-events-auto w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-fade-up">
+      <div className="fixed inset-0 flex items-end sm:items-center justify-center pointer-events-none p-0 sm:p-4">
+        <section className="pointer-events-auto w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-fade-up max-h-[92vh] sm:max-h-[88vh] overflow-y-auto pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-xs uppercase tracking-wide text-brand-600 font-semibold">
@@ -261,7 +261,7 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
               type="button"
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-energy flex-1 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? 'Guardando…' : 'Guardar compra'}
             </button>

@@ -1,9 +1,18 @@
 interface Props {
-  totalProducts: number;
-  runningLowCount: number;
-  shoppingListCount: number;
-  upcomingPaymentsCount: number;
-  totalMonthlyExpenses: number;
+  readonly totalProducts: number;
+  readonly runningLowCount: number;
+  readonly upcomingPaymentsCount: number;
+  readonly totalMonthlyExpenses: number;
+}
+
+type Accent = 'brand' | 'energy' | 'warn' | 'danger';
+
+interface Stat {
+  readonly label: string;
+  readonly value: string | number;
+  readonly sublabel: string;
+  readonly icon: string;
+  readonly accent: Accent;
 }
 
 export default function DashboardStats({
@@ -11,44 +20,54 @@ export default function DashboardStats({
   runningLowCount,
   upcomingPaymentsCount,
   totalMonthlyExpenses,
-}: Props) {
-  const stats = [
+}: Readonly<Props>) {
+  const stats: readonly Stat[] = [
     {
-      label: 'Productos',
+      label: 'Productos en despensa',
       value: totalProducts,
+      sublabel: totalProducts === 1 ? 'artículo registrado' : 'artículos registrados',
       icon: '📦',
-      color: 'bg-blue-50 text-blue-700 border-blue-100',
+      accent: 'brand',
     },
     {
-      label: 'Bajo stock',
+      label: 'Stock bajo',
       value: runningLowCount,
+      sublabel: runningLowCount === 0 ? 'todo en orden' : 'requieren reposición',
       icon: '⚠️',
-      color: runningLowCount > 0 ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-green-50 text-green-700 border-green-100',
+      accent: runningLowCount > 0 ? 'warn' : 'energy',
     },
     {
-      label: 'Pagos urgentes',
+      label: 'Pagos próximos',
       value: upcomingPaymentsCount,
+      sublabel: upcomingPaymentsCount === 0 ? 'sin vencimientos' : 'vencen esta semana',
       icon: '💳',
-      color: upcomingPaymentsCount > 0 ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100',
+      accent: upcomingPaymentsCount > 0 ? 'danger' : 'energy',
     },
     {
-      label: 'Gasto mensual',
+      label: 'Gasto del mes',
       value: `$${totalMonthlyExpenses.toFixed(0)}`,
+      sublabel: 'presupuesto estimado',
       icon: '💰',
-      color: 'bg-purple-50 text-purple-700 border-purple-100',
+      accent: 'energy',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
       {stats.map((stat) => (
-        <div
-          key={stat.label}
-          className={`rounded-2xl border p-4 text-center ${stat.color}`}
-        >
-          <div className="text-2xl mb-1">{stat.icon}</div>
-          <div className="text-2xl font-bold">{stat.value}</div>
-          <div className="text-xs font-medium mt-0.5 opacity-75">{stat.label}</div>
+        <div key={stat.label} className="stat-card" data-accent={stat.accent}>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <span className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500 leading-tight">
+              {stat.label}
+            </span>
+            <span className="text-lg sm:text-xl leading-none opacity-70">{stat.icon}</span>
+          </div>
+          <p className="stat-value text-2xl sm:text-3xl font-extrabold text-stone-900 leading-none break-all">
+            {stat.value}
+          </p>
+          <p className="mt-1.5 text-[11px] sm:text-xs text-stone-400 truncate">
+            {stat.sublabel}
+          </p>
         </div>
       ))}
     </div>
