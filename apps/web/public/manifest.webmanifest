@@ -1,0 +1,43 @@
+{
+  "name": "Foody",
+  "short_name": "Foody",
+  "description": "Controla tu despensa y pagos mensuales",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafaf9",
+  "theme_color": "#f97316",
+  "lang": "es",
+  "categories": ["food", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Modo Supermercado",
+      "short_name": "Super",
+      "description": "Abrir lista de compras",
+      "url": "/supermarket",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Agregar producto",
+      "short_name": "Nuevo",
+      "description": "Añadir producto a la despensa",
+      "url": "/products/new",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
