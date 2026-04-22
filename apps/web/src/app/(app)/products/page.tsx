@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
+import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Mis Productos' };
@@ -9,18 +10,20 @@ export default async function ProductsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-stone-800">🥗 Mis Productos</h1>
-          <p className="text-stone-500 mt-1">{products.length} productos en tu despensa</p>
-        </div>
-        <a
-          href="/products/new"
-          className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
-        >
-          + Agregar producto
-        </a>
-      </div>
+      <ModernTitle
+        title="🥗 Mis Productos"
+        subtitle={`${products.length} productos en tu despensa`}
+        action={
+          <a
+            href="/products/new"
+            aria-label="Agregar producto"
+            className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl transition-colors shadow-sm text-xs sm:text-sm whitespace-nowrap"
+          >
+            <span className="sm:hidden">+ Nuevo</span>
+            <span className="hidden sm:inline">+ Agregar producto</span>
+          </a>
+        }
+      />
 
       {/* ─── Filter badges ──────────────────────────────────────────────────── */}
       {products.length === 0 ? (

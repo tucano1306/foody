@@ -129,7 +129,7 @@ export default function ProductCard({ product, showActions = false }: Props) {
     <div
       {...swipe}
       {...longPress.handlers}
-      className={`group relative bg-white rounded-2xl border shadow-sm overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 touch-pan-y select-none ${borderCls}`}
+      className={`group relative bg-white rounded-2xl border shadow-md overflow-hidden transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}`}
     >
       {/* ─── Photo ───────────────────────────────────────────────────────── */}
       <div className="aspect-square bg-stone-50 relative overflow-hidden">
@@ -138,11 +138,11 @@ export default function ProductCard({ product, showActions = false }: Props) {
             src={current.photoUrl}
             alt={current.name}
             fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
             sizes="(max-width: 640px) 50vw, 25vw"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-5xl opacity-40">
+          <div className="w-full h-full flex items-center justify-center text-5xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
             🥑
           </div>
         )}
@@ -157,13 +157,33 @@ export default function ProductCard({ product, showActions = false }: Props) {
         {level === 'empty' && (
           <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
         )}
+
+        {/* Floating purchase button */}
+        <button
+          type="button"
+          onClick={() => setPurchaseOpen(true)}
+          aria-label="Registrar compra"
+          title="Registrar compra"
+          className="absolute bottom-2 right-2 w-11 h-11 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-600/40 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 z-10"
+        >
+          <span className="text-lg leading-none">🛒</span>
+        </button>
       </div>
 
       {/* ─── Info ────────────────────────────────────────────────────────── */}
       <div className="p-3">
         <p className="font-semibold text-stone-800 text-sm truncate">{current.name}</p>
         {current.category && (
-          <p className="text-xs text-stone-400 mt-0.5 truncate">{current.category}</p>
+          <p className="text-[11px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
+            {current.category}
+          </p>
+        )}
+
+        {/* Price (prominent) */}
+        {current.lastPurchasePrice != null && (
+          <p className="mt-1 text-lg font-extrabold text-stone-900 leading-none">
+            {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
+          </p>
         )}
 
         {/* ─── 3-state segmented selector ─────────────────────────────────── */}
@@ -200,35 +220,18 @@ export default function ProductCard({ product, showActions = false }: Props) {
           {cfg.label}
         </p>
 
-        {/* ─── Purchase stats ────────────────────────────────────────────── */}
-        {(current.lastPurchasePrice != null || current.totalSpent > 0) && (
-          <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
-            {current.lastPurchasePrice == null ? (
-              <span className="text-stone-300">Sin compras</span>
-            ) : (
-              <span title="Último precio unitario">
-                💲{formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
-              </span>
-            )}
-            {current.totalSpent > 0 && (
-              <span className="font-semibold text-brand-600" title="Total gastado">
-                Σ {formatMoney(current.totalSpent, current.currency ?? 'MXN')}
-              </span>
-            )}
+        {/* ─── Total spent footer ───────────────────────────────────────── */}
+        {current.totalSpent > 0 && (
+          <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
+            <span className="text-stone-400">Total gastado</span>
+            <span className="font-bold text-brand-700">
+              {formatMoney(current.totalSpent, current.currency ?? 'MXN')}
+            </span>
           </div>
         )}
 
-        {/* ─── Quick purchase button ─────────────────────────────────────── */}
-        <button
-          type="button"
-          onClick={() => setPurchaseOpen(true)}
-          className="mt-2 w-full py-1.5 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition flex items-center justify-center gap-1"
-        >
-          🛒 Lo compré
-        </button>
-
         {showActions && (
-          <div className="mt-1.5 grid grid-cols-2 gap-1">
+          <div className="mt-2 grid grid-cols-2 gap-1">
             <a
               href={`/products/${current.id}`}
               className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition"

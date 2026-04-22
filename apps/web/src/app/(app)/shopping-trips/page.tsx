@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import ModernTitle from '@/components/layout/ModernTitle';
 import type { ShoppingTrip } from '@foody/types';
 
 function formatCurrency(value: number, currency: string): string {
@@ -36,20 +37,20 @@ export default async function ShoppingTripsPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-stone-800">🧾 Compras</h1>
-          <p className="text-sm text-stone-500">
-            Tus tickets de supermercado con precios por producto.
-          </p>
-        </div>
-        <Link
-          href="/shopping-trips/new"
-          className="rounded-xl bg-brand-600 text-white px-4 py-2 text-sm font-semibold shadow hover:bg-brand-700 transition"
-        >
-          + Nueva compra
-        </Link>
-      </header>
+      <ModernTitle
+        title="🧾 Compras"
+        subtitle="Tus tickets de supermercado con precios por producto."
+        action={
+          <Link
+            href="/shopping-trips/new"
+            aria-label="Nueva compra"
+            className="rounded-xl bg-brand-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold shadow hover:bg-brand-700 transition whitespace-nowrap"
+          >
+            <span className="sm:hidden">+ Nueva</span>
+            <span className="hidden sm:inline">+ Nueva compra</span>
+          </Link>
+        }
+      />
 
       {trips.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-10 text-center">

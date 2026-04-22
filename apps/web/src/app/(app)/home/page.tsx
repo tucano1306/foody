@@ -7,6 +7,7 @@ import FrequentProducts from '@/components/home/FrequentProducts';
 import ExpensesByCategory from '@/components/home/ExpensesByCategory';
 import ExpensesByStore from '@/components/home/ExpensesByStore';
 import ModeToggle from '@/components/layout/ModeToggle';
+import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
@@ -29,12 +30,13 @@ export default async function HomePage() {
   return (
     <div className="space-y-8">
       {/* ─── Header + Mode Toggle ───────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-stone-800">🏠 Modo Casa</h1>
-          <p className="text-stone-500 mt-1">Gestiona tu despensa y pagos</p>
-        </div>
-        <ModeToggle currentMode="home" />
+      <div className="bg-brand-700 text-white rounded-2xl p-5 sm:p-6 shadow-lg">
+        <ModernTitle
+          title="🏠 Modo Casa"
+          subtitle="Gestiona tu despensa y pagos"
+          onDark
+          action={<ModeToggle currentMode="home" onDark />}
+        />
       </div>
 
       {/* ─── Stats ─────────────────────────────────────────────────────────── */}
@@ -79,15 +81,18 @@ export default async function HomePage() {
         </section>
       )}      {/* ─── Todos los productos ────────────────────────────────────────────── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-stone-700">
-            🛒 Todos los productos ({products.length})
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="text-base sm:text-xl font-semibold text-stone-700 min-w-0 truncate">
+            <span className="sm:hidden">🛒 Productos ({products.length})</span>
+            <span className="hidden sm:inline">🛒 Todos los productos ({products.length})</span>
           </h2>
           <a
             href="/products/new"
-            className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+            aria-label="Agregar producto"
+            className="shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
           >
-            + Agregar
+            <span className="sm:hidden">+ Nuevo</span>
+            <span className="hidden sm:inline">+ Agregar</span>
           </a>
         </div>
         {products.length === 0 ? (

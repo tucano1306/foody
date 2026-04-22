@@ -1,4 +1,5 @@
 import HouseholdManager from '@/components/household/HouseholdManager';
+import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Mi hogar' };
@@ -6,12 +7,10 @@ export const metadata: Metadata = { title: 'Mi hogar' };
 export default function HouseholdPage() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-bold text-stone-800">🏡 Mi hogar</h1>
-        <p className="text-stone-500 mt-1">
-          Comparte productos, lista del súper y pagos con tu familia.
-        </p>
-      </div>
+      <ModernTitle
+        title="🏡 Mi hogar"
+        subtitle="Comparte productos, lista del súper y pagos con tu familia."
+      />
       <HouseholdManager />
     </div>
   );

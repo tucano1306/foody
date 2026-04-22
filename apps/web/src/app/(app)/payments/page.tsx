@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import PaymentCard from '@/components/payments/PaymentCard';
+import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Pagos Mensuales' };
@@ -14,20 +15,20 @@ export default async function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-stone-800">💳 Pagos Mensuales</h1>
-          <p className="text-stone-500 mt-1">
-            {paid.length}/{payments.length} pagados este mes
-          </p>
-        </div>
-        <a
-          href="/payments/new"
-          className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
-        >
-          + Agregar
-        </a>
-      </div>
+      <ModernTitle
+        title="💳 Pagos Mensuales"
+        subtitle={`${paid.length}/${payments.length} pagados este mes`}
+        action={
+          <a
+            href="/payments/new"
+            aria-label="Agregar pago"
+            className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl transition-colors shadow-sm text-xs sm:text-sm whitespace-nowrap"
+          >
+            <span className="sm:hidden">+ Nuevo</span>
+            <span className="hidden sm:inline">+ Agregar</span>
+          </a>
+        }
+      />
 
       {/* ─── Monthly summary ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
