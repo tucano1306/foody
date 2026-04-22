@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @foody/api build",
   "builds": [
     {
       "src": "dist/main.js",
