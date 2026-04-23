@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@foody/types": "workspace:*",
+    "@neondatabase/serverless": "^1.1.0",
     "iron-session": "^8.0.3",
     "jose": "^5.9.0",
     "next": "15.3.0",

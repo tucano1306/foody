@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { getSessionOptions } from '@/lib/session';
 import { emailToUuid, signJWT } from '@/lib/server-auth';
+import { sql } from '@/lib/db';
 import type { SessionData } from '@foody/types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,6 +41,17 @@ export async function POST(request: NextRequest) {
   }
 
   const userId = emailToUuid(email);
+
+  // Ensure user exists in DB (upsert on login)
+  await sql`
+    INSERT INTO users (id, email, name, avatar_url, created_at, updated_at)
+    VALUES (${userId}, ${email}, ${name}, null, NOW(), NOW())
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      name = COALESCE(EXCLUDED.name, users.name),
+      updated_at = NOW()
+  `;
+
   const jwt = await signJWT({
     sub: userId,
     email,
