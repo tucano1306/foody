@@ -1,5 +1,3 @@
 {
-  "framework": "nextjs",
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm build --filter @foody/web"
+  "framework": "nextjs"
 }
