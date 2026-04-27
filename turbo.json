@@ -5,7 +5,25 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "DATABASE_URL",
+        "DATABASE_URL_UNPOOLED",
+        "POSTGRES_URL",
+        "POSTGRES_URL_NON_POOLING",
+        "POSTGRES_URL_NO_SSL",
+        "POSTGRES_PRISMA_URL",
+        "POSTGRES_USER",
+        "POSTGRES_HOST",
+        "POSTGRES_PASSWORD",
+        "POSTGRES_DATABASE",
+        "PGHOST",
+        "PGHOST_UNPOOLED",
+        "PGUSER",
+        "PGPASSWORD",
+        "PGDATABASE",
+        "NEON_PROJECT_ID"
+      ]
     },
     "dev": {
       "cache": false,
