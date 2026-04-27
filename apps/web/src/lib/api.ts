@@ -420,7 +420,7 @@ export const api = {
     },
   },
   payments: {
-    list: async () => {
+    list: async (): Promise<MonthlyPayment[]> => {
       const { userId } = await getAuthContext();
       const payments = await sql`SELECT * FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`;
       const { month, year } = getCurrentMonthYear();

@@ -9,18 +9,19 @@ import ExpensesByStore from '@/components/home/ExpensesByStore';
 import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
+import type { Product, MonthlyPayment } from '@foody/types';
 
 export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
 
 export default async function HomePage() {
-  const [products, payments] = await Promise.all([
+  const [products, payments]: [Product[], MonthlyPayment[]] = await Promise.all([
     api.products.list(),
     api.payments.list(),
   ]);
 
-  const empty = products.filter((p) => p.stockLevel === 'empty');
-  const low = products.filter((p) => p.stockLevel === 'half');
-  const runningLow = [...empty, ...low];
+  const empty: Product[] = products.filter((p) => p.stockLevel === 'empty');
+  const low: Product[] = products.filter((p) => p.stockLevel === 'half');
+  const runningLow: Product[] = [...empty, ...low];
   const upcomingPayments = payments
     .filter((p) => !p.isPaidThisMonth && p.daysUntilDue <= 7)
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue);

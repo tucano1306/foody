@@ -12,10 +12,14 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>;
 }>) {
   const { id } = await params;
-  let product: Product;
+  let product: Product | null = null;
   try {
     product = await api.products.get(id);
   } catch {
+    notFound();
+  }
+
+  if (!product) {
     notFound();
   }
 

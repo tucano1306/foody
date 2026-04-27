@@ -2,67 +2,89 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 
-async function getUserHousehold(userId: string): Promise<string | null> {
-  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
-  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
+function asNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  }
+  return fallback;
+}
+
+function asInteger(value: unknown, fallback = 0): number {
+  if (typeof value === 'number') return Math.trunc(value);
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  }
+  return fallback;
+}
+
+function daysUntilDue(dueDay: number): number {
+  const now = new Date();
+  const today = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  if (dueDay >= today) return dueDay - today;
+  return daysInMonth - today + dueDay;
+}
+
+function mapPayment(row: Record<string, unknown>) {
+  const dueDay = asInteger(row.due_day, 1);
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ''),
+    description: (row.description as string | null | undefined) ?? null,
+    amount: asNumber(row.amount),
+    currency: String(row.currency ?? 'USD'),
+    dueDay,
+    category: String(row.category ?? 'other'),
+    isActive: row.is_active == null ? true : Boolean(row.is_active),
+    notificationDaysBefore: asInteger(row.notification_days_before, 3),
+    userId: String(row.user_id),
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+    isPaidThisMonth: false,
+    daysUntilDue: daysUntilDue(dueDay),
+  };
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const rows = await sql`SELECT * FROM payments WHERE id = ${id} LIMIT 1`;
+  const rows = await sql`SELECT * FROM monthly_payments WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;
   if (!rows.length) return notFound();
-  return NextResponse.json(rows[0]);
+  return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>));
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const householdId = await getUserHousehold(user.userId);
   const body = await request.json() as Record<string, unknown>;
 
-  let rows;
-  if (householdId) {
-    rows = await sql`
-      UPDATE payments SET
-        name = COALESCE(${body.name as string ?? null}, name),
-        amount = COALESCE(${body.amount as number ?? null}, amount),
-        is_paid = COALESCE(${body.isPaid as boolean ?? null}, is_paid),
-        due_date = COALESCE(${body.dueDate as string ?? null}, due_date),
-        notes = COALESCE(${body.notes as string ?? null}, notes),
-        updated_at = NOW()
-      WHERE id = ${id} AND household_id = ${householdId} RETURNING *
-    `;
-  } else {
-    rows = await sql`
-      UPDATE payments SET
-        name = COALESCE(${body.name as string ?? null}, name),
-        amount = COALESCE(${body.amount as number ?? null}, amount),
-        is_paid = COALESCE(${body.isPaid as boolean ?? null}, is_paid),
-        due_date = COALESCE(${body.dueDate as string ?? null}, due_date),
-        notes = COALESCE(${body.notes as string ?? null}, notes),
-        updated_at = NOW()
-      WHERE id = ${id} AND user_id = ${user.userId} AND household_id IS NULL RETURNING *
-    `;
-  }
+  const rows = await sql`
+    UPDATE monthly_payments SET
+      name = COALESCE(${body.name as string ?? null}, name),
+      description = COALESCE(${body.description as string ?? null}, description),
+      amount = COALESCE(${body.amount as number ?? null}, amount),
+      currency = COALESCE(${body.currency as string ?? null}, currency),
+      due_day = COALESCE(${body.dueDay as number ?? null}, due_day),
+      category = COALESCE(${body.category as string ?? null}, category),
+      notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
+      updated_at = NOW()
+    WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
+  `;
   if (!rows.length) return notFound();
-  return NextResponse.json(rows[0]);
+  return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>));
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const householdId = await getUserHousehold(user.userId);
 
-  let rows;
-  if (householdId) {
-    rows = await sql`DELETE FROM payments WHERE id = ${id} AND household_id = ${householdId} RETURNING id`;
-  } else {
-    rows = await sql`DELETE FROM payments WHERE id = ${id} AND user_id = ${user.userId} AND household_id IS NULL RETURNING id`;
-  }
+  const rows = await sql`DELETE FROM monthly_payments WHERE id = ${id} AND user_id = ${user.userId} RETURNING id`;
   if (!rows.length) return notFound();
   return new NextResponse(null, { status: 204 });
 }

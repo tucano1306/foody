@@ -2,11 +2,12 @@ import { api } from '@/lib/api';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
 import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
+import type { Product } from '@foody/types';
 
 export const metadata: Metadata = { title: 'Mis Productos' };
 
 export default async function ProductsPage() {
-  const products = await api.products.list();
+  const products: Product[] = await api.products.list();
 
   return (
     <div className="space-y-6">

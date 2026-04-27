@@ -36,12 +36,10 @@ export async function GET(request: NextRequest) {
         ORDER BY name ASC
       `;
     }
+  } else if (householdId) {
+    rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} ORDER BY name ASC`;
   } else {
-    if (householdId) {
-      rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} ORDER BY name ASC`;
-    } else {
-      rows = await sql`SELECT * FROM products WHERE user_id = ${user.userId} AND household_id IS NULL ORDER BY name ASC`;
-    }
+    rows = await sql`SELECT * FROM products WHERE user_id = ${user.userId} AND household_id IS NULL ORDER BY name ASC`;
   }
   return NextResponse.json(rows);
 }
@@ -69,7 +67,9 @@ export async function POST(request: NextRequest) {
   const minQty = body.minQuantity ?? 1;
   const needsShopping = body.needsShopping ?? false;
   const isRunningLow = body.isRunningLow ?? false;
-  const stockLevel = isRunningLow ? 'half' : needsShopping ? 'empty' : 'full';
+  let stockLevel: 'full' | 'half' | 'empty' = 'full';
+  if (needsShopping) stockLevel = 'empty';
+  if (isRunningLow) stockLevel = 'half';
 
   const rows = await sql`
     INSERT INTO products (

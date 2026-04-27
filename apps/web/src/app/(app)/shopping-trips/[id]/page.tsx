@@ -39,10 +39,14 @@ export default async function TripDetailPage({
   params: Promise<{ id: string }>;
 }>) {
   const { id } = await params;
-  let trip: ShoppingTripDetail;
+  let trip: ShoppingTripDetail | null = null;
   try {
     trip = await api.shoppingTrips.get(id);
   } catch {
+    notFound();
+  }
+
+  if (!trip) {
     notFound();
   }
 
