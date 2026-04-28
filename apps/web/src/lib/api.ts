@@ -343,25 +343,19 @@ export const api = {
         const rows = await sql`
           SELECT
             sli.*,
-            p.name as product_name,
+            p.name       as product_name,
             p.description as product_description,
-            p.photo_url as product_photo_url,
-            p.category as product_category,
+            p.photo_url  as product_photo_url,
+            p.category   as product_category,
             p.current_quantity as product_current_quantity,
-            p.min_quantity as product_min_quantity,
-            p.unit as product_unit,
-            p.stock_level as product_stock_level,
-            p.is_running_low as product_is_running_low,
-            p.needs_shopping as product_needs_shopping,
-            p.user_id as product_user_id,
-            p.created_at as product_created_at,
-            p.updated_at as product_updated_at,
-            p.last_purchase_price as product_last_purchase_price,
-            p.last_purchase_date as product_last_purchase_date,
-            p.avg_price as product_avg_price,
-            p.total_spent as product_total_spent,
-            p.total_purchased_qty as product_total_purchased_qty,
-            p.currency as product_currency
+            p.min_quantity     as product_min_quantity,
+            p.unit             as product_unit,
+            p.stock_level      as product_stock_level,
+            p.is_running_low   as product_is_running_low,
+            p.needs_shopping   as product_needs_shopping,
+            p.user_id          as product_user_id,
+            p.created_at       as product_created_at,
+            p.updated_at       as product_updated_at
           FROM shopping_list_items sli
           LEFT JOIN products p ON sli.product_id = p.id
           WHERE sli.household_id = ${householdId}
@@ -372,25 +366,19 @@ export const api = {
       const rows = await sql`
         SELECT
           sli.*,
-          p.name as product_name,
+          p.name       as product_name,
           p.description as product_description,
-          p.photo_url as product_photo_url,
-          p.category as product_category,
+          p.photo_url  as product_photo_url,
+          p.category   as product_category,
           p.current_quantity as product_current_quantity,
-          p.min_quantity as product_min_quantity,
-          p.unit as product_unit,
-          p.stock_level as product_stock_level,
-          p.is_running_low as product_is_running_low,
-          p.needs_shopping as product_needs_shopping,
-          p.user_id as product_user_id,
-          p.created_at as product_created_at,
-          p.updated_at as product_updated_at,
-          p.last_purchase_price as product_last_purchase_price,
-          p.last_purchase_date as product_last_purchase_date,
-          p.avg_price as product_avg_price,
-          p.total_spent as product_total_spent,
-          p.total_purchased_qty as product_total_purchased_qty,
-          p.currency as product_currency
+          p.min_quantity     as product_min_quantity,
+          p.unit             as product_unit,
+          p.stock_level      as product_stock_level,
+          p.is_running_low   as product_is_running_low,
+          p.needs_shopping   as product_needs_shopping,
+          p.user_id          as product_user_id,
+          p.created_at       as product_created_at,
+          p.updated_at       as product_updated_at
         FROM shopping_list_items sli
         LEFT JOIN products p ON sli.product_id = p.id
         WHERE sli.user_id = ${userId} AND sli.household_id IS NULL
