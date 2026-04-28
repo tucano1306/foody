@@ -113,6 +113,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     });
 
     if (res.ok) {
+      const data = await res.json();
+      console.log('[SupermarketView] complete response:', JSON.stringify(data));
       setShowModal(false);
       setStoreName('');
       setQuantities({});

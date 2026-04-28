@@ -49,6 +49,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
     fetch('/api/shopping-list/last-purchases', { credentials: 'include' })
       .then((r) => r.ok ? r.json() : [])
       .then((rows: { productId: string; purchasedAt: string; storeName: string | null }[]) => {
+        console.log('[HomeProductsShell] last-purchases rows:', rows.length, rows.slice(0, 3));
         const record: PurchaseRecord = {};
         for (const r of rows) record[r.productId] = { purchasedAt: r.purchasedAt, storeName: r.storeName };
         setLastPurchaseMap(record);
