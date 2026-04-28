@@ -13,15 +13,17 @@ interface Props {
 function ProductGrid({
   items,
   onLevelChange,
+  lastPurchaseMap,
 }: {
   readonly items: readonly Product[];
   readonly onLevelChange: (id: string, level: StockLevel) => void;
+  readonly lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
 }) {
   if (items.length === 1) {
     return (
       <div className="flex justify-center">
         <div className="w-1/2 sm:w-1/3 md:w-1/4">
-          <ProductCard product={items[0]} onLevelChange={onLevelChange} />
+          <ProductCard product={items[0]} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.get(items[0].id)} />
         </div>
       </div>
     );
@@ -29,7 +31,7 @@ function ProductGrid({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
       {items.map((p) => (
-        <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} />
+        <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.get(p.id)} />
       ))}
     </div>
   );
@@ -54,7 +56,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap }: 
           <h2 className="text-xl font-semibold text-rose-700 mb-4 flex items-center gap-2">
             <span>🚨</span> Se acabó — prioridad ({empty.length})
           </h2>
-          <ProductGrid items={empty} onLevelChange={handleLevelChange} />
+          <ProductGrid items={empty} onLevelChange={handleLevelChange} lastPurchaseMap={lastPurchaseMap} />
         </section>
       )}
 
@@ -63,7 +65,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap }: 
           <h2 className="text-xl font-semibold text-amber-700 mb-4 flex items-center gap-2">
             <span>⚠️</span> Queda poco ({low.length})
           </h2>
-          <ProductGrid items={low} onLevelChange={handleLevelChange} />
+          <ProductGrid items={low} onLevelChange={handleLevelChange} lastPurchaseMap={lastPurchaseMap} />
         </section>
       )}
 

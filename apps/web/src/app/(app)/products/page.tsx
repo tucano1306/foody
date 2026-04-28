@@ -2,12 +2,18 @@ import { api } from '@/lib/api';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
 import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
-import type { Product } from '@foody/types';
 
 export const metadata: Metadata = { title: 'Mis Productos' };
 
 export default async function ProductsPage() {
-  const products: Product[] = await api.products.list();
+  const [products, lastPurchasesRaw] = await Promise.all([
+    api.products.list(),
+    api.shoppingList.lastPurchases().catch(() => [] as { productId: string; purchasedAt: string; storeName: string | null }[]),
+  ]);
+
+  const lastPurchaseMap = new Map(
+    lastPurchasesRaw.map((p) => [p.productId, { purchasedAt: p.purchasedAt, storeName: p.storeName }]),
+  );
 
   return (
     <div className="space-y-6">
@@ -44,7 +50,7 @@ export default async function ProductsPage() {
           </a>
         </div>
       ) : (
-        <ProductsBrowser products={products} showActions showStockFilter pageSize={12} />
+        <ProductsBrowser products={products} showActions showStockFilter pageSize={12} lastPurchaseMap={lastPurchaseMap} />
       )}
     </div>
   );
