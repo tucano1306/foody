@@ -14,7 +14,7 @@ interface Props {
   readonly pageSize?: number;
   readonly emptyState?: React.ReactNode;
   readonly searchOnly?: boolean;
-  readonly lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
+  readonly lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
 }
 
@@ -32,7 +32,7 @@ interface GridOptions {
   emptyState: React.ReactNode;
   visible: readonly Product[];
   showActions: boolean;
-  lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
+  lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   onLevelChange?: (id: string, newLevel: StockLevel) => void;
 }
 
@@ -68,7 +68,7 @@ function renderGrid({
           key={product.id}
           product={product}
           showActions={showActions}
-          lastPurchase={lastPurchaseMap?.get(product.id)}
+          lastPurchase={lastPurchaseMap?.[product.id]}
           onLevelChange={onLevelChange}
         />
       ))}

@@ -1,13 +1,16 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from '@/components/products/ProductCard';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
 
+type PurchaseEntry = { purchasedAt: string; storeName: string | null };
+type PurchaseRecord = Record<string, PurchaseEntry>;
+
 interface Props {
   readonly initialProducts: readonly Product[];
-  readonly lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
+  readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
 }
 
 function ProductGrid({
@@ -17,13 +20,13 @@ function ProductGrid({
 }: {
   readonly items: readonly Product[];
   readonly onLevelChange: (id: string, level: StockLevel) => void;
-  readonly lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
+  readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
 }) {
   if (items.length === 1) {
     return (
       <div className="flex justify-center">
         <div className="w-1/2 sm:w-1/3 md:w-1/4">
-          <ProductCard product={items[0]} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.get(items[0].id)} />
+          <ProductCard product={items[0]} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[items[0].id]} />
         </div>
       </div>
     );
@@ -31,14 +34,27 @@ function ProductGrid({
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
       {items.map((p) => (
-        <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.get(p.id)} />
+        <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[p.id]} />
       ))}
     </div>
   );
 }
 
-export default function HomeProductsShell({ initialProducts, lastPurchaseMap }: Props) {
+export default function HomeProductsShell({ initialProducts, lastPurchaseMap: initialPurchaseMap }: Props) {
   const [products, setProducts] = useState<readonly Product[]>(initialProducts);
+  const [lastPurchaseMap, setLastPurchaseMap] = useState<Readonly<PurchaseRecord> | undefined>(initialPurchaseMap);
+
+  // Re-fetch fresh purchase history client-side so it reflects recent completions
+  useEffect(() => {
+    fetch('/api/shopping-list/last-purchases', { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : [])
+      .then((rows: { productId: string; purchasedAt: string; storeName: string | null }[]) => {
+        const record: PurchaseRecord = {};
+        for (const r of rows) record[r.productId] = { purchasedAt: r.purchasedAt, storeName: r.storeName };
+        setLastPurchaseMap(record);
+      })
+      .catch(() => undefined);
+  }, []);
 
   function handleLevelChange(id: string, newLevel: StockLevel) {
     setProducts((prev) =>

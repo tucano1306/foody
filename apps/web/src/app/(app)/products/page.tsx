@@ -11,7 +11,7 @@ export default async function ProductsPage() {
     api.shoppingList.lastPurchases().catch(() => [] as { productId: string; purchasedAt: string; storeName: string | null }[]),
   ]);
 
-  const lastPurchaseMap = new Map(
+  const lastPurchaseMap = Object.fromEntries(
     lastPurchasesRaw.map((p) => [p.productId, { purchasedAt: p.purchasedAt, storeName: p.storeName }]),
   );
 

@@ -39,14 +39,28 @@ export async function POST(request: NextRequest) {
   // Try to record a shopping trip (non-fatal if table is missing)
   let tripId: string | null = null;
   try {
-    const [tripRow] = await sql`
+    const tripRows = await sql`
       INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at, updated_at)
       VALUES (${storeName}, ${now}, 0, 'MXN', ${user.userId}, ${now}, ${now})
       RETURNING id
     `;
-    tripId = (tripRow as { id: string }).id;
+    tripId = (tripRows[0] as { id: string }).id;
+  } catch {
+    // updated_at may not exist in all envs — retry without it
+    try {
+      const tripRows = await sql`
+        INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at)
+        VALUES (${storeName}, ${now}, 0, 'MXN', ${user.userId}, ${now})
+        RETURNING id
+      `;
+      tripId = (tripRows[0] as { id: string }).id;
+    } catch (error_) {
+      console.error('[complete] shopping_trips insert failed (non-fatal):', error_);
+    }
+  }
 
-    // Record individual product purchases
+  // Record individual product purchases (always attempt, tripId may be null)
+  try {
     for (const item of items) {
       const row = item as { product_id: string; quantity_needed: string };
       const qty = quantities[row.product_id] ?? Number.parseFloat(row.quantity_needed) ?? 1;
@@ -58,7 +72,7 @@ export async function POST(request: NextRequest) {
       `;
     }
   } catch (err) {
-    console.error('[complete] stats recording failed (non-fatal):', err);
+    console.error('[complete] product_purchases insert failed (non-fatal):', err);
   }
 
   // Reset products to full stock
