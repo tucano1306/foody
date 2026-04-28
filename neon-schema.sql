@@ -179,3 +179,35 @@ CREATE TABLE IF NOT EXISTS "payment_records" (
 );
 
 CREATE INDEX IF NOT EXISTS "IDX_records_user_month" ON "payment_records" ("user_id", "month", "year");
+
+-- ─── Product Purchases ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "product_purchases" (
+  "id"           UUID          NOT NULL DEFAULT gen_random_uuid(),
+  "product_id"   UUID          NOT NULL,
+  "trip_id"      UUID          NULL,
+  "quantity"     DECIMAL(10,2) NOT NULL DEFAULT 1,
+  "unit_price"   DECIMAL(10,2) NULL,
+  "total_price"  DECIMAL(10,2) NULL,
+  "price_source" VARCHAR(50)   NOT NULL DEFAULT 'unknown',
+  "currency"     VARCHAR(10)   NOT NULL DEFAULT 'MXN',
+  "store_name"   VARCHAR(255)  NULL,
+  "purchased_at" TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  "household_id" UUID          NULL,
+  "user_id"      UUID          NOT NULL,
+  "created_at"   TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  CONSTRAINT "PK_product_purchases" PRIMARY KEY ("id"),
+  CONSTRAINT "FK_pp_product" FOREIGN KEY ("product_id")
+    REFERENCES "products"("id") ON DELETE CASCADE,
+  CONSTRAINT "FK_pp_trip" FOREIGN KEY ("trip_id")
+    REFERENCES "shopping_trips"("id") ON DELETE SET NULL,
+  CONSTRAINT "FK_pp_user" FOREIGN KEY ("user_id")
+    REFERENCES "users"("id") ON DELETE CASCADE,
+  CONSTRAINT "FK_pp_household" FOREIGN KEY ("household_id")
+    REFERENCES "households"("id") ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS "IDX_pp_user"       ON "product_purchases" ("user_id");
+CREATE INDEX IF NOT EXISTS "IDX_pp_product"    ON "product_purchases" ("product_id");
+CREATE INDEX IF NOT EXISTS "IDX_pp_trip"       ON "product_purchases" ("trip_id");
+CREATE INDEX IF NOT EXISTS "IDX_pp_household"  ON "product_purchases" ("household_id");
+CREATE INDEX IF NOT EXISTS "IDX_pp_purchased"  ON "product_purchases" ("user_id", "purchased_at" DESC);

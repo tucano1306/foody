@@ -42,31 +42,39 @@ function NavItem({
   readonly onClick?: () => void;
 }) {
   return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
-        active
-          ? 'bg-indigo-600/20 text-indigo-300'
-          : 'text-gray-400 hover:text-white hover:bg-gray-800/80'
-      }`}
+    <motion.div
+      whileHover="hovered"
+      whileTap="tapped"
+      className="rounded-xl"
     >
-      <motion.div
-        whileHover={{ scale: 1.25, rotate: active ? 0 : -8 }}
-        whileTap={{ scale: 0.85 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+      <Link
+        href={href}
+        onClick={onClick}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors group ${
+          active
+            ? 'bg-indigo-600/20 text-indigo-300'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800/80'
+        }`}
       >
-        <Icon
-          className={`w-5 h-5 shrink-0 transition-colors ${
-            active ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
-          }`}
-        />
-      </motion.div>
-      <span>{label}</span>
-      {active && (
-        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-      )}
-    </Link>
+        <motion.div
+          variants={{
+            hovered: { scale: 1.35, rotate: -14, y: -2 },
+            tapped: { scale: 0.75 },
+          }}
+          transition={{ type: 'spring', stiffness: 500, damping: 16 }}
+        >
+          <Icon
+            className={`w-5 h-5 shrink-0 transition-colors ${
+              active ? 'text-indigo-400' : 'text-gray-500 group-hover:text-indigo-400'
+            }`}
+          />
+        </motion.div>
+        <span>{label}</span>
+        {active && (
+          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+        )}
+      </Link>
+    </motion.div>
   );
 }
 

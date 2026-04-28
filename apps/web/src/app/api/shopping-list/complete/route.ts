@@ -50,9 +50,9 @@ export async function POST(request: NextRequest) {
     const qty = quantities[row.product_id] ?? Number.parseFloat(row.quantity_needed) ?? 1;
     await sql`
       INSERT INTO product_purchases
-        (id, product_id, quantity, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
+        (product_id, quantity, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
       VALUES
-        (gen_random_uuid(), ${row.product_id}, ${qty}, 'unknown', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
+        (${row.product_id}, ${qty}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
     `;
   }
 

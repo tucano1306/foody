@@ -66,7 +66,9 @@ export default function DashboardStats({
           key={stat.label}
           variants={{ hidden: { opacity: 0, y: 24, scale: 0.95 }, visible: { opacity: 1, y: 0, scale: 1 } }}
           transition={{ type: 'spring', stiffness: 340, damping: 22 }}
-          className="group flex flex-col items-center text-center bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 ease-out"
+          whileHover="card_hovered"
+          whileTap="card_tapped"
+          className="flex flex-col items-center text-center bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm hover:shadow-lg cursor-default"
         >
           <motion.div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3 shadow-md"
@@ -75,8 +77,11 @@ export default function DashboardStats({
               boxShadow: `0 8px 20px -6px ${stat.color}`,
             }}
             aria-hidden="true"
-            whileHover={{ scale: 1.2, rotate: [0, -10, 10, -6, 6, 0] }}
-            transition={{ duration: 0.5, ease: 'easeInOut' }}
+            variants={{
+              card_hovered: { scale: 1.22, rotate: [0, -14, 14, -8, 8, 0], y: -4 },
+              card_tapped: { scale: 0.85 },
+            }}
+            transition={{ type: 'spring', stiffness: 420, damping: 12 }}
           >
             <span className="text-xl sm:text-2xl leading-none">{stat.icon}</span>
           </motion.div>
