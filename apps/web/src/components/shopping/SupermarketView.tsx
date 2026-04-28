@@ -8,6 +8,7 @@ import { haptic } from '@/lib/haptic';
 
 interface Props {
   readonly initialItems: ShoppingListItem[];
+  readonly pastStoreNames?: readonly string[];
 }
 
 type Filter = 'all' | 'urgent' | 'low';
@@ -28,13 +29,16 @@ function getCheckboxCls(inCart: boolean, urgent: boolean): string {
   return 'border-stone-300';
 }
 
-export default function SupermarketView({ initialItems }: Props) {
+export default function SupermarketView({ initialItems, pastStoreNames }: Props) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [isPending, startTransition] = useTransition();
   const [completing, setCompleting] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [storeName, setStoreName] = useState('');
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   const { inCart, notInCart, urgent, low } = useMemo(() => {
     const inCart = items.filter((i) => i.isInCart);
@@ -75,20 +79,49 @@ export default function SupermarketView({ initialItems }: Props) {
     });
   }
 
-  async function completeShopping() {
+  function openModal() {
+    if (inCart.length === 0) return;
+    const initQty: Record<string, number> = {};
+    for (const item of inCart) {
+      initQty[item.product.id] = item.quantityNeeded;
+    }
+    setQuantities(initQty);
+    setShowModal(true);
+    haptic(12);
+  }
+
+  function closeModal() {
+    setShowModal(false);
+  }
+
+  function adjustQty(productId: string, current: number, delta: number) {
+    setQuantities((prev) => ({
+      ...prev,
+      [productId]: Math.max(0.5, (prev[productId] ?? current) + delta),
+    }));
+  }
+
+  async function confirmShopping() {
     if (inCart.length === 0) return;
     setCompleting(true);
     haptic([25, 50, 25]);
 
-    const res = await fetch(
-      `/api/proxy/shopping-list/complete`,
-      { method: 'POST', credentials: 'include' },
-    );
+    const res = await fetch('/api/proxy/shopping-list/complete', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storeName: storeName.trim() || undefined,
+        quantities,
+      }),
+    });
 
     if (res.ok) {
-      // Remove completed items immediately — no page navigation needed
+      setShowModal(false);
+      setStoreName('');
+      setQuantities({});
       setItems((prev) => prev.filter((i) => !i.isInCart));
-      router.refresh(); // sync server state in background
+      router.refresh();
     }
     setCompleting(false);
   }
@@ -233,7 +266,7 @@ export default function SupermarketView({ initialItems }: Props) {
       {inCart.length > 0 && (
         <div className="fixed bottom-4 inset-x-4 z-40 md:left-auto md:right-8 md:w-96 pb-[env(safe-area-inset-bottom)]">
           <button
-            onClick={completeShopping}
+            onClick={openModal}
             disabled={completing}
             className="w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98]"
           >
@@ -241,6 +274,118 @@ export default function SupermarketView({ initialItems }: Props) {
               ? 'Procesando...'
               : `✓ Finalizar compra · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`}
           </button>
+        </div>
+      )}
+
+      {/* ─── Completion modal ───────────────────────────────────────────────── */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          {/* Backdrop */}
+          <button
+            type="button"
+            aria-label="Cerrar"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-default"
+            onClick={closeModal}
+            onKeyDown={(e) => { if (e.key === 'Escape') closeModal(); }}
+          />
+
+          {/* Card */}
+          <div className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-stone-800">🛒 Finalizar compra</h2>
+              <button
+                onClick={closeModal}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Store name */}
+            <label
+              htmlFor="modal-store-name"
+              className="block text-sm font-semibold text-stone-700 mb-1.5"
+            >
+              ¿En qué supermercado compraste?
+            </label>
+            <input
+              id="modal-store-name"
+              list="store-suggestions"
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
+              placeholder="Ej. Walmart, Soriana, HEB…"
+              className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition mb-4"
+            />
+            {pastStoreNames && pastStoreNames.length > 0 && (
+              <datalist id="store-suggestions">
+                {pastStoreNames.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            )}
+
+            {/* Quantities */}
+            <p className="text-sm font-semibold text-stone-700 mb-2">
+              Cantidad comprada
+            </p>
+            <div className="flex-1 overflow-y-auto space-y-2 mb-5 pr-1">
+              {inCart.map((item) => {
+                const qty = quantities[item.product.id] ?? item.quantityNeeded;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 bg-stone-50 rounded-xl px-3 py-2.5 border border-stone-100"
+                  >
+                    <span className="flex-1 text-sm font-medium text-stone-700 truncate min-w-0">
+                      {item.product.name}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => adjustQty(item.product.id, item.quantityNeeded, -1)}
+                        className="w-7 h-7 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold text-base flex items-center justify-center transition"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 text-center text-sm font-bold text-stone-800">
+                        {qty % 1 === 0 ? qty : qty.toFixed(1)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => adjustQty(item.product.id, item.quantityNeeded, 1)}
+                        className="w-7 h-7 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold text-base flex items-center justify-center transition"
+                      >
+                        +
+                      </button>
+                      <span className="text-xs text-stone-400 w-8 text-left">
+                        {item.product.unit}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pb-[env(safe-area-inset-bottom)]">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="flex-1 py-3 rounded-2xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmShopping}
+                disabled={completing}
+                className="flex-1 py-3 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-sm transition disabled:opacity-50 active:scale-[0.98]"
+              >
+                {completing ? 'Guardando…' : '✓ Confirmar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -15,6 +15,10 @@ export default async function SupermarketPage() {
 
   const topStore = topStores.length > 0 ? topStores.sort((a, b) => b.count - a.count)[0] : null;
   const topProduct = frequentProducts.length > 0 ? frequentProducts[0] : null;
+  const pastStoreNames = topStores
+    .sort((a, b) => b.count - a.count)
+    .map((s) => s.storeName)
+    .filter((n): n is string => Boolean(n));
 
   return (
     <div className="space-y-6">
@@ -49,7 +53,7 @@ export default async function SupermarketPage() {
       )}
 
       {/* ─── Shopping list ──────────────────────────────────────────────────── */}
-      <SupermarketView initialItems={items} />
+      <SupermarketView initialItems={items} pastStoreNames={pastStoreNames} />
     </div>
   );
 }

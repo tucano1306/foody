@@ -179,7 +179,20 @@
     "Procesando",
     "Finalizar",
     "Urgente",
-    "Quitar"
+    "Quitar",
+    "compraste",
+    "Cantidad",
+    "comprada",
+    "comprado",
+    "favorito",
+    "Cancelar",
+    "cancelar",
+    "Confirmar",
+    "confirmar",
+    "Guardando",
+    "Cerrar",
+    "Walmart",
+    "Soriana"
   ],
   "ignorePaths": [
     "node_modules/**",
