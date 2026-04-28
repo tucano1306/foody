@@ -40,6 +40,16 @@ export async function POST(request: NextRequest) {
   const productIds = items.map((i) => (i as { product_id: string }).product_id);
   const now = new Date().toISOString();
 
+  // Fetch last known prices for each product so we can compute total_spent
+  const priceRows = await sql`
+    SELECT id, last_purchase_price FROM products
+    WHERE id = ANY(${productIds}::uuid[]) AND user_id = ${user.userId}
+  `;
+  const priceMap: Record<string, number | null> = {};
+  for (const r of priceRows as { id: string; last_purchase_price: string | null }[]) {
+    priceMap[r.id] = r.last_purchase_price == null ? null : Number.parseFloat(r.last_purchase_price);
+  }
+
   // Try to record a shopping trip (non-fatal if table is missing)
   let tripId: string | null = null;
   try {
@@ -63,24 +73,37 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Record individual product purchases (always attempt, tripId may be null)
+  // Record individual product purchases with prices where available
   let purchasesInserted = 0;
+  let totalSpent = 0;
   let purchaseError: string | null = null;
   try {
     for (const item of items) {
       const row = item as { product_id: string; quantity_needed: string };
       const qty = quantities[row.product_id] ?? (Number.parseFloat(row.quantity_needed) || 1);
+      const unitPrice = priceMap[row.product_id] ?? null;
+      const totalPrice = unitPrice == null ? null : unitPrice * qty;
+      if (totalPrice != null) totalSpent += totalPrice;
       await sql`
         INSERT INTO product_purchases
-          (product_id, quantity, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
+          (product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
         VALUES
-          (${row.product_id}, ${qty}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
+          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
       `;
       purchasesInserted++;
     }
   } catch (err) {
     purchaseError = err instanceof Error ? err.message : String(err);
     console.error('[complete] product_purchases insert failed:', purchaseError);
+  }
+
+  // Update trip total_spent with the real sum (if we have price data)
+  if (tripId && totalSpent > 0) {
+    try {
+      await sql`UPDATE shopping_trips SET total_spent = ${totalSpent} WHERE id = ${tripId}`;
+    } catch {
+      // non-fatal
+    }
   }
 
   // Reset products to full stock
