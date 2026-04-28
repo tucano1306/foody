@@ -60,11 +60,19 @@ export default async function HomePage() {
           <h2 className="text-xl font-semibold text-rose-700 mb-4 flex items-center gap-2">
             <span>🚨</span> Se acabó — prioridad ({empty.length})
           </h2>
-          <div className={`grid gap-4 ${empty.length === 1 ? 'grid-cols-1 place-items-center' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'}`}>
-            {empty.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {empty.length === 1 ? (
+            <div className="flex justify-center">
+              <div className="w-1/2 sm:w-1/3 md:w-1/4">
+                <ProductCard key={empty[0].id} product={empty[0]} />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {empty.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -74,11 +82,19 @@ export default async function HomePage() {
           <h2 className="text-xl font-semibold text-amber-700 mb-4 flex items-center gap-2">
             <span>⚠️</span> Queda poco ({low.length})
           </h2>
-          <div className={`grid gap-4 ${low.length === 1 ? 'grid-cols-1 place-items-center' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'}`}>
-            {low.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {low.length === 1 ? (
+            <div className="flex justify-center">
+              <div className="w-1/2 sm:w-1/3 md:w-1/4">
+                <ProductCard key={low[0].id} product={low[0]} />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {low.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
         </section>
       )}      {/* ─── Todos los productos ────────────────────────────────────────────── */}
       <section>
