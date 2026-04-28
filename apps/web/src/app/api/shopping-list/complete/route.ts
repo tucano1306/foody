@@ -36,24 +36,29 @@ export async function POST(request: NextRequest) {
   const productIds = items.map((i) => (i as { product_id: string }).product_id);
   const now = new Date().toISOString();
 
-  // Create a shopping trip record
-  const [tripRow] = await sql`
-    INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at, updated_at)
-    VALUES (${storeName}, ${now}, 0, 'MXN', ${user.userId}, ${now}, ${now})
-    RETURNING id
-  `;
-  const tripId = (tripRow as { id: string }).id;
-
-  // Create a product_purchase record for each in-cart item
-  for (const item of items) {
-    const row = item as { product_id: string; quantity_needed: string };
-    const qty = quantities[row.product_id] ?? Number.parseFloat(row.quantity_needed) ?? 1;
-    await sql`
-      INSERT INTO product_purchases
-        (product_id, quantity, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
-      VALUES
-        (${row.product_id}, ${qty}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
+  // Try to record a shopping trip (non-fatal if table is missing)
+  let tripId: string | null = null;
+  try {
+    const [tripRow] = await sql`
+      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at, updated_at)
+      VALUES (${storeName}, ${now}, 0, 'MXN', ${user.userId}, ${now}, ${now})
+      RETURNING id
     `;
+    tripId = (tripRow as { id: string }).id;
+
+    // Record individual product purchases
+    for (const item of items) {
+      const row = item as { product_id: string; quantity_needed: string };
+      const qty = quantities[row.product_id] ?? Number.parseFloat(row.quantity_needed) ?? 1;
+      await sql`
+        INSERT INTO product_purchases
+          (product_id, quantity, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
+        VALUES
+          (${row.product_id}, ${qty}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
+      `;
+    }
+  } catch (err) {
+    console.error('[complete] stats recording failed (non-fatal):', err);
   }
 
   // Reset products to full stock
