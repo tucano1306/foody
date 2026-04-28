@@ -5,81 +5,60 @@ import { ensurePurchaseSchema } from '@/lib/ensure-schema';
 
 interface CompletionBody {
   storeName?: string;
-  quantities?: Record<string, number>; // productId → quantity
+  quantities?: Record<string, number>;
 }
 
-// POST /api/shopping-list/complete
-// Marks all in-cart items as purchased, records a shopping trip + product purchases, resets stock
-export async function POST(request: NextRequest) {
-  const user = await getRouteUser(request);
-  if (!user) return unauthorized();
+type CartItem = { product_id: string; quantity_needed: string };
 
-  let body: CompletionBody = {};
+async function insertTrip(storeName: string | null, userId: string, now: string): Promise<string | null> {
   try {
-    body = (await request.json()) as CompletionBody;
-  } catch {
-    // body is optional
-  }
-
-  const storeName = body.storeName?.trim() || null;
-  const quantities: Record<string, number> = body.quantities ?? {};
-
-  // Ensure tables exist (creates them if this is the first run in this environment)
-  await ensurePurchaseSchema();
-
-  // Get all in-cart items for this user
-  const items = await sql`
-    SELECT id, product_id, quantity_needed FROM shopping_list_items
-    WHERE user_id = ${user.userId} AND is_in_cart = true
-  `;
-
-  if (!items.length) {
-    return NextResponse.json({ completed: 0 });
-  }
-
-  const productIds = items.map((i) => (i as { product_id: string }).product_id);
-  const now = new Date().toISOString();
-
-  // Fetch last known prices for each product so we can compute total_spent
-  const priceRows = await sql`
-    SELECT id, last_purchase_price FROM products
-    WHERE id = ANY(${productIds}::uuid[]) AND user_id = ${user.userId}
-  `;
-  const priceMap: Record<string, number | null> = {};
-  for (const r of priceRows as { id: string; last_purchase_price: string | null }[]) {
-    priceMap[r.id] = r.last_purchase_price == null ? null : Number.parseFloat(r.last_purchase_price);
-  }
-
-  // Try to record a shopping trip (non-fatal if table is missing)
-  let tripId: string | null = null;
-  try {
-    const tripRows = await sql`
+    const rows = await sql`
       INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at, updated_at)
-      VALUES (${storeName}, ${now}, 0, 'MXN', ${user.userId}, ${now}, ${now})
+      VALUES (${storeName}, ${now}, 0, 'MXN', ${userId}, ${now}, ${now})
       RETURNING id
     `;
-    tripId = (tripRows[0] as { id: string }).id;
+    return (rows[0] as { id: string }).id;
   } catch {
-    // updated_at may not exist in all envs — retry without it
-    try {
-      const tripRows = await sql`
-        INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at)
-        VALUES (${storeName}, ${now}, 0, 'MXN', ${user.userId}, ${now})
-        RETURNING id
-      `;
-      tripId = (tripRows[0] as { id: string }).id;
-    } catch (error_) {
-      console.error('[complete] shopping_trips insert failed (non-fatal):', error_);
-    }
+    // updated_at column may not exist — retry without it
   }
-
-  // Record individual product purchases with prices where available
-  let purchasesInserted = 0;
-  let totalSpent = 0;
-  let purchaseError: string | null = null;
   try {
-    for (const item of items) {
-      const row = item as { product_id: string; quantity_needed: string };
+    const rows = await sql`
+      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at)
+      VALUES (${storeName}, ${now}, 0, 'MXN', ${userId}, ${now})
+      RETURNING id
+    `;
+    return (rows[0] as { id: string }).id;
+  } catch (err) {
+    console.error('[complete] shopping_trips insert failed:', err);
+    return null;
+  }
+}
+
+async function fetchPriceMap(productIds: string[], userId: string): Promise<Record<string, number | null>> {
+  const rows = await sql`
+    SELECT id, last_purchase_price FROM products
+    WHERE id = ANY(${productIds}::uuid[]) AND user_id = ${userId}
+  `;
+  const map: Record<string, number | null> = {};
+  for (const r of rows as { id: string; last_purchase_price: string | null }[]) {
+    map[r.id] = r.last_purchase_price == null ? null : Number.parseFloat(r.last_purchase_price);
+  }
+  return map;
+}
+
+async function insertPurchases(
+  items: CartItem[],
+  quantities: Record<string, number>,
+  priceMap: Record<string, number | null>,
+  storeName: string | null,
+  tripId: string | null,
+  userId: string,
+  now: string,
+): Promise<{ inserted: number; totalSpent: number; error: string | null }> {
+  let inserted = 0;
+  let totalSpent = 0;
+  try {
+    for (const row of items) {
       const qty = quantities[row.product_id] ?? (Number.parseFloat(row.quantity_needed) || 1);
       const unitPrice = priceMap[row.product_id] ?? null;
       const totalPrice = unitPrice == null ? null : unitPrice * qty;
@@ -88,36 +67,60 @@ export async function POST(request: NextRequest) {
         INSERT INTO product_purchases
           (product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
         VALUES
-          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
+          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${userId}, ${now})
       `;
-      purchasesInserted++;
+      inserted++;
     }
+    return { inserted, totalSpent, error: null };
   } catch (err) {
-    purchaseError = err instanceof Error ? err.message : String(err);
-    console.error('[complete] product_purchases insert failed:', purchaseError);
+    const error = err instanceof Error ? err.message : String(err);
+    console.error('[complete] product_purchases insert failed:', error);
+    return { inserted, totalSpent, error };
   }
+}
 
-  // Update trip total_spent with the real sum (if we have price data)
+// POST /api/shopping-list/complete
+export async function POST(request: NextRequest) {
+  const user = await getRouteUser(request);
+  if (!user) return unauthorized();
+
+  let body: CompletionBody = {};
+  try { body = (await request.json()) as CompletionBody; } catch { /* body is optional */ }
+
+  const storeName = body.storeName?.trim() || null;
+  const quantities: Record<string, number> = body.quantities ?? {};
+
+  await ensurePurchaseSchema();
+
+  const rawItems = await sql`
+    SELECT id, product_id, quantity_needed FROM shopping_list_items
+    WHERE user_id = ${user.userId} AND is_in_cart = true
+  `;
+  if (!rawItems.length) return NextResponse.json({ completed: 0 });
+
+  const items = rawItems as CartItem[];
+  const productIds = items.map((i) => i.product_id);
+  const now = new Date().toISOString();
+
+  const [priceMap, tripId] = await Promise.all([
+    fetchPriceMap(productIds, user.userId),
+    insertTrip(storeName, user.userId, now),
+  ]);
+
+  const { inserted: purchasesInserted, totalSpent, error: purchaseError } =
+    await insertPurchases(items, quantities, priceMap, storeName, tripId, user.userId, now);
+
   if (tripId && totalSpent > 0) {
-    try {
-      await sql`UPDATE shopping_trips SET total_spent = ${totalSpent} WHERE id = ${tripId}`;
-    } catch {
-      // non-fatal
-    }
+    await sql`UPDATE shopping_trips SET total_spent = ${totalSpent} WHERE id = ${tripId}`.catch(() => undefined);
   }
 
-  // Reset products to full stock
   await sql`
     UPDATE products
     SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
     WHERE id = ANY(${productIds}::uuid[]) AND user_id = ${user.userId}
   `;
 
-  // Delete the completed shopping list items
-  await sql`
-    DELETE FROM shopping_list_items
-    WHERE user_id = ${user.userId} AND is_in_cart = true
-  `;
+  await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND is_in_cart = true`;
 
   return NextResponse.json({ completed: items.length, tripId, purchasesInserted, purchaseError });
 }
