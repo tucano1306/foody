@@ -17,6 +17,7 @@ import {
   Bars3Icon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
+import ThemeToggle from './ThemeToggle';
 
 const NAV_ITEMS = [
   { href: '/home',           icon: HomeIcon,           label: 'Casa' },
@@ -135,18 +136,21 @@ export default function Navbar({ user }: Props) {
                 <p className="text-gray-500 text-xs truncate">{user.email}</p>
               </div>
             </div>
-            <form action="/api/auth/logout" method="POST">
-              <motion.button
-                type="submit"
-                title="Cerrar sesión"
-                className="text-gray-500 hover:text-red-400 transition-colors shrink-0"
-                whileHover={{ scale: 1.15, x: 3 }}
-                whileTap={{ scale: 0.85 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-              >
-                <ArrowLeftStartOnRectangleIcon className="w-5 h-5" />
-              </motion.button>
-            </form>
+            <div className="flex items-center gap-1 shrink-0">
+              <ThemeToggle />
+              <form action="/api/auth/logout" method="POST">
+                <motion.button
+                  type="submit"
+                  title="Cerrar sesión"
+                  className="text-gray-500 hover:text-red-400 transition-colors"
+                  whileHover={{ scale: 1.15, x: 3 }}
+                  whileTap={{ scale: 0.85 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  <ArrowLeftStartOnRectangleIcon className="w-5 h-5" />
+                </motion.button>
+              </form>
+            </div>
           </div>
         </div>
       </aside>
@@ -160,17 +164,20 @@ export default function Navbar({ user }: Props) {
               Foody
             </span>
           </Link>
-          <motion.button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition"
-            aria-label="Abrir menú"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.85, rotate: 90 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-          >
-            <Bars3Icon className="w-6 h-6" />
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <motion.button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition"
+              aria-label="Abrir menú"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.85, rotate: 90 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+            >
+              <Bars3Icon className="w-6 h-6" />
+            </motion.button>
+          </div>
         </header>
 
         {mobileOpen && (

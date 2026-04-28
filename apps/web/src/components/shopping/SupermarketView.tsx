@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 
@@ -169,9 +170,17 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       <div className="space-y-3">
         <div className="relative">
           <motion.span
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
-            animate={search ? { scale: [1, 1.25, 1], rotate: [0, -12, 0] } : {}}
-            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none"
+            animate={
+              search
+                ? { scale: [1, 1.35, 0.9, 1.1, 1], rotate: [0, -18, 12, -6, 0], y: [0, -3, 2, -1, 0] }
+                : { scale: [1, 1.08, 1], y: [0, -2, 0] }
+            }
+            transition={
+              search
+                ? { type: 'spring', stiffness: 450, damping: 12 }
+                : { duration: 2, repeat: Infinity, repeatDelay: 1.5, ease: 'easeInOut' }
+            }
           >
             🔍
           </motion.span>
@@ -269,14 +278,24 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           <motion.button
             onClick={openModal}
             disabled={completing}
-            className="w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98]"
+            className="w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2"
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 400, damping: 18 }}
           >
-            {completing
-              ? 'Procesando...'
-              : `✓ Finalizar compra · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`}
+            {completing ? (
+              'Procesando...'
+            ) : (
+              <>
+                <motion.span
+                  animate={{ rotate: [0, -15, 10, -6, 0], y: [0, -3, 1, -1, 0] }}
+                  transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }}
+                >
+                  <ShoppingCartIcon className="w-5 h-5" />
+                </motion.span>
+                {`Finalizar compra · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`}
+              </>
+            )}
           </motion.button>
         </div>
       )}
