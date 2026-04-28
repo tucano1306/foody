@@ -8,6 +8,7 @@ import { haptic } from '@/lib/haptic';
 import { useSwipe } from '@/lib/useSwipe';
 import { useLongPress } from '@/lib/useLongPress';
 import ActionSheet from '@/components/ui/ActionSheet';
+import PhotoLightbox from '@/components/ui/PhotoLightbox';
 import RegisterPurchaseModal from './RegisterPurchaseModal';
 
 interface Props {
@@ -71,6 +72,7 @@ export default function ProductCard({ product, showActions = false }: Props) {
   const [current, setCurrent] = useState(product);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const level: StockLevel = current.stockLevel ?? (current.isRunningLow ? 'half' : 'full');
   const cfg = LEVEL_CONFIG[level];
@@ -134,13 +136,20 @@ export default function ProductCard({ product, showActions = false }: Props) {
       {/* ─── Photo ───────────────────────────────────────────────────────── */}
       <div className="aspect-square bg-stone-50 relative overflow-hidden">
         {current.photoUrl ? (
-          <Image
-            src={current.photoUrl}
-            alt={current.name}
-            fill
-            className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
-            sizes="(max-width: 640px) 50vw, 25vw"
-          />
+          <button
+            type="button"
+            aria-label={`Ver foto de ${current.name}`}
+            onClick={() => setLightboxOpen(true)}
+            className="absolute inset-0 w-full h-full focus:outline-none"
+          >
+            <Image
+              src={current.photoUrl}
+              alt={current.name}
+              fill
+              className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
+              sizes="(max-width: 640px) 50vw, 25vw"
+            />
+          </button>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-5xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
             🥑
@@ -289,6 +298,14 @@ export default function ProductCard({ product, showActions = false }: Props) {
         onClose={() => setPurchaseOpen(false)}
         onSaved={(updated) => setCurrent(updated)}
       />
+
+      {lightboxOpen && current.photoUrl && (
+        <PhotoLightbox
+          src={current.photoUrl}
+          alt={current.name}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }

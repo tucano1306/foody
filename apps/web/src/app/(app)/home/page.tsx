@@ -60,7 +60,7 @@ export default async function HomePage() {
           <h2 className="text-xl font-semibold text-rose-700 mb-4 flex items-center gap-2">
             <span>🚨</span> Se acabó — prioridad ({empty.length})
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          <div className={`grid gap-4 ${empty.length === 1 ? 'grid-cols-1 place-items-center' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'}`}>
             {empty.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
@@ -74,7 +74,7 @@ export default async function HomePage() {
           <h2 className="text-xl font-semibold text-amber-700 mb-4 flex items-center gap-2">
             <span>⚠️</span> Queda poco ({low.length})
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          <div className={`grid gap-4 ${low.length === 1 ? 'grid-cols-1 place-items-center' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4'}`}>
             {low.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

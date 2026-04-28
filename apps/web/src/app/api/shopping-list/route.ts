@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       FROM shopping_list_items sli
       LEFT JOIN products p ON sli.product_id = p.id
       WHERE sli.household_id = ${householdId}
-      ORDER BY sli.added_at DESC
+      ORDER BY sli.created_at DESC
     `;
   } else {
     rows = await sql`
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       FROM shopping_list_items sli
       LEFT JOIN products p ON sli.product_id = p.id
       WHERE sli.user_id = ${user.userId} AND sli.household_id IS NULL
-      ORDER BY sli.added_at DESC
+      ORDER BY sli.created_at DESC
     `;
   }
   return NextResponse.json(rows);
@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
 
   const id = randomUUID();
   const rows = await sql`
-    INSERT INTO shopping_list_items (id, product_id, user_id, household_id, note, added_at)
-    VALUES (${id}, ${body.productId}, ${user.userId}, ${householdId}, ${body.note ?? null}, NOW())
+    INSERT INTO shopping_list_items (id, product_id, user_id, household_id, note, created_at, updated_at)
+    VALUES (${id}, ${body.productId}, ${user.userId}, ${householdId}, ${body.note ?? null}, NOW(), NOW())
     ON CONFLICT DO NOTHING
     RETURNING *
   `;

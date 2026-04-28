@@ -15,7 +15,7 @@ function getClient(): NeonQueryFunction<false, false> {
 
 // Proxy preserves the full NeonQueryFunction<false, false> interface so all
 // call sites retain proper TypeScript types (tagged template, .query, .unsafe, etc.)
-export const sql = new Proxy(
+export const sql: NeonQueryFunction<false, false> = new Proxy(
   (() => {}) as unknown as NeonQueryFunction<false, false>,
   {
     apply(_target, _thisArg, args) {
@@ -26,4 +26,4 @@ export const sql = new Proxy(
       return (getClient() as unknown as Record<string | symbol, unknown>)[prop];
     },
   },
-) as NeonQueryFunction<false, false>;
+);

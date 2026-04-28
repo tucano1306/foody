@@ -91,8 +91,8 @@ export async function POST(request: NextRequest) {
   if (needsShopping || isRunningLow) {
     const listId = randomUUID();
     await sql`
-      INSERT INTO shopping_list_items (id, product_id, user_id, household_id, added_at)
-      VALUES (${listId}, ${id}, ${user.userId}, ${householdId}, NOW())
+      INSERT INTO shopping_list_items (id, product_id, user_id, household_id, created_at, updated_at)
+      VALUES (${listId}, ${id}, ${user.userId}, ${householdId}, NOW(), NOW())
       ON CONFLICT DO NOTHING
     `;
   }

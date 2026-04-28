@@ -281,7 +281,7 @@ export const api = {
     markLow: async (id: string) => {
       const { userId } = await getAuthContext();
       const rows = await sql`UPDATE products SET stock_level='half', is_running_low=true, needs_shopping=true, updated_at=NOW() WHERE id=${id} RETURNING *`;
-      await sql`INSERT INTO shopping_list_items (id, product_id, user_id, added_at) VALUES (gen_random_uuid(), ${id}, ${userId}, NOW()) ON CONFLICT DO NOTHING`;
+      await sql`INSERT INTO shopping_list_items (id, product_id, user_id, created_at, updated_at) VALUES (gen_random_uuid(), ${id}, ${userId}, NOW(), NOW()) ON CONFLICT DO NOTHING`;
       return mapProduct(rows[0] as Record<string, unknown>);
     },
     markOk: async (id: string) => {
@@ -298,7 +298,7 @@ export const api = {
       if (level === 'full') {
         await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       } else {
-        await sql`INSERT INTO shopping_list_items (id, product_id, user_id, added_at) VALUES (gen_random_uuid(), ${id}, ${userId}, NOW()) ON CONFLICT DO NOTHING`;
+        await sql`INSERT INTO shopping_list_items (id, product_id, user_id, created_at, updated_at) VALUES (gen_random_uuid(), ${id}, ${userId}, NOW(), NOW()) ON CONFLICT DO NOTHING`;
       }
       return mapProduct(rows[0] as Record<string, unknown>);
     },

@@ -37,8 +37,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await sql`DELETE FROM shopping_list_items WHERE product_id = ${id} AND user_id = ${user.userId}`;
   } else {
     await sql`
-      INSERT INTO shopping_list_items (id, product_id, user_id, household_id, added_at)
-      VALUES (gen_random_uuid(), ${id}, ${user.userId}, ${householdId}, NOW())
+      INSERT INTO shopping_list_items (id, product_id, user_id, household_id, created_at, updated_at)
+      VALUES (gen_random_uuid(), ${id}, ${user.userId}, ${householdId}, NOW(), NOW())
       ON CONFLICT DO NOTHING
     `;
   }
