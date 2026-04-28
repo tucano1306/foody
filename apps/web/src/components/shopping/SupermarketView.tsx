@@ -102,7 +102,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     setCompleting(true);
     haptic([25, 50, 25]);
 
-    const res = await fetch('/api/proxy/shopping-list/complete', {
+    const res = await fetch('/api/shopping-list/complete', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
