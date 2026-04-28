@@ -1,3 +1,7 @@
+'use client';
+
+import { motion } from 'framer-motion';
+
 interface Props {
   readonly totalProducts: number;
   readonly runningLowCount: number;
@@ -51,22 +55,31 @@ export default function DashboardStats({
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+    <motion.div
+      className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4"
+      initial="hidden"
+      animate="visible"
+      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}
+    >
       {stats.map((stat) => (
-        <div
+        <motion.div
           key={stat.label}
+          variants={{ hidden: { opacity: 0, y: 24, scale: 0.95 }, visible: { opacity: 1, y: 0, scale: 1 } }}
+          transition={{ type: 'spring', stiffness: 340, damping: 22 }}
           className="group flex flex-col items-center text-center bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 ease-out"
         >
-          <div
-            className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3 shadow-md transition-transform duration-300 group-hover:scale-110"
+          <motion.div
+            className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3 shadow-md"
             style={{
               backgroundColor: stat.color,
               boxShadow: `0 8px 20px -6px ${stat.color}`,
             }}
             aria-hidden="true"
+            whileHover={{ scale: 1.2, rotate: [0, -10, 10, -6, 6, 0] }}
+            transition={{ duration: 0.5, ease: 'easeInOut' }}
           >
             <span className="text-xl sm:text-2xl leading-none">{stat.icon}</span>
-          </div>
+          </motion.div>
           <h3 className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500 leading-tight">
             {stat.label}
           </h3>
@@ -76,8 +89,8 @@ export default function DashboardStats({
           <p className="mt-1.5 text-[10px] sm:text-xs text-stone-400 truncate max-w-full">
             {stat.sublabel}
           </p>
-        </div>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }

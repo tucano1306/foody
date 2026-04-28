@@ -1,11 +1,10 @@
 import { api } from '@/lib/api';
-import ProductsBrowser from '@/components/products/ProductsBrowser';
 import PaymentCard from '@/components/payments/PaymentCard';
 import DashboardStats from '@/components/home/DashboardStats';
 import FrequentProducts from '@/components/home/FrequentProducts';
 import ExpensesByCategory from '@/components/home/ExpensesByCategory';
 import ExpensesByStore from '@/components/home/ExpensesByStore';
-import HomeProductSections from '@/components/home/HomeProductSections';
+import HomeProductsShell from '@/components/home/HomeProductsShell';
 import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
@@ -24,9 +23,7 @@ export default async function HomePage() {
     lastPurchasesRaw.map((p) => [p.productId, { purchasedAt: p.purchasedAt, storeName: p.storeName }]),
   );
 
-  const empty: Product[] = products.filter((p) => p.stockLevel === 'empty');
-  const low: Product[] = products.filter((p) => p.stockLevel === 'half');
-  const runningLow: Product[] = [...empty, ...low];
+  const runningLow: Product[] = products.filter((p) => p.stockLevel === 'empty' || p.stockLevel === 'half');
   const upcomingPayments = payments
     .filter((p) => !p.isPaidThisMonth && p.daysUntilDue <= 7)
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
@@ -59,34 +56,7 @@ export default async function HomePage() {
 
       <ExpensesByStore />
 
-      <HomeProductSections empty={empty} low={low} />      {/* ─── Todos los productos ────────────────────────────────────────────── */}
-      <section>
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="text-base sm:text-xl font-semibold text-stone-700 min-w-0 truncate">
-            <span className="sm:hidden">🛒 Productos ({products.length})</span>
-            <span className="hidden sm:inline">🛒 Todos los productos ({products.length})</span>
-          </h2>
-          <a
-            href="/products/new"
-            aria-label="Agregar producto"
-            className="shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
-          >
-            <span className="sm:hidden">+ Nuevo</span>
-            <span className="hidden sm:inline">+ Agregar</span>
-          </a>
-        </div>
-        {products.length === 0 ? (
-          <div className="text-center py-16 text-stone-400">
-            <p className="text-5xl mb-4">🥑</p>
-            <p className="text-lg font-medium">No hay productos todavía</p>
-            <a href="/products/new" className="mt-3 inline-block text-brand-500 hover:underline">
-              Agrega tu primer producto
-            </a>
-          </div>
-        ) : (
-          <ProductsBrowser products={products} pageSize={12} searchOnly lastPurchaseMap={lastPurchaseMap} />
-        )}
-      </section>
+      <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} />
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
       <section>

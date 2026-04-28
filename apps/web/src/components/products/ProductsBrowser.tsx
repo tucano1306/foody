@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
 
@@ -14,6 +15,7 @@ interface Props {
   readonly emptyState?: React.ReactNode;
   readonly searchOnly?: boolean;
   readonly lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
+  readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
 }
 
 const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
@@ -23,15 +25,27 @@ const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
   { key: 'full', label: 'OK' },
 ];
 
-function renderGrid(
-  searchOnly: boolean,
-  trimmedQuery: string,
-  filtered: readonly Product[],
-  emptyState: React.ReactNode,
-  visible: readonly Product[],
-  showActions: boolean,
-  lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>,
-): React.ReactNode {
+interface GridOptions {
+  searchOnly: boolean;
+  trimmedQuery: string;
+  filtered: readonly Product[];
+  emptyState: React.ReactNode;
+  visible: readonly Product[];
+  showActions: boolean;
+  lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
+  onLevelChange?: (id: string, newLevel: StockLevel) => void;
+}
+
+function renderGrid({
+  searchOnly,
+  trimmedQuery,
+  filtered,
+  emptyState,
+  visible,
+  showActions,
+  lastPurchaseMap,
+  onLevelChange,
+}: GridOptions): React.ReactNode {
   if (searchOnly && !trimmedQuery) {
     return (
       <div className="text-center py-10 text-stone-400">
@@ -55,6 +69,7 @@ function renderGrid(
           product={product}
           showActions={showActions}
           lastPurchase={lastPurchaseMap?.get(product.id)}
+          onLevelChange={onLevelChange}
         />
       ))}
     </div>
@@ -70,6 +85,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     emptyState,
     searchOnly = false,
     lastPurchaseMap,
+    onLevelChange,
   } = props;
 
   const [query, setQuery] = useState('');
@@ -105,7 +121,14 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     <div className="space-y-4">
       {/* Search */}
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">🔍</span>
+        <motion.span
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
+          whileHover={{ scale: 1.3, rotate: -15 }}
+          animate={query ? { scale: [1, 1.2, 1], rotate: [0, -10, 0] } : {}}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+        >
+          🔍
+        </motion.span>
         <input
           type="search"
           value={query}
@@ -158,7 +181,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       )}
 
       {/* Grid / empty */}
-      {renderGrid(searchOnly, query.trim(), filtered, emptyState, visible, showActions, lastPurchaseMap)}
+      {renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, lastPurchaseMap, onLevelChange })}
 
       {/* Pagination */}
       {totalPages > 1 && (

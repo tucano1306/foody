@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
@@ -90,14 +91,16 @@ export default function ProductCard({ product, showActions = false, onLevelChang
 
     haptic(next === 'empty' ? [15, 40, 20] : 10);
 
-    // Optimistic update
+    // Optimistic update — notify parent immediately so the section list updates at once
     const previous = current;
+    const productId = current.id;
     setCurrent({ ...current, stockLevel: next });
     setPopKey((k) => k + 1);
+    onLevelChange?.(productId, next);
 
     startTransition(async () => {
       const res = await fetch(
-        `/api/proxy/products/${current.id}/stock-level`,
+        `/api/proxy/products/${productId}/stock-level`,
         {
           method: 'PATCH',
           credentials: 'include',
@@ -109,7 +112,6 @@ export default function ProductCard({ product, showActions = false, onLevelChang
       if (res.ok) {
         const updated: Product = await res.json();
         setCurrent(updated);
-        onLevelChange?.(current.id, next);
         router.refresh();
       } else {
         setCurrent(previous);
@@ -176,15 +178,18 @@ export default function ProductCard({ product, showActions = false, onLevelChang
         )}
 
         {/* Floating purchase button */}
-        <button
+        <motion.button
           type="button"
           onClick={() => setPurchaseOpen(true)}
           aria-label="Registrar compra"
           title="Registrar compra"
-          className="absolute bottom-2 right-2 w-11 h-11 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-600/40 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 z-10"
+          className="absolute bottom-2 right-2 w-11 h-11 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-600/40 flex items-center justify-center z-10"
+          whileHover={{ scale: 1.18, rotate: -12, y: -2 }}
+          whileTap={{ scale: 0.88 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 18 }}
         >
           <span className="text-lg leading-none">🛒</span>
-        </button>
+        </motion.button>
       </div>
 
       {/* ─── Info ────────────────────────────────────────────────────────── */}
@@ -213,7 +218,7 @@ export default function ProductCard({ product, showActions = false, onLevelChang
             const c = LEVEL_CONFIG[l];
             const active = l === level;
             return (
-              <button
+              <motion.button
                 key={l}
                 type="button"
                 role="radio"
@@ -225,9 +230,12 @@ export default function ProductCard({ product, showActions = false, onLevelChang
                 className={`relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed ${
                   active ? c.activeCls : `bg-transparent ${c.cls}`
                 }`}
+                whileTap={{ scale: 0.75 }}
+                whileHover={active ? {} : { scale: 1.1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 18 }}
               >
                 <span className="text-sm leading-none">{c.emoji}</span>
-              </button>
+              </motion.button>
             );
           })}
         </div>

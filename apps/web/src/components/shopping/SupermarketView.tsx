@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { ShoppingListItem } from '@foody/types';
@@ -83,7 +84,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     if (inCart.length === 0) return;
     const initQty: Record<string, number> = {};
     for (const item of inCart) {
-      initQty[item.product.id] = item.quantityNeeded;
+      initQty[item.product.id] = item.quantityNeeded > 0 ? item.quantityNeeded : 1;
     }
     setQuantities(initQty);
     setShowModal(true);
@@ -92,13 +93,6 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
   function closeModal() {
     setShowModal(false);
-  }
-
-  function adjustQty(productId: string, current: number, delta: number) {
-    setQuantities((prev) => ({
-      ...prev,
-      [productId]: Math.max(0.5, (prev[productId] ?? current) + delta),
-    }));
   }
 
   async function confirmShopping() {
@@ -174,9 +168,13 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       {/* ─── Search + filters ───────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
+          <motion.span
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
+            animate={search ? { scale: [1, 1.25, 1], rotate: [0, -12, 0] } : {}}
+            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          >
             🔍
-          </span>
+          </motion.span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -191,7 +189,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             { k: 'urgent', label: `🚨 Se acabó · ${urgent.length}` },
             { k: 'low', label: `⚠️ Bajo · ${low.length}` },
           ] as { k: Filter; label: string }[]).map(({ k, label }) => (
-            <button
+            <motion.button
               key={k}
               onClick={() => setFilter(k)}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
@@ -199,9 +197,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                   ? 'bg-market-600 text-white shadow-sm'
                   : 'bg-white border border-stone-200 text-stone-600 hover:border-market-300'
               }`}
+              whileHover={{ scale: 1.07 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
             >
               {label}
-            </button>
+            </motion.button>
           ))}
         </div>
       </div>
@@ -265,15 +266,18 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       {/* ─── Floating complete button ───────────────────────────────────────── */}
       {inCart.length > 0 && (
         <div className="fixed bottom-4 inset-x-4 z-40 md:left-auto md:right-8 md:w-96 pb-[env(safe-area-inset-bottom)]">
-          <button
+          <motion.button
             onClick={openModal}
             disabled={completing}
             className="w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98]"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 18 }}
           >
             {completing
               ? 'Procesando...'
               : `✓ Finalizar compra · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`}
-          </button>
+          </motion.button>
         </div>
       )}
 
@@ -341,26 +345,21 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                       {item.product.name}
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => adjustQty(item.product.id, item.quantityNeeded, -1)}
-                        className="w-7 h-7 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold text-base flex items-center justify-center transition"
-                      >
-                        −
-                      </button>
-                      <span className="w-8 text-center text-sm font-bold text-stone-800">
-                        {qty % 1 === 0 ? qty : qty.toFixed(1)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => adjustQty(item.product.id, item.quantityNeeded, 1)}
-                        className="w-7 h-7 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold text-base flex items-center justify-center transition"
-                      >
-                        +
-                      </button>
-                      <span className="text-xs text-stone-400 w-8 text-left">
-                        {item.product.unit}
-                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={qty === 0 ? '' : qty}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? 0 : Number(e.target.value);
+                          setQuantities((prev) => ({ ...prev, [item.product.id]: val }));
+                        }}
+                        className="w-16 text-center text-sm font-bold text-stone-800 bg-white border border-stone-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                      />
+                      {item.product.unit && (
+                        <span className="text-xs text-stone-400">{item.product.unit}</span>
+                      )}
                     </div>
                   </div>
                 );

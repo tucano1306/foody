@@ -14,7 +14,9 @@
   },
   "dependencies": {
     "@foody/types": "workspace:*",
+    "@heroicons/react": "^2.2.0",
     "@neondatabase/serverless": "^1.1.0",
+    "framer-motion": "^12.38.0",
     "iron-session": "^8.0.3",
     "jose": "^5.9.0",
     "next": "16.2.4",
