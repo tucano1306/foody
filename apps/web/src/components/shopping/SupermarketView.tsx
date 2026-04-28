@@ -339,10 +339,16 @@ function ShoppingItemRow({
         )}
       </div>
 
-      {/* Quantity */}
-      <span className="text-xs text-stone-500 shrink-0 font-medium">
-        {item.quantityNeeded} {product.unit}
-      </span>
+      {/* Quantity / undo */}
+      {inCart ? (
+        <span className="shrink-0 text-[11px] font-semibold text-market-600 bg-market-50 border border-market-200 px-2 py-0.5 rounded-full">
+          Quitar ↩
+        </span>
+      ) : (
+        <span className="text-xs text-stone-500 shrink-0 font-medium">
+          {item.quantityNeeded} {product.unit}
+        </span>
+      )}
     </button>
   );
 }
