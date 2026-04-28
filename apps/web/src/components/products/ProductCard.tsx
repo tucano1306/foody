@@ -10,7 +10,6 @@ import { useSwipe } from '@/lib/useSwipe';
 import { useLongPress } from '@/lib/useLongPress';
 import ActionSheet from '@/components/ui/ActionSheet';
 import PhotoLightbox from '@/components/ui/PhotoLightbox';
-import RegisterPurchaseModal from './RegisterPurchaseModal';
 
 interface LastPurchase {
   readonly purchasedAt: string;
@@ -79,7 +78,6 @@ export default function ProductCard({ product, showActions = false, onLevelChang
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState(product);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const level: StockLevel = current.stockLevel ?? (current.isRunningLow ? 'half' : 'full');
@@ -177,19 +175,6 @@ export default function ProductCard({ product, showActions = false, onLevelChang
           <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
         )}
 
-        {/* Floating purchase button */}
-        <motion.button
-          type="button"
-          onClick={() => setPurchaseOpen(true)}
-          aria-label="Registrar compra"
-          title="Registrar compra"
-          className="absolute bottom-2 right-2 w-11 h-11 rounded-full bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-600/40 flex items-center justify-center z-10"
-          whileHover={{ scale: 1.18, rotate: -12, y: -2 }}
-          whileTap={{ scale: 0.88 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-        >
-          <span className="text-lg leading-none">🛒</span>
-        </motion.button>
       </div>
 
       {/* ─── Info ────────────────────────────────────────────────────────── */}
@@ -296,11 +281,6 @@ export default function ProductCard({ product, showActions = false, onLevelChang
         title={current.name}
         actions={[
           {
-            label: 'Registrar compra con precio',
-            emoji: '🛒',
-            onClick: () => setPurchaseOpen(true),
-          },
-          {
             label: 'Marcar como "Tengo"',
             emoji: '✅',
             onClick: () => setLevel('full'),
@@ -322,13 +302,6 @@ export default function ProductCard({ product, showActions = false, onLevelChang
             onClick: handleDelete,
           },
         ]}
-      />
-
-      <RegisterPurchaseModal
-        open={purchaseOpen}
-        product={current}
-        onClose={() => setPurchaseOpen(false)}
-        onSaved={(updated) => setCurrent(updated)}
       />
 
       {lightboxOpen && current.photoUrl && (
