@@ -41,6 +41,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const [showModal, setShowModal] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const { inCart, notInCart, urgent, low } = useMemo(() => {
     const inCart = items.filter((i) => i.isInCart);
@@ -187,9 +188,20 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar producto..."
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder=""
             className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
           />
+          {!search && !searchFocused && (
+            <motion.span
+              className="absolute left-9 top-1/2 -translate-y-1/2 text-stone-300 text-sm pointer-events-none select-none"
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              Escribe para buscar un producto…
+            </motion.span>
+          )}
         </div>
 
         <div className="flex gap-2 overflow-x-auto">
