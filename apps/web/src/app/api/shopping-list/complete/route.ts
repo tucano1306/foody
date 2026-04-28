@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   try {
     for (const item of items) {
       const row = item as { product_id: string; quantity_needed: string };
-      const qty = quantities[row.product_id] ?? Number.parseFloat(row.quantity_needed) || 1;
+      const qty = quantities[row.product_id] ?? (Number.parseFloat(row.quantity_needed) || 1);
       await sql`
         INSERT INTO product_purchases
           (product_id, quantity, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
