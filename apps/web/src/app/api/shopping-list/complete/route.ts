@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { ensurePurchaseSchema } from '@/lib/ensure-schema';
 
 interface CompletionBody {
   storeName?: string;
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
 
   const storeName = body.storeName?.trim() || null;
   const quantities: Record<string, number> = body.quantities ?? {};
+
+  // Ensure tables exist (creates them if this is the first run in this environment)
+  await ensurePurchaseSchema();
 
   // Get all in-cart items for this user
   const items = await sql`
@@ -60,19 +64,23 @@ export async function POST(request: NextRequest) {
   }
 
   // Record individual product purchases (always attempt, tripId may be null)
+  let purchasesInserted = 0;
+  let purchaseError: string | null = null;
   try {
     for (const item of items) {
       const row = item as { product_id: string; quantity_needed: string };
-      const qty = quantities[row.product_id] ?? Number.parseFloat(row.quantity_needed) ?? 1;
+      const qty = quantities[row.product_id] ?? Number.parseFloat(row.quantity_needed) || 1;
       await sql`
         INSERT INTO product_purchases
           (product_id, quantity, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
         VALUES
           (${row.product_id}, ${qty}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${user.userId}, ${now})
       `;
+      purchasesInserted++;
     }
   } catch (err) {
-    console.error('[complete] product_purchases insert failed (non-fatal):', err);
+    purchaseError = err instanceof Error ? err.message : String(err);
+    console.error('[complete] product_purchases insert failed:', purchaseError);
   }
 
   // Reset products to full stock
@@ -88,5 +96,5 @@ export async function POST(request: NextRequest) {
     WHERE user_id = ${user.userId} AND is_in_cart = true
   `;
 
-  return NextResponse.json({ completed: items.length, tripId });
+  return NextResponse.json({ completed: items.length, tripId, purchasesInserted, purchaseError });
 }

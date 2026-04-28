@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { ensurePurchaseSchema } from '@/lib/ensure-schema';
 
 // GET /api/shopping-list/last-purchases
 // Returns the most recent product_purchases entry per product for the current user
 export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+
+  await ensurePurchaseSchema();
 
   const rows = await sql`
     SELECT DISTINCT ON (pp.product_id)
