@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 
 function generateCode(): string {
   // 6 uppercase alphanumeric characters (A-Z, 0-9), avoiding ambiguous chars O/0/I/1
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // cspell:disable-line
   return Array.from(randomBytes(6))
     .map((b) => chars[b % chars.length])
     .join('');

@@ -86,7 +86,9 @@ export default function SupermarketView({ initialItems }: Props) {
     );
 
     if (res.ok) {
-      router.refresh();
+      // Remove completed items immediately — no page navigation needed
+      setItems((prev) => prev.filter((i) => !i.isInCart));
+      router.refresh(); // sync server state in background
     }
     setCompleting(false);
   }

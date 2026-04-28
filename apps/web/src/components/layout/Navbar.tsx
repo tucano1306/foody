@@ -31,6 +31,7 @@ export default function Navbar({ user }: Props) {
             { href: '/products', label: '📦 Productos' },
             { href: '/shopping-trips', label: '🧾 Compras' },
             { href: '/payments', label: '💳 Pagos' },
+            { href: '/stats', label: '📊 Stats' },
             { href: '/household', label: '🏡 Hogar' },
           ].map((item) => (
             <Link
@@ -84,6 +85,7 @@ export default function Navbar({ user }: Props) {
           { href: '/products', label: '📦', text: 'Productos' },
           { href: '/shopping-trips', label: '🧾', text: 'Compras' },
           { href: '/payments', label: '💳', text: 'Pagos' },
+          { href: '/stats', label: '📊', text: 'Stats' },
           { href: '/household', label: '🏡', text: 'Hogar' },
         ].map((item) => (
           <Link
