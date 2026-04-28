@@ -121,7 +121,7 @@ export default async function HomePage() {
             </a>
           </div>
         ) : (
-          <ProductsBrowser products={products} pageSize={12} />
+          <ProductsBrowser products={products} pageSize={12} searchOnly />
         )}
       </section>
 

@@ -12,6 +12,7 @@ interface Props {
   readonly showStockFilter?: boolean;
   readonly pageSize?: number;
   readonly emptyState?: React.ReactNode;
+  readonly searchOnly?: boolean;
 }
 
 const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
@@ -21,6 +22,38 @@ const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
   { key: 'full', label: 'OK' },
 ];
 
+function renderGrid(
+  searchOnly: boolean,
+  trimmedQuery: string,
+  filtered: readonly Product[],
+  emptyState: React.ReactNode,
+  visible: readonly Product[],
+  showActions: boolean,
+): React.ReactNode {
+  if (searchOnly && !trimmedQuery) {
+    return (
+      <div className="text-center py-10 text-stone-400">
+        <p className="text-3xl mb-2">🔍</p>
+        <p className="text-sm">Escribe para buscar un producto</p>
+      </div>
+    );
+  }
+  if (filtered.length === 0) {
+    return (
+      <div className="text-center py-12 text-stone-400">
+        {emptyState ?? <p>No hay productos que coincidan</p>}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+      {visible.map((product) => (
+        <ProductCard key={product.id} product={product} showActions={showActions} />
+      ))}
+    </div>
+  );
+}
+
 export default function ProductsBrowser(props: Readonly<Props>) {
   const {
     products,
@@ -28,6 +61,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     showStockFilter = false,
     pageSize = 12,
     emptyState,
+    searchOnly = false,
   } = props;
 
   const [query, setQuery] = useState('');
@@ -107,24 +141,16 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       )}
 
       {/* Results meta */}
-      <p className="text-xs text-stone-500">
-        {filtered.length === 0
-          ? 'Sin resultados'
-          : `Mostrando ${start + 1}–${Math.min(start + pageSize, filtered.length)} de ${filtered.length}`}
-      </p>
+      {(!searchOnly || query.trim()) && (
+        <p className="text-xs text-stone-500">
+          {filtered.length === 0
+            ? 'Sin resultados'
+            : `Mostrando ${start + 1}–${Math.min(start + pageSize, filtered.length)} de ${filtered.length}`}
+        </p>
+      )}
 
       {/* Grid / empty */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-12 text-stone-400">
-          {emptyState ?? <p>No hay productos que coincidan</p>}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-          {visible.map((product) => (
-            <ProductCard key={product.id} product={product} showActions={showActions} />
-          ))}
-        </div>
-      )}
+      {renderGrid(searchOnly, query.trim(), filtered, emptyState, visible, showActions)}
 
       {/* Pagination */}
       {totalPages > 1 && (
