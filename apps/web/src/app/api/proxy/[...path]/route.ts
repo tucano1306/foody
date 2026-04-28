@@ -17,6 +17,7 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
     'trailer',
     'host',
     'content-length',
+    'content-encoding', // Next.js decompresses before forwarding — must not re-declare encoding
   ]);
   const session = await getSession();
   if (!session.isLoggedIn) {
