@@ -46,5 +46,10 @@ export async function ensurePurchaseSchema(): Promise<void> {
     )
   `;
 
+  // Add columns that may be missing from older schema versions
+  await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS store_name VARCHAR(255) NULL`;
+  await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS trip_id UUID NULL`;
+  await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS household_id UUID NULL`;
+
   schemaEnsured = true;
 }
