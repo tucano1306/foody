@@ -233,17 +233,19 @@ export default function ProductForm({ product }: Props) {
       {/* ─── Category ─────────────────────────────────────────────────────── */}
       <div>
         <label htmlFor="product-category" className="block text-sm font-medium text-stone-700 mb-1">Categoría</label>
-        <select
+        <input
           id="product-category"
+          list="category-options"
           value={form.category}
           onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 transition bg-white"
-        >
-          <option value="">Sin categoría</option>
+          placeholder="Selecciona o escribe una categoría…"
+          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition bg-white"
+        />
+        <datalist id="category-options">
           {CATEGORIES.map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c} value={c} />
           ))}
-        </select>
+        </datalist>
       </div>
 
       {/* ─── Quantity + Unit ──────────────────────────────────────────────── */}
