@@ -478,7 +478,12 @@ function ShoppingItemRow({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-xl">
-            🛒
+            <motion.span
+              animate={{ rotate: [0, -12, 10, -5, 0], y: [0, -3, 1, -1, 0] }}
+              transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 2.5, ease: 'easeInOut' }}
+            >
+              🛒
+            </motion.span>
           </div>
         )}
       </div>
