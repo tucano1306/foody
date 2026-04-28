@@ -1,11 +1,11 @@
 import { api } from '@/lib/api';
-import ProductCard from '@/components/products/ProductCard';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
 import PaymentCard from '@/components/payments/PaymentCard';
 import DashboardStats from '@/components/home/DashboardStats';
 import FrequentProducts from '@/components/home/FrequentProducts';
 import ExpensesByCategory from '@/components/home/ExpensesByCategory';
 import ExpensesByStore from '@/components/home/ExpensesByStore';
+import HomeProductSections from '@/components/home/HomeProductSections';
 import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
@@ -14,10 +14,15 @@ import type { Product, MonthlyPayment } from '@foody/types';
 export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
 
 export default async function HomePage() {
-  const [products, payments]: [Product[], MonthlyPayment[]] = await Promise.all([
+  const [products, payments, lastPurchasesRaw]: [Product[], MonthlyPayment[], { productId: string; purchasedAt: string; storeName: string | null }[]] = await Promise.all([
     api.products.list(),
     api.payments.list(),
+    api.shoppingList.lastPurchases().catch(() => []),
   ]);
+
+  const lastPurchaseMap = new Map(
+    lastPurchasesRaw.map((p) => [p.productId, { purchasedAt: p.purchasedAt, storeName: p.storeName }]),
+  );
 
   const empty: Product[] = products.filter((p) => p.stockLevel === 'empty');
   const low: Product[] = products.filter((p) => p.stockLevel === 'half');
@@ -54,49 +59,7 @@ export default async function HomePage() {
 
       <ExpensesByStore />
 
-      {/* ─── Productos que se acabaron (urgente) ───────────────────────────── */}
-      {empty.length > 0 && (
-        <section>
-          <h2 className="text-xl font-semibold text-rose-700 mb-4 flex items-center gap-2">
-            <span>🚨</span> Se acabó — prioridad ({empty.length})
-          </h2>
-          {empty.length === 1 ? (
-            <div className="flex justify-center">
-              <div className="w-1/2 sm:w-1/3 md:w-1/4">
-                <ProductCard key={empty[0].id} product={empty[0]} />
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {empty.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ─── Productos con bajo stock ───────────────────────────────────────── */}
-      {low.length > 0 && (
-        <section>
-          <h2 className="text-xl font-semibold text-amber-700 mb-4 flex items-center gap-2">
-            <span>⚠️</span> Queda poco ({low.length})
-          </h2>
-          {low.length === 1 ? (
-            <div className="flex justify-center">
-              <div className="w-1/2 sm:w-1/3 md:w-1/4">
-                <ProductCard key={low[0].id} product={low[0]} />
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {low.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          )}
-        </section>
-      )}      {/* ─── Todos los productos ────────────────────────────────────────────── */}
+      <HomeProductSections empty={empty} low={low} />      {/* ─── Todos los productos ────────────────────────────────────────────── */}
       <section>
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="text-base sm:text-xl font-semibold text-stone-700 min-w-0 truncate">
@@ -121,7 +84,7 @@ export default async function HomePage() {
             </a>
           </div>
         ) : (
-          <ProductsBrowser products={products} pageSize={12} searchOnly />
+          <ProductsBrowser products={products} pageSize={12} searchOnly lastPurchaseMap={lastPurchaseMap} />
         )}
       </section>
 

@@ -13,6 +13,7 @@ interface Props {
   readonly pageSize?: number;
   readonly emptyState?: React.ReactNode;
   readonly searchOnly?: boolean;
+  readonly lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>;
 }
 
 const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
@@ -29,6 +30,7 @@ function renderGrid(
   emptyState: React.ReactNode,
   visible: readonly Product[],
   showActions: boolean,
+  lastPurchaseMap?: ReadonlyMap<string, { purchasedAt: string; storeName: string | null }>,
 ): React.ReactNode {
   if (searchOnly && !trimmedQuery) {
     return (
@@ -48,7 +50,12 @@ function renderGrid(
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
       {visible.map((product) => (
-        <ProductCard key={product.id} product={product} showActions={showActions} />
+        <ProductCard
+          key={product.id}
+          product={product}
+          showActions={showActions}
+          lastPurchase={lastPurchaseMap?.get(product.id)}
+        />
       ))}
     </div>
   );
@@ -62,6 +69,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     pageSize = 12,
     emptyState,
     searchOnly = false,
+    lastPurchaseMap,
   } = props;
 
   const [query, setQuery] = useState('');
@@ -150,7 +158,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       )}
 
       {/* Grid / empty */}
-      {renderGrid(searchOnly, query.trim(), filtered, emptyState, visible, showActions)}
+      {renderGrid(searchOnly, query.trim(), filtered, emptyState, visible, showActions, lastPurchaseMap)}
 
       {/* Pagination */}
       {totalPages > 1 && (

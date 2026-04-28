@@ -11,9 +11,16 @@ import ActionSheet from '@/components/ui/ActionSheet';
 import PhotoLightbox from '@/components/ui/PhotoLightbox';
 import RegisterPurchaseModal from './RegisterPurchaseModal';
 
+interface LastPurchase {
+  readonly purchasedAt: string;
+  readonly storeName: string | null;
+}
+
 interface Props {
   readonly product: Product;
   readonly showActions?: boolean;
+  readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
+  readonly lastPurchase?: LastPurchase;
 }
 
 const LEVEL_CONFIG: Record<
@@ -66,7 +73,7 @@ function formatMoney(value: number, currency: string): string {
   }
 }
 
-export default function ProductCard({ product, showActions = false }: Props) {
+export default function ProductCard({ product, showActions = false, onLevelChange, lastPurchase }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState(product);
@@ -102,6 +109,7 @@ export default function ProductCard({ product, showActions = false }: Props) {
       if (res.ok) {
         const updated: Product = await res.json();
         setCurrent(updated);
+        onLevelChange?.(current.id, next);
         router.refresh();
       } else {
         setCurrent(previous);
@@ -236,6 +244,22 @@ export default function ProductCard({ product, showActions = false }: Props) {
             <span className="font-bold text-brand-700">
               {formatMoney(current.totalSpent, current.currency ?? 'MXN')}
             </span>
+          </div>
+        )}
+
+        {/* ─── Last purchase footer ─────────────────────────────────────── */}
+        {lastPurchase && (
+          <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400 space-y-0.5">
+            <p className="flex items-center gap-1">
+              <span>🕐</span>
+              <span>{new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(lastPurchase.purchasedAt))}</span>
+            </p>
+            {lastPurchase.storeName && (
+              <p className="flex items-center gap-1">
+                <span>🏪</span>
+                <span className="truncate">{lastPurchase.storeName}</span>
+              </p>
+            )}
           </div>
         )}
 

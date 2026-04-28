@@ -397,6 +397,23 @@ export const api = {
         lastPurchasedAt: asIsoString(row.lastPurchasedAt),
       }));
     },
+    lastPurchases: async (): Promise<{ productId: string; purchasedAt: string; storeName: string | null }[]> => {
+      const { userId } = await getAuthContext();
+      const rows = await sql`
+        SELECT DISTINCT ON (pp.product_id)
+          pp.product_id  AS "productId",
+          pp.purchased_at AS "purchasedAt",
+          pp.store_name  AS "storeName"
+        FROM product_purchases pp
+        WHERE pp.user_id = ${userId}
+        ORDER BY pp.product_id, pp.purchased_at DESC
+      `;
+      return (rows as { productId: string; purchasedAt: string; storeName: string | null }[]).map((r) => ({
+        productId: String(r.productId),
+        purchasedAt: asIsoString(r.purchasedAt),
+        storeName: (r.storeName as string | null | undefined) ?? null,
+      }));
+    },
     toggleCart: async (id: string) => {
       const rows = await sql`UPDATE shopping_list_items SET in_cart = NOT in_cart WHERE id = ${id} RETURNING *`;
       return rows[0];
