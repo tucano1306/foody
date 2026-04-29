@@ -214,7 +214,17 @@
     "abarrotes",
     "categoría",
     "categoria",
-    "otro"
+    "otro",
+    "rápida",
+    "rapida",
+    "Comprados",
+    "comprados",
+    "Marca",
+    "marca",
+    "cada",
+    "inventario",
+    "actualiza",
+    "actualizado"
   ],
   "ignorePaths": [
     "node_modules/**",
