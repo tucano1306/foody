@@ -7,14 +7,12 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Supermercado' };
 
 export default async function SupermarketPage() {
-  const [items, topStores, frequentProducts] = await Promise.all([
+  const [items, topStores] = await Promise.all([
     api.shoppingList.get(),
     api.shoppingTrips.byStore().catch(() => []),
-    api.shoppingList.frequent().catch(() => []),
   ]);
 
   const topStore = topStores.length > 0 ? topStores.sort((a, b) => b.count - a.count)[0] : null;
-  const topProduct = frequentProducts.length > 0 ? frequentProducts[0] : null;
   const pastStoreNames = topStores
     .sort((a, b) => b.count - a.count)
     .map((s) => s.storeName)
@@ -33,22 +31,11 @@ export default async function SupermarketPage() {
       </div>
 
       {/* ─── Quick stats ────────────────────────────────────────────────────── */}
-      {(topStore ?? topProduct) && (
-        <div className="grid grid-cols-2 gap-3">
-          {topStore && (
-            <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm flex flex-col gap-1">
-              <span className="text-xs text-stone-400 font-medium uppercase tracking-wide">🏪 Super favorito</span>
-              <span className="font-bold text-stone-800 truncate">{topStore.storeName}</span>
-              <span className="text-xs text-stone-400">{topStore.count} {topStore.count === 1 ? 'visita' : 'visitas'}</span>
-            </div>
-          )}
-          {topProduct && (
-            <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm flex flex-col gap-1">
-              <span className="text-xs text-stone-400 font-medium uppercase tracking-wide">📦 Más comprado</span>
-              <span className="font-bold text-stone-800 truncate">{topProduct.name}</span>
-              <span className="text-xs text-stone-400">{topProduct.purchases} {topProduct.purchases === 1 ? 'vez' : 'veces'}</span>
-            </div>
-          )}
+      {topStore && (
+        <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm flex flex-col gap-1">
+          <span className="text-xs text-stone-400 font-medium uppercase tracking-wide">🏪 Super favorito</span>
+          <span className="font-bold text-stone-800 truncate">{topStore.storeName}</span>
+          <span className="text-xs text-stone-400">{topStore.count} {topStore.count === 1 ? 'visita' : 'visitas'}</span>
         </div>
       )}
 
