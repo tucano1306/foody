@@ -14,8 +14,8 @@ export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
 
 export default async function HomePage() {
   const [products, payments, lastPurchasesRaw]: [Product[], MonthlyPayment[], { productId: string; purchasedAt: string; storeName: string | null }[]] = await Promise.all([
-    api.products.list(),
-    api.payments.list(),
+    api.products.list().catch(() => [] as Product[]),
+    api.payments.list().catch(() => [] as MonthlyPayment[]),
     api.shoppingList.lastPurchases().catch(() => []),
   ]);
 

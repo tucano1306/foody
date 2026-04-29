@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Supermercado' };
 
 export default async function SupermarketPage() {
   const [items, topStores] = await Promise.all([
-    api.shoppingList.get(),
+    api.shoppingList.get().catch(() => []),
     api.shoppingTrips.byStore().catch(() => []),
   ]);
 

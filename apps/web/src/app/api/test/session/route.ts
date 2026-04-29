@@ -11,7 +11,7 @@ import type { SessionData } from '@foody/types';
 export const TEST_USER_ID = '00000000-test-user-0000-000000000001';
 
 export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.E2E_TEST_MODE !== 'true') {
     return NextResponse.json({ error: 'Not available in production' }, { status: 403 });
   }
 

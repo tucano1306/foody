@@ -4,6 +4,10 @@ import { mockApiRoutes } from './helpers/mock-routes';
 
 test.describe('Home page', () => {
   test.beforeEach(async ({ page, context }) => {
+    // Suppress the onboarding dialog so it doesn't block clicks
+    await page.addInitScript(() => {
+      localStorage.setItem('foody-onboarding-done', '1');
+    });
     await authenticate(page, context);
     await mockApiRoutes(page);
   });
@@ -30,8 +34,8 @@ test.describe('Home page', () => {
 
   test('links to supermarket page', async ({ page }) => {
     await page.goto('/home', { waitUntil: 'domcontentloaded' });
-    // Find any link to /supermarket (may be in nav or quick-action card)
-    const link = page.getByRole('link', { name: /supermercado/i }).first();
+    // Nav label is "Super" (short form used in the sidebar nav)
+    const link = page.getByRole('link', { name: /super/i }).first();
     await expect(link).toBeVisible();
     await link.click();
     await expect(page).toHaveURL(/\/supermarket/);

@@ -18,11 +18,15 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER
     ? undefined
     : {
-        command: 'pnpm start',
+        command: 'pnpm --filter @foody/web start',
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
         stdout: 'ignore',
         stderr: 'pipe',
+        env: {
+          E2E_TEST_MODE: 'true',
+          IRON_SESSION_PASSWORD: 'playwright-e2e-test-password-foody-32ch',
+        },
       },
 });
