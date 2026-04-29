@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     SELECT
       COALESCE(store_name, 'Sin nombre') AS name,
       COUNT(*) AS trips,
-      SUM(total_spent) AS total_spent
+      SUM(total_amount) AS total_spent
     FROM shopping_trips
     WHERE user_id = ${userId}
     GROUP BY COALESCE(store_name, 'Sin nombre')
@@ -45,13 +45,13 @@ export async function GET(request: NextRequest) {
   // Monthly spending (last 6 months)
   const monthRows = await sql`
     SELECT
-      TO_CHAR(date, 'YYYY-MM') AS month,
-      SUM(total_spent) AS total,
+      TO_CHAR(purchased_at, 'YYYY-MM') AS month,
+      SUM(total_amount) AS total,
       COUNT(*) AS trips
     FROM shopping_trips
     WHERE user_id = ${userId}
-      AND date >= NOW() - INTERVAL '6 months'
-    GROUP BY TO_CHAR(date, 'YYYY-MM')
+      AND purchased_at >= NOW() - INTERVAL '6 months'
+    GROUP BY TO_CHAR(purchased_at, 'YYYY-MM')
     ORDER BY month ASC
   `;
   const monthlySpending = (monthRows as { month: string; total: string; trips: string }[]).map(

@@ -5,6 +5,7 @@ import { ensurePurchaseSchema } from '@/lib/ensure-schema';
 
 interface CompletionBody {
   storeName?: string;
+  totalAmount?: number;
   quantities?: Record<string, number>;
 }
 
@@ -13,7 +14,7 @@ type CartItem = { product_id: string; quantity_needed: string };
 async function insertTrip(storeName: string | null, userId: string, now: string): Promise<string | null> {
   try {
     const rows = await sql`
-      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at, updated_at)
+      INSERT INTO shopping_trips (store_name, purchased_at, total_amount, currency, user_id, created_at, updated_at)
       VALUES (${storeName}, ${now}, 0, 'MXN', ${userId}, ${now}, ${now})
       RETURNING id
     `;
@@ -23,7 +24,7 @@ async function insertTrip(storeName: string | null, userId: string, now: string)
   }
   try {
     const rows = await sql`
-      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at)
+      INSERT INTO shopping_trips (store_name, purchased_at, total_amount, currency, user_id, created_at)
       VALUES (${storeName}, ${now}, 0, 'MXN', ${userId}, ${now})
       RETURNING id
     `;
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
 
   const storeName = body.storeName?.trim() || null;
   const quantities: Record<string, number> = body.quantities ?? {};
+  const userTotalAmount = typeof body.totalAmount === 'number' && body.totalAmount > 0 ? body.totalAmount : null;
 
   await ensurePurchaseSchema();
 
@@ -110,8 +112,11 @@ export async function POST(request: NextRequest) {
   const { inserted: purchasesInserted, totalSpent, error: purchaseError } =
     await insertPurchases(items, quantities, priceMap, storeName, tripId, user.userId, now);
 
-  if (tripId && totalSpent > 0) {
-    await sql`UPDATE shopping_trips SET total_spent = ${totalSpent} WHERE id = ${tripId}`.catch(() => undefined);
+  if (tripId) {
+    const finalTotal = userTotalAmount ?? (totalSpent > 0 ? totalSpent : null);
+    if (finalTotal != null) {
+      await sql`UPDATE shopping_trips SET total_amount = ${finalTotal} WHERE id = ${tripId}`.catch(() => undefined);
+    }
   }
 
   await sql`

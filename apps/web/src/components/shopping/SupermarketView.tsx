@@ -40,6 +40,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [storeName, setStoreName] = useState('');
+  const [totalAmount, setTotalAmount] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [searchFocused, setSearchFocused] = useState(false);
 
@@ -108,6 +109,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         storeName: storeName.trim() || undefined,
+        totalAmount: totalAmount.trim() ? Number.parseFloat(totalAmount) : undefined,
         quantities,
       }),
     });
@@ -117,6 +119,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       console.log('[SupermarketView] complete response:', JSON.stringify(data));
       setShowModal(false);
       setStoreName('');
+      setTotalAmount('');
       setQuantities({});
       setItems((prev) => prev.filter((i) => !i.isInCart));
       router.refresh();
@@ -361,6 +364,27 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 ))}
               </datalist>
             )}
+
+            {/* Total amount */}
+            <label
+              htmlFor="modal-total-amount"
+              className="block text-sm font-semibold text-stone-700 mb-1.5"
+            >
+              ¿Cuánto gastaste en total? <span className="font-normal text-stone-400">(opcional)</span>
+            </label>
+            <div className="relative mb-4">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
+              <input
+                id="modal-total-amount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={totalAmount}
+                onChange={(e) => setTotalAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+              />
+            </div>
 
             {/* Quantities */}
             <p className="text-sm font-semibold text-stone-700 mb-2">

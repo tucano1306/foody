@@ -13,17 +13,19 @@ export async function ensurePurchaseSchema(): Promise<void> {
   // shopping_trips (non-fatal if it already exists)
   await sql`
     CREATE TABLE IF NOT EXISTS shopping_trips (
-      id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-      store_id     UUID          NULL,
-      store_name   VARCHAR(255),
-      date         TIMESTAMPTZ   NOT NULL DEFAULT now(),
-      total_spent  DECIMAL(10,2) NOT NULL DEFAULT 0,
-      currency     VARCHAR(10)   NOT NULL DEFAULT 'MXN',
-      notes        TEXT,
-      user_id      UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-      household_id UUID          NULL,
-      created_at   TIMESTAMPTZ   NOT NULL DEFAULT now(),
-      updated_at   TIMESTAMPTZ   NOT NULL DEFAULT now()
+      id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+      store_id         UUID          NULL,
+      store_name       VARCHAR(255),
+      purchased_at     TIMESTAMPTZ   NOT NULL DEFAULT now(),
+      total_amount     DECIMAL(10,2) NOT NULL DEFAULT 0,
+      currency         VARCHAR(10)   NOT NULL DEFAULT 'MXN',
+      allocation_strategy VARCHAR(30) NOT NULL DEFAULT 'manual_partial',
+      receipt_photo_url VARCHAR(500) NULL,
+      notes            TEXT,
+      user_id          UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      household_id     UUID          NULL,
+      created_at       TIMESTAMPTZ   NOT NULL DEFAULT now(),
+      updated_at       TIMESTAMPTZ   NOT NULL DEFAULT now()
     )
   `;
 
