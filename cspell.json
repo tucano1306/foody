@@ -224,7 +224,19 @@
     "cada",
     "inventario",
     "actualiza",
-    "actualizado"
+    "actualizado",
+    "Sincronizando",
+    "sincronizando",
+    "Sincronizado",
+    "sincronizado",
+    "pendiente",
+    "pendientes",
+    "acciones",
+    "enviadas",
+    "Reintentar",
+    "reintentar",
+    "Foody",
+    "foody"
   ],
   "ignorePaths": [
     "node_modules/**",
