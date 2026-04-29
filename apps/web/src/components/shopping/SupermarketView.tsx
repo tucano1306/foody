@@ -31,6 +31,72 @@ function getCheckboxCls(inCart: boolean, urgent: boolean): string {
   return 'border-stone-300';
 }
 
+const CATEGORY_EMOJI: Record<string, string> = {
+  lácteos: '🥛', lacteos: '🥛',
+  limpieza: '🧹',
+  frutas: '🍎',
+  verduras: '🥦',
+  carnes: '🥩',
+  panadería: '🍞', panaderia: '🍞',
+  bebidas: '🥤',
+  cereales: '🌾',
+  enlatados: '🥫',
+  snacks: '🍿',
+  congelados: '🧊',
+  higiene: '🧴',
+  mascotas: '🐾',
+  abarrotes: '🛒',
+};
+
+function getCategoryEmoji(category: string | null): string {
+  if (!category) return '📦';
+  return CATEGORY_EMOJI[category.toLowerCase()] ?? '🏷️';
+}
+
+function getCategorySubtitle(urgentCount: number, total: number): string {
+  const plural = total === 1 ? '' : 's';
+  if (urgentCount > 0) {
+    const urgentPlural = urgentCount === 1 ? '' : 's';
+    return `${total} producto${plural} · ${urgentCount} urgente${urgentPlural}`;
+  }
+  return `${total} producto${plural}`;
+}
+
+interface CategoryGroup {
+  readonly category: string;
+  readonly emoji: string;
+  readonly items: ShoppingListItem[];
+  readonly urgentCount: number;
+}
+
+function groupByCategory(items: ShoppingListItem[]): CategoryGroup[] {
+  const map = new Map<string, ShoppingListItem[]>();
+  for (const item of items) {
+    const cat = item.product.category ?? 'Sin categoría';
+    if (!map.has(cat)) map.set(cat, []);
+    map.get(cat)!.push(item);
+  }
+  const groups: CategoryGroup[] = [];
+  for (const [cat, catItems] of map) {
+    const sorted = [...catItems].sort((a, b) => {
+      if (a.product.stockLevel === 'empty' && b.product.stockLevel !== 'empty') return -1;
+      if (b.product.stockLevel === 'empty' && a.product.stockLevel !== 'empty') return 1;
+      return a.product.name.localeCompare(b.product.name, 'es');
+    });
+    groups.push({
+      category: cat,
+      emoji: getCategoryEmoji(cat === 'Sin categoría' ? null : cat),
+      items: sorted,
+      urgentCount: sorted.filter((i) => i.product.stockLevel === 'empty').length,
+    });
+  }
+  return groups.sort((a, b) => {
+    if (a.category === 'Sin categoría') return 1;
+    if (b.category === 'Sin categoría') return -1;
+    return a.category.localeCompare(b.category, 'es');
+  });
+}
+
 export default function SupermarketView({ initialItems, pastStoreNames }: Props) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
@@ -233,42 +299,25 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       </div>
 
-      {/* ─── Urgent (empty) ─────────────────────────────────────────────────── */}
-      {applyFilter(urgent).length > 0 && (
+      {/* ─── Category groups ────────────────────────────────────────────────── */}
+      {groupByCategory(applyFilter(notInCart)).map(({ category, emoji, items: catItems, urgentCount }) => (
         <Section
-          title="Se acabó — prioridad alta"
-          subtitle={`${applyFilter(urgent).length} productos`}
-          badgeCls="bg-rose-100 text-rose-700"
+          key={category}
+          title={`${emoji} ${category}`}
+          subtitle={getCategorySubtitle(urgentCount, catItems.length)}
+          badgeCls={urgentCount > 0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}
         >
-          {applyFilter(urgent).map((item) => (
+          {catItems.map((item) => (
             <ShoppingItemRow
               key={item.id}
               item={item}
               onToggle={() => toggleItem(item.id)}
               disabled={isPending}
-              urgent
+              urgent={item.product.stockLevel === 'empty'}
             />
           ))}
         </Section>
-      )}
-
-      {/* ─── Low (half) ─────────────────────────────────────────────────────── */}
-      {applyFilter(low).length > 0 && (
-        <Section
-          title="Queda poco"
-          subtitle={`${applyFilter(low).length} productos`}
-          badgeCls="bg-amber-100 text-amber-700"
-        >
-          {applyFilter(low).map((item) => (
-            <ShoppingItemRow
-              key={item.id}
-              item={item}
-              onToggle={() => toggleItem(item.id)}
-              disabled={isPending}
-            />
-          ))}
-        </Section>
-      )}
+      ))}
 
       {/* ─── In cart ────────────────────────────────────────────────────────── */}
       {inCart.length > 0 && (
