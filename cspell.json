@@ -213,7 +213,8 @@
     "mascotas",
     "abarrotes",
     "categoría",
-    "categoria"
+    "categoria",
+    "otro"
   ],
   "ignorePaths": [
     "node_modules/**",

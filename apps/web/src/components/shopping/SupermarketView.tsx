@@ -32,20 +32,22 @@ function getCheckboxCls(inCart: boolean, urgent: boolean): string {
 }
 
 const CATEGORY_EMOJI: Record<string, string> = {
-  lácteos: '🥛', lacteos: '🥛',
-  limpieza: '🧹',
-  frutas: '🍎',
-  verduras: '🥦',
-  carnes: '🥩',
-  panadería: '🍞', panaderia: '🍞',
-  bebidas: '🥤',
-  cereales: '🌾',
-  enlatados: '🥫',
-  snacks: '🍿',
-  congelados: '🧊',
-  higiene: '🧴',
-  mascotas: '🐾',
-  abarrotes: '🛒',
+  'lácteos': '🥛', 'lacteos': '🥛',
+  'limpieza': '🧹',
+  'frutas': '🍎',
+  'verduras': '🥦',
+  'frutas y verduras': '🥦',
+  'carnes': '🥩',
+  'panadería': '🍞', 'panaderia': '🍞',
+  'bebidas': '🥤',
+  'cereales': '🌾',
+  'enlatados': '🥫',
+  'snacks': '🍿',
+  'congelados': '🧊',
+  'higiene': '🧴',
+  'mascotas': '🐾',
+  'abarrotes': '🛒',
+  'otro': '📦',
 };
 
 function getCategoryEmoji(category: string | null): string {
