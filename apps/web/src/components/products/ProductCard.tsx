@@ -239,10 +239,23 @@ export default function ProductCard({ product, showActions = false, compact = fa
 
   if (compact) {
     return (
-      <a href={`/products/${current.id}`} className={sharedCls}>
-        {photoSection}
-        {infoSection}
-      </a>
+      <>
+        <button type="button" onClick={() => setSheetOpen(true)} className={`${sharedCls} w-full text-left cursor-pointer`}>
+          {photoSection}
+          {infoSection}
+        </button>
+        <ActionSheet
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          title={current.name}
+          actions={[
+            { label: 'Tengo', emoji: '✅', onClick: () => setLevel('full') },
+            { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
+            { label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') },
+            { label: 'Ver producto', emoji: '👁️', onClick: () => router.push(`/products/${current.id}`) },
+          ]}
+        />
+      </>
     );
   }
 
