@@ -56,7 +56,24 @@ export class ShoppingListService {
     const base = this.scopeService.whereFragment(scope) as FindOptionsWhere<ShoppingListItem>;
     const item = await this.itemsRepo.findOneOrFail({ where: { ...base, id: itemId } });
     item.isInCart = !item.isInCart;
-    return this.itemsRepo.save(item);
+    await this.itemsRepo.save(item);
+
+    // Modo compra rápida: sync product inventory immediately
+    if (item.isInCart) {
+      await this.productsRepo.update(item.productId, {
+        stockLevel: 'full',
+        isRunningLow: false,
+        needsShopping: false,
+      });
+    } else {
+      await this.productsRepo.update(item.productId, {
+        stockLevel: 'empty',
+        isRunningLow: false,
+        needsShopping: true,
+      });
+    }
+
+    return item;
   }
 
   async completeShopping(userId: string): Promise<void> {

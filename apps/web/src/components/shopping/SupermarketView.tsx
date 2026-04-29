@@ -240,6 +240,15 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       </div>
 
+      {/* ─── Modo compra rápida banner ─────────────────────────────────────── */}
+      <div className="flex items-center gap-2.5 bg-indigo-950/80 border border-indigo-700/40 rounded-2xl px-4 py-2.5">
+        <span className="text-base shrink-0">⚡</span>
+        <p className="text-xs text-indigo-200 leading-snug">
+          <span className="font-bold text-white">Modo compra rápida</span>
+          {' '}· Marca cada producto y el inventario se actualiza solo
+        </p>
+      </div>
+
       {/* ─── Search + filters ───────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div className="relative">
@@ -321,12 +330,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </Section>
       ))}
 
-      {/* ─── In cart ────────────────────────────────────────────────────────── */}
+      {/* ─── Comprados ───────────────────────────────────────────────────────── */}
       {inCart.length > 0 && (
         <Section
-          title="En el carrito"
-          subtitle={`${inCart.length} ${pluralize(inCart.length, 'listo', 'listos')}`}
-          badgeCls="bg-market-100 text-market-700"
+          title="✔️ Comprados"
+          subtitle={`${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · inventario actualizado`}
+          badgeCls="bg-green-100 text-green-700"
         >
           {inCart.map((item) => (
             <ShoppingItemRow
@@ -600,12 +609,12 @@ function ShoppingItemRow({
 
       {/* Quantity / undo */}
       {inCart ? (
-        <span className="shrink-0 text-[11px] font-semibold text-market-600 bg-market-50 border border-market-200 px-2 py-0.5 rounded-full">
-          Quitar ↩
+        <span className="shrink-0 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+          ✔ Comprado
         </span>
       ) : (
-        <span className="text-xs text-stone-500 shrink-0 font-medium">
-          {item.quantityNeeded} {product.unit}
+        <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-stone-400 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded-full">
+          🛒 {item.quantityNeeded}{product.unit ? ` ${product.unit}` : ''}
         </span>
       )}
     </button>
