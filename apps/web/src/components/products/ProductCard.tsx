@@ -249,7 +249,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
           onClose={() => setSheetOpen(false)}
           title={current.name}
           actions={[
-            { label: 'Tengo', emoji: '✅', onClick: () => setLevel('full') },
             { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
             { label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') },
             { label: 'Ver producto', emoji: '👁️', onClick: () => router.push(`/products/${current.id}`) },
