@@ -58,6 +58,7 @@ export type PriceSource = 'manual' | 'allocated' | 'unknown';
 export interface ProductPurchase {
   id: string;
   productId: string;
+  productName?: string;
   quantity: number;
   unitPrice: number | null;
   totalPrice: number | null;

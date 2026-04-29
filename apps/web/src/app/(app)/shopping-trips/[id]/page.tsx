@@ -87,7 +87,7 @@ export default async function TripDetailPage({
             >
               <div className="min-w-0">
                 <p className="font-medium text-stone-800 truncate">
-                  {item.quantity} × producto
+                  {item.quantity} × {item.productName ?? 'Producto'}
                 </p>
                 <p className="text-xs text-stone-500 flex items-center gap-1">
                   {item.unitPrice != null && (

@@ -98,6 +98,7 @@ function mapProductPurchase(row: Record<string, unknown>): ProductPurchase {
   return {
     id: String(row.id),
     productId: String(row.product_id),
+    productName: row.product_name ? asText(row.product_name) : undefined,
     quantity: asNumber(row.quantity),
     unitPrice: row.unit_price == null ? null : asNumber(row.unit_price),
     totalPrice: row.total_price == null ? null : asNumber(row.total_price),
@@ -651,7 +652,13 @@ export const api = {
         : await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${userId} AND household_id IS NULL LIMIT 1`;
       if (!tripRows[0]) return null;
 
-      const itemRows = await sql`SELECT * FROM product_purchases WHERE trip_id = ${id} ORDER BY created_at ASC`;
+      const itemRows = await sql`
+        SELECT pp.*, p.name AS product_name
+        FROM product_purchases pp
+        LEFT JOIN products p ON p.id = pp.product_id
+        WHERE pp.trip_id = ${id}
+        ORDER BY pp.created_at ASC
+      `;
       return {
         ...mapShoppingTrip(tripRows[0] as Record<string, unknown>),
         items: itemRows.map((row) => mapProductPurchase(row as Record<string, unknown>)),
@@ -679,6 +686,57 @@ export const api = {
     },
     delete: async (id: string) => {
       await sql`DELETE FROM shopping_trips WHERE id = ${id}`;
+    },
+    priceComparison: async () => {
+      const { userId, householdId } = await getAuthContext();
+      const rows = householdId
+        ? await sql`
+          SELECT
+            p.id AS product_id,
+            p.name AS product_name,
+            pp.store_name,
+            MIN(pp.unit_price) AS min_price,
+            MAX(pp.unit_price) AS max_price,
+            AVG(pp.unit_price) AS avg_price,
+            COUNT(*) AS purchase_count,
+            MAX(pp.purchased_at) AS last_seen_at
+          FROM product_purchases pp
+          JOIN products p ON p.id = pp.product_id
+          WHERE pp.unit_price IS NOT NULL
+            AND pp.store_name IS NOT NULL
+            AND pp.household_id = ${householdId}
+          GROUP BY p.id, p.name, pp.store_name
+          ORDER BY p.name ASC, min_price ASC
+        `
+        : await sql`
+          SELECT
+            p.id AS product_id,
+            p.name AS product_name,
+            pp.store_name,
+            MIN(pp.unit_price) AS min_price,
+            MAX(pp.unit_price) AS max_price,
+            AVG(pp.unit_price) AS avg_price,
+            COUNT(*) AS purchase_count,
+            MAX(pp.purchased_at) AS last_seen_at
+          FROM product_purchases pp
+          JOIN products p ON p.id = pp.product_id
+          WHERE pp.unit_price IS NOT NULL
+            AND pp.store_name IS NOT NULL
+            AND pp.user_id = ${userId}
+            AND pp.household_id IS NULL
+          GROUP BY p.id, p.name, pp.store_name
+          ORDER BY p.name ASC, min_price ASC
+        `;
+      return rows.map((row) => ({
+        productId: String(row.product_id),
+        productName: asText(row.product_name),
+        storeName: asText(row.store_name),
+        minPrice: asNumber(row.min_price),
+        maxPrice: asNumber(row.max_price),
+        avgPrice: asNumber(row.avg_price),
+        purchaseCount: asInteger(row.purchase_count),
+        lastSeenAt: asIsoString(row.last_seen_at),
+      }));
     },
   },
 };
