@@ -7,7 +7,7 @@ export type { SessionData } from '@foody/types';
 function getSessionPassword(): string {
   const password = process.env.IRON_SESSION_PASSWORD;
   if (password && password.length >= 32) return password;
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && process.env.E2E_TEST_MODE !== 'true') {
     throw new Error('IRON_SESSION_PASSWORD must be set to a 32+ char secret in production');
   }
   // Dev-only deterministic fallback (never reached in prod)

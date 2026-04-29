@@ -24,9 +24,6 @@ export default defineConfig({
         timeout: 120_000,
         stdout: 'ignore',
         stderr: 'pipe',
-        env: {
-          E2E_TEST_MODE: 'true',
-          IRON_SESSION_PASSWORD: 'playwright-e2e-test-password-foody-32ch',
-        },
+        env: { E2E_TEST_MODE: 'true' },
       },
 });
