@@ -113,6 +113,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
             products={products}
             pageSize={12}
             searchOnly
+            compact
             lastPurchaseMap={lastPurchaseMap}
             onLevelChange={handleLevelChange}
           />

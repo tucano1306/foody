@@ -19,6 +19,7 @@ interface LastPurchase {
 interface Props {
   readonly product: Product;
   readonly showActions?: boolean;
+  readonly compact?: boolean; // tap navigates to product page, hides stock buttons
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
   readonly lastPurchase?: LastPurchase;
 }
@@ -73,7 +74,7 @@ function formatMoney(value: number, currency: string): string {
   }
 }
 
-export default function ProductCard({ product, showActions = false, onLevelChange, lastPurchase }: Props) {
+export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, lastPurchase }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState(product);
@@ -119,10 +120,9 @@ export default function ProductCard({ product, showActions = false, onLevelChang
 
   const borderCls = getBorderCls(level);
 
-  const swipe = useSwipe({
-    onSwipeLeft: () => setLevel('empty'),
-    onSwipeRight: () => setLevel('full'),
-  });
+  const swipe = useSwipe(
+    compact ? {} : { onSwipeLeft: () => setLevel('empty'), onSwipeRight: () => setLevel('full') },
+  );
 
   const longPress = useLongPress(() => setSheetOpen(true));
 
@@ -135,12 +135,119 @@ export default function ProductCard({ product, showActions = false, onLevelChang
     router.refresh();
   }
 
+  const sharedCls = `group relative bg-white rounded-2xl border shadow-md overflow-hidden transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}`;
+
+  const photoSection = (
+    <div className="aspect-square bg-stone-50 relative overflow-hidden">
+      {current.photoUrl ? (
+        <Image
+          src={current.photoUrl}
+          alt={current.name}
+          fill
+          className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
+          sizes="(max-width: 640px) 50vw, 25vw"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-5xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
+          🥑
+        </div>
+      )}
+      <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-stone-700 shadow-sm">
+        <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
+        {cfg.short}
+      </span>
+      {level === 'empty' && (
+        <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
+      )}
+    </div>
+  );
+
+  const infoSection = (
+    <div className="p-3">
+      <p className="font-semibold text-stone-800 text-sm truncate">{current.name}</p>
+      {current.category && (
+        <p className="text-[11px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
+          {current.category}
+        </p>
+      )}
+      {current.lastPurchasePrice != null && (
+        <p className="mt-1 text-lg font-extrabold text-stone-900 leading-none">
+          {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
+        </p>
+      )}
+      {!compact && (
+        <>
+          <div role="radiogroup" aria-label="Estado del stock" className="mt-2.5 grid grid-cols-3 gap-1 p-1 bg-stone-50 rounded-xl">
+            {LEVEL_ORDER.map((l) => {
+              const c = LEVEL_CONFIG[l];
+              const active = l === level;
+              return (
+                <motion.button
+                  key={l}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  aria-label={c.label}
+                  title={c.label}
+                  onClick={() => setLevel(l)}
+                  disabled={isPending}
+                  className={['relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
+                  whileTap={{ scale: 0.75 }}
+                  whileHover={active ? {} : { scale: 1.1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+                >
+                  <span className="text-sm leading-none">{c.emoji}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[11px] text-stone-500 text-center">{cfg.label}</p>
+        </>
+      )}
+      {current.totalSpent > 0 && (
+        <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
+          <span className="text-stone-400">Total gastado</span>
+          <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
+        </div>
+      )}
+      {lastPurchase && (
+        <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400 space-y-0.5">
+          <p className="flex items-center gap-1">
+            <span>🕐</span>
+            <span>{new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(lastPurchase.purchasedAt))}</span>
+          </p>
+          {lastPurchase.storeName && (
+            <p className="flex items-center gap-1">
+              <span>🏪</span>
+              <span className="truncate">{lastPurchase.storeName}</span>
+            </p>
+          )}
+        </div>
+      )}
+      {showActions && (
+        <div className="mt-2 grid grid-cols-2 gap-1">
+          <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
+            ✏️ Editar
+          </a>
+          <button type="button" onClick={handleDelete} className="py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-semibold transition">
+            🗑️ Borrar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <a href={`/products/${current.id}`} className={sharedCls}>
+        {photoSection}
+        {infoSection}
+      </a>
+    );
+  }
+
   return (
-    <div
-      {...swipe}
-      {...longPress.handlers}
-      className={`group relative bg-white rounded-2xl border shadow-md overflow-hidden transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}`}
-    >
+    <div {...swipe} {...longPress.handlers} className={sharedCls}>
       {/* ─── Photo ───────────────────────────────────────────────────────── */}
       <div className="aspect-square bg-stone-50 relative overflow-hidden">
         {current.photoUrl ? (
@@ -163,18 +270,13 @@ export default function ProductCard({ product, showActions = false, onLevelChang
             🥑
           </div>
         )}
-
-        {/* Status badge */}
         <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-stone-700 shadow-sm">
           <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
           {cfg.short}
         </span>
-
-        {/* Empty overlay */}
         {level === 'empty' && (
           <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
         )}
-
       </div>
 
       {/* ─── Info ────────────────────────────────────────────────────────── */}
@@ -185,20 +287,12 @@ export default function ProductCard({ product, showActions = false, onLevelChang
             {current.category}
           </p>
         )}
-
-        {/* Price (prominent) */}
         {current.lastPurchasePrice != null && (
           <p className="mt-1 text-lg font-extrabold text-stone-900 leading-none">
             {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
           </p>
         )}
-
-        {/* ─── 3-state segmented selector ─────────────────────────────────── */}
-        <div
-          role="radiogroup"
-          aria-label="Estado del stock"
-          className="mt-2.5 grid grid-cols-3 gap-1 p-1 bg-stone-50 rounded-xl"
-        >
+        <div role="radiogroup" aria-label="Estado del stock" className="mt-2.5 grid grid-cols-3 gap-1 p-1 bg-stone-50 rounded-xl">
           {LEVEL_ORDER.map((l) => {
             const c = LEVEL_CONFIG[l];
             const active = l === level;
@@ -212,9 +306,7 @@ export default function ProductCard({ product, showActions = false, onLevelChang
                 title={c.label}
                 onClick={() => setLevel(l)}
                 disabled={isPending}
-                className={`relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed ${
-                  active ? c.activeCls : `bg-transparent ${c.cls}`
-                }`}
+                className={['relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
                 whileTap={{ scale: 0.75 }}
                 whileHover={active ? {} : { scale: 1.1 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 18 }}
@@ -224,23 +316,13 @@ export default function ProductCard({ product, showActions = false, onLevelChang
             );
           })}
         </div>
-
-        {/* Active-level label */}
-        <p className="mt-1.5 text-[11px] text-stone-500 text-center">
-          {cfg.label}
-        </p>
-
-        {/* ─── Total spent footer ───────────────────────────────────────── */}
+        <p className="mt-1.5 text-[11px] text-stone-500 text-center">{cfg.label}</p>
         {current.totalSpent > 0 && (
           <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
             <span className="text-stone-400">Total gastado</span>
-            <span className="font-bold text-brand-700">
-              {formatMoney(current.totalSpent, current.currency ?? 'MXN')}
-            </span>
+            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
           </div>
         )}
-
-        {/* ─── Last purchase footer ─────────────────────────────────────── */}
         {lastPurchase && (
           <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400 space-y-0.5">
             <p className="flex items-center gap-1">
@@ -255,20 +337,12 @@ export default function ProductCard({ product, showActions = false, onLevelChang
             )}
           </div>
         )}
-
         {showActions && (
           <div className="mt-2 grid grid-cols-2 gap-1">
-            <a
-              href={`/products/${current.id}`}
-              className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition"
-            >
+            <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
               ✏️ Editar
             </a>
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-semibold transition"
-            >
+            <button type="button" onClick={handleDelete} className="py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-semibold transition">
               🗑️ Borrar
             </button>
           </div>
@@ -280,36 +354,15 @@ export default function ProductCard({ product, showActions = false, onLevelChang
         onClose={() => setSheetOpen(false)}
         title={current.name}
         actions={[
-          {
-            label: 'Marcar como "Tengo"',
-            emoji: '✅',
-            onClick: () => setLevel('full'),
-          },
-          {
-            label: 'Marcar como "A la mitad"',
-            emoji: '⚠️',
-            onClick: () => setLevel('half'),
-          },
-          {
-            label: 'Marcar como "Se acabó"',
-            emoji: '🚨',
-            onClick: () => setLevel('empty'),
-          },
-          {
-            label: 'Eliminar producto',
-            emoji: '🗑️',
-            destructive: true,
-            onClick: handleDelete,
-          },
+          { label: 'Marcar como "Tengo"', emoji: '✅', onClick: () => setLevel('full') },
+          { label: 'Marcar como "A la mitad"', emoji: '⚠️', onClick: () => setLevel('half') },
+          { label: 'Marcar como "Se acabó"', emoji: '🚨', onClick: () => setLevel('empty') },
+          { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete },
         ]}
       />
 
       {lightboxOpen && current.photoUrl && (
-        <PhotoLightbox
-          src={current.photoUrl}
-          alt={current.name}
-          onClose={() => setLightboxOpen(false)}
-        />
+        <PhotoLightbox src={current.photoUrl} alt={current.name} onClose={() => setLightboxOpen(false)} />
       )}
     </div>
   );

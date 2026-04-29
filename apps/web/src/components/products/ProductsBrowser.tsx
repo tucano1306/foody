@@ -10,6 +10,7 @@ type StockFilter = 'all' | StockLevel;
 interface Props {
   readonly products: readonly Product[];
   readonly showActions?: boolean;
+  readonly compact?: boolean;
   readonly showStockFilter?: boolean;
   readonly pageSize?: number;
   readonly emptyState?: React.ReactNode;
@@ -32,6 +33,7 @@ interface GridOptions {
   emptyState: React.ReactNode;
   visible: readonly Product[];
   showActions: boolean;
+  compact: boolean;
   lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   onLevelChange?: (id: string, newLevel: StockLevel) => void;
 }
@@ -43,6 +45,7 @@ function renderGrid({
   emptyState,
   visible,
   showActions,
+  compact,
   lastPurchaseMap,
   onLevelChange,
 }: GridOptions): React.ReactNode {
@@ -68,6 +71,7 @@ function renderGrid({
           key={product.id}
           product={product}
           showActions={showActions}
+          compact={compact}
           lastPurchase={lastPurchaseMap?.[product.id]}
           onLevelChange={onLevelChange}
         />
@@ -80,6 +84,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
   const {
     products,
     showActions = false,
+    compact = false,
     showStockFilter = false,
     pageSize = 12,
     emptyState,
@@ -181,7 +186,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       )}
 
       {/* Grid / empty */}
-      {renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, lastPurchaseMap, onLevelChange })}
+      {renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange })}
 
       {/* Pagination */}
       {totalPages > 1 && (
