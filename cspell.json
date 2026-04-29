@@ -192,7 +192,11 @@
     "Guardando",
     "Cerrar",
     "Walmart",
-    "Soriana"
+    "Soriana",
+    "Cuánto",
+    "cuánto",
+    "gastaste",
+    "opcional"
   ],
   "ignorePaths": [
     "node_modules/**",
