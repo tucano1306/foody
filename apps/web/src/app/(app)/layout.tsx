@@ -6,6 +6,7 @@ import OnboardingTour from '@/components/layout/OnboardingTour';
 import PullToRefresh from '@/components/layout/PullToRefresh';
 import CommandPalette from '@/components/layout/CommandPalette';
 import PwaInstaller from '@/components/pwa/PwaInstaller';
+import VoiceAssistant from '@/components/voice/VoiceAssistant';
 import type { Product } from '@foody/types';
 
 export default async function AppLayout({ children }: { readonly children: React.ReactNode }) {
@@ -27,6 +28,7 @@ export default async function AppLayout({ children }: { readonly children: React
         {children}
       </main>
       <CommandPalette products={products} />
+      <VoiceAssistant />
       <OnboardingTour />
       <PwaInstaller />
     </div>
