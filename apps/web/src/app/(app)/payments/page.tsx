@@ -61,8 +61,8 @@ export default async function PaymentsPage() {
 
       {/* ─── Pending payments ───────────────────────────────────────────────── */}
       {pending.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-stone-700 mb-3">
+        <section className="bg-gray-900 rounded-2xl p-5">
+          <h2 className="text-lg font-bold text-white mb-4">
             ⏰ Pendientes ({pending.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -75,8 +75,8 @@ export default async function PaymentsPage() {
 
       {/* ─── Paid this month ────────────────────────────────────────────────── */}
       {paid.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-stone-700 mb-3">
+        <section className="bg-gray-900 rounded-2xl p-5">
+          <h2 className="text-lg font-bold text-white mb-4">
             ✅ Pagados este mes ({paid.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

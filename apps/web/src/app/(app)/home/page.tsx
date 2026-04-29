@@ -59,17 +59,17 @@ export default async function HomePage() {
       <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} />
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
-      <section>
+      <section className="bg-gray-900 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-stone-700">
+          <h2 className="text-lg font-bold text-white">
             💳 Pagos próximos
           </h2>
-          <a href="/payments" className="text-sm text-brand-500 hover:underline">
+          <a href="/payments" className="text-sm text-gray-400 hover:text-white transition-colors">
             Ver todos →
           </a>
         </div>
         {upcomingPayments.length === 0 ? (
-          <p className="text-stone-400 text-sm py-4">
+          <p className="text-gray-500 text-sm py-4">
             No hay pagos urgentes esta semana 🎉
           </p>
         ) : (
