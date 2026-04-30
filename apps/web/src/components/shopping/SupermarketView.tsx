@@ -144,6 +144,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const [completing, setCompleting] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -239,9 +240,25 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       if (q && !i.product.name.toLowerCase().includes(q)) return false;
       if (filter === 'urgent') return i.product.stockLevel === 'empty';
       if (filter === 'low') return i.product.stockLevel === 'half';
+      if (categoryFilter && (i.product.category ?? 'Sin categoría') !== categoryFilter) return false;
       return true;
     });
   }
+
+  // Categories present in the "not in cart" list for the category filter row
+  const availableCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const i of notInCart) {
+      cats.add(i.product.category ?? 'Sin categoría');
+    }
+    return [...cats].sort((a, b) => {
+      if (a === 'Sin categoría') return 1;
+      if (b === 'Sin categoría') return -1;
+      const oa = CATEGORY_ORDER[a.toLowerCase()] ?? 50;
+      const ob = CATEGORY_ORDER[b.toLowerCase()] ?? 50;
+      return oa === ob ? a.localeCompare(b, 'es') : oa - ob;
+    });
+  }, [notInCart]);
 
   if (items.length === 0) {
     return (
@@ -346,6 +363,41 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             </motion.button>
           ))}
         </div>
+
+        {/* Category filter chips */}
+        {availableCategories.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
+            <motion.button
+              onClick={() => setCategoryFilter(null)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                categoryFilter === null
+                  ? 'bg-stone-700 text-white shadow-sm'
+                  : 'bg-white border border-stone-200 text-stone-600 hover:border-stone-400'
+              }`}
+              whileHover={{ scale: 1.07 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+            >
+              📂 Todas
+            </motion.button>
+            {availableCategories.map((cat) => (
+              <motion.button
+                key={cat}
+                onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  categoryFilter === cat
+                    ? 'bg-stone-700 text-white shadow-sm'
+                    : 'bg-white border border-stone-200 text-stone-600 hover:border-stone-400'
+                }`}
+                whileHover={{ scale: 1.07 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+              >
+                {getCategoryEmoji(cat)} {cat}
+              </motion.button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ─── Category groups ────────────────────────────────────────────────── */}

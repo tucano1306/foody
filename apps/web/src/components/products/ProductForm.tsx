@@ -27,6 +27,31 @@ interface Props {
   readonly product?: Product;
 }
 
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new globalThis.Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 640;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+        else { width = Math.round((width * MAX) / height); height = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas no disponible')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = () => reject(new Error('Error al leer la imagen'));
+    img.src = objectUrl;
+  });
+}
+
 export default function ProductForm({ product }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,25 +80,9 @@ export default function ProductForm({ product }: Props) {
     setError(null);
 
     try {
-      // 1. Get presigned URL from API
-      const urlRes = await fetch(
-        `/api/proxy/products/upload-url?fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`,
-        { credentials: 'include' },
-      );
-
-      if (!urlRes.ok) throw new Error('No se pudo obtener URL de carga');
-
-      const { uploadUrl, fileUrl } = await urlRes.json();
-
-      // 2. Upload directly to S3
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      });
-
-      setForm((f) => ({ ...f, photoUrl: fileUrl }));
-      setPhotoPreview(fileUrl);
+      const dataUrl = await compressImage(file);
+      setForm((f) => ({ ...f, photoUrl: dataUrl }));
+      setPhotoPreview(dataUrl);
     } catch (err) {
       setError((err as Error).message);
     } finally {

@@ -16,6 +16,22 @@ interface LastPurchase {
   readonly storeName: string | null;
 }
 
+function ProductPhoto({ src, alt }: { readonly src: string; readonly alt: string }) {
+  if (src.startsWith('data:')) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={alt} className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90" />;
+  }
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
+      sizes="(max-width: 640px) 50vw, 25vw"
+    />
+  );
+}
+
 interface Props {
   readonly product: Product;
   readonly showActions?: boolean;
@@ -153,13 +169,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const photoSection = (
     <div className="aspect-square bg-stone-50 relative overflow-hidden">
       {current.photoUrl ? (
-        <Image
-          src={current.photoUrl}
-          alt={current.name}
-          fill
-          className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
-          sizes="(max-width: 640px) 50vw, 25vw"
-        />
+        <ProductPhoto src={current.photoUrl} alt={current.name} />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-5xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
           🥑
@@ -264,7 +274,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
           title={current.name}
           actions={[
             { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
-            { label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') },
             { label: 'Ver producto', emoji: '👁️', onClick: () => router.push(`/products/${current.id}`) },
           ]}
         />
@@ -283,13 +292,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
             onClick={() => setLightboxOpen(true)}
             className="absolute inset-0 w-full h-full focus:outline-none"
           >
-            <Image
-              src={current.photoUrl}
-              alt={current.name}
-              fill
-              className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
-              sizes="(max-width: 640px) 50vw, 25vw"
-            />
+            <ProductPhoto src={current.photoUrl} alt={current.name} />
           </button>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-5xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
