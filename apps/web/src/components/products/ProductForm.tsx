@@ -3,11 +3,24 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Product, CreateProductDto } from '@foody/types';
-import BarcodeScanner from './BarcodeScanner';
 
 const CATEGORIES = [
-  'Lácteos', 'Carnes', 'Frutas y Verduras', 'Panadería',
-  'Bebidas', 'Limpieza', 'Higiene', 'Congelados', 'Enlatados', 'Otro',
+  'Frutas y Verduras',
+  'Lácteos',
+  'Carnicería',
+  'Pescadería',
+  'Panadería y Tortillería',
+  'Granos y Legumbres',
+  'Cereales y Desayunos',
+  'Enlatados',
+  'Congelados',
+  'Snacks y Dulces',
+  'Condimentos y Salsas',
+  'Bebidas',
+  'Limpieza',
+  'Higiene y Cuidado',
+  'Mascotas',
+  'Otro',
 ];
 
 interface Props {
@@ -33,41 +46,6 @@ export default function ProductForm({ product }: Props) {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [lookingUp, setLookingUp] = useState(false);
-
-  async function handleBarcode(code: string) {
-    setScanning(false);
-    setLookingUp(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const p = data?.product;
-        if (p) {
-          setForm((f) => ({
-            ...f,
-            name: f.name || p.product_name_es || p.product_name || f.name,
-            category: f.category || (p.categories_tags?.[0]?.split(':').pop() ?? f.category),
-            description: f.description || p.brands || f.description,
-            photoUrl: f.photoUrl || p.image_front_small_url || f.photoUrl,
-          }));
-          if (!photoPreview && p.image_front_small_url) {
-            setPhotoPreview(p.image_front_small_url);
-          }
-        } else {
-          setError('Código no encontrado en la base de datos — rellena manualmente.');
-        }
-      }
-    } catch {
-      setError('No se pudo consultar el código. Rellena manualmente.');
-    } finally {
-      setLookingUp(false);
-    }
-  }
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -136,27 +114,11 @@ export default function ProductForm({ product }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {scanning && (
-        <BarcodeScanner
-          onDetected={handleBarcode}
-          onClose={() => setScanning(false)}
-        />
-      )}
-
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
           {error}
         </div>
       )}
-
-      {/* ─── Barcode scan ──────────────────────────────────────────────────── */}
-      <button
-        type="button"
-        onClick={() => setScanning(true)}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-brand-300 text-brand-600 font-semibold hover:bg-brand-50 transition"
-      >
-        {lookingUp ? 'Consultando producto...' : '📦 Escanear código de barras'}
-      </button>
 
       {/* ─── Photo upload ──────────────────────────────────────────────────── */}
       <div>

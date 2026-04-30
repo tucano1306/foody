@@ -32,22 +32,57 @@ function getCheckboxCls(inCart: boolean, urgent: boolean): string {
 }
 
 const CATEGORY_EMOJI: Record<string, string> = {
-  'lácteos': '🥛', 'lacteos': '🥛',
-  'limpieza': '🧹',
+  'frutas y verduras': '🥦',
   'frutas': '🍎',
   'verduras': '🥦',
-  'frutas y verduras': '🥦',
+  'lácteos': '🥛', 'lacteos': '🥛',
+  'carnicería': '🥩', 'carniceria': '🥩',
   'carnes': '🥩',
+  'pescadería': '🐟', 'pescaderia': '🐟',
+  'panadería y tortillería': '🍞', 'panaderia y tortilleria': '🍞',
   'panadería': '🍞', 'panaderia': '🍞',
-  'bebidas': '🥤',
+  'granos y legumbres': '🌾',
+  'cereales y desayunos': '🥣',
   'cereales': '🌾',
   'enlatados': '🥫',
-  'snacks': '🍿',
   'congelados': '🧊',
+  'snacks y dulces': '🍬',
+  'snacks': '🍿',
+  'condimentos y salsas': '🧂',
+  'bebidas': '🥤',
+  'limpieza': '🧹',
+  'higiene y cuidado': '🧴',
   'higiene': '🧴',
   'mascotas': '🐾',
   'abarrotes': '🛒',
   'otro': '📦',
+};
+
+const CATEGORY_ORDER: Record<string, number> = {
+  'frutas y verduras': 1,
+  'frutas': 2,
+  'verduras': 3,
+  'lácteos': 4, 'lacteos': 4,
+  'carnicería': 5, 'carniceria': 5,
+  'carnes': 6,
+  'pescadería': 7, 'pescaderia': 7,
+  'panadería y tortillería': 8, 'panaderia y tortilleria': 8,
+  'panadería': 9, 'panaderia': 9,
+  'granos y legumbres': 10,
+  'cereales y desayunos': 11,
+  'cereales': 12,
+  'enlatados': 13,
+  'congelados': 14,
+  'snacks y dulces': 15,
+  'snacks': 16,
+  'condimentos y salsas': 17,
+  'bebidas': 18,
+  'limpieza': 19,
+  'higiene y cuidado': 20,
+  'higiene': 21,
+  'mascotas': 22,
+  'abarrotes': 23,
+  'otro': 98,
 };
 
 function getCategoryEmoji(category: string | null): string {
@@ -95,6 +130,9 @@ function groupByCategory(items: ShoppingListItem[]): CategoryGroup[] {
   return groups.sort((a, b) => {
     if (a.category === 'Sin categoría') return 1;
     if (b.category === 'Sin categoría') return -1;
+    const orderA = CATEGORY_ORDER[a.category.toLowerCase()] ?? 50;
+    const orderB = CATEGORY_ORDER[b.category.toLowerCase()] ?? 50;
+    if (orderA !== orderB) return orderA - orderB;
     return a.category.localeCompare(b.category, 'es');
   });
 }
