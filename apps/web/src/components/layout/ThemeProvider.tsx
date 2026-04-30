@@ -27,14 +27,10 @@ function applyClass(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { readonly children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light');
+  const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const prefersDark = globalThis.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initial: Theme = stored ?? (prefersDark ? 'dark' : 'light');
-    setTheme(initial);
-    applyClass(initial);
+    applyClass('dark');
   }, []);
 
   const applyTheme = useCallback((next: Theme) => {

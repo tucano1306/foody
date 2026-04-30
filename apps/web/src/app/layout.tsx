@@ -27,14 +27,8 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-// Blocking script to set the class before paint (no FOUC)
-const themeInitScript = `
-  try {
-    var s = localStorage.getItem('foody-theme');
-    var d = s ? s === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-    if (d) document.documentElement.classList.add('dark');
-  } catch (e) {}
-`;
+// Blocking script to set dark mode before paint (no FOUC)
+const themeInitScript = `document.documentElement.classList.add('dark');`;
 
 export default function RootLayout({
   children,
