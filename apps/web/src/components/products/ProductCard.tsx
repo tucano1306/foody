@@ -74,6 +74,19 @@ function formatMoney(value: number, currency: string): string {
   }
 }
 
+function formatRelativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(diff / 3_600_000);
+  const days = Math.floor(hours / 24);
+  if (hours < 1) return 'hace menos de 1 h';
+  if (hours < 24) return `hace ${hours} h`;
+  if (days === 1) return 'ayer';
+  if (days < 7) return `hace ${days} días`;
+  if (days < 30) return `hace ${Math.floor(days / 7)} sem.`;
+  const months = Math.floor(days / 30);
+  return `hace ${months} ${months === 1 ? 'mes' : 'meses'}`;
+}
+
 export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, lastPurchase }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -211,15 +224,16 @@ export default function ProductCard({ product, showActions = false, compact = fa
         </div>
       )}
       {lastPurchase && (
-        <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400 space-y-0.5">
+        <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
+          <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
           <p className="flex items-center gap-1">
             <span>🕐</span>
-            <span>{new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(lastPurchase.purchasedAt))}</span>
+            <span>{formatRelativeTime(lastPurchase.purchasedAt)}</span>
           </p>
           {lastPurchase.storeName && (
-            <p className="flex items-center gap-1">
+            <p className="flex items-center gap-1 mt-0.5">
               <span>🏪</span>
-              <span className="truncate">{lastPurchase.storeName}</span>
+              <span className="truncate">en {lastPurchase.storeName}</span>
             </p>
           )}
         </div>
@@ -304,31 +318,44 @@ export default function ProductCard({ product, showActions = false, compact = fa
             {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
           </p>
         )}
-        <div role="radiogroup" aria-label="Estado del stock" className="mt-2.5 grid grid-cols-3 gap-1 p-1 bg-stone-50 rounded-xl">
-          {LEVEL_ORDER.map((l) => {
-            const c = LEVEL_CONFIG[l];
-            const active = l === level;
-            return (
-              <motion.button
-                key={l}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                aria-label={c.label}
-                title={c.label}
-                onClick={() => setLevel(l)}
-                disabled={isPending}
-                className={['relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
-                whileTap={{ scale: 0.75 }}
-                whileHover={active ? {} : { scale: 1.1 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-              >
-                <span className="text-sm leading-none">{c.emoji}</span>
-              </motion.button>
-            );
-          })}
-        </div>
-        <p className="mt-1.5 text-[11px] text-stone-500 text-center">{cfg.label}</p>
+        {level === 'empty' ? (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            disabled={isPending}
+            className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold transition animate-pulse"
+          >
+            🚨 Toca para actualizar
+          </button>
+        ) : (
+          <>
+            <div role="radiogroup" aria-label="Estado del stock" className="mt-2.5 grid grid-cols-3 gap-1 p-1 bg-stone-50 rounded-xl">
+              {LEVEL_ORDER.map((l) => {
+                const c = LEVEL_CONFIG[l];
+                const active = l === level;
+                return (
+                  <motion.button
+                    key={l}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    aria-label={c.label}
+                    title={c.label}
+                    onClick={() => setLevel(l)}
+                    disabled={isPending}
+                    className={['relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
+                    whileTap={{ scale: 0.75 }}
+                    whileHover={active ? {} : { scale: 1.1 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+                  >
+                    <span className="text-sm leading-none">{c.emoji}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-stone-500 text-center">{cfg.label}</p>
+          </>
+        )}
         {current.totalSpent > 0 && (
           <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
             <span className="text-stone-400">Total gastado</span>
@@ -336,15 +363,16 @@ export default function ProductCard({ product, showActions = false, compact = fa
           </div>
         )}
         {lastPurchase && (
-          <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400 space-y-0.5">
+          <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
+            <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
             <p className="flex items-center gap-1">
               <span>🕐</span>
-              <span>{new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(lastPurchase.purchasedAt))}</span>
+              <span>{formatRelativeTime(lastPurchase.purchasedAt)}</span>
             </p>
             {lastPurchase.storeName && (
-              <p className="flex items-center gap-1">
+              <p className="flex items-center gap-1 mt-0.5">
                 <span>🏪</span>
-                <span className="truncate">{lastPurchase.storeName}</span>
+                <span className="truncate">en {lastPurchase.storeName}</span>
               </p>
             )}
           </div>

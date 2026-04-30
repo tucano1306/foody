@@ -129,8 +129,16 @@ export default function ProductsBrowser(props: Readonly<Props>) {
         <motion.span
           className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
           whileHover={{ scale: 1.3, rotate: -15 }}
-          animate={query ? { scale: [1, 1.2, 1], rotate: [0, -10, 0] } : {}}
-          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          animate={
+            query
+              ? { scale: [1, 1.2, 1], rotate: [0, -10, 0], x: 0 }
+              : { x: [0, 5, -5, 5, 0], rotate: [0, -8, 8, -8, 0] }
+          }
+          transition={
+            query
+              ? { type: 'spring', stiffness: 400, damping: 15 }
+              : { duration: 2.4, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }
+          }
         >
           🔍
         </motion.span>

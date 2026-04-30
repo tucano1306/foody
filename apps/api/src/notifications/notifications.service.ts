@@ -136,17 +136,44 @@ export class NotificationsService {
     this.logger.log('Running predictive stock alerts...');
 
     const products = await this.productsRepo.find({
+      where: { stockLevel: 'full' },
       relations: ['user'],
     });
 
     for (const product of products) {
-      const daysRemaining = await this.estimateDaysRemaining(product);
-      if (daysRemaining === null) continue;
+      const result = await this.estimateDaysRemaining(product);
+      if (result === null) continue;
 
-      if (daysRemaining <= 2) {
-        await this.sendStockNotification(product, daysRemaining);
-      }
+      const { daysRemaining, avgIntervalDays } = result;
+
+      // Alert threshold: whichever is larger — 3 days or 25% of the avg cycle
+      const alertThreshold = Math.max(3, Math.round(avgIntervalDays * 0.25));
+      if (daysRemaining > alertThreshold) continue;
+
+      // Deduplicate: only alert once per "running low" cycle.
+      // We consider the product was already alerted if the last purchase was
+      // recent enough that the cycle hasn't reset (stock still > 0).
+      const alreadyAlerted = await this.wasAlertedThisCycle(product.id, avgIntervalDays);
+      if (alreadyAlerted) continue;
+
+      await this.sendStockNotification(product, daysRemaining, avgIntervalDays);
     }
+  }
+
+  /**
+   * Returns true if we already sent a stock alert in the current consumption cycle.
+   * We track this by checking if there's a purchase newer than (now - avgInterval).
+   * If not, the alert was sent in a previous cycle — safe to alert again.
+   */
+  private async wasAlertedThisCycle(productId: string, avgIntervalDays: number): Promise<boolean> {
+    const cycleStart = new Date(Date.now() - avgIntervalDays * 0.75 * 86_400_000);
+    const recent = await this.purchasesRepo.findOne({
+      where: { productId },
+      order: { purchasedAt: 'DESC' },
+    });
+    if (!recent) return false;
+    // If last purchase is within 75% of the avg cycle, we're still in the same cycle
+    return new Date(recent.purchasedAt) >= cycleStart;
   }
 
   /**
@@ -154,7 +181,7 @@ export class NotificationsService {
    * 1. Average interval between purchases (consumption rate)
    * 2. Current stock level as a fraction
    */
-  private async estimateDaysRemaining(product: Product): Promise<number | null> {
+  private async estimateDaysRemaining(product: Product): Promise<{ daysRemaining: number; avgIntervalDays: number } | null> {
     const purchases = await this.purchasesRepo.find({
       where: { productId: product.id },
       order: { purchasedAt: 'ASC' },
@@ -173,32 +200,39 @@ export class NotificationsService {
     if (product.stockLevel === 'full') stockFraction = 1;
     else if (product.stockLevel === 'half') stockFraction = 0.5;
 
-    return Math.round(avgIntervalDays * stockFraction);
+    return { daysRemaining: Math.round(avgIntervalDays * stockFraction), avgIntervalDays };
   }
 
-  private async sendStockNotification(product: Product, daysRemaining: number): Promise<void> {
+  private async sendStockNotification(product: Product, daysRemaining: number, avgIntervalDays: number): Promise<void> {
     const user = product.user;
     if (!user?.onesignalPlayerId) return;
 
     const appId = this.config.get<string>('onesignal.appId');
     if (!appId) return;
 
-    const daysSuffix = daysRemaining === 1 ? '' : 's';
-    const message =
-      daysRemaining <= 0
-        ? `${product.name} se ha agotado. ¡Agrégalo a tu lista de compras!`
-        : `${product.name} se agotará en ~${daysRemaining} día${daysSuffix} según tu consumo habitual.`;
+    const firstName = user.name?.split(' ')[0] ?? null;
+    const greeting = firstName ? `Hola ${firstName}, ` : '¡Hola! ';
+    const cycleText = Math.round(avgIntervalDays);
+
+    let message: string;
+    if (daysRemaining <= 0) {
+      message = `${greeting}parece que ${product.name} ya se agotó. ¡Te lo agregamos a la lista del súper! 🛒`;
+    } else if (daysRemaining === 1) {
+      message = `${greeting}basándonos en tu consumo habitual, ${product.name} te durará solo 1 día más. ¿Lo agregamos a la lista? 🛒`;
+    } else {
+      message = `${greeting}según tus patrones de compra (cada ~${cycleText} días), ${product.name} te durará unos ${daysRemaining} días más. ¡Buen momento para reponerlo! 🛒`;
+    }
 
     try {
       const notification = new OneSignal.Notification();
       notification.app_id = appId;
       notification.include_subscription_ids = [user.onesignalPlayerId];
       notification.contents = { en: message, es: message };
-      notification.headings = { en: '🛒 Foody — Stock bajo', es: '🛒 Foody — Stock bajo' };
+      notification.headings = { en: '🥑 Foody — Se te acaba', es: '🥑 Foody — Se te acaba' };
       notification.data = { type: 'stock_alert', productId: product.id, daysRemaining };
 
       await this.onesignalClient.createNotification(notification);
-      this.logger.log(`Stock alert sent for "${product.name}" (${daysRemaining}d) to user ${user.id}`);
+      this.logger.log(`Stock alert sent for "${product.name}" (~${daysRemaining}d) to user ${user.id}`);
     } catch (err) {
       this.logger.error(`Failed to send stock alert for product ${product.id}`, err);
     }
