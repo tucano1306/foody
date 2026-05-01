@@ -200,14 +200,14 @@ export default function ProductCard({ product, showActions = false, compact = fa
           <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
         </div>
       )}
-      {lastPurchase && (
+      {(lastPurchase || current.lastPurchaseDate) && (
         <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
           <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
           <p className="flex items-center gap-1">
             <span>🕐</span>
-            <span>{formatRelativeTime(lastPurchase.purchasedAt)}</span>
+            <span>{formatRelativeTime(lastPurchase?.purchasedAt ?? current.lastPurchaseDate!)}</span>
           </p>
-          {lastPurchase.storeName && (
+          {lastPurchase?.storeName && (
             <p className="flex items-center gap-1 mt-0.5">
               <span>🏪</span>
               <span className="truncate">en {lastPurchase.storeName}</span>
@@ -309,14 +309,14 @@ export default function ProductCard({ product, showActions = false, compact = fa
             <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
           </div>
         )}
-        {lastPurchase && (
+        {(lastPurchase || current.lastPurchaseDate) && (
           <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
             <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
             <p className="flex items-center gap-1">
               <span>🕐</span>
-              <span>{formatRelativeTime(lastPurchase.purchasedAt)}</span>
+              <span>{formatRelativeTime(lastPurchase?.purchasedAt ?? current.lastPurchaseDate!)}</span>
             </p>
-            {lastPurchase.storeName && (
+            {lastPurchase?.storeName && (
               <p className="flex items-center gap-1 mt-0.5">
                 <span>🏪</span>
                 <span className="truncate">en {lastPurchase.storeName}</span>

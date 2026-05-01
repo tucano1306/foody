@@ -120,7 +120,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
               </div>
 
               {/* ── Stats ─────────────────────────────── */}
-              {(product.totalSpent > 0 || lastPurchase) && (
+              {(product.totalSpent > 0 || lastPurchase || product.lastPurchaseDate) && (
                 <div className="flex gap-3">
                   {product.totalSpent > 0 && (
                     <div className="flex-1 rounded-xl bg-stone-50 p-3">
@@ -128,12 +128,14 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                       <p className="text-sm font-bold text-brand-700 mt-0.5">{formatMoney(product.totalSpent, product.currency ?? 'MXN')}</p>
                     </div>
                   )}
-                  {lastPurchase && (
+                  {(lastPurchase || product.lastPurchaseDate) && (
                     <div className="flex-1 rounded-xl bg-stone-50 p-3">
                       <p className="text-[10px] text-stone-400 uppercase tracking-wide">Última compra</p>
-                      <p className="text-sm font-semibold text-stone-700 mt-0.5">{formatRelativeTime(lastPurchase.purchasedAt)}</p>
-                      {lastPurchase.storeName && (
-                        <p className="text-[10px] text-stone-400 truncate">en {lastPurchase.storeName}</p>
+                      <p className="text-sm font-semibold text-stone-700 mt-0.5">
+                        {formatRelativeTime(lastPurchase?.purchasedAt ?? product.lastPurchaseDate!)}
+                      </p>
+                      {lastPurchase?.storeName && (
+                        <p className="text-[10px] text-stone-400 truncate mt-0.5">🏪 {lastPurchase.storeName}</p>
                       )}
                     </div>
                   )}
