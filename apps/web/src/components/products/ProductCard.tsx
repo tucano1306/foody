@@ -216,12 +216,21 @@ export default function ProductCard({ product, showActions = false, compact = fa
         </div>
       )}
       {showActions && (
-        <div className="mt-2 grid grid-cols-2 gap-1">
-          <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
-            ✏️ Editar
+        <div className="mt-2 flex gap-1.5">
+          <a
+            href={`/products/${current.id}`}
+            className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
+          >
+            <span className="text-base leading-none">✏️</span>
+            <span className="text-[11px] font-semibold">Editar</span>
           </a>
-          <button type="button" onClick={handleDelete} className="py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-semibold transition">
-            🗑️ Borrar
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+            className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 transition"
+          >
+            <span className="text-base leading-none">🗑️</span>
+            <span className="text-[11px] font-semibold">Eliminar</span>
           </button>
         </div>
       )}
@@ -316,12 +325,21 @@ export default function ProductCard({ product, showActions = false, compact = fa
         )}
       </button>
       {showActions && (
-        <div className="px-2 pb-2 grid grid-cols-2 gap-1">
-          <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
-            ✏️ Editar
+        <div className="px-2 pb-2 flex gap-1.5">
+          <a
+            href={`/products/${current.id}`}
+            className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
+          >
+            <span className="text-base leading-none">✏️</span>
+            <span className="text-[11px] font-semibold">Editar</span>
           </a>
-          <button type="button" onClick={handleDelete} className="py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-semibold transition">
-            🗑️ Borrar
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 transition"
+          >
+            <span className="text-base leading-none">🗑️</span>
+            <span className="text-[11px] font-semibold">Eliminar</span>
           </button>
         </div>
       )}

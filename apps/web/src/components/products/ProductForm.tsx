@@ -228,19 +228,33 @@ export default function ProductForm({ product }: Props) {
       {/* ─── Category ─────────────────────────────────────────────────────── */}
       <div>
         <label htmlFor="product-category" className="block text-sm font-medium text-stone-700 mb-1">Categoría</label>
-        <input
+        <select
           id="product-category"
-          list="category-options"
-          value={form.category}
-          onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-          placeholder="Selecciona o escribe una categoría…"
-          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition bg-white"
-        />
-        <datalist id="category-options">
+          value={CATEGORIES.includes(form.category ?? '') ? (form.category ?? '') : '__other__'}
+          onChange={(e) => {
+            if (e.target.value === '__other__') {
+              setForm((f) => ({ ...f, category: '' }));
+            } else {
+              setForm((f) => ({ ...f, category: e.target.value }));
+            }
+          }}
+          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 transition bg-white"
+        >
+          <option value="">— Sin categoría —</option>
           {CATEGORIES.map((c) => (
-            <option key={c} value={c} />
+            <option key={c} value={c}>{c}</option>
           ))}
-        </datalist>
+          <option value="__other__">Otra…</option>
+        </select>
+        {(!CATEGORIES.includes(form.category ?? '') && form.category !== undefined) && (
+          <input
+            type="text"
+            value={form.category}
+            onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+            placeholder="Escribe la categoría…"
+            className="mt-2 w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
+          />
+        )}
       </div>
 
       {/* ─── Description ──────────────────────────────────────────────────── */}
