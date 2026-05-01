@@ -71,7 +71,7 @@ const LEVEL_CONFIG: Record<
 const LEVEL_ORDER: StockLevel[] = ['full', 'half', 'empty'];
 
 function getBorderCls(level: StockLevel): string {
-  if (level === 'empty') return 'border-rose-200 ring-1 ring-rose-100';
+  if (level === 'empty') return 'border-2 border-rose-400 ring-2 ring-rose-200 shadow-rose-100';
   if (level === 'half') return 'border-amber-200';
   return 'border-stone-100';
 }
@@ -369,7 +369,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           { label: 'Marcar como "Tengo"', emoji: '✅', onClick: () => setLevel('full') },
           { label: 'Marcar como "A la mitad"', emoji: '⚠️', onClick: () => setLevel('half') },
           ...(level === 'empty' ? [] : [{ label: 'Marcar como "Se acabó"', emoji: '🚨', onClick: () => setLevel('empty') }]),
-          { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete },
+          ...(showActions ? [{ label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete }] : []),
         ]}
       />
 
