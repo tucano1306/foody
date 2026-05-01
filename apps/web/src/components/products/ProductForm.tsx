@@ -27,7 +27,24 @@ interface Props {
   readonly product?: Product;
 }
 
-function compressImage(file: File): Promise<string> {
+function drawBitmapToJpeg(source: CanvasImageSource, srcWidth: number, srcHeight: number): string {
+  const MAX = 640;
+  let w = srcWidth;
+  let h = srcHeight;
+  if (w > MAX || h > MAX) {
+    if (w > h) { h = Math.round((h * MAX) / w); w = MAX; }
+    else { w = Math.round((w * MAX) / h); h = MAX; }
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas no disponible');
+  ctx.drawImage(source, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', 0.72);
+}
+
+function compressViaFileReader(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
@@ -35,26 +52,28 @@ function compressImage(file: File): Promise<string> {
       const src = evt.target?.result;
       if (typeof src !== 'string') { reject(new Error('No se pudo leer el archivo')); return; }
       const img = new globalThis.Image();
-      img.onerror = () => reject(new Error('Formato de imagen no compatible. Prueba con JPG o PNG.'));
+      img.onerror = () => reject(new Error('No se pudo procesar la imagen'));
       img.onload = () => {
-        const MAX = 640;
-        let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
-          else { width = Math.round((width * MAX) / height); height = MAX; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('Canvas no disponible')); return; }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.72));
+        try { resolve(drawBitmapToJpeg(img, img.naturalWidth, img.naturalHeight)); }
+        catch (e) { reject(e); }
       };
       img.src = src;
     };
     reader.readAsDataURL(file);
   });
+}
+
+function compressImage(file: File): Promise<string> {
+  if (typeof createImageBitmap === 'function') {
+    return createImageBitmap(file)
+      .then((bmp) => {
+        const result = drawBitmapToJpeg(bmp, bmp.width, bmp.height);
+        bmp.close();
+        return result;
+      })
+      .catch(() => compressViaFileReader(file));
+  }
+  return compressViaFileReader(file);
 }
 
 export default function ProductForm({ product }: Props) {

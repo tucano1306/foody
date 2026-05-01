@@ -322,65 +322,30 @@ export default function ProductCard({ product, showActions = false, compact = fa
             {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
           </p>
         )}
-        {level === 'empty' ? (
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            disabled={isPending}
-            className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold transition animate-pulse"
-          >
-            🚨 Toca para actualizar
-          </button>
-        ) : (
-          <>
-            <div role="radiogroup" aria-label="Estado del stock" className="mt-2.5 grid grid-cols-3 gap-1 p-1 bg-stone-50 rounded-xl">
-              {LEVEL_ORDER.map((l) => {
-                const c = LEVEL_CONFIG[l];
-                const active = l === level;
-                return (
-                  <motion.button
-                    key={l}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    aria-label={c.label}
-                    title={c.label}
-                    onClick={() => setLevel(l)}
-                    disabled={isPending}
-                    className={['relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
-                    whileTap={{ scale: 0.75 }}
-                    whileHover={active ? {} : { scale: 1.1 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-                  >
-                    <span className="text-sm leading-none">{c.emoji}</span>
-                  </motion.button>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-[11px] text-stone-500 text-center">{cfg.label}</p>
-          </>
-        )}
-        {current.totalSpent > 0 && (
-          <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
-            <span className="text-stone-400">Total gastado</span>
-            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
-          </div>
-        )}
-        {lastPurchase && (
-          <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
-            <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
-            <p className="flex items-center gap-1">
-              <span>🕐</span>
-              <span>{formatRelativeTime(lastPurchase.purchasedAt)}</span>
-            </p>
-            {lastPurchase.storeName && (
-              <p className="flex items-center gap-1 mt-0.5">
-                <span>🏪</span>
-                <span className="truncate">en {lastPurchase.storeName}</span>
-              </p>
-            )}
-          </div>
-        )}
+        <div role="radiogroup" aria-label="Estado del stock" className="mt-1.5 grid grid-cols-3 gap-0.5 p-0.5 bg-stone-50 rounded-lg">
+          {LEVEL_ORDER.map((l) => {
+            const c = LEVEL_CONFIG[l];
+            const active = l === level;
+            return (
+              <motion.button
+                key={l}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-label={c.label}
+                title={c.label}
+                onClick={() => setLevel(l)}
+                disabled={isPending}
+                className={['relative flex items-center justify-center text-xs font-semibold py-1 rounded-md transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
+                whileTap={{ scale: 0.75 }}
+                whileHover={active ? {} : { scale: 1.1 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+              >
+                <span className="text-sm leading-none">{c.emoji}</span>
+              </motion.button>
+            );
+          })}
+        </div>
         {showActions && (
           <div className="mt-2 grid grid-cols-2 gap-1">
             <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
