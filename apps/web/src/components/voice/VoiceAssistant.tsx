@@ -132,6 +132,22 @@ export default function VoiceAssistant() {
   }, [state]);
 
   useEffect(() => {
+    if (state !== 'listening') {
+      clearListenTimeout();
+      return;
+    }
+
+    clearListenTimeout();
+    listenTimeoutRef.current = setTimeout(() => {
+      if (stateRef.current !== 'listening' || heardResultRef.current) return;
+      recogRef.current?.stop();
+      showReplyMessage('No escuché un comando válido. Habla más cerca y vuelve a intentar.');
+    }, LISTEN_TIMEOUT_MS);
+
+    return clearListenTimeout;
+  }, [state, clearListenTimeout, showReplyMessage]);
+
+  useEffect(() => {
     return () => {
       clearDismiss();
       clearListenTimeout();
@@ -150,11 +166,6 @@ export default function VoiceAssistant() {
       setReply('');
       setState('listening');
       recogRef.current.start();
-      listenTimeoutRef.current = setTimeout(() => {
-        if (stateRef.current !== 'listening' || heardResultRef.current) return;
-        recogRef.current?.stop();
-        showReplyMessage('No escuché un comando válido. Habla más cerca y vuelve a intentar.');
-      }, LISTEN_TIMEOUT_MS);
     } catch {
       showReplyMessage(getRecognitionErrorMessage());
     }
