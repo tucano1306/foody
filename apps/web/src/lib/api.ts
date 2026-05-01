@@ -419,6 +419,37 @@ export const api = {
       const rows = await sql`UPDATE shopping_list_items SET in_cart = NOT in_cart WHERE id = ${id} RETURNING *`;
       return rows[0];
     },
+    monthlyFoodSpending: async (): Promise<{ currentTotal: number; previousTotal: number }> => {
+      const { userId, householdId } = await getAuthContext();
+      const rows = householdId
+        ? await sql`
+            SELECT
+              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW())
+                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS current_total,
+              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+                        AND purchased_at < DATE_TRUNC('month', NOW())
+                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS prev_total
+            FROM product_purchases
+            WHERE household_id = ${householdId}
+              AND purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+          `
+        : await sql`
+            SELECT
+              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW())
+                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS current_total,
+              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+                        AND purchased_at < DATE_TRUNC('month', NOW())
+                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS prev_total
+            FROM product_purchases
+            WHERE user_id = ${userId} AND household_id IS NULL
+              AND purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+          `;
+      const row = rows[0] as { current_total: unknown; prev_total: unknown } | undefined;
+      return {
+        currentTotal: asNumber(row?.current_total),
+        previousTotal: asNumber(row?.prev_total),
+      };
+    },
     completeShopping: async () => {
       const { userId } = await getAuthContext();
       await sql`DELETE FROM shopping_list_items WHERE user_id = ${userId} AND in_cart = true`;
