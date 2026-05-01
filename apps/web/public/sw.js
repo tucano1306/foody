@@ -1,5 +1,5 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue */
-const VERSION = 'foody-v3';
+const VERSION = 'foody-v4';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;

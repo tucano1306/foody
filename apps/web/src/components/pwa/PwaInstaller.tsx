@@ -7,6 +7,13 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+function registerWorker(): void {
+  navigator.serviceWorker
+    .register('/sw.js', { updateViaCache: 'none' })
+    .then((registration) => registration.update())
+    .catch(() => null);
+}
+
 export default function PwaInstaller() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
@@ -16,9 +23,7 @@ export default function PwaInstaller() {
     if (!('serviceWorker' in navigator)) return;
 
     // Register worker after load to avoid blocking hydration
-    const onLoad = () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => null);
-    };
+    const onLoad = () => registerWorker();
     if (document.readyState === 'complete') onLoad();
     else globalThis.addEventListener('load', onLoad, { once: true });
 

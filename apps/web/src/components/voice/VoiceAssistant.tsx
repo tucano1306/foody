@@ -218,7 +218,7 @@ export default function VoiceAssistant() {
   else if (state === 'processing') buttonColor = '#F59E0B';
 
   return (
-    <div className="fixed bottom-24 right-4 z-50 flex flex-col items-end gap-2 md:bottom-8 md:right-8">
+    <div className="fixed bottom-24 right-4 z-70 flex flex-col items-end gap-2 md:bottom-8 md:right-8">
       {/* Reply bubble */}
       <AnimatePresence>
         {state === 'reply' && reply && (
