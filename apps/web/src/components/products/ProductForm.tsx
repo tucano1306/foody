@@ -219,44 +219,6 @@ export default function ProductForm({ product }: Props) {
         </datalist>
       </div>
 
-      {/* ─── Quantity + Unit ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="col-span-1">
-          <label htmlFor="product-qty" className="block text-sm font-medium text-stone-700 mb-1">Cantidad</label>
-          <input
-            id="product-qty"
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.currentQuantity}
-            onChange={(e) => setForm((f) => ({ ...f, currentQuantity: Number.parseFloat(e.target.value) || 0 }))}
-            className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
-          />
-        </div>
-        <div className="col-span-1">
-          <label htmlFor="product-min" className="block text-sm font-medium text-stone-700 mb-1">Mínimo</label>
-          <input
-            id="product-min"
-            type="number"
-            min={0}
-            step="0.01"
-            value={form.minQuantity}
-            onChange={(e) => setForm((f) => ({ ...f, minQuantity: Number.parseFloat(e.target.value) || 1 }))}
-            className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
-          />
-        </div>
-        <div className="col-span-1">
-          <label htmlFor="product-unit" className="block text-sm font-medium text-stone-700 mb-1">Unidad</label>
-          <input
-            id="product-unit"
-            value={form.unit}
-            onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-            placeholder="unidades"
-            className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
-          />
-        </div>
-      </div>
-
       {/* ─── Description ──────────────────────────────────────────────────── */}
       <div>
         <label htmlFor="product-desc" className="block text-sm font-medium text-stone-700 mb-1">Descripción</label>

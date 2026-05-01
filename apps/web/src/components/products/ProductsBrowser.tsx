@@ -250,7 +250,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
             🔍
           </motion.span>
           <input
-            type="search"
+            type="text"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Buscar productos…"
