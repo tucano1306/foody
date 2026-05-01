@@ -4,6 +4,9 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Product, CreateProductDto } from '@foody/types';
 
+const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
+
 const CATEGORIES = [
   'Frutas y Verduras',
   'Lácteos',
@@ -27,6 +30,28 @@ interface Props {
   readonly product?: Product;
 }
 
+function isHeicFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return file.type === 'image/heic'
+    || file.type === 'image/heif'
+    || name.endsWith('.heic')
+    || name.endsWith('.heif');
+}
+
+async function normalizeImageFile(file: File): Promise<File | Blob> {
+  if (!isHeicFile(file)) return file;
+
+  const mod = await import('heic2any');
+  const convert = mod.default;
+  const converted = await convert({
+    blob: file,
+    toType: 'image/jpeg',
+    quality: 0.82,
+  });
+
+  return Array.isArray(converted) ? converted[0] : converted;
+}
+
 function drawBitmapToJpeg(source: CanvasImageSource, srcWidth: number, srcHeight: number): string {
   const MAX = 640;
   let w = srcWidth;
@@ -44,7 +69,7 @@ function drawBitmapToJpeg(source: CanvasImageSource, srcWidth: number, srcHeight
   return canvas.toDataURL('image/jpeg', 0.72);
 }
 
-function compressViaFileReader(file: File): Promise<string> {
+function compressViaFileReader(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
@@ -63,7 +88,7 @@ function compressViaFileReader(file: File): Promise<string> {
   });
 }
 
-function compressImage(file: File): Promise<string> {
+function compressImage(file: File | Blob): Promise<string> {
   if (typeof createImageBitmap === 'function') {
     return createImageBitmap(file)
       .then((bmp) => {
@@ -104,13 +129,23 @@ export default function ProductForm({ product }: Props) {
     setError(null);
 
     try {
-      const dataUrl = await compressImage(file);
+      if (!file.type.startsWith('image/') && !isHeicFile(file)) {
+        throw new Error(`Formato no compatible. Usa ${ACCEPTED_IMAGE_TYPES}.`);
+      }
+
+      if (file.size > MAX_IMAGE_FILE_SIZE) {
+        throw new Error('La foto es muy pesada. Usa una imagen menor a 15 MB.');
+      }
+
+      const normalizedFile = await normalizeImageFile(file);
+      const dataUrl = await compressImage(normalizedFile);
       setForm((f) => ({ ...f, photoUrl: dataUrl }));
       setPhotoPreview(dataUrl);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   }
 
@@ -195,7 +230,7 @@ export default function ProductForm({ product }: Props) {
           <input
             ref={cameraRef}
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif"
             capture="environment"
             className="hidden"
             onChange={handlePhotoChange}
@@ -203,10 +238,13 @@ export default function ProductForm({ product }: Props) {
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif"
             className="hidden"
             onChange={handlePhotoChange}
           />
+          <p className="mt-3 text-xs text-stone-400 text-center">
+            Formatos: {ACCEPTED_IMAGE_TYPES}. La app los optimiza y los guarda como JPEG.
+          </p>
         </div>
       </div>
 
