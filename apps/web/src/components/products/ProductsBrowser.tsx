@@ -89,7 +89,7 @@ function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelC
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 sm:gap-3">
+    <div className={`grid gap-2 sm:gap-3 ${showActions ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'}`}>
       {products.map((product) => (
         <ProductCard
           key={product.id}
