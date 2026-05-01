@@ -7,7 +7,7 @@ import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
-import PhotoLightbox from '@/components/ui/PhotoLightbox';
+import ProductDetailSheet from '@/components/ui/ProductDetailSheet';
 
 interface LastPurchase {
   readonly purchasedAt: string;
@@ -106,7 +106,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState(product);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const level: StockLevel = current.stockLevel ?? (current.isRunningLow ? 'half' : 'full');
   const cfg = LEVEL_CONFIG[level];
@@ -160,10 +160,10 @@ export default function ProductCard({ product, showActions = false, compact = fa
     router.refresh();
   }
 
-  const sharedCls = `group relative bg-white rounded-2xl border shadow-md overflow-hidden transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}`;
+  const sharedCls = `group relative bg-white rounded-2xl border shadow-md transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}`;
 
   const photoSection = (
-    <div className="aspect-4/3 bg-stone-50 relative overflow-hidden">
+    <div className="aspect-4/3 bg-stone-50 relative overflow-hidden rounded-t-2xl">
       {current.photoUrl ? (
         <ProductPhoto src={current.photoUrl} alt={current.name} />
       ) : (
@@ -216,7 +216,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
         </div>
       )}
       {showActions && (
-        <div className="mt-2 flex gap-1.5">
+        <div className="mt-2 pb-1 flex gap-1.5">
           <a
             href={`/products/${current.id}`}
             className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
@@ -240,19 +240,15 @@ export default function ProductCard({ product, showActions = false, compact = fa
   if (compact) {
     return (
       <>
-        <button type="button" onClick={() => setSheetOpen(true)} className={`${sharedCls} w-full text-left cursor-pointer`}>
+        <button type="button" onClick={() => setDetailOpen(true)} className={`${sharedCls} w-full text-left cursor-pointer`}>
           {photoSection}
           {infoSection}
         </button>
-        <ActionSheet
-          open={sheetOpen}
-          onClose={() => setSheetOpen(false)}
-          title={current.name}
-          actions={[
-            ...(level === 'empty' ? [] : [{ label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') }]),
-            { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
-            { label: 'Ver producto', emoji: '👁️', onClick: () => router.push(`/products/${current.id}`) },
-          ]}
+        <ProductDetailSheet
+          product={current}
+          open={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          lastPurchase={lastPurchase}
         />
       </>
     );
@@ -261,20 +257,25 @@ export default function ProductCard({ product, showActions = false, compact = fa
   return (
     <div {...swipe} className={sharedCls}>
       {/* ─── Photo ────────────────────────────────────────────────────── */}
-      <div className="aspect-4/3 bg-stone-50 relative overflow-hidden">
+      <div className="aspect-4/3 bg-stone-50 relative overflow-hidden rounded-t-2xl">
         {current.photoUrl ? (
           <button
             type="button"
             aria-label={`Ver foto de ${current.name}`}
-            onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
+            onClick={(e) => { e.stopPropagation(); setDetailOpen(true); }}
             className="absolute inset-0 w-full h-full focus:outline-none"
           >
             <ProductPhoto src={current.photoUrl} alt={current.name} />
           </button>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
+          <button
+            type="button"
+            aria-label={`Options for ${current.name}`}
+            onClick={() => setDetailOpen(true)}
+            className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 focus:outline-none"
+          >
             🥑
-          </div>
+          </button>
         )}
         <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-stone-700 shadow-sm">
           <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
@@ -325,7 +326,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
         )}
       </button>
       {showActions && (
-        <div className="px-2 pb-2 flex gap-1.5">
+        <div className="px-2 pb-3 flex gap-1.5">
           <a
             href={`/products/${current.id}`}
             className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
@@ -356,9 +357,12 @@ export default function ProductCard({ product, showActions = false, compact = fa
         ]}
       />
 
-      {lightboxOpen && current.photoUrl && (
-        <PhotoLightbox src={current.photoUrl} alt={current.name} onClose={() => setLightboxOpen(false)} />
-      )}
+      <ProductDetailSheet
+        product={current}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        lastPurchase={lastPurchase}
+      />
     </div>
   );
 }
