@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type State = 'idle' | 'listening' | 'processing' | 'reply';
+type State = 'idle' | 'starting' | 'listening' | 'processing' | 'reply';
 
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
@@ -18,6 +18,7 @@ interface SpeechRecognitionInstance extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  onstart: (() => void) | null;
   onresult: ((e: SpeechRecognitionEvent) => void) | null;
   onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -112,6 +113,10 @@ export default function VoiceAssistant() {
     recog.continuous = true;
     recog.interimResults = true;
 
+    recog.onstart = () => {
+      setState('listening');
+    };
+
     recog.onresult = (e: SpeechRecognitionEvent) => {
       clearListenTimeout();
       heardResultRef.current = true;
@@ -146,6 +151,10 @@ export default function VoiceAssistant() {
       clearListenTimeout();
       clearResultDebounce();
       const currentState = stateRef.current;
+      if (currentState === 'starting') {
+        showReplyMessage('El micrófono tardó demasiado en activarse. Intenta de nuevo y habla cuando veas "Escuchando…".');
+        return;
+      }
       if (currentState === 'processing' || currentState === 'reply') return;
       if (!heardResultRef.current) {
         showReplyMessage('No escuché un comando válido. Habla más cerca y vuelve a intentar.');
@@ -163,7 +172,7 @@ export default function VoiceAssistant() {
   }, [state]);
 
   useEffect(() => {
-    if (state !== 'listening') {
+    if (state !== 'starting' && state !== 'listening') {
       clearListenTimeout();
       clearResultDebounce();
       return;
@@ -171,9 +180,9 @@ export default function VoiceAssistant() {
 
     clearListenTimeout();
     listenTimeoutRef.current = setTimeout(() => {
-      if (stateRef.current !== 'listening' || heardResultRef.current) return;
+      if ((stateRef.current !== 'starting' && stateRef.current !== 'listening') || heardResultRef.current) return;
       recogRef.current?.stop();
-      showReplyMessage('No escuché un comando válido. Habla más cerca y vuelve a intentar.');
+      showReplyMessage('No escuché un comando válido. Espera a ver "Escuchando…" y luego habla más cerca.');
     }, LISTEN_TIMEOUT_MS);
 
     return clearListenTimeout;
@@ -200,7 +209,7 @@ export default function VoiceAssistant() {
       heardResultRef.current = false;
       pendingTranscriptRef.current = '';
       setReply('');
-      setState('listening');
+      setState('starting');
       recogRef.current.start();
     } catch {
       showReplyMessage('No pude activar el micrófono. Revisa los permisos del navegador y vuelve a intentar.');
@@ -236,7 +245,7 @@ export default function VoiceAssistant() {
       showReplyMessage('Tu navegador no soporta voz. Usa Chrome en Android.');
       return;
     }
-    if (state === 'listening') {
+    if (state === 'starting' || state === 'listening') {
       clearListenTimeout();
       clearResultDebounce();
       recogRef.current?.stop();
@@ -274,7 +283,7 @@ export default function VoiceAssistant() {
 
       {/* Listening indicator */}
       <AnimatePresence>
-        {state === 'listening' && (
+        {(state === 'starting' || state === 'listening') && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -286,7 +295,7 @@ export default function VoiceAssistant() {
               transition={{ duration: 1, repeat: Infinity }}
               className="w-2 h-2 rounded-full bg-red-400 inline-block"
             />
-            Escuchando…
+            {state === 'starting' ? 'Activando micrófono…' : 'Escuchando…'}
           </motion.div>
         )}
         {state === 'processing' && (
@@ -305,17 +314,18 @@ export default function VoiceAssistant() {
       <motion.button
         type="button"
         onClick={handlePress}
-        aria-label={state === 'listening' ? 'Detener escucha' : 'Activar asistente de voz'}
+        aria-label={state === 'starting' || state === 'listening' ? 'Detener escucha' : 'Activar asistente de voz'}
         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl text-white text-2xl"
         style={{ backgroundColor: buttonColor }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
-        animate={state === 'listening' ? { scale: [1, 1.08, 1] } : { scale: 1 }}
-        transition={state === 'listening'
+        animate={state === 'starting' || state === 'listening' ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+        transition={state === 'starting' || state === 'listening'
           ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' }
           : { type: 'spring', stiffness: 400, damping: 20 }}
       >
         {state === 'processing' && '⏳'}
+        {state === 'starting' && '🎙️'}
         {state === 'listening' && '🎙️'}
         {state === 'idle' && '🎤'}
         {state === 'reply' && '🎤'}
