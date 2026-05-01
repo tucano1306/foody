@@ -51,6 +51,12 @@ function getRecognitionErrorMessage(error?: string): string {
   }
 }
 
+async function ensureMicrophoneAccess(): Promise<void> {
+  if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) return;
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  for (const track of stream.getTracks()) track.stop();
+}
+
 export default function VoiceAssistant() {
   const router = useRouter();
   const [state, setState] = useState<State>('idle');
@@ -154,20 +160,21 @@ export default function VoiceAssistant() {
     };
   }, [clearDismiss, clearListenTimeout]);
 
-  const startRecognition = useCallback(() => {
+  const startRecognition = useCallback(async () => {
     if (!recogRef.current) {
       showReplyMessage('La voz no está disponible en este navegador. Usa Chrome en Android.');
       return;
     }
 
     try {
+      await ensureMicrophoneAccess();
       clearListenTimeout();
       heardResultRef.current = false;
       setReply('');
       setState('listening');
       recogRef.current.start();
     } catch {
-      showReplyMessage(getRecognitionErrorMessage());
+      showReplyMessage('No pude activar el micrófono. Revisa los permisos del navegador y vuelve a intentar.');
     }
   }, [clearListenTimeout, showReplyMessage]);
 
@@ -210,7 +217,7 @@ export default function VoiceAssistant() {
       setState('idle');
       return;
     }
-    startRecognition();
+    void startRecognition();
   }
 
   let buttonColor = '#6366F1';
