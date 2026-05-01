@@ -29,26 +29,31 @@ interface Props {
 
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const img = new globalThis.Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const MAX = 640;
-      let { width, height } = img;
-      if (width > MAX || height > MAX) {
-        if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
-        else { width = Math.round((width * MAX) / height); height = MAX; }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { reject(new Error('Canvas no disponible')); return; }
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.72));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    reader.onload = (evt) => {
+      const src = evt.target?.result;
+      if (typeof src !== 'string') { reject(new Error('No se pudo leer el archivo')); return; }
+      const img = new globalThis.Image();
+      img.onerror = () => reject(new Error('Formato de imagen no compatible. Prueba con JPG o PNG.'));
+      img.onload = () => {
+        const MAX = 640;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+          else { width = Math.round((width * MAX) / height); height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas no disponible')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+      img.src = src;
     };
-    img.onerror = () => reject(new Error('Error al leer la imagen'));
-    img.src = objectUrl;
+    reader.readAsDataURL(file);
   });
 }
 

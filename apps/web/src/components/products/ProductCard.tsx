@@ -167,11 +167,11 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const sharedCls = `group relative bg-white rounded-2xl border shadow-md overflow-hidden transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}`;
 
   const photoSection = (
-    <div className="aspect-square bg-stone-50 relative overflow-hidden">
+    <div className="aspect-4/3 bg-stone-50 relative overflow-hidden">
       {current.photoUrl ? (
         <ProductPhoto src={current.photoUrl} alt={current.name} />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-5xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
+        <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
           🥑
         </div>
       )}
@@ -186,15 +186,15 @@ export default function ProductCard({ product, showActions = false, compact = fa
   );
 
   const infoSection = (
-    <div className="p-3">
-      <p className="font-semibold text-stone-800 text-sm truncate">{current.name}</p>
+    <div className="p-2">
+      <p className="font-semibold text-stone-800 text-xs truncate">{current.name}</p>
       {current.category && (
-        <p className="text-[11px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
+        <p className="text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
           {current.category}
         </p>
       )}
       {current.lastPurchasePrice != null && (
-        <p className="mt-1 text-lg font-extrabold text-stone-900 leading-none">
+        <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
           {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
         </p>
       )}
@@ -285,7 +285,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   return (
     <div {...swipe} {...longPress.handlers} className={sharedCls}>
       {/* ─── Photo ───────────────────────────────────────────────────────── */}
-      <div className="aspect-square bg-stone-50 relative overflow-hidden">
+      <div className="aspect-4/3 bg-stone-50 relative overflow-hidden">
         {current.photoUrl ? (
           <button
             type="button"
@@ -296,7 +296,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
             <ProductPhoto src={current.photoUrl} alt={current.name} />
           </button>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-5xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
+          <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
             🥑
           </div>
         )}
@@ -310,15 +310,15 @@ export default function ProductCard({ product, showActions = false, compact = fa
       </div>
 
       {/* ─── Info ────────────────────────────────────────────────────────── */}
-      <div className="p-3">
-        <p className="font-semibold text-stone-800 text-sm truncate">{current.name}</p>
+      <div className="p-2">
+        <p className="font-semibold text-stone-800 text-xs truncate">{current.name}</p>
         {current.category && (
-          <p className="text-[11px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
+          <p className="text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
             {current.category}
           </p>
         )}
         {current.lastPurchasePrice != null && (
-          <p className="mt-1 text-lg font-extrabold text-stone-900 leading-none">
+          <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
             {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
           </p>
         )}
