@@ -8,6 +8,8 @@ import ProductsBrowser from '@/components/products/ProductsBrowser';
 type PurchaseEntry = { purchasedAt: string; storeName: string | null };
 type PurchaseRecord = Record<string, PurchaseEntry>;
 
+const INITIAL_VISIBLE = 4;
+
 interface Props {
   readonly initialProducts: readonly Product[];
   readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
@@ -40,6 +42,41 @@ function ProductGrid({
   );
 }
 
+function CollapsibleSection({
+  title,
+  items,
+  onLevelChange,
+  lastPurchaseMap,
+}: {
+  readonly title: React.ReactNode;
+  readonly items: readonly Product[];
+  readonly onLevelChange: (id: string, level: StockLevel) => void;
+  readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? items : items.slice(0, INITIAL_VISIBLE);
+  const hidden = items.length - INITIAL_VISIBLE;
+
+  const plural = hidden === 1 ? '' : 's';
+  const toggleLabel = expanded ? '▲ Mostrar menos' : `▼ Ver ${hidden} producto${plural} más`;
+
+  return (
+    <section>
+      <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">{title}</h2>
+      <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} />
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 w-full py-2 rounded-xl border border-dashed border-stone-300 text-stone-500 text-sm hover:bg-stone-50 transition"
+        >
+          {toggleLabel}
+        </button>
+      )}
+    </section>
+  );
+}
+
 export default function HomeProductsShell({ initialProducts, lastPurchaseMap: initialPurchaseMap }: Props) {
   const [products, setProducts] = useState<readonly Product[]>(initialProducts);
   const [lastPurchaseMap, setLastPurchaseMap] = useState<Readonly<PurchaseRecord> | undefined>(initialPurchaseMap);
@@ -69,21 +106,21 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
   return (
     <>
       {empty.length > 0 && (
-        <section>
-          <h2 className="text-xl font-semibold text-rose-700 mb-4 flex items-center gap-2">
-            <span>🚨</span> Se acabó — prioridad ({empty.length})
-          </h2>
-          <ProductGrid items={empty} onLevelChange={handleLevelChange} lastPurchaseMap={lastPurchaseMap} />
-        </section>
+        <CollapsibleSection
+          title={<><span className="text-rose-700">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-rose-400">({empty.length})</span></>}
+          items={empty}
+          onLevelChange={handleLevelChange}
+          lastPurchaseMap={lastPurchaseMap}
+        />
       )}
 
       {low.length > 0 && (
-        <section>
-          <h2 className="text-xl font-semibold text-amber-700 mb-4 flex items-center gap-2">
-            <span>⚠️</span> Queda poco ({low.length})
-          </h2>
-          <ProductGrid items={low} onLevelChange={handleLevelChange} lastPurchaseMap={lastPurchaseMap} />
-        </section>
+        <CollapsibleSection
+          title={<><span className="text-amber-700">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-amber-400">({low.length})</span></>}
+          items={low}
+          onLevelChange={handleLevelChange}
+          lastPurchaseMap={lastPurchaseMap}
+        />
       )}
 
       {/* ─── Todos los productos ─────────────────────────────────────────── */}
