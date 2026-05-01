@@ -34,6 +34,7 @@ declare global {
 
 const DISMISS_MS = 5000;
 const LISTEN_TIMEOUT_MS = 8000;
+const RESULT_DEBOUNCE_MS = 900;
 
 function getRecognitionErrorMessage(error?: string): string {
   switch (error) {
@@ -65,8 +66,10 @@ export default function VoiceAssistant() {
   const recogRef = useRef<SpeechRecognitionInstance | null>(null);
   const dismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resultDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef<State>('idle');
   const heardResultRef = useRef(false);
+  const pendingTranscriptRef = useRef('');
 
   const clearDismiss = useCallback(() => {
     if (dismissRef.current) clearTimeout(dismissRef.current);
@@ -79,6 +82,13 @@ export default function VoiceAssistant() {
     }
   }, []);
 
+  const clearResultDebounce = useCallback(() => {
+    if (resultDebounceRef.current) {
+      clearTimeout(resultDebounceRef.current);
+      resultDebounceRef.current = null;
+    }
+  }, []);
+
   const scheduleDismiss = useCallback(() => {
     clearDismiss();
     dismissRef.current = setTimeout(() => setState('idle'), DISMISS_MS);
@@ -86,10 +96,11 @@ export default function VoiceAssistant() {
 
   const showReplyMessage = useCallback((message: string) => {
     clearListenTimeout();
+    clearResultDebounce();
     setReply(message);
     setState('reply');
     scheduleDismiss();
-  }, [clearListenTimeout, scheduleDismiss]);
+  }, [clearListenTimeout, clearResultDebounce, scheduleDismiss]);
 
   useEffect(() => {
     const g = globalThis as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance; webkitSpeechRecognition?: new () => SpeechRecognitionInstance };
@@ -98,28 +109,42 @@ export default function VoiceAssistant() {
 
     const recog = new Ctor();
     recog.lang = 'es-MX';
-    recog.continuous = false;
-    recog.interimResults = false;
+    recog.continuous = true;
+    recog.interimResults = true;
 
     recog.onresult = (e: SpeechRecognitionEvent) => {
       clearListenTimeout();
       heardResultRef.current = true;
-      const transcript = e.results[0]?.[0]?.transcript ?? '';
-      if (transcript) {
-        void sendToApi(transcript);
-        return;
-      }
+      const transcript = Array.from(e.results)
+        .map((result) => result[0]?.transcript ?? '')
+        .join(' ')
+        .trim();
 
-      showReplyMessage('No entendí lo que dijiste. Intenta otra vez.');
+      pendingTranscriptRef.current = transcript;
+      if (!transcript) return;
+
+      clearResultDebounce();
+      resultDebounceRef.current = setTimeout(() => {
+        const fullTranscript = pendingTranscriptRef.current.trim();
+        if (!fullTranscript) {
+          showReplyMessage('No entendí lo que dijiste. Intenta otra vez.');
+          return;
+        }
+
+        void sendToApi(fullTranscript);
+        recogRef.current?.stop();
+      }, RESULT_DEBOUNCE_MS);
     };
 
     recog.onerror = (e: SpeechRecognitionErrorEvent) => {
       clearListenTimeout();
+      clearResultDebounce();
       showReplyMessage(getRecognitionErrorMessage(e.error));
     };
 
     recog.onend = () => {
       clearListenTimeout();
+      clearResultDebounce();
       const currentState = stateRef.current;
       if (currentState === 'processing' || currentState === 'reply') return;
       if (!heardResultRef.current) {
@@ -131,7 +156,7 @@ export default function VoiceAssistant() {
 
     recogRef.current = recog;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearListenTimeout, showReplyMessage]);
+  }, [clearListenTimeout, clearResultDebounce, showReplyMessage]);
 
   useEffect(() => {
     stateRef.current = state;
@@ -140,6 +165,7 @@ export default function VoiceAssistant() {
   useEffect(() => {
     if (state !== 'listening') {
       clearListenTimeout();
+      clearResultDebounce();
       return;
     }
 
@@ -151,14 +177,15 @@ export default function VoiceAssistant() {
     }, LISTEN_TIMEOUT_MS);
 
     return clearListenTimeout;
-  }, [state, clearListenTimeout, showReplyMessage]);
+  }, [state, clearListenTimeout, clearResultDebounce, showReplyMessage]);
 
   useEffect(() => {
     return () => {
       clearDismiss();
       clearListenTimeout();
+      clearResultDebounce();
     };
-  }, [clearDismiss, clearListenTimeout]);
+  }, [clearDismiss, clearListenTimeout, clearResultDebounce]);
 
   const startRecognition = useCallback(async () => {
     if (!recogRef.current) {
@@ -169,16 +196,19 @@ export default function VoiceAssistant() {
     try {
       await ensureMicrophoneAccess();
       clearListenTimeout();
+      clearResultDebounce();
       heardResultRef.current = false;
+      pendingTranscriptRef.current = '';
       setReply('');
       setState('listening');
       recogRef.current.start();
     } catch {
       showReplyMessage('No pude activar el micrófono. Revisa los permisos del navegador y vuelve a intentar.');
     }
-  }, [clearListenTimeout, showReplyMessage]);
+  }, [clearListenTimeout, clearResultDebounce, showReplyMessage]);
 
   async function sendToApi(transcript: string) {
+    stateRef.current = 'processing';
     setState('processing');
     try {
       const res = await fetch('/api/voice', {
@@ -208,6 +238,7 @@ export default function VoiceAssistant() {
     }
     if (state === 'listening') {
       clearListenTimeout();
+      clearResultDebounce();
       recogRef.current?.stop();
       setState('idle');
       return;
