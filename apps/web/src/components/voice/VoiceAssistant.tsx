@@ -33,6 +33,23 @@ declare global {
 }
 
 const DISMISS_MS = 5000;
+const LISTEN_TIMEOUT_MS = 8000;
+
+function getRecognitionErrorMessage(error?: string): string {
+  switch (error) {
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return 'El micrófono está bloqueado. Permite acceso al micrófono en tu navegador.';
+    case 'audio-capture':
+      return 'No pude acceder al micrófono de este dispositivo.';
+    case 'no-speech':
+      return 'No detecté voz. Intenta hablar justo después de tocar el botón.';
+    case 'network':
+      return 'La transcripción por voz falló por red. Revisa tu conexión.';
+    default:
+      return 'No pude iniciar el reconocimiento de voz en este dispositivo.';
+  }
+}
 
 export default function VoiceAssistant() {
   const router = useRouter();
@@ -41,6 +58,9 @@ export default function VoiceAssistant() {
   const [supported, setSupported] = useState(true);
   const recogRef = useRef<SpeechRecognitionInstance | null>(null);
   const dismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stateRef = useRef<State>('idle');
+  const heardResultRef = useRef(false);
 
   useEffect(() => {
     const g = globalThis as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance; webkitSpeechRecognition?: new () => SpeechRecognitionInstance };
@@ -53,30 +73,92 @@ export default function VoiceAssistant() {
     recog.interimResults = false;
 
     recog.onresult = (e: SpeechRecognitionEvent) => {
+      clearListenTimeout();
+      heardResultRef.current = true;
       const transcript = e.results[0]?.[0]?.transcript ?? '';
-      if (transcript) void sendToApi(transcript);
+      if (transcript) {
+        void sendToApi(transcript);
+        return;
+      }
+
+      showReplyMessage('No entendí lo que dijiste. Intenta otra vez.');
     };
 
-    recog.onerror = () => {
-      setState('idle');
+    recog.onerror = (e: SpeechRecognitionErrorEvent) => {
+      clearListenTimeout();
+      showReplyMessage(getRecognitionErrorMessage(e.error));
     };
 
     recog.onend = () => {
-      if (state !== 'processing') setState('idle');
+      clearListenTimeout();
+      const currentState = stateRef.current;
+      if (currentState === 'processing' || currentState === 'reply') return;
+      if (!heardResultRef.current) {
+        showReplyMessage('No escuché un comando válido. Habla más cerca y vuelve a intentar.');
+        return;
+      }
+      setState('idle');
     };
 
     recogRef.current = recog;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [clearListenTimeout, showReplyMessage]);
 
   const clearDismiss = useCallback(() => {
     if (dismissRef.current) clearTimeout(dismissRef.current);
+  }, []);
+
+  const clearListenTimeout = useCallback(() => {
+    if (listenTimeoutRef.current) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
   }, []);
 
   const scheduleDismiss = useCallback(() => {
     clearDismiss();
     dismissRef.current = setTimeout(() => setState('idle'), DISMISS_MS);
   }, [clearDismiss]);
+
+  const showReplyMessage = useCallback((message: string) => {
+    clearListenTimeout();
+    setReply(message);
+    setState('reply');
+    scheduleDismiss();
+  }, [clearListenTimeout, scheduleDismiss]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    return () => {
+      clearDismiss();
+      clearListenTimeout();
+    };
+  }, [clearDismiss, clearListenTimeout]);
+
+  const startRecognition = useCallback(() => {
+    if (!recogRef.current) {
+      showReplyMessage('La voz no está disponible en este navegador. Usa Chrome en Android.');
+      return;
+    }
+
+    try {
+      clearListenTimeout();
+      heardResultRef.current = false;
+      setReply('');
+      setState('listening');
+      recogRef.current.start();
+      listenTimeoutRef.current = setTimeout(() => {
+        if (stateRef.current !== 'listening' || heardResultRef.current) return;
+        recogRef.current?.stop();
+        showReplyMessage('No escuché un comando válido. Habla más cerca y vuelve a intentar.');
+      }, LISTEN_TIMEOUT_MS);
+    } catch {
+      showReplyMessage(getRecognitionErrorMessage());
+    }
+  }, [clearListenTimeout, showReplyMessage]);
 
   async function sendToApi(transcript: string) {
     setState('processing');
@@ -103,12 +185,11 @@ export default function VoiceAssistant() {
 
   function handlePress() {
     if (!supported) {
-      setReply('Tu navegador no soporta voz. Usa Chrome en Android.');
-      setState('reply');
-      scheduleDismiss();
+      showReplyMessage('Tu navegador no soporta voz. Usa Chrome en Android.');
       return;
     }
     if (state === 'listening') {
+      clearListenTimeout();
       recogRef.current?.stop();
       setState('idle');
       return;
@@ -118,9 +199,7 @@ export default function VoiceAssistant() {
       setState('idle');
       return;
     }
-    setReply('');
-    setState('listening');
-    recogRef.current?.start();
+    startRecognition();
   }
 
   let buttonColor = '#6366F1';
