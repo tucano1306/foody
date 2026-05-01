@@ -62,6 +62,29 @@ export default function VoiceAssistant() {
   const stateRef = useRef<State>('idle');
   const heardResultRef = useRef(false);
 
+  const clearDismiss = useCallback(() => {
+    if (dismissRef.current) clearTimeout(dismissRef.current);
+  }, []);
+
+  const clearListenTimeout = useCallback(() => {
+    if (listenTimeoutRef.current) {
+      clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleDismiss = useCallback(() => {
+    clearDismiss();
+    dismissRef.current = setTimeout(() => setState('idle'), DISMISS_MS);
+  }, [clearDismiss]);
+
+  const showReplyMessage = useCallback((message: string) => {
+    clearListenTimeout();
+    setReply(message);
+    setState('reply');
+    scheduleDismiss();
+  }, [clearListenTimeout, scheduleDismiss]);
+
   useEffect(() => {
     const g = globalThis as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance; webkitSpeechRecognition?: new () => SpeechRecognitionInstance };
     const Ctor = g.SpeechRecognition ?? g.webkitSpeechRecognition;
@@ -103,29 +126,6 @@ export default function VoiceAssistant() {
     recogRef.current = recog;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearListenTimeout, showReplyMessage]);
-
-  const clearDismiss = useCallback(() => {
-    if (dismissRef.current) clearTimeout(dismissRef.current);
-  }, []);
-
-  const clearListenTimeout = useCallback(() => {
-    if (listenTimeoutRef.current) {
-      clearTimeout(listenTimeoutRef.current);
-      listenTimeoutRef.current = null;
-    }
-  }, []);
-
-  const scheduleDismiss = useCallback(() => {
-    clearDismiss();
-    dismissRef.current = setTimeout(() => setState('idle'), DISMISS_MS);
-  }, [clearDismiss]);
-
-  const showReplyMessage = useCallback((message: string) => {
-    clearListenTimeout();
-    setReply(message);
-    setState('reply');
-    scheduleDismiss();
-  }, [clearListenTimeout, scheduleDismiss]);
 
   useEffect(() => {
     stateRef.current = state;
