@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { useSwipe } from '@/lib/useSwipe';
-import { useLongPress } from '@/lib/useLongPress';
 import ActionSheet from '@/components/ui/ActionSheet';
 import PhotoLightbox from '@/components/ui/PhotoLightbox';
 
@@ -153,8 +151,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
     compact ? {} : { onSwipeLeft: () => setLevel('empty'), onSwipeRight: () => setLevel('full') },
   );
 
-  const longPress = useLongPress(() => setSheetOpen(true));
-
   async function handleDelete() {
     if (!globalThis.window.confirm(`¿Eliminar "${current.name}"?`)) return;
     await fetch(`/api/proxy/products/${current.id}`, {
@@ -197,35 +193,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
         <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
           {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
         </p>
-      )}
-      {!compact && (
-        <>
-          <div role="radiogroup" aria-label="Estado del stock" className="mt-2.5 grid grid-cols-3 gap-1 p-1 bg-stone-50 rounded-xl">
-            {LEVEL_ORDER.map((l) => {
-              const c = LEVEL_CONFIG[l];
-              const active = l === level;
-              return (
-                <motion.button
-                  key={l}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  aria-label={c.label}
-                  title={c.label}
-                  onClick={() => setLevel(l)}
-                  disabled={isPending}
-                  className={['relative flex items-center justify-center text-xs font-semibold py-1.5 rounded-lg transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
-                  whileTap={{ scale: 0.75 }}
-                  whileHover={active ? {} : { scale: 1.1 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-                >
-                  <span className="text-sm leading-none">{c.emoji}</span>
-                </motion.button>
-              );
-            })}
-          </div>
-          <p className="mt-1.5 text-[11px] text-stone-500 text-center">{cfg.label}</p>
-        </>
       )}
       {current.totalSpent > 0 && (
         <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
@@ -283,14 +250,14 @@ export default function ProductCard({ product, showActions = false, compact = fa
   }
 
   return (
-    <div {...swipe} {...longPress.handlers} className={sharedCls}>
-      {/* ─── Photo ───────────────────────────────────────────────────────── */}
+    <div {...swipe} className={sharedCls}>
+      {/* ─── Photo ────────────────────────────────────────────────────── */}
       <div className="aspect-4/3 bg-stone-50 relative overflow-hidden">
         {current.photoUrl ? (
           <button
             type="button"
             aria-label={`Ver foto de ${current.name}`}
-            onClick={() => setLightboxOpen(true)}
+            onClick={(e) => { e.stopPropagation(); setLightboxOpen(true); }}
             className="absolute inset-0 w-full h-full focus:outline-none"
           >
             <ProductPhoto src={current.photoUrl} alt={current.name} />
@@ -310,7 +277,11 @@ export default function ProductCard({ product, showActions = false, compact = fa
       </div>
 
       {/* ─── Info ────────────────────────────────────────────────────────── */}
-      <div className="p-2">
+      <button
+        type="button"
+        onClick={() => setSheetOpen(true)}
+        className="w-full text-left p-2 focus:outline-none"
+      >
         <p className="font-semibold text-stone-800 text-xs truncate">{current.name}</p>
         {current.category && (
           <p className="text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
@@ -322,30 +293,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
             {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
           </p>
         )}
-        <div role="radiogroup" aria-label="Estado del stock" className="mt-1.5 grid grid-cols-3 gap-0.5 p-0.5 bg-stone-50 rounded-lg">
-          {LEVEL_ORDER.map((l) => {
-            const c = LEVEL_CONFIG[l];
-            const active = l === level;
-            return (
-              <motion.button
-                key={l}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                aria-label={c.label}
-                title={c.label}
-                onClick={() => setLevel(l)}
-                disabled={isPending}
-                className={['relative flex items-center justify-center text-xs font-semibold py-1 rounded-md transition-all duration-200 disabled:cursor-not-allowed', active ? c.activeCls : `bg-transparent ${c.cls}`].join(' ')}
-                whileTap={{ scale: 0.75 }}
-                whileHover={active ? {} : { scale: 1.1 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-              >
-                <span className="text-sm leading-none">{c.emoji}</span>
-              </motion.button>
-            );
-          })}
-        </div>
         {current.totalSpent > 0 && (
           <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
             <span className="text-stone-400">Total gastado</span>
@@ -367,17 +314,17 @@ export default function ProductCard({ product, showActions = false, compact = fa
             )}
           </div>
         )}
-        {showActions && (
-          <div className="mt-2 grid grid-cols-2 gap-1">
-            <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
-              ✏️ Editar
-            </a>
-            <button type="button" onClick={handleDelete} className="py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-semibold transition">
-              🗑️ Borrar
-            </button>
-          </div>
-        )}
-      </div>
+      </button>
+      {showActions && (
+        <div className="px-2 pb-2 grid grid-cols-2 gap-1">
+          <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
+            ✏️ Editar
+          </a>
+          <button type="button" onClick={handleDelete} className="py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-semibold transition">
+            🗑️ Borrar
+          </button>
+        </div>
+      )}
 
       <ActionSheet
         open={sheetOpen}
