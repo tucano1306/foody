@@ -240,10 +240,16 @@ export default function ProductCard({ product, showActions = false, compact = fa
   if (compact) {
     return (
       <>
-        <button type="button" onClick={() => setSheetOpen(true)} className={`${sharedCls} w-full text-left cursor-pointer`}>
-          {photoSection}
-          {infoSection}
-        </button>
+        <div className={`${sharedCls} flex flex-col`}>
+          {/* Photo → opens detail sheet with zoom */}
+          <button type="button" onClick={() => setDetailOpen(true)} className="w-full text-left focus:outline-none">
+            {photoSection}
+          </button>
+          {/* Info → opens action sheet */}
+          <button type="button" onClick={() => setSheetOpen(true)} className="w-full text-left focus:outline-none flex-1">
+            {infoSection}
+          </button>
+        </div>
         <ActionSheet
           open={sheetOpen}
           onClose={() => setSheetOpen(false)}
