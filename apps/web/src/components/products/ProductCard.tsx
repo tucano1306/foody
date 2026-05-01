@@ -273,6 +273,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           onClose={() => setSheetOpen(false)}
           title={current.name}
           actions={[
+            ...(level === 'empty' ? [] : [{ label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') }]),
             { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
             { label: 'Ver producto', emoji: '👁️', onClick: () => router.push(`/products/${current.id}`) },
           ]}
