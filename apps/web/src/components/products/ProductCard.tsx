@@ -240,10 +240,20 @@ export default function ProductCard({ product, showActions = false, compact = fa
   if (compact) {
     return (
       <>
-        <button type="button" onClick={() => setDetailOpen(true)} className={`${sharedCls} w-full text-left cursor-pointer`}>
+        <button type="button" onClick={() => setSheetOpen(true)} className={`${sharedCls} w-full text-left cursor-pointer`}>
           {photoSection}
           {infoSection}
         </button>
+        <ActionSheet
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          title={current.name}
+          actions={[
+            ...(level === 'empty' ? [] : [{ label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') }]),
+            { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
+            { label: 'Ver detalle', emoji: '📋', onClick: () => setDetailOpen(true) },
+          ]}
+        />
         <ProductDetailSheet
           product={current}
           open={detailOpen}
