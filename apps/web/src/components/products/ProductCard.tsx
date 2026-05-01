@@ -400,7 +400,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
         actions={[
           { label: 'Marcar como "Tengo"', emoji: '✅', onClick: () => setLevel('full') },
           { label: 'Marcar como "A la mitad"', emoji: '⚠️', onClick: () => setLevel('half') },
-          { label: 'Marcar como "Se acabó"', emoji: '🚨', onClick: () => setLevel('empty') },
+          ...(level === 'empty' ? [] : [{ label: 'Marcar como "Se acabó"', emoji: '🚨', onClick: () => setLevel('empty') }]),
           { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete },
         ]}
       />
