@@ -346,6 +346,27 @@ export default function ProductCard({ product, showActions = false, compact = fa
             );
           })}
         </div>
+        {current.totalSpent > 0 && (
+          <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
+            <span className="text-stone-400">Total gastado</span>
+            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
+          </div>
+        )}
+        {lastPurchase && (
+          <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
+            <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
+            <p className="flex items-center gap-1">
+              <span>🕐</span>
+              <span>{formatRelativeTime(lastPurchase.purchasedAt)}</span>
+            </p>
+            {lastPurchase.storeName && (
+              <p className="flex items-center gap-1 mt-0.5">
+                <span>🏪</span>
+                <span className="truncate">en {lastPurchase.storeName}</span>
+              </p>
+            )}
+          </div>
+        )}
         {showActions && (
           <div className="mt-2 grid grid-cols-2 gap-1">
             <a href={`/products/${current.id}`} className="py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-600 text-[11px] font-semibold text-center transition">
