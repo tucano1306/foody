@@ -9,9 +9,8 @@ export default async function StoreVisitsWheel() {
     // Silently ignore
   }
 
-  if (data.length === 0) return null;
   const totalVisits = data.reduce((sum, d) => sum + d.count, 0);
-  if (totalVisits === 0) return null;
+  const hasData = data.length > 0 && totalVisits > 0;
 
   return (
     <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
@@ -23,7 +22,15 @@ export default async function StoreVisitsWheel() {
           Visitas a cada tienda según tus tickets
         </p>
       </div>
-      <StoreVisitsChart data={data} />
+      {hasData ? (
+        <StoreVisitsChart data={data} />
+      ) : (
+        <div className="flex flex-col items-center justify-center py-10 text-stone-300">
+          <span className="text-5xl mb-3">🛒</span>
+          <p className="text-sm font-medium text-stone-400">Sin tickets registrados</p>
+          <p className="text-xs text-stone-300 mt-1">Registra una compra para ver estadísticas</p>
+        </div>
+      )}
     </section>
   );
 }

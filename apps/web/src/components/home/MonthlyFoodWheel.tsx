@@ -16,8 +16,7 @@ export default async function MonthlyFoodWheel() {
     // Silently ignore
   }
 
-  if (data.currentTotal === 0 && data.previousTotal === 0) return null;
-
+  const hasData = data.currentTotal > 0 || data.previousTotal > 0;
   const currentMonthName = getMonthName(0);
   const prevMonthName = getMonthName(-1);
 
@@ -31,12 +30,20 @@ export default async function MonthlyFoodWheel() {
           Comparativa mes actual vs anterior
         </p>
       </div>
-      <MonthlyFoodChart
-        currentTotal={data.currentTotal}
-        previousTotal={data.previousTotal}
-        currentMonthName={currentMonthName}
-        prevMonthName={prevMonthName}
-      />
+      {hasData ? (
+        <MonthlyFoodChart
+          currentTotal={data.currentTotal}
+          previousTotal={data.previousTotal}
+          currentMonthName={currentMonthName}
+          prevMonthName={prevMonthName}
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center py-10 text-stone-300">
+          <span className="text-5xl mb-3">📊</span>
+          <p className="text-sm font-medium text-stone-400">Sin compras registradas</p>
+          <p className="text-xs text-stone-300 mt-1">Registra compras de productos para ver el gasto</p>
+        </div>
+      )}
     </section>
   );
 }
