@@ -2,11 +2,12 @@ import type { NextConfig } from 'next';
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",   // unsafe-inline needed for Next.js inline scripts (theme init, etc.)
+  "script-src 'self' 'unsafe-inline' https://cdn.onesignal.com",  // unsafe-inline for Next.js; CDN for OneSignal
   "style-src 'self' 'unsafe-inline'",    // Tailwind inlines styles
-  "img-src 'self' data: blob: https://*.amazonaws.com",
+  "img-src 'self' data: blob: https://*.amazonaws.com https://img.onesignal.com",
   "font-src 'self'",
-  "connect-src 'self' https://*.neon.tech",
+  "connect-src 'self' https://*.neon.tech https://onesignal.com https://*.onesignal.com",
+  "worker-src 'self'",                   // service workers must come from same origin
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

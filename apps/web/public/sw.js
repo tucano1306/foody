@@ -1,4 +1,12 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue */
+
+/* OneSignal push notification handling — noop if SDK is not loaded */
+try {
+  importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+} catch (e) {
+  console.warn('[SW] OneSignal SDK unavailable — push notifications disabled', e);
+}
+
 const VERSION = 'foody-v4';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;

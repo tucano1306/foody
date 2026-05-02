@@ -7,6 +7,8 @@ import PullToRefresh from '@/components/layout/PullToRefresh';
 import CommandPalette from '@/components/layout/CommandPalette';
 import PwaInstaller from '@/components/pwa/PwaInstaller';
 import OfflineSync from '@/components/pwa/OfflineSync';
+import FocusRefresh from '@/components/pwa/FocusRefresh';
+import PushNotifications from '@/components/pwa/PushNotifications';
 import VoiceAssistant from '@/components/voice/VoiceAssistant';
 import type { Product } from '@foody/types';
 
@@ -31,6 +33,8 @@ export default async function AppLayout({ children }: { readonly children: React
       <CommandPalette products={products} />
       <VoiceAssistant />
       <OfflineSync />
+      <FocusRefresh />
+      <PushNotifications />
       <OnboardingTour />
       <PwaInstaller />
     </div>
