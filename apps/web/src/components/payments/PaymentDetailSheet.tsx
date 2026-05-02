@@ -77,6 +77,7 @@ function plural(n: number, word: string): string {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Mode = 'view' | 'edit' | 'confirm-delete';
+type InlineField = 'dueDay' | 'notify' | null;
 
 interface Props {
   readonly payment: MonthlyPayment;
@@ -101,7 +102,16 @@ export default function PaymentDetailSheet({
 }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
+  const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
+
+  // Keep in sync when parent prop changes
+  useEffect(() => { setCurrentPayment(payment); }, [payment]);
   const [mode, setMode] = useState<Mode>('view');
+  const [inlineField, setInlineField] = useState<InlineField>(null);
+  const [inlineDueDay, setInlineDueDay] = useState('');
+  const [inlineNotifyValue, setInlineNotifyValue] = useState('');
+  const [inlineNotifyUnit, setInlineNotifyUnit] = useState<'days' | 'months'>('days');
+  const [inlineSaving, setInlineSaving] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +127,7 @@ export default function PaymentDetailSheet({
     setForm(f);
     setNotifyValue(nv);
     setNotifyUnit(nu);
+    setInlineField(null);
   }, [payment]);
 
   // Open / close the native dialog
@@ -126,6 +137,7 @@ export default function PaymentDetailSheet({
     if (open && !el.open) {
       el.showModal();
       setMode('view');
+      setInlineField(null);
       setError(null);
     }
     if (!open && el.open) el.close();
@@ -151,7 +163,7 @@ export default function PaymentDetailSheet({
       const daysBeforeValue = notifyUnit === 'months' ? parsedNotify * 30 : parsedNotify;
       const body: CreatePaymentDto = { ...form, notificationDaysBefore: daysBeforeValue };
       try {
-        const res = await fetch(`/api/payments/${payment.id}`, {
+        const res = await fetch(`/api/payments/${currentPayment.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -162,6 +174,7 @@ export default function PaymentDetailSheet({
           throw new Error(data.message ?? 'Error al guardar');
         }
         const updated = (await res.json()) as MonthlyPayment;
+        setCurrentPayment(updated);
         onUpdated(updated);
         setMode('view');
         router.refresh();
@@ -171,12 +184,12 @@ export default function PaymentDetailSheet({
         setSaving(false);
       }
     },
-    [form, notifyValue, notifyUnit, payment.id, onUpdated, router],
+    [form, notifyValue, notifyUnit, currentPayment.id, onUpdated, router],
   );
 
   function handleDelete() {
     startTransition(async () => {
-      const res = await fetch(`/api/payments/${payment.id}`, {
+      const res = await fetch(`/api/payments/${currentPayment.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -188,12 +201,58 @@ export default function PaymentDetailSheet({
     });
   }
 
-  const icon = CATEGORY_ICONS[payment.category ?? 'other'] ?? '💰';
-  const catName = CATEGORIES.find((c) => c.value === payment.category)?.name ?? payment.category;
+  const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
+  const catName = CATEGORIES.find((c) => c.value === currentPayment.category)?.name ?? currentPayment.category;
 
   const handleCategoryChange = useCallback((value: string) => {
     setForm((f) => ({ ...f, category: value }));
   }, []);
+
+  const openInlineDueDay = useCallback(() => {
+    setInlineDueDay(String(currentPayment.dueDay));
+    setInlineField('dueDay');
+  }, [currentPayment.dueDay]);
+
+  const openInlineNotify = useCallback(() => {
+    const { value, unit } = buildNotifyDisplay(currentPayment.notificationDaysBefore);
+    setInlineNotifyValue(value);
+    setInlineNotifyUnit(unit);
+    setInlineField('notify');
+  }, [currentPayment.notificationDaysBefore]);
+
+  const saveInlineField = useCallback(
+    async (field: InlineField) => {
+      if (!field) return;
+      setInlineSaving(true);
+      let patch: Partial<CreatePaymentDto> = {};
+      if (field === 'dueDay') {
+        const day = Number.parseInt(inlineDueDay, 10);
+        if (Number.isNaN(day) || day < 1 || day > 31) { setInlineSaving(false); return; }
+        patch = { dueDay: day };
+      } else {
+        const parsed = inlineNotifyValue === '' ? 0 : Number.parseInt(inlineNotifyValue, 10);
+        patch = { notificationDaysBefore: inlineNotifyUnit === 'months' ? parsed * 30 : parsed };
+      }
+      try {
+        const res = await fetch(`/api/payments/${currentPayment.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(patch),
+        });
+        if (res.ok) {
+          const updated = (await res.json()) as MonthlyPayment;
+          setCurrentPayment(updated);
+          onUpdated(updated);
+          setInlineField(null);
+          router.refresh();
+        }
+      } finally {
+        setInlineSaving(false);
+      }
+    },
+    [inlineDueDay, inlineNotifyValue, inlineNotifyUnit, currentPayment.id, onUpdated, router],
+  );
 
   // ── View mode ────────────────────────────────────────────────────────────
   function renderView() {
@@ -208,7 +267,7 @@ export default function PaymentDetailSheet({
             {icon}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-white font-bold text-lg leading-tight truncate">{payment.name}</h2>
+            <h2 className="text-white font-bold text-lg leading-tight truncate">{currentPayment.name}</h2>
             <p className="text-gray-400 text-sm mt-0.5">{catName}</p>
           </div>
           <button
@@ -225,29 +284,124 @@ export default function PaymentDetailSheet({
         <div className="bg-white/5 rounded-2xl p-4 mb-4">
           <p className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-1">Monto mensual</p>
           <p className="text-white text-3xl font-extrabold">
-            {payment.currency} {payment.amount.toFixed(2)}
+            {currentPayment.currency} {currentPayment.amount.toFixed(2)}
           </p>
         </div>
 
-        {/* Info grid */}
+        {/* Info grid — tappable cells */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-white/5 rounded-xl p-3">
-            <p className="text-gray-400 text-xs font-medium mb-1">Día de vencimiento</p>
-            <p className="text-white font-bold">Día {payment.dueDay} de cada mes</p>
-          </div>
-          <div className="bg-white/5 rounded-xl p-3">
-            <p className="text-gray-400 text-xs font-medium mb-1">Avisar antes</p>
-            <p className="text-white font-bold">
-              {formatNotifyDays(payment.notificationDaysBefore)}
-            </p>
-          </div>
+          {/* Due day cell */}
+          {inlineField === 'dueDay' ? (
+            <form
+              className="bg-brand-500/15 border border-brand-500/40 rounded-xl p-3 flex flex-col gap-2"
+              onSubmit={(e) => { e.preventDefault(); saveInlineField('dueDay'); }}
+            >
+              <p className="text-brand-300 text-xs font-semibold">Día de vencimiento</p>
+              <input
+                autoFocus
+                type="number"
+                min={1}
+                max={31}
+                value={inlineDueDay}
+                onChange={(e) => setInlineDueDay(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <div className="flex gap-1.5">
+                <button
+                  type="submit"
+                  disabled={inlineSaving}
+                  className="flex-1 py-1.5 rounded-lg bg-brand-500 text-white text-xs font-bold disabled:opacity-50 transition"
+                >
+                  {inlineSaving ? '…' : '✓'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInlineField(null)}
+                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-gray-400 text-xs font-semibold transition hover:bg-white/20"
+                >
+                  ✕
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={openInlineDueDay}
+              className="bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-xl p-3 text-left transition w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 group"
+            >
+              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center justify-between">
+                Día de vencimiento
+                <PencilSquareIcon className="w-3 h-3 opacity-0 group-hover:opacity-60 transition" />
+              </p>
+              <p className="text-white font-bold">Día {currentPayment.dueDay} / mes</p>
+            </button>
+          )}
+
+          {/* Notify cell */}
+          {inlineField === 'notify' ? (
+            <form
+              className="bg-brand-500/15 border border-brand-500/40 rounded-xl p-3 flex flex-col gap-2"
+              onSubmit={(e) => { e.preventDefault(); saveInlineField('notify'); }}
+            >
+              <p className="text-brand-300 text-xs font-semibold">Avisar antes</p>
+              <div className="flex gap-1.5">
+                <input
+                  autoFocus
+                  type="number"
+                  min={0}
+                  value={inlineNotifyValue}
+                  onChange={(e) => setInlineNotifyValue(e.target.value)}
+                  placeholder="—"
+                  className="w-full min-w-0 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <select
+                  value={inlineNotifyUnit}
+                  onChange={(e) => setInlineNotifyUnit(e.target.value as 'days' | 'months')}
+                  className="px-2 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-xs shrink-0 focus:outline-none"
+                >
+                  <option value="days" className="bg-gray-900">días</option>
+                  <option value="months" className="bg-gray-900">meses</option>
+                </select>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  type="submit"
+                  disabled={inlineSaving}
+                  className="flex-1 py-1.5 rounded-lg bg-brand-500 text-white text-xs font-bold disabled:opacity-50 transition"
+                >
+                  {inlineSaving ? '…' : '✓'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInlineField(null)}
+                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-gray-400 text-xs font-semibold transition hover:bg-white/20"
+                >
+                  ✕
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={openInlineNotify}
+              className="bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-xl p-3 text-left transition w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 group"
+            >
+              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center justify-between">
+                Avisar antes
+                <PencilSquareIcon className="w-3 h-3 opacity-0 group-hover:opacity-60 transition" />
+              </p>
+              <p className="text-white font-bold">
+                {formatNotifyDays(currentPayment.notificationDaysBefore)}
+              </p>
+            </button>
+          )}
         </div>
 
         {/* Description */}
-        {payment.description && (
+        {currentPayment.description && (
           <div className="bg-white/5 rounded-xl p-3 mb-4">
             <p className="text-gray-400 text-xs font-medium mb-1">Notas</p>
-            <p className="text-white text-sm leading-relaxed">{payment.description}</p>
+            <p className="text-white text-sm leading-relaxed">{currentPayment.description}</p>
           </div>
         )}
 
@@ -260,7 +414,7 @@ export default function PaymentDetailSheet({
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300">
-              ⏰ Pendiente · En {plural(payment.daysUntilDue, 'día')}
+              ⏰ Pendiente · En {plural(currentPayment.daysUntilDue, 'día')}
             </span>
           )}
         </div>
@@ -311,7 +465,7 @@ export default function PaymentDetailSheet({
         <div>
           <h2 className="text-white font-bold text-lg">¿Eliminar pago?</h2>
           <p className="text-gray-400 text-sm mt-1">
-            Se eliminará <span className="text-white font-semibold">"{payment.name}"</span> permanentemente.
+            Se eliminará <span className="text-white font-semibold">"{currentPayment.name}"</span> permanentemente.
           </p>
         </div>
         <div className="w-full flex flex-col gap-2 mt-2">
