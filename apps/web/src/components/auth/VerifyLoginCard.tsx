@@ -110,4 +110,3 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
     </div>
   );
 }
-}
