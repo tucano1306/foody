@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Mis Productos' };
 
 export default async function ProductsPage() {
   const [products, lastPurchasesRaw] = await Promise.all([
-    api.products.list(),
+    api.products.list().catch(() => [] as Awaited<ReturnType<typeof api.products.list>>),
     api.shoppingList.lastPurchases().catch(() => [] as { productId: string; purchasedAt: string; storeName: string | null }[]),
   ]);
 

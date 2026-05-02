@@ -31,7 +31,7 @@ test.describe('Security · Session cookie', () => {
   test('requesting a login code does not grant access before verification', async ({ page, context }) => {
     await page.goto('/login');
     await page.getByPlaceholder('tu@email.com').fill('tester@example.com');
-    await page.getByRole('button', { name: /entrar/i }).click();
+    await page.getByRole('button', { name: /continuar/i }).click();
 
     await expect(page).toHaveURL(/\/login\/verify/);
 

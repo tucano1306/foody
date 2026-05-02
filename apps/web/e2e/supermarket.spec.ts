@@ -46,6 +46,12 @@ test.describe('Supermarket — shopping list', () => {
     }
   });
 
+  test('unauthenticated users are redirected to /login', async ({ page, context }) => {
+    await context.clearCookies();
+    await page.goto('/supermarket', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/login/);
+  });
+
   test('empty state is shown when list is empty', async ({ page, context }) => {
     // Override mock with empty list for this specific test
     await page.route('**/api/shopping-list', async (route) => {

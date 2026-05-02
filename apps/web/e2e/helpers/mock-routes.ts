@@ -95,6 +95,35 @@ export async function mockApiRoutes(page: Page): Promise<void> {
     }
   });
 
+  // ── POST /api/proxy/products (create) ─────────────────────────────────────
+  await page.route('**/api/proxy/products', async (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 201,
+        json: { ...PRODUCTS[0], id: 'prod-new-0000-0000-0000-000000000099', name: body.name ?? 'Nuevo' },
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // ── PATCH/DELETE /api/proxy/products/:id ──────────────────────────────────
+  await page.route('**/api/proxy/products/*', async (route) => {
+    const method = route.request().method();
+    if (method === 'PATCH') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const url = route.request().url();
+      const id = url.split('/api/proxy/products/')[1]?.split('/')[0];
+      const existing = PRODUCTS.find((p) => p.id === id) ?? PRODUCTS[0];
+      await route.fulfill({ json: { ...existing, ...body } });
+    } else if (method === 'DELETE') {
+      await route.fulfill({ status: 204, body: '' });
+    } else {
+      await route.continue();
+    }
+  });
+
   // ── POST /api/voice (voice assistant) ────────────────────────────────────
   await page.route('**/api/voice', async (route) => {
     await route.fulfill({
