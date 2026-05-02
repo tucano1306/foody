@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 interface Props {
   readonly error?: string;
   readonly callbackUrl?: string;
@@ -59,7 +61,19 @@ export default function LoginCard(props: Readonly<Props>) {
           </form>
 
           <p className="mt-6 text-center text-xs text-stone-400">
-            Tu cuenta queda protegida con un codigo temporal enviado por email.
+            Tu cuenta queda protegida con un codigo temporal de acceso.
+          </p>
+
+          <p className="mt-4 text-center text-xs text-stone-300">
+            Al continuar aceptas los{' '}
+            <Link href="/legal/terminos" className="underline hover:text-stone-500">
+              Términos de Uso
+            </Link>{' '}
+            y la{' '}
+            <Link href="/legal/privacidad" className="underline hover:text-stone-500">
+              Política de Privacidad
+            </Link>
+            .
           </p>
         </div>
       </div>
