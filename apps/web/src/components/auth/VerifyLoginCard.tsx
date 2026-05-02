@@ -21,7 +21,7 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
         <div className="bg-linear-to-br from-brand-500 to-brand-600 p-8 text-center text-white">
           <div className="text-6xl mb-3">🔐</div>
           <h1 className="text-3xl font-bold">Verifica tu acceso</h1>
-          <p className="text-brand-100 mt-2 text-sm">Introduce el codigo enviado a {email}</p>
+          <p className="text-brand-100 mt-2 text-sm">Introduce el codigo que aparece abajo</p>
         </div>
 
         <div className="p-8">
@@ -32,8 +32,9 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
           )}
 
           {debugCode && (
-            <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
-              Codigo de desarrollo: <strong>{debugCode}</strong>
+            <div className="mb-4 px-4 py-3 bg-brand-50 border-2 border-brand-300 rounded-xl text-center">
+              <p className="text-brand-700 text-xs font-medium mb-1">Tu codigo de acceso</p>
+              <p className="text-brand-900 text-3xl font-bold tracking-[0.4em]">{debugCode}</p>
             </div>
           )}
 

@@ -1,5 +1,4 @@
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
-import nodemailer from 'nodemailer';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
@@ -51,38 +50,6 @@ interface SendLoginCodeParams {
 
 export async function sendLoginCodeEmail(params: SendLoginCodeParams): Promise<{ debugCode?: string }> {
   const { email, code } = params;
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from = process.env.AUTH_EMAIL_FROM;
-
-  if (!host || !user || !pass || !from) {
-    if (process.env.NODE_ENV === 'production' && process.env.E2E_TEST_MODE !== 'true') {
-      throw new Error('Email delivery is not configured');
-    }
-
-    console.info(`[auth] Login code for ${email}: ${code}`);
-    return { debugCode: code };
-  }
-
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
-  });
-
-  await transporter.sendMail({
-    from,
-    to: email,
-    subject: 'Tu codigo de acceso a Foody',
-    text: `Tu codigo de acceso es ${code}. Caduca en 10 minutos.`,
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h2>Foody</h2><p>Tu codigo de acceso es:</p><p style="font-size:32px;font-weight:700;letter-spacing:6px">${code}</p><p>Caduca en 10 minutos.</p></div>`,
-  });
-
-  return {};
+  console.info(`[auth] Login code for ${email}: ${code}`);
+  return { debugCode: code };
 }
