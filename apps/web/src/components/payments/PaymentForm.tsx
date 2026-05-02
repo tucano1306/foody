@@ -25,9 +25,10 @@ export default function PaymentForm() {
     dueDay: 1,
     currency: 'USD',
     category: 'other',
-    notificationDaysBefore: 3,
     description: '',
   });
+  const [notifyValue, setNotifyValue] = useState('');
+  const [notifyUnit, setNotifyUnit] = useState<'days' | 'months'>('days');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,11 +38,15 @@ export default function PaymentForm() {
     setError(null);
 
     try {
+      const parsedNotify = notifyValue === '' ? 0 : Number.parseInt(notifyValue, 10);
+      const daysBeforeValue = notifyUnit === 'months' ? parsedNotify * 30 : parsedNotify;
+      const payload = { ...form, notificationDaysBefore: daysBeforeValue };
+
       const res = await fetch(`/api/proxy/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -137,20 +142,27 @@ export default function PaymentForm() {
           <p className="text-xs text-stone-400 mt-1">Entre 1 y 31</p>
         </div>
         <div>
-          <label htmlFor="payment-notify-days" className="block text-sm font-semibold text-stone-700 mb-1.5">
+          <label htmlFor="payment-notify-value" className="block text-sm font-semibold text-stone-700 mb-1.5">
             Avisar antes
           </label>
-          <div className="relative">
+          <div className="flex gap-1.5">
             <input
-              id="payment-notify-days"
+              id="payment-notify-value"
               type="number"
               min={0}
-              max={30}
-              value={form.notificationDaysBefore}
-              onChange={(e) => setForm((f) => ({ ...f, notificationDaysBefore: Number.parseInt(e.target.value, 10) || 3 }))}
-              className="w-full px-4 py-3 rounded-2xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
+              value={notifyValue}
+              onChange={(e) => setNotifyValue(e.target.value)}
+              placeholder="—"
+              className="w-full px-3 py-3 rounded-2xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base min-w-0"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 text-xs select-none">días</span>
+            <select
+              value={notifyUnit}
+              onChange={(e) => setNotifyUnit(e.target.value as 'days' | 'months')}
+              className="px-2 py-3 rounded-2xl border border-stone-200 text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition bg-white text-xs font-medium shrink-0"
+            >
+              <option value="days">días</option>
+              <option value="months">meses</option>
+            </select>
           </div>
         </div>
       </div>

@@ -20,6 +20,10 @@ function asInteger(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+function asText(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
 function daysUntilDue(dueDay: number): number {
   const now = new Date();
   const today = now.getDate();
@@ -32,12 +36,12 @@ function mapPayment(row: Record<string, unknown>) {
   const dueDay = asInteger(row.due_day, 1);
   return {
     id: String(row.id),
-    name: String(row.name ?? ''),
+    name: asText(row.name),
     description: (row.description as string | null | undefined) ?? null,
     amount: asNumber(row.amount),
-    currency: String(row.currency ?? 'USD'),
+    currency: asText(row.currency, 'USD'),
     dueDay,
-    category: String(row.category ?? 'other'),
+    category: asText(row.category, 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     userId: String(row.user_id),
