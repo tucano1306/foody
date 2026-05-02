@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
 import ModernTitle from '@/components/layout/ModernTitle';
@@ -21,14 +22,14 @@ export default async function ProductsPage() {
         title="🥗 Mis Productos"
         subtitle={`${products.length} productos en tu despensa`}
         action={
-          <a
+          <Link
             href="/products/new"
             aria-label="Agregar producto"
             className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl transition-colors shadow-sm text-xs sm:text-sm whitespace-nowrap"
           >
             <span className="sm:hidden">+ Nuevo</span>
             <span className="hidden sm:inline">+ Agregar producto</span>
-          </a>
+          </Link>
         }
       />
 
@@ -42,12 +43,12 @@ export default async function ProductsPage() {
           <p className="text-stone-400 mb-6">
             Agrega productos para empezar a gestionar tu inventario
           </p>
-          <a
+          <Link
             href="/products/new"
             className="bg-brand-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-brand-600 transition"
           >
             Agregar primer producto
-          </a>
+          </Link>
         </div>
       ) : (
         <ProductsBrowser products={products} showActions showStockFilter pageSize={12} lastPurchaseMap={lastPurchaseMap} />

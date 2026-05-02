@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import PaymentCard from '@/components/payments/PaymentCard';
 import ModernTitle from '@/components/layout/ModernTitle';
@@ -7,7 +8,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Pagos Mensuales' };
 
 export default async function PaymentsPage() {
-  const payments = await api.payments.list();
+  const payments = await api.payments.list().catch(() => []);
 
   const pending = payments.filter((p) => !p.isPaidThisMonth);
   const paid = payments.filter((p) => p.isPaidThisMonth);
@@ -20,14 +21,14 @@ export default async function PaymentsPage() {
         title="💳 Pagos Mensuales"
         subtitle={`${paid.length}/${payments.length} pagados este mes`}
         action={
-          <a
+          <Link
             href="/payments/new"
             aria-label="Agregar pago"
             className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl transition-colors shadow-sm text-xs sm:text-sm whitespace-nowrap"
           >
             <span className="sm:hidden">+ Nuevo</span>
             <span className="hidden sm:inline">+ Agregar</span>
-          </a>
+          </Link>
         }
       />
 
@@ -93,12 +94,12 @@ export default async function PaymentsPage() {
           <h2 className="text-xl font-semibold text-stone-600 mb-2">
             Sin pagos registrados
           </h2>
-          <a
+          <Link
             href="/payments/new"
             className="inline-block bg-brand-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-brand-600 transition mt-4"
           >
             Agregar primer pago
-          </a>
+          </Link>
         </div>
       )}
     </div>

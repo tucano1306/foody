@@ -205,25 +205,27 @@ export default async function StatsPage() {
           <p className="text-gray-500 text-sm text-center py-4">Sin datos de compras aún.</p>
         ) : (
           <div className="flex items-end gap-2 h-36">
-            {monthlySpending.map((m) => {
+            {(() => {
               const now = new Date();
               const thisKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-              const isCurrent = m.month === thisKey;
-              const heightPct = Math.max(8, Math.round((m.total / maxSpend) * 100));
-              return (
-                <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-400 font-medium">{formatCurrency(m.total)}</span>
-                  <div className="w-full flex items-end" style={{ height: '80px' }}>
-                    <div
-                      className={`w-full rounded-t-lg transition-all duration-700 ${isCurrent ? 'bg-brand-400' : 'bg-white/20'}`}
-                      style={{ height: `${heightPct}%` }}
-                      title={`${m.trips} compras`}
-                    />
+              return monthlySpending.map((m) => {
+                const isCurrent = m.month === thisKey;
+                const heightPct = Math.max(8, Math.round((m.total / maxSpend) * 100));
+                return (
+                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-[10px] text-gray-400 font-medium">{formatCurrency(m.total)}</span>
+                    <div className="w-full flex items-end" style={{ height: '80px' }}>
+                      <div
+                        className={`w-full rounded-t-lg transition-all duration-700 ${isCurrent ? 'bg-brand-400' : 'bg-white/20'}`}
+                        style={{ height: `${heightPct}%` }}
+                        title={`${m.trips} compras`}
+                      />
+                    </div>
+                    <span className="text-[10px] text-gray-500">{formatMonth(m.month)}</span>
                   </div>
-                  <span className="text-[10px] text-gray-500">{formatMonth(m.month)}</span>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         )}
       </section>

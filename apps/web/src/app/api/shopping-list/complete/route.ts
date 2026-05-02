@@ -3,6 +3,11 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensurePurchaseSchema } from '@/lib/ensure-schema';
 
+async function getUserHousehold(userId: string): Promise<string | null> {
+  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
+  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
+}
+
 interface CompletionBody {
   storeName?: string;
   totalAmount?: number;
@@ -35,10 +40,10 @@ async function insertTrip(storeName: string | null, userId: string, now: string)
   }
 }
 
-async function fetchPriceMap(productIds: string[], userId: string): Promise<Record<string, number | null>> {
+async function fetchPriceMap(productIds: string[]): Promise<Record<string, number | null>> {
   const rows = await sql`
     SELECT id, last_purchase_price FROM products
-    WHERE id = ANY(${productIds}::uuid[]) AND user_id = ${userId}
+    WHERE id = ANY(${productIds}::uuid[])
   `;
   const map: Record<string, number | null> = {};
   for (const r of rows as { id: string; last_purchase_price: string | null }[]) {
@@ -94,10 +99,17 @@ export async function POST(request: NextRequest) {
 
   await ensurePurchaseSchema();
 
-  const rawItems = await sql`
-    SELECT id, product_id, quantity_needed FROM shopping_list_items
-    WHERE user_id = ${user.userId} AND is_in_cart = true
-  `;
+  const householdId = await getUserHousehold(user.userId);
+
+  const rawItems = householdId
+    ? await sql`
+        SELECT id, product_id, quantity_needed FROM shopping_list_items
+        WHERE household_id = ${householdId} AND is_in_cart = true
+      `
+    : await sql`
+        SELECT id, product_id, quantity_needed FROM shopping_list_items
+        WHERE user_id = ${user.userId} AND household_id IS NULL AND is_in_cart = true
+      `;
   if (!rawItems.length) return NextResponse.json({ completed: 0 });
 
   const items = rawItems as CartItem[];
@@ -105,7 +117,7 @@ export async function POST(request: NextRequest) {
   const now = new Date().toISOString();
 
   const [priceMap, tripId] = await Promise.all([
-    fetchPriceMap(productIds, user.userId),
+    fetchPriceMap(productIds),
     insertTrip(storeName, user.userId, now),
   ]);
 
@@ -119,13 +131,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Update stock for all products in the completed cart (IDs already validated via cart lookup)
   await sql`
     UPDATE products
     SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
-    WHERE id = ANY(${productIds}::uuid[]) AND user_id = ${user.userId}
+    WHERE id = ANY(${productIds}::uuid[])
   `;
 
-  await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND is_in_cart = true`;
+  if (householdId) {
+    await sql`DELETE FROM shopping_list_items WHERE household_id = ${householdId} AND is_in_cart = true`;
+  } else {
+    await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND household_id IS NULL AND is_in_cart = true`;
+  }
 
   return NextResponse.json({ completed: items.length, tripId, purchasesInserted, purchaseError });
 }

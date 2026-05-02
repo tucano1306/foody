@@ -171,7 +171,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     );
   }
 
-  async function fetchToggle(id: string) {
+  async function fetchToggle(id: string, original: ShoppingListItem) {
     const res = await fetch(
       `/api/proxy/shopping-list/${id}/toggle-cart`,
       { method: 'PATCH', credentials: 'include' },
@@ -179,14 +179,19 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     if (res.ok) {
       const updated: ShoppingListItem = await res.json();
       replaceItem(id, updated);
+    } else {
+      // Roll back optimistic update on failure
+      replaceItem(id, original);
     }
   }
 
   function toggleItem(id: string) {
     haptic(12);
+    const original = items.find((i) => i.id === id);
+    if (!original) return;
     optimisticToggle(id);
     startTransition(() => {
-      void fetchToggle(id);
+      void fetchToggle(id, original);
     });
   }
 
@@ -210,36 +215,45 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     setCompleting(true);
     haptic([25, 50, 25]);
 
-    const res = await fetch('/api/shopping-list/complete', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        storeName: storeName.trim() || undefined,
-        totalAmount: totalAmount.trim() ? Number.parseFloat(totalAmount) : undefined,
-        quantities,
-      }),
-    });
+    try {
+      const res = await fetch('/api/shopping-list/complete', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeName: storeName.trim() || undefined,
+          totalAmount: totalAmount.trim() ? Number.parseFloat(totalAmount) : undefined,
+          quantities,
+        }),
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      console.log('[SupermarketView] complete response:', JSON.stringify(data));
-      setShowModal(false);
-      setStoreName('');
-      setTotalAmount('');
-      setQuantities({});
-      setItems((prev) => prev.filter((i) => !i.isInCart));
-      router.refresh();
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[SupermarketView] complete response:', JSON.stringify(data));
+        setShowModal(false);
+        setStoreName('');
+        setTotalAmount('');
+        setQuantities({});
+        setItems((prev) => prev.filter((i) => !i.isInCart));
+        router.refresh();
+      } else {
+        console.error('[SupermarketView] complete failed:', res.status);
+        alert('No se pudo completar la compra. Intenta de nuevo.');
+      }
+    } catch (err) {
+      console.error('[SupermarketView] complete network error:', err);
+      alert('Sin conexión. Verifica tu red e intenta de nuevo.');
+    } finally {
+      setCompleting(false);
     }
-    setCompleting(false);
   }
 
   function applyFilter(list: ShoppingListItem[]) {
     const q = search.trim().toLowerCase();
     return list.filter((i) => {
       if (q && !i.product.name.toLowerCase().includes(q)) return false;
-      if (filter === 'urgent') return i.product.stockLevel === 'empty';
-      if (filter === 'low') return i.product.stockLevel === 'half';
+      if (filter === 'urgent' && i.product.stockLevel !== 'empty') return false;
+      if (filter === 'low' && i.product.stockLevel !== 'half') return false;
       if (categoryFilter && (i.product.category ?? 'Sin categoría') !== categoryFilter) return false;
       return true;
     });

@@ -12,6 +12,7 @@ import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
 import GreetingToast from '@/components/home/GreetingToast';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import type { Product, MonthlyPayment } from '@foody/types';
 
 export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
@@ -96,9 +97,9 @@ export default async function HomePage() {
           <h2 className="text-lg font-bold text-white">
             💳 Pagos próximos
           </h2>
-          <a href="/payments" className="text-sm text-gray-400 hover:text-white transition-colors">
+          <Link href="/payments" className="text-sm text-gray-400 hover:text-white transition-colors">
             Ver todos →
-          </a>
+          </Link>
         </div>
         {upcomingPayments.length === 0 ? (
           <p className="text-gray-500 text-sm py-4">

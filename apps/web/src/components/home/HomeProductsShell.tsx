@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from '@/components/products/ProductCard';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
@@ -129,21 +130,21 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
           <h2 className="flex-1 text-base sm:text-xl font-semibold text-stone-700 truncate">
             🛒 Todos los productos ({products.length})
           </h2>
-          <a
+          <Link
             href="/products/new"
             aria-label="Agregar producto"
             className="shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
           >
             + Agregar
-          </a>
+          </Link>
         </div>
         {products.length === 0 ? (
           <div className="text-center py-16 text-stone-400">
             <p className="text-5xl mb-4">🥑</p>
             <p className="text-lg font-medium">No hay productos todavía</p>
-            <a href="/products/new" className="mt-3 inline-block text-brand-500 hover:underline">
+            <Link href="/products/new" className="mt-3 inline-block text-brand-500 hover:underline">
               Agrega tu primer producto
-            </a>
+            </Link>
           </div>
         ) : (
           <ProductsBrowser

@@ -12,9 +12,9 @@ export default async function SupermarketPage() {
     api.shoppingTrips.byStore().catch(() => []),
   ]);
 
-  const topStore = topStores.length > 0 ? topStores.sort((a, b) => b.count - a.count)[0] : null;
-  const pastStoreNames = topStores
-    .sort((a, b) => b.count - a.count)
+  const sortedStores = [...topStores].sort((a, b) => b.count - a.count);
+  const topStore = sortedStores[0] ?? null;
+  const pastStoreNames = sortedStores
     .map((s) => s.storeName)
     .filter((n): n is string => Boolean(n));
 
