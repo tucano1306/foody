@@ -12,6 +12,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   code_expired: 'El codigo vencio. Solicita uno nuevo.',
   session_expired: 'Tu sesion de acceso vencio. Vuelve a iniciar.',
   server_error: 'Error del servidor. Intentalo mas tarde.',
+  too_many_requests: 'Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.',
 };
 
 export default function LoginCard(props: Readonly<Props>) {

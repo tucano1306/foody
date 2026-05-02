@@ -12,11 +12,29 @@ import type { SessionData } from '@foody/types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function POST(request: NextRequest) {
-  let email: string | undefined;
-  let name: string | null = null;
-  let callbackUrl = '/home';
+// ─── Simple in-process rate limiter (max 5 requests per IP per 15 min) ───────
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_REQUESTS = 5;
+const ipHits = new Map<string, { count: number; resetAt: number }>();
 
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = ipHits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipHits.set(ip, { count: 1, resetAt: now + WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > MAX_REQUESTS;
+}
+
+interface LoginInput {
+  email: string | undefined;
+  name: string | null;
+  callbackUrl: string;
+}
+
+async function parseLoginInput(request: NextRequest): Promise<LoginInput> {
   const contentType = request.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
     const body = (await request.json().catch(() => ({}))) as {
@@ -24,21 +42,36 @@ export async function POST(request: NextRequest) {
       name?: string;
       callbackUrl?: string;
     };
-    email = body.email;
-    name = body.name?.trim() || null;
-    if (body.callbackUrl) callbackUrl = body.callbackUrl;
-  } else {
-    const form = await request.formData();
-    const emailValue = form.get('email');
-    const nameValue = form.get('name');
-    const cbValue = form.get('callbackUrl');
-    email = typeof emailValue === 'string' ? emailValue : undefined;
-    name = typeof nameValue === 'string' && nameValue.trim() ? nameValue.trim() : null;
-    if (typeof cbValue === 'string' && cbValue) callbackUrl = cbValue;
+    return {
+      email: body.email,
+      name: body.name?.trim() || null,
+      callbackUrl: body.callbackUrl ?? '/home',
+    };
+  }
+  const form = await request.formData();
+  const emailValue = form.get('email');
+  const nameValue = form.get('name');
+  const cbValue = form.get('callbackUrl');
+  return {
+    email: typeof emailValue === 'string' ? emailValue : undefined,
+    name: typeof nameValue === 'string' && nameValue.trim() ? nameValue.trim() : null,
+    callbackUrl: typeof cbValue === 'string' && cbValue ? cbValue : '/home',
+  };
+}
+
+export async function POST(request: NextRequest) {
+  // Rate limit by IP
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  if (isRateLimited(ip)) {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('error', 'too_many_requests');
+    return NextResponse.redirect(url, { status: 303 });
   }
 
-  email = email?.trim().toLowerCase();
-  callbackUrl = normalizeCallbackUrl(callbackUrl);
+  const input = await parseLoginInput(request);
+  const email = input.email?.trim().toLowerCase();
+  const { name } = input;
+  const callbackUrl = normalizeCallbackUrl(input.callbackUrl);
 
   if (!email || !EMAIL_RE.test(email)) {
     const url = new URL('/login', request.url);
