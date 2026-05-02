@@ -1,15 +1,26 @@
 import { expect, test } from '@playwright/test';
 
-const PROTECTED = ['/home', '/products', '/payments', '/supermarket'];
+// Routes protected by middleware (redirect includes callbackUrl)
+const MIDDLEWARE_PROTECTED = ['/home', '/products', '/payments', '/supermarket'];
+// Routes protected by layout-level auth check (redirect to /login without callbackUrl)
+const LAYOUT_PROTECTED = ['/household'];
 
 test.describe('Security · Auth middleware', () => {
-  for (const path of PROTECTED) {
+  for (const path of MIDDLEWARE_PROTECTED) {
     test(`${path} redirects to /login when unauthenticated`, async ({ page }) => {
       const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
       expect(res, `expected response for ${path}`).not.toBeNull();
       await expect(page).toHaveURL(/\/login(\?|$)/);
       const url = new URL(page.url());
       expect(url.searchParams.get('callbackUrl')).toBe(path);
+    });
+  }
+
+  for (const path of LAYOUT_PROTECTED) {
+    test(`${path} redirects to /login when unauthenticated`, async ({ page }) => {
+      const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
+      expect(res, `expected response for ${path}`).not.toBeNull();
+      await expect(page).toHaveURL(/\/login/);
     });
   }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { getSessionOptions, type SessionData } from './lib/session';
 
-const PROTECTED_PATHS = ['/home', '/supermarket', '/products', '/payments'];
+const PROTECTED_PATHS = ['/home', '/supermarket', '/products', '/payments', '/household'];
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
@@ -31,5 +31,6 @@ export const config = {
     '/supermarket/:path*',
     '/products/:path*',
     '/payments/:path*',
+    '/household/:path*',
   ],
 };
