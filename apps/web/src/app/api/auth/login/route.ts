@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { getSessionOptions } from '@/lib/session';
 import { emailToUuid, signJWT } from '@/lib/server-auth';
+import {
+  generateLoginCode,
+  getOtpExpiryIso,
+  hashLoginCode,
+  normalizeCallbackUrl,
+  sendLoginCodeEmail,
+} from '@/lib/login-otp';
 import { sql } from '@/lib/db';
 import type { SessionData } from '@foody/types';
 
@@ -33,6 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   email = email?.trim().toLowerCase();
+  callbackUrl = normalizeCallbackUrl(callbackUrl);
 
   if (!email || !EMAIL_RE.test(email)) {
     const url = new URL('/login', request.url);
@@ -40,33 +48,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(url, { status: 303 });
   }
 
-  const userId = emailToUuid(email);
+  const code = generateLoginCode();
+  let emailResult: { debugCode?: string };
 
-  // Ensure user exists in DB (upsert on login)
-  await sql`
-    INSERT INTO users (id, email, name, avatar_url, created_at, updated_at)
-    VALUES (${userId}, ${email}, ${name}, null, NOW(), NOW())
-    ON CONFLICT (id) DO UPDATE SET
-      email = EXCLUDED.email,
-      name = COALESCE(EXCLUDED.name, users.name),
-      updated_at = NOW()
-  `;
+  try {
+    emailResult = await sendLoginCodeEmail({ email, code });
+  } catch {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('error', 'email_delivery_failed');
+    url.searchParams.set('callbackUrl', callbackUrl);
+    return NextResponse.redirect(url, { status: 303 });
+  }
 
-  const jwt = await signJWT({
-    sub: userId,
+  const verifyUrl = new URL('/login/verify', request.url);
+  verifyUrl.searchParams.set('email', email);
+  verifyUrl.searchParams.set('callbackUrl', callbackUrl);
+  if (name) verifyUrl.searchParams.set('name', name);
+
+  const response = NextResponse.redirect(verifyUrl, { status: 303 });
+  const session = await getIronSession<SessionData>(request, response, getSessionOptions());
+  session.jwt = '';
+  session.userId = '';
+  session.email = '';
+  session.name = null;
+  session.avatarUrl = null;
+  session.isLoggedIn = false;
+  session.pendingLogin = {
     email,
     name,
-    avatarUrl: null,
-  });
-
-  const response = NextResponse.redirect(new URL(callbackUrl, request.url), { status: 303 });
-  const session = await getIronSession<SessionData>(request, response, getSessionOptions());
-  session.jwt = jwt;
-  session.userId = userId;
-  session.email = email;
-  session.name = name;
-  session.avatarUrl = null;
-  session.isLoggedIn = true;
+    callbackUrl,
+    codeHash: hashLoginCode(email, code),
+    expiresAt: getOtpExpiryIso(),
+    attempts: 0,
+    debugCode: emailResult.debugCode,
+  };
   await session.save();
 
   return response;

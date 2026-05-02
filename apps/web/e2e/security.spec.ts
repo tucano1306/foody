@@ -28,6 +28,21 @@ test.describe('Security · Session cookie', () => {
     expect(session, 'session cookie should not exist before login').toBeUndefined();
   });
 
+  test('requesting a login code does not grant access before verification', async ({ page, context }) => {
+    await page.goto('/login');
+    await page.getByPlaceholder('tu@email.com').fill('tester@example.com');
+    await page.getByRole('button', { name: /entrar/i }).click();
+
+    await expect(page).toHaveURL(/\/login\/verify/);
+
+    const cookies = await context.cookies();
+    const session = cookies.find((c) => c.name === 'foody_session');
+    expect(session, 'pending login should still use the session cookie').toBeDefined();
+
+    await page.goto('/home', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/login/);
+  });
+
   test('login endpoint requires POST (GET must not create session)', async ({ request }) => {
     const res = await request.get('/api/auth/login');
     // GET should be 404 / 405 — never 200 with a cookie

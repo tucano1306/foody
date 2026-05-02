@@ -45,4 +45,5 @@ export const defaultSession: SessionData = {
   name: null,
   avatarUrl: null,
   isLoggedIn: false,
+  pendingLogin: undefined,
 };

@@ -238,6 +238,15 @@ export interface SessionData {
   name: string | null;
   avatarUrl: string | null;
   isLoggedIn: boolean;
+  pendingLogin?: {
+    email: string;
+    name: string | null;
+    callbackUrl: string;
+    codeHash: string;
+    expiresAt: string;
+    attempts: number;
+    debugCode?: string;
+  };
 }
 
 // ─── API Responses ────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   const session = await getIronSession<SessionData>(request, response, getSessionOptions());
   Object.assign(session, defaultSession);
   session.isLoggedIn = false;
+  session.pendingLogin = undefined;
   await session.save();
   return response;
 }
