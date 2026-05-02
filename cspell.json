@@ -260,7 +260,17 @@
     "Reintentar",
     "reintentar",
     "Foody",
-    "foody"
+    "foody",
+    "pudo",
+    "completar",
+    "Intenta",
+    "intenta",
+    "nuevo",
+    "conexión",
+    "conexion",
+    "Verifica",
+    "verifica",
+    "red"
   ],
   "ignorePaths": [
     "node_modules/**",

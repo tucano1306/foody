@@ -2,7 +2,21 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { ShoppingTripDetail } from '@foody/types';
+import type { Metadata } from 'next';
 import DeleteTripButton from './DeleteTripButton';
+
+export async function generateMetadata({
+  params,
+}: Readonly<{ params: Promise<{ id: string }> }>): Promise<Metadata> {
+  try {
+    const { id } = await params;
+    const trip = await api.shoppingTrips.get(id);
+    const store = trip?.storeName ?? 'Compra';
+    return { title: `🧾 ${store}` };
+  } catch {
+    return { title: 'Compra' };
+  }
+}
 
 function formatCurrency(value: number, currency: string): string {
   try {

@@ -230,6 +230,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       if (res.ok) {
         const data = await res.json();
         console.log('[SupermarketView] complete response:', JSON.stringify(data));
+        if (data.purchaseError) {
+          console.warn('[SupermarketView] partial purchase error:', data.purchaseError);
+          alert('Compra guardada, pero algunos registros de precio no se pudieron guardar.');
+        }
         setShowModal(false);
         setStoreName('');
         setTotalAmount('');
@@ -342,6 +346,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
             placeholder=""
+            aria-label="Buscar producto"
             className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
           />
           {!search && !searchFocused && (
@@ -364,6 +369,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             <motion.button
               key={k}
               onClick={() => setFilter(k)}
+              aria-pressed={filter === k}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                 filter === k
                   ? 'bg-market-600 text-white shadow-sm'
@@ -383,6 +389,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           <div className="flex gap-2 overflow-x-auto pb-0.5">
             <motion.button
               onClick={() => setCategoryFilter(null)}
+              aria-pressed={categoryFilter === null}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                 categoryFilter === null
                   ? 'bg-stone-700 text-white shadow-sm'
@@ -398,6 +405,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               <motion.button
                 key={cat}
                 onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
+                aria-pressed={categoryFilter === cat}
                 className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                   categoryFilter === cat
                     ? 'bg-stone-700 text-white shadow-sm'
