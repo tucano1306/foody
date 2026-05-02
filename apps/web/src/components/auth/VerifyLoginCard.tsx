@@ -1,3 +1,7 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+
 interface Props {
   readonly email: string;
   readonly callbackUrl?: string;
@@ -14,6 +18,40 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 export default function VerifyLoginCard(props: Readonly<Props>) {
   const { email, callbackUrl, error, name, debugCode } = props;
+  const autoFormRef = useRef<HTMLFormElement>(null);
+
+  // Auto-submit silently — the code never appears on screen
+  useEffect(() => {
+    if (debugCode && !error) {
+      autoFormRef.current?.submit();
+    }
+  }, [debugCode, error]);
+
+  // Auto-login in progress — show spinner
+  if (debugCode && !error) {
+    return (
+      <div className="w-full max-w-md mx-4">
+        <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
+          <div className="bg-linear-to-br from-brand-500 to-brand-600 p-8 text-center text-white">
+            <div className="text-6xl mb-3">🔐</div>
+            <h1 className="text-3xl font-bold">Verificando…</h1>
+            <p className="text-brand-100 mt-2 text-sm">Entrando a tu cuenta</p>
+          </div>
+          <div className="p-8 flex flex-col items-center gap-4">
+            <div className="w-10 h-10 rounded-full border-4 border-brand-200 border-t-brand-600 animate-spin" />
+            <p className="text-stone-500 text-sm">Un momento…</p>
+          </div>
+        </div>
+
+        {/* Hidden auto-submit form */}
+        <form ref={autoFormRef} action="/api/auth/verify" method="POST" className="hidden">
+          <input type="hidden" name="email" value={email} />
+          <input type="hidden" name="code" value={debugCode} />
+          {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-4">
@@ -21,20 +59,13 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
         <div className="bg-linear-to-br from-brand-500 to-brand-600 p-8 text-center text-white">
           <div className="text-6xl mb-3">🔐</div>
           <h1 className="text-3xl font-bold">Verifica tu acceso</h1>
-          <p className="text-brand-100 mt-2 text-sm">Introduce el codigo que aparece abajo</p>
+          <p className="text-brand-100 mt-2 text-sm">Introduce el codigo de verificacion</p>
         </div>
 
         <div className="p-8">
           {error && (
             <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
               {ERROR_MESSAGES[error] ?? 'No se pudo verificar el codigo.'}
-            </div>
-          )}
-
-          {debugCode && (
-            <div className="mb-4 px-4 py-3 bg-brand-50 border-2 border-brand-300 rounded-xl text-center">
-              <p className="text-brand-700 text-xs font-medium mb-1">Tu codigo de acceso</p>
-              <p className="text-brand-900 text-3xl font-bold tracking-[0.4em]">{debugCode}</p>
             </div>
           )}
 
@@ -78,4 +109,5 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
       </div>
     </div>
   );
+}
 }
