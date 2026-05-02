@@ -52,7 +52,7 @@ export default async function HomePage() {
 
   const runningLow: Product[] = products.filter((p) => p.stockLevel === 'empty' || p.stockLevel === 'half');
   const upcomingPayments = payments
-    .filter((p) => !p.isPaidThisMonth && p.daysUntilDue <= 7)
+    .filter((p) => !p.isPaidThisMonth && p.daysUntilDue <= 30)
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
   const totalExpenses = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -103,7 +103,7 @@ export default async function HomePage() {
         </div>
         {upcomingPayments.length === 0 ? (
           <p className="text-gray-500 text-sm py-4">
-            No hay pagos urgentes esta semana 🎉
+            No hay pagos pendientes este mes 🎉
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

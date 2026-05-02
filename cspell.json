@@ -270,7 +270,13 @@
     "conexion",
     "Verifica",
     "verifica",
-    "red"
+    "red",
+    "guardada",
+    "pero",
+    "algunos",
+    "registros",
+    "pudieron",
+    "guardar"
   ],
   "ignorePaths": [
     "node_modules/**",
