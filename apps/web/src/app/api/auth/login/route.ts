@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { getSessionOptions } from '@/lib/session';
-import { emailToUuid, signJWT } from '@/lib/server-auth';
 import {
   generateLoginCode,
   getOtpExpiryIso,
@@ -9,7 +8,6 @@ import {
   normalizeCallbackUrl,
   sendLoginCodeEmail,
 } from '@/lib/login-otp';
-import { sql } from '@/lib/db';
 import type { SessionData } from '@foody/types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
