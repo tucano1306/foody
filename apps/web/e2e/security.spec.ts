@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 // Routes protected by middleware (redirect includes callbackUrl)
-const MIDDLEWARE_PROTECTED = ['/home', '/products', '/payments', '/supermarket'];
+const MIDDLEWARE_PROTECTED = ['/home', '/products', '/payments', '/supermarket', '/stats', '/shopping-trips'];
 // Routes protected by layout-level auth check (redirect to /login without callbackUrl)
 const LAYOUT_PROTECTED = ['/household'];
 

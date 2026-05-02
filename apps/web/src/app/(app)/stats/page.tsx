@@ -20,25 +20,42 @@ interface StatsData {
   totalLastMonth: number;
 }
 
-async function getStats(userId: string): Promise<StatsData> {
+async function getUserHousehold(userId: string): Promise<string | null> {
+  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
+  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
+}
+
+async function getStats(userId: string, householdId: string | null): Promise<StatsData> {
+  const productScope = householdId
+    ? sql`household_id = ${householdId}`
+    : sql`user_id = ${userId} AND household_id IS NULL`;
+
+  const tripScope = householdId
+    ? sql`household_id = ${householdId}`
+    : sql`user_id = ${userId} AND household_id IS NULL`;
+
+  const ppScope = householdId
+    ? sql`pp.household_id = ${householdId}`
+    : sql`pp.user_id = ${userId} AND pp.household_id IS NULL`;
+
   const [stockRows, storeRows, monthRows, totalRows, topProductRows, categoryRows] = await Promise.all([
-    sql`SELECT stock_level, COUNT(*) AS count FROM products WHERE user_id = ${userId} GROUP BY stock_level`,
+    sql`SELECT stock_level, COUNT(*) AS count FROM products WHERE ${productScope} GROUP BY stock_level`,
     sql`
       SELECT COALESCE(store_name, 'Sin nombre') AS name, COUNT(*) AS trips, SUM(total_amount) AS total_spent
-      FROM shopping_trips WHERE user_id = ${userId}
+      FROM shopping_trips WHERE ${tripScope}
       GROUP BY COALESCE(store_name, 'Sin nombre') ORDER BY trips DESC LIMIT 5
     `,
     sql`
       SELECT TO_CHAR(purchased_at, 'YYYY-MM') AS month, SUM(total_amount) AS total, COUNT(*) AS trips
-      FROM shopping_trips WHERE user_id = ${userId} AND purchased_at >= NOW() - INTERVAL '6 months'
+      FROM shopping_trips WHERE ${tripScope} AND purchased_at >= NOW() - INTERVAL '6 months'
       GROUP BY TO_CHAR(purchased_at, 'YYYY-MM') ORDER BY month ASC
     `,
-    sql`SELECT COUNT(*) AS count FROM products WHERE user_id = ${userId}`,
+    sql`SELECT COUNT(*) AS count FROM products WHERE ${productScope}`,
     sql`
       SELECT p.name, COUNT(pp.id) AS purchases, SUM(pp.quantity) AS total_qty
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
-      WHERE pp.user_id = ${userId}
+      WHERE ${ppScope}
       GROUP BY p.name
       ORDER BY purchases DESC
       LIMIT 8
@@ -50,7 +67,7 @@ async function getStats(userId: string): Promise<StatsData> {
         SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month') THEN pp.total_price ELSE 0 END) AS prev_month
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
-      WHERE pp.user_id = ${userId}
+      WHERE ${ppScope}
         AND pp.purchased_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
       GROUP BY COALESCE(p.category, 'Sin categoría')
       ORDER BY current_month DESC
@@ -134,7 +151,8 @@ export default async function StatsPage() {
 
   let data: StatsData;
   try {
-    data = await getStats(session.userId);
+    const householdId = await getUserHousehold(session.userId);
+    data = await getStats(session.userId, householdId);
   } catch {
     data = {
       stock: { full: 0, half: 0, empty: 0 },
