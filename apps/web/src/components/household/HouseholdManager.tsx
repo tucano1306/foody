@@ -141,18 +141,26 @@ export default function HouseholdManager() {
     return <p className="text-center text-stone-400 py-8">Cargando...</p>;
   }
 
+  const inputCls =
+    'flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 dark:bg-stone-800 dark:border-stone-700 text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-400 transition';
+
+  const cardCls =
+    'bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm';
+
   // ─── No household ──────────────────────────────────────────────────────
   if (!state?.household) {
     return (
       <div className="space-y-6">
         {error && (
-          <p className="bg-rose-50 text-rose-600 text-sm px-4 py-2.5 rounded-xl">{error}</p>
+          <p className="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-sm px-4 py-2.5 rounded-xl border border-rose-100 dark:border-rose-800">
+            {error}
+          </p>
         )}
 
         {/* Create */}
-        <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-          <h3 className="font-bold text-stone-800 mb-1">🏡 Crea tu hogar</h3>
-          <p className="text-sm text-stone-500 mb-3">
+        <section className={cardCls}>
+          <h3 className="font-bold text-stone-800 dark:text-stone-100 mb-1">🏡 Crea tu hogar</h3>
+          <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
             Invita a tu familia a compartir la despensa y la lista del súper.
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -160,7 +168,7 @@ export default function HouseholdManager() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Ej: Familia García"
-              className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300"
+              className={inputCls}
             />
             <button
               type="button"
@@ -174,9 +182,9 @@ export default function HouseholdManager() {
         </section>
 
         {/* Join */}
-        <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-          <h3 className="font-bold text-stone-800 mb-1">🔑 Únete a un hogar</h3>
-          <p className="text-sm text-stone-500 mb-3">
+        <section className={cardCls}>
+          <h3 className="font-bold text-stone-800 dark:text-stone-100 mb-1">🔑 Únete a un hogar</h3>
+          <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
             Pide el código de invitación a alguien de tu familia.
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -185,13 +193,13 @@ export default function HouseholdManager() {
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               placeholder="ABC123"
               maxLength={10}
-              className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 uppercase tracking-widest text-center font-mono"
+              className={`${inputCls} uppercase tracking-widest text-center font-mono`}
             />
             <button
               type="button"
               disabled={working || joinCode.trim().length < 4}
               onClick={handleJoin}
-              className="bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 transition"
+              className="bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 transition"
             >
               Unirme
             </button>
@@ -207,14 +215,16 @@ export default function HouseholdManager() {
   return (
     <div className="space-y-6">
       {error && (
-        <p className="bg-rose-50 text-rose-600 text-sm px-4 py-2.5 rounded-xl">{error}</p>
+        <p className="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-sm px-4 py-2.5 rounded-xl border border-rose-100 dark:border-rose-800">
+          {error}
+        </p>
       )}
 
-      <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+      <section className={cardCls}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-bold text-stone-800 text-lg">{household.name}</h3>
-            <p className="text-xs text-stone-400 mt-0.5">
+            <h3 className="font-bold text-stone-800 dark:text-stone-100 text-lg">{household.name}</h3>
+            <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
               {members.length} {members.length === 1 ? 'miembro' : 'miembros'}
               {isOwner && ' · Eres el propietario'}
             </p>
@@ -223,15 +233,15 @@ export default function HouseholdManager() {
             type="button"
             onClick={handleLeave}
             disabled={working}
-            className="text-sm text-rose-500 hover:bg-rose-50 px-3 py-1.5 rounded-lg transition"
+            className="text-sm text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 px-3 py-1.5 rounded-lg transition"
           >
             Salir
           </button>
         </div>
 
-        <ul className="space-y-2">
+        <ul className="space-y-2 divide-y divide-stone-100 dark:divide-stone-800">
           {members.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 py-1.5">
+            <li key={m.id} className="flex items-center gap-3 py-2">
               {m.avatarUrl ? (
                 <Image
                   src={m.avatarUrl}
@@ -241,35 +251,35 @@ export default function HouseholdManager() {
                   className="rounded-full"
                 />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-600 font-bold flex items-center justify-center">
+                <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-bold flex items-center justify-center text-sm">
                   {(m.name ?? m.email)[0].toUpperCase()}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-stone-800 text-sm truncate">
+                <p className="font-medium text-stone-800 dark:text-stone-100 text-sm truncate">
                   {m.name ?? m.email}
                   {m.id === household.ownerId && (
-                    <span className="ml-2 text-[10px] bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded font-bold">
+                    <span className="ml-2 text-[10px] bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400 px-1.5 py-0.5 rounded font-bold">
                       OWNER
                     </span>
                   )}
                 </p>
-                {m.name && <p className="text-xs text-stone-400 truncate">{m.email}</p>}
+                {m.name && <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{m.email}</p>}
               </div>
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-        <h3 className="font-bold text-stone-800 mb-1">📨 Invitar a alguien</h3>
-        <p className="text-sm text-stone-500 mb-3">
+      <section className={cardCls}>
+        <h3 className="font-bold text-stone-800 dark:text-stone-100 mb-1">📨 Invitar a alguien</h3>
+        <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
           Genera un código. Válido 7 días, un solo uso.
         </p>
 
         {inviteCode ? (
           <div className="flex items-center gap-2">
-            <div className="flex-1 px-4 py-3 rounded-xl bg-stone-50 border-2 border-dashed border-brand-300 font-mono text-center text-2xl font-bold tracking-[0.3em] text-brand-600">
+            <div className="flex-1 px-4 py-3 rounded-xl bg-stone-50 dark:bg-stone-800 border-2 border-dashed border-brand-300 dark:border-brand-600 font-mono text-center text-2xl font-bold tracking-[0.3em] text-brand-600 dark:text-brand-400">
               {inviteCode}
             </div>
             <button
