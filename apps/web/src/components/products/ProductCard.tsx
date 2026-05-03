@@ -150,11 +150,11 @@ export default function ProductCard({ product, showActions = false, compact = fa
       );
 
       if (res.ok) {
-        const updated: Product = await res.json();
-        setCurrent(updated);
+        // Optimistic value already correct — just refresh server data
         router.refresh();
       } else {
         setCurrent(previous);
+        onLevelChange?.(productId, previous.stockLevel ?? 'full');
       }
     });
   }

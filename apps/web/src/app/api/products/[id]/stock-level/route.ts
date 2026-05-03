@@ -21,9 +21,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   let rows;
   if (householdId) {
+    // Match the listing query: include household products AND user's personal
+    // products (household_id IS NULL). Otherwise products created before
+    // joining the household can never be updated.
     rows = await sql`
       UPDATE products SET stock_level = ${level}, is_running_low = ${isRunningLow}, needs_shopping = ${needsShopping}, updated_at = NOW()
-      WHERE id = ${id} AND household_id = ${householdId} RETURNING *
+      WHERE id = ${id}
+        AND (household_id = ${householdId} OR (user_id = ${user.userId} AND household_id IS NULL))
+      RETURNING *
     `;
   } else {
     rows = await sql`
