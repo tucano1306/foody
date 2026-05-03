@@ -236,7 +236,7 @@ export const api = {
     list: async (): Promise<Product[]> => {
       const { userId, householdId } = await getAuthContext();
       if (householdId) {
-        const rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} ORDER BY name ASC`;
+        const rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} OR (user_id = ${userId} AND household_id IS NULL) ORDER BY name ASC`;
         return rows.map((row) => mapProduct(row as Record<string, unknown>));
       }
       const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} AND household_id IS NULL ORDER BY name ASC`;
@@ -245,7 +245,7 @@ export const api = {
     runningLow: async (): Promise<Product[]> => {
       const { userId, householdId } = await getAuthContext();
       if (householdId) {
-        const rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} AND (needs_shopping = true OR is_running_low = true) ORDER BY name ASC`;
+        const rows = await sql`SELECT * FROM products WHERE (household_id = ${householdId} OR (user_id = ${userId} AND household_id IS NULL)) AND (needs_shopping = true OR is_running_low = true) ORDER BY name ASC`;
         return rows.map((row) => mapProduct(row as Record<string, unknown>));
       }
       const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} AND household_id IS NULL AND (needs_shopping = true OR is_running_low = true) ORDER BY name ASC`;
