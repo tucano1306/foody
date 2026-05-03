@@ -121,7 +121,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Imperative lens — NO useState, zero re-renders ───────────────────────
+  // ── Imperative lens helpers — NO useState, zero re-renders ──────────────
   const hideLens = useCallback(() => {
     const lens = lensRef.current;
     if (lens) lens.style.display = 'none';
@@ -139,8 +139,8 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     const rect = imgWrap.getBoundingClientRect();
     const rx = clientX - rect.left;
     const ry = clientY - rect.top;
+    if (rx < 0 || ry < 0 || rx > rect.width || ry > rect.height) { hideLens(); return; }
 
-    // Clamp so lens stays inside image
     const lx = Math.max(LENS_SIZE / 2, Math.min(rect.width  - LENS_SIZE / 2, rx));
     const ly = Math.max(LENS_SIZE / 2, Math.min(rect.height - LENS_SIZE / 2, ry));
 
@@ -157,7 +157,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       panel.style.backgroundRepeat   = 'no-repeat';
       panel.style.opacity            = '1';
     }
-  }, [src]);
+  }, [src, hideLens]);
 
   // ── Touch gestures ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -206,10 +206,30 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     };
   }, [applyTransform, resetZoom]);
 
-  // ── Mouse wheel zoom ──────────────────────────────────────────────────────
+  // ── Mouse events — all imperative, zero React synthetic events ───────────
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    function onMouseMove(e: MouseEvent) {
+      if (s.current.mouseDown) {
+        // drag
+        s.current.x = e.clientX - s.current.mouseStartX;
+        s.current.y = e.clientY - s.current.mouseStartY;
+        applyTransform();
+      } else {
+        updateLens(e.clientX, e.clientY);
+      }
+    }
+    function onMouseDown(e: MouseEvent) {
+      if (s.current.scale <= 1) return;
+      s.current.mouseDown   = true;
+      s.current.mouseStartX = e.clientX - s.current.x;
+      s.current.mouseStartY = e.clientY - s.current.y;
+      e.preventDefault();
+    }
+    function onMouseUp() { s.current.mouseDown = false; }
+    function onMouseLeave() { s.current.mouseDown = false; hideLens(); }
     function onWheel(e: WheelEvent) {
       e.preventDefault();
       const st = s.current;
@@ -219,29 +239,25 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       applyTransform();
       if (st.scale > 1) hideLens();
     }
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [applyTransform, hideLens]);
+    function onClick(e: MouseEvent) {
+      if (e.target === container) onClose();
+    }
 
-  // ── Mouse drag ────────────────────────────────────────────────────────────
-  function handleMouseDown(e: React.MouseEvent) {
-    if (s.current.scale <= 1) return;
-    s.current.mouseDown   = true;
-    s.current.mouseStartX = e.clientX - s.current.x;
-    s.current.mouseStartY = e.clientY - s.current.y;
-    e.preventDefault();
-  }
-  function handleMouseMove(e: React.MouseEvent) {
-    if (!s.current.mouseDown) return;
-    s.current.x = e.clientX - s.current.mouseStartX;
-    s.current.y = e.clientY - s.current.mouseStartY;
-    applyTransform();
-  }
-  function handleMouseUp() { s.current.mouseDown = false; }
-
-  function handleBackdropClick(e: React.MouseEvent) {
-    if (e.target === e.currentTarget) onClose();
-  }
+    container.addEventListener('mousemove',  onMouseMove);
+    container.addEventListener('mousedown',  onMouseDown);
+    container.addEventListener('mouseup',    onMouseUp);
+    container.addEventListener('mouseleave', onMouseLeave);
+    container.addEventListener('wheel',      onWheel, { passive: false });
+    container.addEventListener('click',      onClick);
+    return () => {
+      container.removeEventListener('mousemove',  onMouseMove);
+      container.removeEventListener('mousedown',  onMouseDown);
+      container.removeEventListener('mouseup',    onMouseUp);
+      container.removeEventListener('mouseleave', onMouseLeave);
+      container.removeEventListener('wheel',      onWheel);
+      container.removeEventListener('click',      onClick);
+    };
+  }, [applyTransform, hideLens, updateLens, onClose]);
 
   return (
     <dialog
@@ -249,8 +265,8 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       aria-label={`Foto de ${alt}`}
       className="fixed inset-0 z-50 w-full h-full max-w-none max-h-none m-0 p-0 border-0 bg-white animate-[fadeIn_0.16s_ease-out]"
     >
-      {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-3 border-b border-stone-100">
+      {/* ── Top bar — desktop only ───────────────────────────────────────── */}
+      <div className="hidden sm:flex absolute top-0 inset-x-0 z-20 items-center justify-between px-4 py-3 border-b border-stone-100">
         <span className="text-stone-700 font-medium text-sm truncate max-w-[60%]">{alt}</span>
         <button
           type="button"
@@ -262,29 +278,31 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
         </button>
       </div>
 
-      {/* ── Main area ────────────────────────────────────────────────────── */}
-      <div className="absolute inset-0 top-13 flex items-stretch">
+      {/* ── Mobile close button — floating, no bar ───────────────────────── */}
+      <button
+        type="button"
+        aria-label="Cerrar"
+        onClick={onClose}
+        className="sm:hidden absolute top-3 right-3 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/35 text-white text-lg backdrop-blur-sm"
+      >
+        ✕
+      </button>
 
-        {/* Image zone */}
+      {/* ── Main area ────────────────────────────────────────────────────── */}
+      {/* Mobile: inset-0 (fullscreen). Desktop: top-13 (below bar) */}
+      <div className="absolute inset-0 sm:top-13 flex items-stretch">
+
+        {/* Image zone — all interactions via imperative addEventListener */}
         <div
           ref={containerRef}
           aria-hidden="true"
           className="flex-1 flex items-center justify-center overflow-hidden select-none bg-white"
-          onClick={handleBackdropClick}
-          onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => { handleMouseUp(); hideLens(); }}
         >
-          {/* Inner wrapper — sized to image, needed for lens coordinates */}
+          {/* Inner wrapper — sized to image, needed for lens coordinate math */}
           <div
             ref={imgWrapRef}
             aria-hidden="true"
             style={{ position: 'relative', display: 'inline-block' }}
-            onMouseEnter={() => { if (!isMobile.current && s.current.scale <= 1 && lensRef.current) lensRef.current.style.display = 'block'; }}
-            onMouseLeave={hideLens}
-            onMouseMove={(e) => updateLens(e.clientX, e.clientY)}
           >
             {/* Image */}
             <div
@@ -306,7 +324,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
               )}
             </div>
 
-            {/* Lens — always in DOM, shown/hidden via style.display imperatively */}
+            {/* Lens — shown/hidden imperatively */}
             <div
               ref={lensRef}
               style={{
@@ -315,7 +333,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
                 width:  LENS_SIZE,
                 height: LENS_SIZE,
                 border: '2px solid #c8a951',
-                borderRadius: '50%', // overridden to 4px for side-panel mode in useEffect
+                borderRadius: '50%',
                 pointerEvents: 'none',
                 background: 'rgba(200,169,81,0.08)',
                 boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
@@ -326,11 +344,11 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
           </div>
         </div>
 
-        {/* ── Side zoom panel — always in DOM, shown only on wide screens ── */}
+        {/* ── Side zoom panel — shown only on wide screens ─────────────── */}
         <div
           ref={sidePanelEl}
           style={{
-            display: 'none', // overridden to 'flex' on wide screens in useEffect
+            display: 'none',
             width: 380,
             borderLeft: '1px solid #e5e7eb',
             background: '#fff',
@@ -360,7 +378,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       </div>
 
       {/* ── Mobile hint ──────────────────────────────────────────────────── */}
-      <p className="sm:hidden absolute bottom-2 left-1/2 -translate-x-1/2 text-stone-300 text-[11px] pointer-events-none whitespace-nowrap z-10">
+      <p className="sm:hidden absolute bottom-2 left-1/2 -translate-x-1/2 text-white/50 text-[11px] pointer-events-none whitespace-nowrap z-10">
         Doble tap · Pellizca para zoom
       </p>
     </dialog>
