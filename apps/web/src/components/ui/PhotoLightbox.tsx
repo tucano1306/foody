@@ -7,6 +7,7 @@ interface Props {
   readonly src: string;
   readonly alt: string;
   readonly onClose: () => void;
+  readonly originRect?: DOMRect;
 }
 
 const MIN_SCALE = 1;
@@ -19,7 +20,7 @@ function getDist(touches: TouchList) {
   );
 }
 
-export default function PhotoLightbox({ src, alt, onClose }: Props) {
+export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +66,35 @@ export default function PhotoLightbox({ src, alt, onClose }: Props) {
       setTimeout(() => { elRef.style.transition = 'none'; }, 200);
     }
   }, [applyTransform]);
+
+  // ── Hero entrance: fly from thumbnail to center ───────────────────────────
+  useEffect(() => {
+    const el = imgRef.current;
+    if (!el || !originRect) return;
+
+    const naturalSize = Math.min(globalThis.innerWidth * 0.9, globalThis.innerHeight * 0.9);
+    const heroScale = Math.min(originRect.width / naturalSize, originRect.height / naturalSize);
+    const dx = (originRect.left + originRect.width / 2) - globalThis.innerWidth / 2;
+    const dy = (originRect.top + originRect.height / 2) - globalThis.innerHeight / 2;
+
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(${heroScale})`;
+    el.style.opacity = '0.7';
+    el.style.borderRadius = '16px';
+
+    function clearTransition() { if (el) el.style.transition = 'none'; }
+
+    function animateToCenter() {
+      el.style.transition = 'transform 0.38s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.22s ease, border-radius 0.3s ease';
+      el.style.transform = 'translate(0, 0) scale(1)';
+      el.style.opacity = '1';
+      el.style.borderRadius = '0px';
+      setTimeout(clearTransition, 420);
+    }
+
+    requestAnimationFrame(() => requestAnimationFrame(animateToCenter));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // only on mount
 
   // ── Attach touch events with passive:false so preventDefault() works ──────
   useEffect(() => {
@@ -212,7 +242,8 @@ export default function PhotoLightbox({ src, alt, onClose }: Props) {
             transformOrigin: 'center center',
             transition: 'none',
             willChange: 'transform',
-            animation: 'photoIn 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+            // animation only used when no originRect (fallback)
+            animation: originRect ? undefined : 'photoIn 0.22s cubic-bezier(0.34,1.56,0.64,1)',
           }}
         >
           {src.startsWith('data:') ? (

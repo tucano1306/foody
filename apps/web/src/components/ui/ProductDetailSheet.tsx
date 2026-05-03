@@ -40,7 +40,14 @@ function formatRelativeTime(dateStr: string): string {
 
 export default function ProductDetailSheet({ product, open, onClose, lastPurchase }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const photoButtonRef = useRef<HTMLButtonElement>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxOrigin, setLightboxOrigin] = useState<DOMRect | undefined>();
+
+  function openLightbox() {
+    setLightboxOrigin(photoButtonRef.current?.getBoundingClientRect());
+    setLightboxOpen(true);
+  }
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -73,9 +80,10 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
             <div className="relative aspect-video bg-stone-100">
               {product.photoUrl ? (
                 <button
+                  ref={photoButtonRef}
                   type="button"
                   aria-label="Ampliar foto"
-                  onClick={() => setLightboxOpen(true)}
+                  onClick={openLightbox}
                   className="absolute inset-0 w-full h-full focus:outline-none group"
                 >
                   {product.photoUrl.startsWith('data:') ? (
@@ -156,7 +164,12 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
       </dialog>
 
       {lightboxOpen && product.photoUrl && (
-        <PhotoLightbox src={product.photoUrl} alt={product.name} onClose={() => setLightboxOpen(false)} />
+        <PhotoLightbox
+          src={product.photoUrl}
+          alt={product.name}
+          originRect={lightboxOrigin}
+          onClose={() => setLightboxOpen(false)}
+        />
       )}
     </>
   );
