@@ -121,9 +121,13 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
   }, []);
 
   // ── Imperative lens helpers — NO useState, zero re-renders ──────────────
+  // Lens uses transform:translate (GPU-only, no layout recalc) to prevent
+  // repainting the image layer when the cursor moves.
+  const panelInitialized = useRef(false);
+
   const hideLens = useCallback(() => {
     const lens = lensRef.current;
-    if (lens) lens.style.display = 'none';
+    if (lens) lens.style.opacity = '0';
     const panel = panelRef.current;
     if (panel) panel.style.opacity = '0';
   }, []);
@@ -143,18 +147,22 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     const lx = Math.max(LENS_SIZE / 2, Math.min(rect.width  - LENS_SIZE / 2, rx));
     const ly = Math.max(LENS_SIZE / 2, Math.min(rect.height - LENS_SIZE / 2, ry));
 
-    lens.style.display = 'block';
-    lens.style.left    = `${lx - LENS_SIZE / 2}px`;
-    lens.style.top     = `${ly - LENS_SIZE / 2}px`;
+    // transform: translate — GPU composited, zero layout recalculation
+    lens.style.opacity   = '1';
+    lens.style.transform = `translate(${rect.left + lx - LENS_SIZE / 2}px, ${rect.top + ly - LENS_SIZE / 2}px)`;
 
     if (panel) {
+      // Set backgroundImage/Size/Repeat only once per open
+      if (!panelInitialized.current) {
+        panel.style.backgroundImage  = `url("${src}")`;
+        panel.style.backgroundSize   = `${rect.width * LENS_ZOOM}px ${rect.height * LENS_ZOOM}px`;
+        panel.style.backgroundRepeat = 'no-repeat';
+        panelInitialized.current = true;
+      }
       const pctX = ((lx / rect.width)  * 100).toFixed(2);
       const pctY = ((ly / rect.height) * 100).toFixed(2);
-      panel.style.backgroundImage    = `url("${src}")`;
-      panel.style.backgroundSize     = `${rect.width * LENS_ZOOM}px ${rect.height * LENS_ZOOM}px`;
       panel.style.backgroundPosition = `${pctX}% ${pctY}%`;
-      panel.style.backgroundRepeat   = 'no-repeat';
-      panel.style.opacity            = '1';
+      panel.style.opacity = '1';
     }
   }, [src, hideLens]);
 
@@ -313,7 +321,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
             aria-hidden="true"
             style={{ position: 'relative', display: 'inline-block' }}
           >
-            {/* Image */}
+            {/* Image — plain img, no JS overhead */}
             <div
               ref={imgRef}
               style={{
@@ -324,7 +332,6 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
                 animation: originRect ? undefined : 'photoIn 0.2s cubic-bezier(0.34,1.56,0.64,1)',
               }}
             >
-              {/* Plain <img> — avoids next/image JS internals that cause GPU repaints on mousemove */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={src}
@@ -333,25 +340,28 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
                 draggable={false}
               />
             </div>
-
-            {/* Lens — shown/hidden imperatively */}
-            <div
-              ref={lensRef}
-              style={{
-                display: 'none',
-                position: 'absolute',
-                width:  LENS_SIZE,
-                height: LENS_SIZE,
-                border: '2px solid #c8a951',
-                borderRadius: '50%',
-                pointerEvents: 'none',
-                background: 'rgba(200,169,81,0.08)',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-                zIndex: 10,
-                top: 0, left: 0,
-              }}
-            />
           </div>
+
+          {/* Lens — fixed overlay, positioned via transform:translate so it NEVER
+               touches the image's layout/compositing layer */}
+          <div
+            ref={lensRef}
+            style={{
+              position: 'fixed',
+              top: 0, left: 0,
+              width:  LENS_SIZE,
+              height: LENS_SIZE,
+              border: '2px solid #c8a951',
+              borderRadius: '50%',
+              pointerEvents: 'none',
+              background: 'rgba(200,169,81,0.08)',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+              zIndex: 30,
+              opacity: 0,
+              transition: 'opacity 0.1s ease',
+              willChange: 'transform',
+            }}
+          />
         </div>
 
         {/* ── Side zoom panel — shown only on wide screens ─────────────── */}
