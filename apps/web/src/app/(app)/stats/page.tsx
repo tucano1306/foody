@@ -30,10 +30,6 @@ async function getStats(userId: string, householdId: string | null): Promise<Sta
     ? sql`household_id = ${householdId}`
     : sql`user_id = ${userId} AND household_id IS NULL`;
 
-  const tripScope = householdId
-    ? sql`household_id = ${householdId}`
-    : sql`user_id = ${userId} AND household_id IS NULL`;
-
   const ppScope = householdId
     ? sql`pp.household_id = ${householdId}`
     : sql`pp.user_id = ${userId} AND pp.household_id IS NULL`;
@@ -41,14 +37,20 @@ async function getStats(userId: string, householdId: string | null): Promise<Sta
   const [stockRows, storeRows, monthRows, totalRows, topProductRows, categoryRows] = await Promise.all([
     sql`SELECT stock_level, COUNT(*) AS count FROM products WHERE ${productScope} GROUP BY stock_level`,
     sql`
-      SELECT COALESCE(store_name, 'Sin nombre') AS name, COUNT(*) AS trips, SUM(total_amount) AS total_spent
-      FROM shopping_trips WHERE ${tripScope}
-      GROUP BY COALESCE(store_name, 'Sin nombre') ORDER BY trips DESC LIMIT 5
+      SELECT COALESCE(pp.store_name, 'Sin tienda') AS name,
+        COUNT(*) AS trips,
+        SUM(COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0)) AS total_spent
+      FROM product_purchases pp
+      WHERE ${ppScope}
+      GROUP BY COALESCE(pp.store_name, 'Sin tienda') ORDER BY trips DESC LIMIT 5
     `,
     sql`
-      SELECT TO_CHAR(purchased_at, 'YYYY-MM') AS month, SUM(total_amount) AS total, COUNT(*) AS trips
-      FROM shopping_trips WHERE ${tripScope} AND purchased_at >= NOW() - INTERVAL '6 months'
-      GROUP BY TO_CHAR(purchased_at, 'YYYY-MM') ORDER BY month ASC
+      SELECT TO_CHAR(pp.purchased_at, 'YYYY-MM') AS month,
+        SUM(COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0)) AS total,
+        COUNT(*) AS trips
+      FROM product_purchases pp
+      WHERE ${ppScope} AND pp.purchased_at >= NOW() - INTERVAL '6 months'
+      GROUP BY TO_CHAR(pp.purchased_at, 'YYYY-MM') ORDER BY month ASC
     `,
     sql`SELECT COUNT(*) AS count FROM products WHERE ${productScope}`,
     sql`
