@@ -85,6 +85,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     function clearTransition() { if (el) el.style.transition = 'none'; }
 
     function animateToCenter() {
+      if (!el) return;
       el.style.transition = 'transform 0.38s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.22s ease, border-radius 0.3s ease';
       el.style.transform = 'translate(0, 0) scale(1)';
       el.style.opacity = '1';
