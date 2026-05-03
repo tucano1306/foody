@@ -21,21 +21,10 @@ interface StatsData {
   totalLastMonth: number;
 }
 
-async function getUserHousehold(userId: string): Promise<string | null> {
-  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
-  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
-}
-
-async function getStats(userId: string, householdId: string | null): Promise<StatsData> {
-  // Inclusive scope: include personal data + household-scoped data so that
-  // items created before joining a household are still visible.
-  const productScope = householdId
-    ? sql`(household_id = ${householdId} OR (user_id = ${userId} AND household_id IS NULL))`
-    : sql`user_id = ${userId} AND household_id IS NULL`;
-
-  const ppScope = householdId
-    ? sql`(pp.household_id = ${householdId} OR (pp.user_id = ${userId} AND pp.household_id IS NULL))`
-    : sql`pp.user_id = ${userId} AND pp.household_id IS NULL`;
+async function getStats(userId: string): Promise<StatsData> {
+  // Per-user isolation
+  const productScope = sql`user_id = ${userId}`;
+  const ppScope = sql`pp.user_id = ${userId}`;
 
   const [stockRows, storeRows, monthRows, totalRows, topProductRows, categoryRows] = await Promise.all([
     sql`SELECT stock_level, COUNT(*) AS count FROM products WHERE ${productScope} GROUP BY stock_level`,
@@ -147,8 +136,7 @@ export default async function StatsPage() {
 
   let data: StatsData;
   try {
-    const householdId = await getUserHousehold(session.userId);
-    data = await getStats(session.userId, householdId);
+    data = await getStats(session.userId);
   } catch {
     data = {
       stock: { full: 0, half: 0, empty: 0 },

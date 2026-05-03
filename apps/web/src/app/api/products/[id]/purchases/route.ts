@@ -3,15 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 
-async function getUserHousehold(userId: string): Promise<string | null> {
-  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
-  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
-}
-
-async function findProduct(id: string, userId: string, householdId: string | null) {
-  const rows = householdId
-    ? await sql`SELECT * FROM products WHERE id = ${id} AND household_id = ${householdId} LIMIT 1`
-    : await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} AND household_id IS NULL LIMIT 1`;
+async function findProduct(id: string, userId: string) {
+  const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
   return rows[0] ?? null;
 }
 
@@ -24,9 +17,8 @@ export async function POST(
   if (!user) return unauthorized();
 
   const { id } = await params;
-  const householdId = await getUserHousehold(user.userId);
 
-  const product = await findProduct(id, user.userId, householdId);
+  const product = await findProduct(id, user.userId);
   if (!product) return notFound();
 
   const body = await request.json() as {
@@ -74,7 +66,7 @@ export async function POST(
        purchased_at, store_name, store_id, trip_id, user_id, household_id, created_at)
     VALUES
       (${purchaseId}, ${id}, ${qty}, ${unitPrice}, ${totalPrice}, 'manual', ${currency},
-       ${purchasedAt}, ${storeName}, ${storeId}, NULL, ${user.userId}, ${householdId}, NOW())
+       ${purchasedAt}, ${storeName}, ${storeId}, NULL, ${user.userId}, NULL, NOW())
   `;
 
   // Update product aggregates and reset stock to full
@@ -87,22 +79,15 @@ export async function POST(
       last_purchase_price = ${unitPrice},
       last_purchase_date  = NOW(),
       updated_at       = NOW()
-    WHERE id = ${id}
+    WHERE id = ${id} AND user_id = ${user.userId}
     RETURNING *
   `;
 
   // Remove from shopping list
-  if (householdId) {
-    await sql`
-      DELETE FROM shopping_list_items
-      WHERE product_id = ${id} AND household_id = ${householdId}
-    `;
-  } else {
-    await sql`
-      DELETE FROM shopping_list_items
-      WHERE product_id = ${id} AND user_id = ${user.userId} AND household_id IS NULL
-    `;
-  }
+  await sql`
+    DELETE FROM shopping_list_items
+    WHERE product_id = ${id} AND user_id = ${user.userId}
+  `;
 
   return NextResponse.json({ product: updatedRows[0], purchase: { id: purchaseId } });
 }

@@ -3,11 +3,6 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensurePurchaseSchema } from '@/lib/ensure-schema';
 
-async function getUserHousehold(userId: string): Promise<string | null> {
-  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
-  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
-}
-
 interface CompletionBody {
   storeName?: string;
   totalAmount?: number;
@@ -99,17 +94,11 @@ export async function POST(request: NextRequest) {
 
   await ensurePurchaseSchema();
 
-  const householdId = await getUserHousehold(user.userId);
-
-  const rawItems = householdId
-    ? await sql`
-        SELECT id, product_id, quantity_needed FROM shopping_list_items
-        WHERE household_id = ${householdId} AND is_in_cart = true
-      `
-    : await sql`
-        SELECT id, product_id, quantity_needed FROM shopping_list_items
-        WHERE user_id = ${user.userId} AND household_id IS NULL AND is_in_cart = true
-      `;
+  // Per-user isolation
+  const rawItems = await sql`
+    SELECT id, product_id, quantity_needed FROM shopping_list_items
+    WHERE user_id = ${user.userId} AND is_in_cart = true
+  `;
   if (!rawItems.length) return NextResponse.json({ completed: 0 });
 
   const items = rawItems as CartItem[];
@@ -138,11 +127,7 @@ export async function POST(request: NextRequest) {
     WHERE id = ANY(${productIds}::uuid[])
   `;
 
-  if (householdId) {
-    await sql`DELETE FROM shopping_list_items WHERE household_id = ${householdId} AND is_in_cart = true`;
-  } else {
-    await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND household_id IS NULL AND is_in_cart = true`;
-  }
+  await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND is_in_cart = true`;
 
   return NextResponse.json({ completed: items.length, tripId, purchasesInserted, purchaseError });
 }

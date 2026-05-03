@@ -2,18 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 
-async function getUserHousehold(userId: string): Promise<string | null> {
-  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
-  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
-}
-
-async function findProduct(id: string, userId: string, householdId: string | null) {
-  let rows;
-  if (householdId) {
-    rows = await sql`SELECT * FROM products WHERE id = ${id} AND household_id = ${householdId} LIMIT 1`;
-  } else {
-    rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} AND household_id IS NULL LIMIT 1`;
-  }
+async function findProduct(id: string, userId: string) {
+  const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
   return rows[0] ?? null;
 }
 
@@ -22,8 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const householdId = await getUserHousehold(user.userId);
-  const product = await findProduct(id, user.userId, householdId);
+  const product = await findProduct(id, user.userId);
   if (!product) return notFound();
   return NextResponse.json(product);
 }
@@ -33,8 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const householdId = await getUserHousehold(user.userId);
-  const product = await findProduct(id, user.userId, householdId);
+  const product = await findProduct(id, user.userId);
   if (!product) return notFound();
 
   const body = await request.json() as Record<string, unknown>;
@@ -52,7 +40,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       is_running_low = COALESCE(${body.isRunningLow as boolean ?? null}, is_running_low),
       needs_shopping = COALESCE(${body.needsShopping as boolean ?? null}, needs_shopping),
       updated_at = NOW()
-    WHERE id = ${id}
+    WHERE id = ${id} AND user_id = ${user.userId}
     RETURNING *
   `;
   return NextResponse.json(rows[0]);
@@ -63,10 +51,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const householdId = await getUserHousehold(user.userId);
-  const product = await findProduct(id, user.userId, householdId);
+  const product = await findProduct(id, user.userId);
   if (!product) return notFound();
 
-  await sql`DELETE FROM products WHERE id = ${id}`;
+  await sql`DELETE FROM products WHERE id = ${id} AND user_id = ${user.userId}`;
   return new NextResponse(null, { status: 204 });
 }

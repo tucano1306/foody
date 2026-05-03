@@ -234,21 +234,13 @@ function mapStore(row: Record<string, unknown>): Store {
 export const api = {
   products: {
     list: async (): Promise<Product[]> => {
-      const { userId, householdId } = await getAuthContext();
-      if (householdId) {
-        const rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} OR (user_id = ${userId} AND household_id IS NULL) ORDER BY name ASC`;
-        return rows.map((row) => mapProduct(row as Record<string, unknown>));
-      }
-      const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} AND household_id IS NULL ORDER BY name ASC`;
+      const { userId } = await getAuthContext();
+      const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} ORDER BY name ASC`;
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
     },
     runningLow: async (): Promise<Product[]> => {
-      const { userId, householdId } = await getAuthContext();
-      if (householdId) {
-        const rows = await sql`SELECT * FROM products WHERE (household_id = ${householdId} OR (user_id = ${userId} AND household_id IS NULL)) AND (needs_shopping = true OR is_running_low = true) ORDER BY name ASC`;
-        return rows.map((row) => mapProduct(row as Record<string, unknown>));
-      }
-      const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} AND household_id IS NULL AND (needs_shopping = true OR is_running_low = true) ORDER BY name ASC`;
+      const { userId } = await getAuthContext();
+      const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} AND (needs_shopping = true OR is_running_low = true) ORDER BY name ASC`;
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
     },
     get: async (id: string) => {
@@ -339,31 +331,7 @@ export const api = {
   },
   shoppingList: {
     get: async () => {
-      const { userId, householdId } = await getAuthContext();
-      if (householdId) {
-        const rows = await sql`
-          SELECT
-            sli.*,
-            p.name       as product_name,
-            p.description as product_description,
-            p.photo_url  as product_photo_url,
-            p.category   as product_category,
-            p.current_quantity as product_current_quantity,
-            p.min_quantity     as product_min_quantity,
-            p.unit             as product_unit,
-            p.stock_level      as product_stock_level,
-            p.is_running_low   as product_is_running_low,
-            p.needs_shopping   as product_needs_shopping,
-            p.user_id          as product_user_id,
-            p.created_at       as product_created_at,
-            p.updated_at       as product_updated_at
-          FROM shopping_list_items sli
-          LEFT JOIN products p ON sli.product_id = p.id
-          WHERE sli.household_id = ${householdId}
-          ORDER BY sli.created_at DESC
-        `;
-        return rows.map((row) => mapShoppingListItem(row as Record<string, unknown>));
-      }
+      const { userId } = await getAuthContext();
       const rows = await sql`
         SELECT
           sli.*,
@@ -382,7 +350,7 @@ export const api = {
           p.updated_at       as product_updated_at
         FROM shopping_list_items sli
         LEFT JOIN products p ON sli.product_id = p.id
-        WHERE sli.user_id = ${userId} AND sli.household_id IS NULL
+        WHERE sli.user_id = ${userId}
         ORDER BY sli.created_at DESC
       `;
       return rows.map((row) => mapShoppingListItem(row as Record<string, unknown>));
@@ -420,30 +388,18 @@ export const api = {
       return rows[0];
     },
     monthlyFoodSpending: async (): Promise<{ currentTotal: number; previousTotal: number }> => {
-      const { userId, householdId } = await getAuthContext();
-      const rows = householdId
-        ? await sql`
-            SELECT
-              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW())
-                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS current_total,
-              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
-                        AND purchased_at < DATE_TRUNC('month', NOW())
-                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS prev_total
-            FROM product_purchases
-            WHERE household_id = ${householdId}
-              AND purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
-          `
-        : await sql`
-            SELECT
-              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW())
-                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS current_total,
-              SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
-                        AND purchased_at < DATE_TRUNC('month', NOW())
-                       THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS prev_total
-            FROM product_purchases
-            WHERE user_id = ${userId} AND household_id IS NULL
-              AND purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
-          `;
+      const { userId } = await getAuthContext();
+      const rows = await sql`
+        SELECT
+          SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW())
+                   THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS current_total,
+          SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+                    AND purchased_at < DATE_TRUNC('month', NOW())
+                   THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS prev_total
+        FROM product_purchases
+        WHERE user_id = ${userId}
+          AND purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+      `;
       const row = rows[0] as { current_total: unknown; prev_total: unknown } | undefined;
       return {
         currentTotal: asNumber(row?.current_total),
@@ -609,12 +565,8 @@ export const api = {
   },
   stores: {
     list: async () => {
-      const { userId, householdId } = await getAuthContext();
-      if (householdId) {
-        const rows = await sql`SELECT * FROM stores WHERE household_id = ${householdId} ORDER BY name ASC`;
-        return rows.map((row) => mapStore(row as Record<string, unknown>));
-      }
-      const rows = await sql`SELECT * FROM stores WHERE user_id = ${userId} AND household_id IS NULL ORDER BY name ASC`;
+      const { userId } = await getAuthContext();
+      const rows = await sql`SELECT * FROM stores WHERE user_id = ${userId} ORDER BY name ASC`;
       return rows.map((row) => mapStore(row as Record<string, unknown>));
     },
     get: async (id: string) => {
@@ -651,41 +603,20 @@ export const api = {
   },
   shoppingTrips: {
     list: async () => {
-      const { userId, householdId } = await getAuthContext();
-      if (householdId) {
-        const rows = await sql`SELECT * FROM shopping_trips WHERE household_id = ${householdId} ORDER BY purchased_at DESC`;
-        return rows.map((row) => mapShoppingTrip(row as Record<string, unknown>));
-      }
-      const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${userId} AND household_id IS NULL ORDER BY purchased_at DESC`;
+      const { userId } = await getAuthContext();
+      const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${userId} ORDER BY purchased_at DESC`;
       return rows.map((row) => mapShoppingTrip(row as Record<string, unknown>));
     },
     byStore: async () => {
-      const { userId, householdId } = await getAuthContext();
+      const { userId } = await getAuthContext();
       // Query product_purchases so individual purchases (not just full trips) are included.
-      if (householdId) {
-        const rows = await sql`
-          SELECT
-            COALESCE(store_name, 'Sin tienda') AS "storeName",
-            SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total,
-            COUNT(*) AS count
-          FROM product_purchases
-          WHERE household_id = ${householdId}
-          GROUP BY store_name
-          ORDER BY count DESC
-        `;
-        return rows.map((row) => ({
-          storeName: asText(row.storeName, 'Sin tienda'),
-          total: asNumber(row.total),
-          count: asInteger(row.count),
-        }));
-      }
       const rows = await sql`
         SELECT
           COALESCE(store_name, 'Sin tienda') AS "storeName",
           SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total,
           COUNT(*) AS count
         FROM product_purchases
-        WHERE user_id = ${userId} AND household_id IS NULL
+        WHERE user_id = ${userId}
         GROUP BY store_name
         ORDER BY count DESC
       `;
@@ -696,10 +627,8 @@ export const api = {
       }));
     },
     get: async (id: string) => {
-      const { userId, householdId } = await getAuthContext();
-      const tripRows = householdId
-        ? await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND household_id = ${householdId} LIMIT 1`
-        : await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${userId} AND household_id IS NULL LIMIT 1`;
+      const { userId } = await getAuthContext();
+      const tripRows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
       if (!tripRows[0]) return null;
 
       const itemRows = await sql`
@@ -738,45 +667,25 @@ export const api = {
       await sql`DELETE FROM shopping_trips WHERE id = ${id}`;
     },
     priceComparison: async () => {
-      const { userId, householdId } = await getAuthContext();
-      const rows = householdId
-        ? await sql`
-          SELECT
-            p.id AS product_id,
-            p.name AS product_name,
-            pp.store_name,
-            MIN(pp.unit_price) AS min_price,
-            MAX(pp.unit_price) AS max_price,
-            AVG(pp.unit_price) AS avg_price,
-            COUNT(*) AS purchase_count,
-            MAX(pp.purchased_at) AS last_seen_at
-          FROM product_purchases pp
-          JOIN products p ON p.id = pp.product_id
-          WHERE pp.unit_price IS NOT NULL
-            AND pp.store_name IS NOT NULL
-            AND pp.household_id = ${householdId}
-          GROUP BY p.id, p.name, pp.store_name
-          ORDER BY p.name ASC, min_price ASC
-        `
-        : await sql`
-          SELECT
-            p.id AS product_id,
-            p.name AS product_name,
-            pp.store_name,
-            MIN(pp.unit_price) AS min_price,
-            MAX(pp.unit_price) AS max_price,
-            AVG(pp.unit_price) AS avg_price,
-            COUNT(*) AS purchase_count,
-            MAX(pp.purchased_at) AS last_seen_at
-          FROM product_purchases pp
-          JOIN products p ON p.id = pp.product_id
-          WHERE pp.unit_price IS NOT NULL
-            AND pp.store_name IS NOT NULL
-            AND pp.user_id = ${userId}
-            AND pp.household_id IS NULL
-          GROUP BY p.id, p.name, pp.store_name
-          ORDER BY p.name ASC, min_price ASC
-        `;
+      const { userId } = await getAuthContext();
+      const rows = await sql`
+        SELECT
+          p.id AS product_id,
+          p.name AS product_name,
+          pp.store_name,
+          MIN(pp.unit_price) AS min_price,
+          MAX(pp.unit_price) AS max_price,
+          AVG(pp.unit_price) AS avg_price,
+          COUNT(*) AS purchase_count,
+          MAX(pp.purchased_at) AS last_seen_at
+        FROM product_purchases pp
+        JOIN products p ON p.id = pp.product_id
+        WHERE pp.unit_price IS NOT NULL
+          AND pp.store_name IS NOT NULL
+          AND pp.user_id = ${userId}
+        GROUP BY p.id, p.name, pp.store_name
+        ORDER BY p.name ASC, min_price ASC
+      `;
       return rows.map((row) => ({
         productId: String(row.product_id),
         productName: asText(row.product_name),

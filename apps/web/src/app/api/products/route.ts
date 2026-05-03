@@ -3,44 +3,22 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { randomUUID } from 'node:crypto';
 
-function scopeWhere(userId: string, householdId: string | null | undefined) {
-  if (householdId) return sql`household_id = ${householdId}`;
-  return sql`user_id = ${userId} AND household_id IS NULL`;
-}
-
-async function getUserHousehold(userId: string): Promise<string | null> {
-  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
-  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
-}
-
 // GET /api/products
 export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const householdId = await getUserHousehold(user.userId);
   const runningLow = request.nextUrl.searchParams.get('runningLow') === 'true';
 
-  let rows;
-  if (runningLow) {
-    if (householdId) {
-      rows = await sql`
+  // Per-user isolation: a user only sees products they own, regardless of
+  // household membership.
+  const rows = runningLow
+    ? await sql`
         SELECT * FROM products
-        WHERE household_id = ${householdId} AND (needs_shopping = true OR is_running_low = true)
+        WHERE user_id = ${user.userId} AND (needs_shopping = true OR is_running_low = true)
         ORDER BY name ASC
-      `;
-    } else {
-      rows = await sql`
-        SELECT * FROM products
-        WHERE user_id = ${user.userId} AND household_id IS NULL AND (needs_shopping = true OR is_running_low = true)
-        ORDER BY name ASC
-      `;
-    }
-  } else if (householdId) {
-    rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} OR (user_id = ${user.userId} AND household_id IS NULL) ORDER BY name ASC`;
-  } else {
-    rows = await sql`SELECT * FROM products WHERE user_id = ${user.userId} AND household_id IS NULL ORDER BY name ASC`;
-  }
+      `
+    : await sql`SELECT * FROM products WHERE user_id = ${user.userId} ORDER BY name ASC`;
   return NextResponse.json(rows);
 }
 
@@ -49,7 +27,6 @@ export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const householdId = await getUserHousehold(user.userId);
   const body = await request.json() as {
     name: string;
     description?: string;
@@ -63,8 +40,10 @@ export async function POST(request: NextRequest) {
     isPrivate?: boolean;
   };
 
-  // isPrivate=true forces personal scope even if user belongs to a household
-  const effectiveHouseholdId = body.isPrivate ? null : householdId;
+  // Per-user isolation: products are always created as personal (no
+  // household sharing). The isPrivate flag is kept for forward compat but
+  // has no effect under the per-user model.
+  const effectiveHouseholdId = null;
 
   const id = randomUUID();
   const currentQty = body.currentQuantity ?? 0;

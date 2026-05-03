@@ -68,12 +68,9 @@ async function handleAdd(userId: string, productName: string): Promise<IntentRes
 
   const product = rows[0] as { id: string; name: string };
 
-  const householdRow = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
-  const householdId = (householdRow[0] as { household_id: string | null })?.household_id ?? null;
-
   await sql`
     INSERT INTO shopping_list_items (id, product_id, user_id, household_id, note, created_at, updated_at)
-    VALUES (${randomUUID()}, ${product.id}, ${userId}, ${householdId}, NULL, NOW(), NOW())
+    VALUES (${randomUUID()}, ${product.id}, ${userId}, NULL, NULL, NOW(), NOW())
     ON CONFLICT DO NOTHING
   `;
 
