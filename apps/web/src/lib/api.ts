@@ -661,15 +661,34 @@ export const api = {
     },
     byStore: async () => {
       const { userId, householdId } = await getAuthContext();
+      // Query product_purchases so individual purchases (not just full trips) are included.
       if (householdId) {
-        const rows = await sql`SELECT COALESCE(store_name, 'Sin tienda') as "storeName", SUM(total_amount) as total, COUNT(*) as count FROM shopping_trips WHERE household_id = ${householdId} GROUP BY store_name`;
+        const rows = await sql`
+          SELECT
+            COALESCE(store_name, 'Sin tienda') AS "storeName",
+            SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total,
+            COUNT(*) AS count
+          FROM product_purchases
+          WHERE household_id = ${householdId}
+          GROUP BY store_name
+          ORDER BY count DESC
+        `;
         return rows.map((row) => ({
           storeName: asText(row.storeName, 'Sin tienda'),
           total: asNumber(row.total),
           count: asInteger(row.count),
         }));
       }
-      const rows = await sql`SELECT COALESCE(store_name, 'Sin tienda') as "storeName", SUM(total_amount) as total, COUNT(*) as count FROM shopping_trips WHERE user_id = ${userId} AND household_id IS NULL GROUP BY store_name`;
+      const rows = await sql`
+        SELECT
+          COALESCE(store_name, 'Sin tienda') AS "storeName",
+          SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total,
+          COUNT(*) AS count
+        FROM product_purchases
+        WHERE user_id = ${userId} AND household_id IS NULL
+        GROUP BY store_name
+        ORDER BY count DESC
+      `;
       return rows.map((row) => ({
         storeName: asText(row.storeName, 'Sin tienda'),
         total: asNumber(row.total),
