@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       `;
     }
   } else if (householdId) {
-    rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} ORDER BY name ASC`;
+    rows = await sql`SELECT * FROM products WHERE household_id = ${householdId} OR (user_id = ${user.userId} AND household_id IS NULL) ORDER BY name ASC`;
   } else {
     rows = await sql`SELECT * FROM products WHERE user_id = ${user.userId} AND household_id IS NULL ORDER BY name ASC`;
   }
@@ -60,7 +60,11 @@ export async function POST(request: NextRequest) {
     unit?: string;
     needsShopping?: boolean;
     isRunningLow?: boolean;
+    isPrivate?: boolean;
   };
+
+  // isPrivate=true forces personal scope even if user belongs to a household
+  const effectiveHouseholdId = body.isPrivate ? null : householdId;
 
   const id = randomUUID();
   const currentQty = body.currentQuantity ?? 0;
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
       ${id}, ${body.name}, ${body.description ?? null}, ${body.photoUrl ?? null}, ${body.category ?? null},
       ${currentQty}, ${minQty}, ${body.unit ?? 'units'},
       ${stockLevel}, ${isRunningLow}, ${needsShopping},
-      ${user.userId}, ${householdId},
+      ${user.userId}, ${effectiveHouseholdId},
       NOW(), NOW()
     ) RETURNING *
   `;
@@ -92,7 +96,7 @@ export async function POST(request: NextRequest) {
     const listId = randomUUID();
     await sql`
       INSERT INTO shopping_list_items (id, product_id, user_id, household_id, created_at, updated_at)
-      VALUES (${listId}, ${id}, ${user.userId}, ${householdId}, NOW(), NOW())
+      VALUES (${listId}, ${id}, ${user.userId}, ${effectiveHouseholdId}, NOW(), NOW())
       ON CONFLICT DO NOTHING
     `;
   }

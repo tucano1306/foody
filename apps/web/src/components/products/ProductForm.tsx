@@ -28,6 +28,7 @@ const CATEGORIES = [
 
 interface Props {
   readonly product?: Product;
+  readonly inHousehold?: boolean;
 }
 
 function isHeicFile(file: File): boolean {
@@ -101,10 +102,11 @@ function compressImage(file: File | Blob): Promise<string> {
   return compressViaFileReader(file);
 }
 
-export default function ProductForm({ product }: Props) {
+export default function ProductForm({ product, inHousehold }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const [form, setForm] = useState<CreateProductDto>({
     name: product?.name ?? '',
@@ -163,7 +165,7 @@ export default function ProductForm({ product }: Props) {
         method: product ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, isPrivate }),
       });
 
       if (!res.ok) {
@@ -307,6 +309,34 @@ export default function ProductForm({ product }: Props) {
           className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition resize-none"
         />
       </div>
+
+      {/* ─── Private toggle (only when in a household) ───────────────────── */}
+      {inHousehold && !product && (
+        <button
+          type="button"
+          onClick={() => setIsPrivate((v) => !v)}
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition ${
+            isPrivate
+              ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20'
+              : 'border-stone-200 bg-stone-50 dark:bg-stone-800'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">{isPrivate ? '🔒' : '👨‍👩‍👧'}</span>
+            <div className="text-left">
+              <p className={`text-sm font-semibold ${ isPrivate ? 'text-brand-600 dark:text-brand-400' : 'text-stone-700 dark:text-stone-200' }`}>
+                {isPrivate ? 'Solo para mí' : 'Compartido con el hogar'}
+              </p>
+              <p className="text-xs text-stone-400">
+                {isPrivate ? 'Tu familia no verá este producto' : 'Visible para todos en tu hogar'}
+              </p>
+            </div>
+          </div>
+          <div className={`w-11 h-6 rounded-full transition-colors ${ isPrivate ? 'bg-brand-500' : 'bg-stone-300 dark:bg-stone-600' }`}>
+            <div className={`w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform ${ isPrivate ? 'translate-x-5' : 'translate-x-0.5' }`} />
+          </div>
+        </button>
+      )}
 
       {/* ─── Submit ───────────────────────────────────────────────────────── */}
       <button
