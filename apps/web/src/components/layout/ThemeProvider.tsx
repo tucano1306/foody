@@ -30,7 +30,10 @@ export function ThemeProvider({ children }: { readonly children: React.ReactNode
   const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {
-    applyClass('dark');
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const initial: Theme = stored === 'light' ? 'light' : 'dark';
+    setTheme(initial);
+    applyClass(initial);
   }, []);
 
   const applyTheme = useCallback((next: Theme) => {

@@ -27,8 +27,12 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-// Blocking script to set dark mode before paint (no FOUC)
-const themeInitScript = `document.documentElement.classList.add('dark');`;
+// Blocking script — reads localStorage before paint to avoid FOUC.
+// Falls back to dark if no preference is stored.
+const themeInitScript = `(function(){
+  var t = localStorage.getItem('foody-theme');
+  document.documentElement.classList.toggle('dark', t !== 'light');
+})();`;
 
 export default function RootLayout({
   children,
