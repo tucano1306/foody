@@ -12,7 +12,6 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
 
 interface Props {
   readonly src: string;
@@ -168,6 +167,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       if (e.touches.length === 2) {
         e.preventDefault();
         st.initDist = getDist(e.touches); st.initScale = st.scale;
+        if (imgRef.current) imgRef.current.style.willChange = 'transform';
       } else if (e.touches.length === 1) {
         st.startX = e.touches[0].clientX - st.x;
         st.startY = e.touches[0].clientY - st.y;
@@ -194,6 +194,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     }
     function onTouchEnd() {
       s.current.dragging = false;
+      if (imgRef.current) imgRef.current.style.willChange = 'auto';
       if (s.current.scale < 1.05) resetZoom();
     }
     el.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -226,10 +227,18 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       s.current.mouseDown   = true;
       s.current.mouseStartX = e.clientX - s.current.x;
       s.current.mouseStartY = e.clientY - s.current.y;
+      if (imgRef.current) imgRef.current.style.willChange = 'transform';
       e.preventDefault();
     }
-    function onMouseUp() { s.current.mouseDown = false; }
-    function onMouseLeave() { s.current.mouseDown = false; hideLens(); }
+    function onMouseUp() {
+      s.current.mouseDown = false;
+      if (imgRef.current) imgRef.current.style.willChange = 'auto';
+    }
+    function onMouseLeave() {
+      s.current.mouseDown = false;
+      if (imgRef.current) imgRef.current.style.willChange = 'auto';
+      hideLens();
+    }
     function onWheel(e: WheelEvent) {
       e.preventDefault();
       const st = s.current;
@@ -312,16 +321,17 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
                 height: 'min(80vw, 70vh)',
                 position: 'relative',
                 transformOrigin: 'center center',
-                willChange: 'transform',
                 animation: originRect ? undefined : 'photoIn 0.2s cubic-bezier(0.34,1.56,0.64,1)',
               }}
             >
-              {src.startsWith('data:') ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' }} draggable={false} />
-              ) : (
-                <Image src={src} alt={alt} fill className="object-contain select-none" sizes="80vw" priority draggable={false} />
-              )}
+              {/* Plain <img> — avoids next/image JS internals that cause GPU repaints on mousemove */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={alt}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none', display: 'block' }}
+                draggable={false}
+              />
             </div>
 
             {/* Lens — shown/hidden imperatively */}
