@@ -76,16 +76,17 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                   type="button"
                   aria-label="Ampliar foto"
                   onClick={() => setLightboxOpen(true)}
-                  className="absolute inset-0 w-full h-full focus:outline-none"
+                  className="absolute inset-0 w-full h-full focus:outline-none group"
                 >
                   {product.photoUrl.startsWith('data:') ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
+                    <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover transition-transform duration-300 group-active:scale-95" />
                   ) : (
-                    <Image src={product.photoUrl} alt={product.name} fill className="object-cover" sizes="100vw" />
+                    <Image src={product.photoUrl} alt={product.name} fill className="object-cover transition-transform duration-300 group-active:scale-95" sizes="100vw" />
                   )}
-                  <span className="absolute bottom-2 right-2 text-[10px] bg-black/50 text-white px-2 py-1 rounded-full backdrop-blur-sm">
-                    Toca para zoom
+                  {/* Subtle magnify hint — visible but unobtrusive */}
+                  <span className="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm text-sm opacity-70 group-active:opacity-100 transition-opacity">
+                    🔍
                   </span>
                 </button>
               ) : (

@@ -168,7 +168,7 @@ export default function PhotoLightbox({ src, alt, onClose }: Props) {
     <dialog
       open
       aria-label={`Foto de ${alt}`}
-      className="fixed inset-0 z-50 bg-black/95 w-full h-full max-w-none max-h-none m-0 p-0 border-0"
+      className="fixed inset-0 z-50 bg-black/95 w-full h-full max-w-none max-h-none m-0 p-0 border-0 animate-[fadeIn_0.18s_ease-out]"
     >
       {/* Close button */}
       <button
@@ -212,6 +212,7 @@ export default function PhotoLightbox({ src, alt, onClose }: Props) {
             transformOrigin: 'center center',
             transition: 'none',
             willChange: 'transform',
+            animation: 'photoIn 0.22s cubic-bezier(0.34,1.56,0.64,1)',
           }}
         >
           {src.startsWith('data:') ? (
@@ -232,7 +233,7 @@ export default function PhotoLightbox({ src, alt, onClose }: Props) {
       </div>
 
       <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/40 text-xs pointer-events-none z-10 whitespace-nowrap">
-        Pellizca o rueda del ratón para zoom · Doble tap para ampliar
+        Doble tap para zoom · Pellizca para más
       </p>
     </dialog>
   );
