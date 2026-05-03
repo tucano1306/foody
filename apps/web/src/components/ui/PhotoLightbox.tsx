@@ -117,10 +117,17 @@ function getDist(touches: TouchList) {
 }
 
 export default function PhotoLightbox(props: Props) {
-  // Detect once on mount — touch device → mobile lightbox; otherwise desktop
+  // Detect once on mount.
+  // Use the CSS media features instead of `ontouchstart` so that laptops with
+  // touchscreens (which DO have ontouchstart) are still treated as desktops
+  // when they have a real mouse — `pointer: fine` means a mouse/trackpad.
   const [isMobile] = useState(() => {
-    if (typeof globalThis === 'undefined') return false;
-    return 'ontouchstart' in globalThis || (globalThis.navigator?.maxTouchPoints ?? 0) > 0;
+    if (typeof globalThis === 'undefined' || typeof globalThis.matchMedia !== 'function') {
+      return false;
+    }
+    const hasFinePointer = globalThis.matchMedia('(pointer: fine)').matches;
+    const isCoarseOnly   = globalThis.matchMedia('(pointer: coarse)').matches && !hasFinePointer;
+    return isCoarseOnly;
   });
 
   return isMobile ? <MobileLightbox {...props} /> : <DesktopLightbox {...props} />;
