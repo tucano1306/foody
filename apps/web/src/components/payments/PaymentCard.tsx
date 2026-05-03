@@ -49,10 +49,10 @@ function getUrgencyBadge(urgency: Urgency, daysUntilDue: number): string {
 }
 
 function getUrgencyBadgeCls(urgency: Urgency): string {
-  if (urgency === 'today') return 'bg-red-500/20 text-red-300';
-  if (urgency === 'urgent') return 'bg-amber-500/20 text-amber-300';
-  if (urgency === 'upcoming') return 'bg-blue-500/20 text-blue-300';
-  return 'bg-white/10 text-gray-300';
+  if (urgency === 'today') return 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300';
+  if (urgency === 'urgent') return 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300';
+  if (urgency === 'upcoming') return 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300';
+  return 'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400';
 }
 
 export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggle }: Props) {
@@ -93,7 +93,7 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
-        className="w-full text-left flex flex-col bg-gray-800/80 rounded-2xl p-5 shadow-lg hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        className="w-full text-left flex flex-col bg-stone-50 dark:bg-stone-800/80 border border-stone-100 dark:border-stone-700 rounded-2xl p-5 shadow-sm hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       >
         {/* Top row: icon + name + amount */}
         <div className="flex items-center gap-4">
@@ -104,25 +104,25 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
             {icon}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white font-bold text-base truncate">{currentPayment.name}</p>
+            <p className="text-stone-800 dark:text-white font-bold text-base truncate">{currentPayment.name}</p>
             {currentPayment.description && (
-              <div className="text-gray-400 text-xs mt-0.5 line-clamp-1">
+              <div className="text-stone-500 dark:text-stone-400 text-xs mt-0.5 line-clamp-1">
                 <Markdown>{currentPayment.description}</Markdown>
               </div>
             )}
           </div>
           <div className="text-right shrink-0">
-            <p className="text-white font-extrabold text-lg leading-tight">
+            <p className="text-stone-800 dark:text-white font-extrabold text-lg leading-tight">
               {currentPayment.currency} {currentPayment.amount.toFixed(2)}
             </p>
-            <p className="text-gray-400 text-[11px]">Día {currentPayment.dueDay} / mes</p>
+            <p className="text-stone-400 dark:text-stone-500 text-[11px]">Día {currentPayment.dueDay} / mes</p>
           </div>
         </div>
 
         {/* Bottom row: status badge */}
         <div className="mt-4 flex items-center justify-between gap-2">
           {isPaid ? (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
               ✓ Pagado este mes
             </span>
           ) : (
@@ -130,7 +130,7 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
               {getUrgencyBadge(urgency, currentPayment.daysUntilDue)}
             </span>
           )}
-          <span className="text-gray-500 text-xs">Toca para ver más →</span>
+          <span className="text-stone-400 dark:text-stone-500 text-xs">Toca para ver más →</span>
         </div>
       </button>
 

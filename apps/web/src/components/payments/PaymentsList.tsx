@@ -42,47 +42,47 @@ export default function PaymentsList({ initialPayments }: Props) {
     <div className="space-y-6">
       {/* ─── Monthly summary ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="flex flex-col items-center bg-gray-900 rounded-xl p-4 sm:p-6 shadow-lg hover:scale-105 transition-transform duration-300 min-w-0">
+        <div className="flex flex-col items-center bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-xl p-4 sm:p-6 shadow-sm hover:scale-105 transition-transform duration-300 min-w-0">
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
             style={{ backgroundColor: '#4F46E5' }}
           >
             <BanknotesIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <p className="text-white font-semibold text-[11px] sm:text-sm text-center leading-tight">
+          <p className="text-stone-600 dark:text-stone-300 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Total mensual
           </p>
-          <p className="text-white text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
+          <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
             ${totalExpenses.toFixed(2)}
           </p>
         </div>
 
-        <div className="flex flex-col items-center bg-gray-900 rounded-xl p-4 sm:p-6 shadow-lg hover:scale-105 transition-transform duration-300 min-w-0">
+        <div className="flex flex-col items-center bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-xl p-4 sm:p-6 shadow-sm hover:scale-105 transition-transform duration-300 min-w-0">
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
             style={{ backgroundColor: '#10B981' }}
           >
             <CheckCircleIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <p className="text-white font-semibold text-[11px] sm:text-sm text-center leading-tight">
+          <p className="text-stone-600 dark:text-stone-300 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Pagado
           </p>
-          <p className="text-white text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
+          <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
             ${totalPaid.toFixed(2)}
           </p>
         </div>
 
-        <div className="flex flex-col items-center bg-gray-900 rounded-xl p-4 sm:p-6 shadow-lg hover:scale-105 transition-transform duration-300 min-w-0">
+        <div className="flex flex-col items-center bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-xl p-4 sm:p-6 shadow-sm hover:scale-105 transition-transform duration-300 min-w-0">
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
             style={{ backgroundColor: '#F59E0B' }}
           >
             <ClockIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <p className="text-white font-semibold text-[11px] sm:text-sm text-center leading-tight">
+          <p className="text-stone-600 dark:text-stone-300 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Pendiente
           </p>
-          <p className="text-white text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
+          <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
             ${(totalExpenses - totalPaid).toFixed(2)}
           </p>
         </div>
@@ -90,8 +90,8 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Pending payments ─────────────────────────────────────────────── */}
       {pending.length > 0 && (
-        <section className="bg-gray-900 rounded-2xl p-5">
-          <h2 className="text-lg font-bold text-white mb-4">
+        <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
             ⏰ Pendientes ({pending.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -110,8 +110,8 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Paid this month ──────────────────────────────────────────────── */}
       {paid.length > 0 && (
-        <section className="bg-gray-900 rounded-2xl p-5">
-          <h2 className="text-lg font-bold text-white mb-4">
+        <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
             ✅ Pagados este mes ({paid.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
