@@ -211,12 +211,23 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
         ✕
       </button>
 
-      {/* Reset zoom */}
-      {/* biome-ignore lint */}
+      {/* Zoom toggle */}
       <button
         type="button"
-        aria-label="Restablecer zoom"
-        onClick={resetZoom}
+        aria-label="Ampliar / restablecer zoom"
+        onClick={() => {
+          if (s.current.scale > 1) {
+            resetZoom();
+          } else {
+            s.current.scale = 2.5; s.current.x = 0; s.current.y = 0;
+            const zoomEl = imgRef.current;
+            if (zoomEl) {
+              zoomEl.style.transition = 'transform 0.25s cubic-bezier(0.34,1.4,0.64,1)';
+              applyTransform();
+              setTimeout(() => { zoomEl.style.transition = 'none'; }, 280);
+            }
+          }
+        }}
         className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-base transition-colors"
       >
         ⤡
