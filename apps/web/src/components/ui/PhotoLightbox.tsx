@@ -121,8 +121,10 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
   }, []);
 
   // ── Imperative lens helpers — NO useState, zero re-renders ──────────────
-  // Lens uses transform:translate (GPU-only, no layout recalc) to prevent
-  // repainting the image layer when the cursor moves.
+  // getBoundingClientRect() is a forced synchronous reflow — calling it on
+  // every mousemove interrupts the compositor and causes visible flicker.
+  // We cache the rect on mouseenter and invalidate it only on resize.
+  const cachedRect      = useRef<DOMRect | null>(null);
   const panelInitialized = useRef(false);
 
   const hideLens = useCallback(() => {
@@ -134,12 +136,11 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
 
   const updateLens = useCallback((clientX: number, clientY: number) => {
     if (isMobile.current || s.current.scale > 1) return;
-    const imgWrap = imgWrapRef.current;
-    const lens    = lensRef.current;
-    const panel   = panelRef.current;
-    if (!imgWrap || !lens) return;
+    const lens  = lensRef.current;
+    const panel = panelRef.current;
+    const rect  = cachedRect.current;
+    if (!lens || !rect) return;
 
-    const rect = imgWrap.getBoundingClientRect();
     const rx = clientX - rect.left;
     const ry = clientY - rect.top;
     if (rx < 0 || ry < 0 || rx > rect.width || ry > rect.height) { hideLens(); return; }
@@ -147,21 +148,18 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     const lx = Math.max(LENS_SIZE / 2, Math.min(rect.width  - LENS_SIZE / 2, rx));
     const ly = Math.max(LENS_SIZE / 2, Math.min(rect.height - LENS_SIZE / 2, ry));
 
-    // transform: translate — GPU composited, zero layout recalculation
+    // Pure GPU composite — no layout reads, no reflows
     lens.style.opacity   = '1';
     lens.style.transform = `translate(${rect.left + lx - LENS_SIZE / 2}px, ${rect.top + ly - LENS_SIZE / 2}px)`;
 
     if (panel) {
-      // Set backgroundImage/Size/Repeat only once per open
       if (!panelInitialized.current) {
         panel.style.backgroundImage  = `url("${src}")`;
         panel.style.backgroundSize   = `${rect.width * LENS_ZOOM}px ${rect.height * LENS_ZOOM}px`;
         panel.style.backgroundRepeat = 'no-repeat';
         panelInitialized.current = true;
       }
-      const pctX = ((lx / rect.width)  * 100).toFixed(2);
-      const pctY = ((ly / rect.height) * 100).toFixed(2);
-      panel.style.backgroundPosition = `${pctX}% ${pctY}%`;
+      panel.style.backgroundPosition = `${((lx / rect.width) * 100).toFixed(2)}% ${((ly / rect.height) * 100).toFixed(2)}%`;
       panel.style.opacity = '1';
     }
   }, [src, hideLens]);
@@ -214,6 +212,28 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       el.removeEventListener('touchend',   onTouchEnd);
     };
   }, [applyTransform, resetZoom]);
+
+  // ── Cache imgWrap rect on mouseenter — avoids getBoundingClientRect() each frame ──
+  useEffect(() => {
+    const imgWrap = imgWrapRef.current;
+    if (!imgWrap) return;
+
+    // Read rect ONCE when mouse enters — pure layout read, then no more per frame
+    function onEnter() {
+      cachedRect.current = imgWrap!.getBoundingClientRect();
+      // Re-initialize panel background size if image has been resized (e.g. first open)
+      panelInitialized.current = false;
+    }
+    // Invalidate on window resize so next mouseenter re-reads
+    function onResize() { cachedRect.current = null; panelInitialized.current = false; }
+
+    imgWrap.addEventListener('mouseenter', onEnter);
+    window.addEventListener('resize', onResize, { passive: true });
+    return () => {
+      imgWrap.removeEventListener('mouseenter', onEnter);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
 
   // ── Mouse events — all imperative, zero React synthetic events ───────────
   useEffect(() => {
