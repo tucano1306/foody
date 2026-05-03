@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 import { getSession } from '@/lib/session';
-import PaymentCard from '@/components/payments/PaymentCard';
+import UpcomingPaymentsWidget from '@/components/home/UpcomingPaymentsWidget';
 import DashboardStats from '@/components/home/DashboardStats';
 import FrequentProducts from '@/components/home/FrequentProducts';
 import ExpensesByCategory from '@/components/home/ExpensesByCategory';
@@ -12,7 +12,6 @@ import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
 import GreetingToast from '@/components/home/GreetingToast';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import type { Product, MonthlyPayment } from '@foody/types';
 
 export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
@@ -92,27 +91,7 @@ export default async function HomePage() {
       <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} />
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
-      <section className="bg-gray-900 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">
-            💳 Pagos próximos
-          </h2>
-          <Link href="/payments" className="text-sm text-gray-400 hover:text-white transition-colors">
-            Ver todos →
-          </Link>
-        </div>
-        {upcomingPayments.length === 0 ? (
-          <p className="text-gray-500 text-sm py-4">
-            No hay pagos pendientes este mes 🎉
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {upcomingPayments.map((payment) => (
-              <PaymentCard key={payment.id} payment={payment} />
-            ))}
-          </div>
-        )}
-      </section>
+      <UpcomingPaymentsWidget payments={upcomingPayments} />
     </div>
   );
 }
