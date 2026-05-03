@@ -277,15 +277,16 @@ export default function StatsDetailSheet({ open, detail, onClose }: Props) {
       onClose={onClose}
       className="m-0 w-full max-w-none h-full max-h-none bg-transparent backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
-      <div className="fixed inset-0 flex items-end justify-center pointer-events-none">
-        <section className="pointer-events-auto w-full max-w-sm bg-white dark:bg-stone-900 rounded-t-3xl shadow-2xl border border-stone-100 dark:border-stone-800 overflow-hidden max-h-[80dvh] flex flex-col">
-          {/* Handle bar */}
-          <div className="flex justify-center pt-3 pb-1 shrink-0">
+      {/* Mobile: bottom sheet · Desktop: centered modal */}
+      <div className="fixed inset-0 flex items-end sm:items-center justify-center pointer-events-none p-0 sm:p-4">
+        <section className="pointer-events-auto w-full sm:max-w-lg bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-stone-100 dark:border-stone-800 overflow-hidden max-h-[88dvh] sm:max-h-[80dvh] flex flex-col">
+          {/* Handle bar — mobile only */}
+          <div className="flex justify-center pt-3 pb-1 shrink-0 sm:hidden">
             <div className="w-10 h-1 rounded-full bg-stone-200 dark:bg-stone-700" />
           </div>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-3 pb-3 border-b border-stone-100 dark:border-stone-800 shrink-0">
+          <div className="flex items-center justify-between px-5 pt-4 sm:pt-5 pb-3 border-b border-stone-100 dark:border-stone-800 shrink-0">
             <h2 className="font-bold text-stone-800 dark:text-stone-100 text-base">
               {detail?.label ?? ''}
             </h2>
@@ -298,8 +299,8 @@ export default function StatsDetailSheet({ open, detail, onClose }: Props) {
             </button>
           </div>
 
-          {/* Content */}
-          <div className="overflow-y-auto px-5 py-1 pb-8 flex-1">
+          {/* Content — flex-1 + min-h-0 allows overflow-y-auto to work correctly */}
+          <div className="overflow-y-auto overscroll-contain px-5 py-2 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:pb-6 flex-1 min-h-0">
             {loading && (
               <p className="py-8 text-center text-stone-400 text-sm">Cargando…</p>
             )}
