@@ -1,17 +1,101 @@
 'use client';
 
 /**
- * PhotoLightbox — Amazon-style photo viewer
+ * PhotoLightbox — Photo viewer
  *
- * Desktop: hover magnifier lens + side zoom panel (≥ 900 px wide)
- *          — all imperative DOM updates, zero React state changes during hover
- *            so Next.js Image never re-renders / flickers
- * Mobile:  pinch-to-zoom, double-tap to zoom/reset, drag when zoomed
- *
- * Background: white, image centered — mimics Amazon product page
+ * Desktop: simple fullscreen photo + close button (no lens, no zoom panel —
+ *          they were causing GPU compositor flicker on laptops)
+ * Mobile:  Amazon-style pinch-to-zoom, double-tap, drag when zoomed
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
+
+interface Props {
+  readonly src: string;
+  readonly alt: string;
+  readonly onClose: () => void;
+  readonly originRect?: DOMRect;
+}
+
+// ─── Simple desktop lightbox ─────────────────────────────────────────────────
+// No hover magnifier, no side panel, no zoom — just a fullscreen photo with
+// a close button. Eliminates all the GPU compositor flicker that the
+// Amazon-style lens caused on laptops.
+function DesktopLightbox({ src, alt, onClose, originRect: _originRect }: Props) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  // Lock body scroll
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Backdrop click — imperative, no JSX onClick handlers (avoids a11y lint)
+  useEffect(() => {
+    const dlg = dialogRef.current;
+    if (!dlg) return;
+    function onClick(e: MouseEvent) {
+      // Close only if user clicked the dialog itself or the empty image area
+      const target = e.target as HTMLElement;
+      if (target.dataset.backdrop === 'true' || target === dlg) onClose();
+    }
+    dlg.addEventListener('click', onClick);
+    return () => dlg.removeEventListener('click', onClick);
+  }, [onClose]);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      open
+      aria-label={`Foto de ${alt}`}
+      data-backdrop="true"
+      className="fixed inset-0 z-50 w-full h-full max-w-none max-h-none m-0 p-0 border-0 bg-white animate-[fadeIn_0.16s_ease-out]"
+    >
+      {/* Top bar */}
+      <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-white">
+        <span className="text-stone-700 font-medium text-sm truncate max-w-[60%]">{alt}</span>
+        <button
+          type="button"
+          aria-label="Cerrar"
+          onClick={onClose}
+          className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-stone-100 text-stone-700 text-lg"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Image area — clicking empty space closes via the dialog-level click handler */}
+      <div
+        data-backdrop="true"
+        className="absolute inset-0 top-13 flex items-center justify-center bg-white"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          style={{
+            maxWidth:  '90vw',
+            maxHeight: 'calc(90vh - 52px)',
+            objectFit: 'contain',
+            userSelect: 'none',
+            display: 'block',
+          }}
+          draggable={false}
+        />
+      </div>
+    </dialog>
+  );
+}
+
+// ─── Original mobile lightbox (Amazon-style with gestures) ──────────────────
 
 interface Props {
   readonly src: string;
@@ -32,7 +116,17 @@ function getDist(touches: TouchList) {
   );
 }
 
-export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) {
+export default function PhotoLightbox(props: Props) {
+  // Detect once on mount — touch device → mobile lightbox; otherwise desktop
+  const [isMobile] = useState(() => {
+    if (typeof globalThis === 'undefined') return false;
+    return 'ontouchstart' in globalThis || (globalThis.navigator?.maxTouchPoints ?? 0) > 0;
+  });
+
+  return isMobile ? <MobileLightbox {...props} /> : <DesktopLightbox {...props} />;
+}
+
+function MobileLightbox({ src, alt, onClose, originRect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef       = useRef<HTMLDivElement>(null);
   const imgWrapRef   = useRef<HTMLDivElement>(null);
