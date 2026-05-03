@@ -180,7 +180,6 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       if (e.touches.length === 2) {
         e.preventDefault();
         st.initDist = getDist(e.touches); st.initScale = st.scale;
-        if (imgRef.current) imgRef.current.style.willChange = 'transform';
       } else if (e.touches.length === 1) {
         st.startX = e.touches[0].clientX - st.x;
         st.startY = e.touches[0].clientY - st.y;
@@ -207,7 +206,6 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     }
     function onTouchEnd() {
       s.current.dragging = false;
-      if (imgRef.current) imgRef.current.style.willChange = 'auto';
       if (s.current.scale < 1.05) resetZoom();
     }
     el.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -278,16 +276,13 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       s.current.mouseDown   = true;
       s.current.mouseStartX = e.clientX - s.current.x;
       s.current.mouseStartY = e.clientY - s.current.y;
-      if (imgRef.current) imgRef.current.style.willChange = 'transform';
       e.preventDefault();
     }
     function onMouseUp() {
       s.current.mouseDown = false;
-      if (imgRef.current) imgRef.current.style.willChange = 'auto';
     }
     function onMouseLeave() {
       s.current.mouseDown = false;
-      if (imgRef.current) imgRef.current.style.willChange = 'auto';
       hideLens();
     }
     function onWheel(e: WheelEvent) {
