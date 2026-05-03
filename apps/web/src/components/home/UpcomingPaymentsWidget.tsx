@@ -33,10 +33,10 @@ function getDaysLabel(daysUntilDue: number): string {
 }
 
 function getDaysLabelColor(daysUntilDue: number): string {
-  if (daysUntilDue === 0) return 'text-red-400 font-bold';
-  if (daysUntilDue <= 3) return 'text-amber-400 font-semibold';
-  if (daysUntilDue <= 7) return 'text-blue-400';
-  return 'text-gray-500';
+  if (daysUntilDue === 0) return 'text-red-500 dark:text-red-400 font-bold';
+  if (daysUntilDue <= 3) return 'text-amber-500 dark:text-amber-400 font-semibold';
+  if (daysUntilDue <= 7) return 'text-blue-500 dark:text-blue-400';
+  return 'text-stone-400 dark:text-stone-500';
 }
 
 const MAX_VISIBLE = 4;
@@ -48,16 +48,16 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
   const remaining = payments.length - displayed.length;
 
   return (
-    <section className="bg-gray-900 rounded-2xl p-5">
+    <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
       {/* ── Header ────────────────────────────────────── */}
       <div className="flex items-center gap-2 mb-1">
-        <h2 className="text-base font-bold text-white flex-1">💳 Pagos próximos</h2>
+        <h2 className="text-base font-bold text-stone-800 dark:text-stone-100 flex-1">💳 Pagos próximos</h2>
 
         {/* Reveal toggle — privacy feature */}
         <button
           type="button"
           onClick={() => setRevealed((r) => !r)}
-          className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          className="text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 transition-colors p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           aria-label={revealed ? 'Ocultar montos' : 'Revelar montos'}
           title={revealed ? 'Ocultar montos' : 'Revelar montos'}
         >
@@ -76,7 +76,7 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
 
         <Link
           href="/payments"
-          className="text-xs text-gray-400 hover:text-white transition-colors"
+          className="text-xs text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors"
         >
           Ver todos →
         </Link>
@@ -84,15 +84,15 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
 
       {/* ── Subtitle hint when hidden ─────────────────── */}
       {!revealed && payments.length > 0 && (
-        <p className="text-gray-600 text-xs mb-3">Montos ocultos — toca 👁 para revelar</p>
+        <p className="text-stone-400 dark:text-stone-500 text-xs mb-3">Montos ocultos — toca 👁 para revelar</p>
       )}
 
       {/* ── Empty state ───────────────────────────────── */}
       {payments.length === 0 ? (
-        <p className="text-gray-500 text-sm py-2">No hay pagos pendientes este mes 🎉</p>
+        <p className="text-stone-400 dark:text-stone-500 text-sm py-2">No hay pagos pendientes este mes 🎉</p>
       ) : (
         <>
-          <ul className="divide-y divide-white/5">
+          <ul className="divide-y divide-stone-100 dark:divide-stone-800">
             {displayed.map((p) => {
               const icon = CATEGORY_ICONS[p.category ?? 'other'] ?? '💰';
               const dotColor = getUrgencyDot(p.daysUntilDue);
@@ -108,7 +108,7 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
                   <span className="text-base shrink-0 leading-none">{icon}</span>
 
                   {/* Name */}
-                  <span className="flex-1 text-sm text-white truncate font-medium">{p.name}</span>
+                  <span className="flex-1 text-sm text-stone-800 dark:text-stone-100 truncate font-medium">{p.name}</span>
 
                   {/* Days until due */}
                   <span className={`text-xs shrink-0 ${daysColor}`}>{daysLabel}</span>
@@ -119,9 +119,9 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
                     aria-label={revealed ? `${p.currency} ${p.amount.toFixed(2)}` : 'Monto oculto'}
                   >
                     {revealed ? (
-                      <span className="text-white">{p.currency} {p.amount.toFixed(2)}</span>
+                      <span className="text-stone-800 dark:text-stone-100">{p.currency} {p.amount.toFixed(2)}</span>
                     ) : (
-                      <span className="text-gray-600 tracking-widest select-none">••••••</span>
+                      <span className="text-stone-300 dark:text-stone-600 tracking-widest select-none">••••••</span>
                     )}
                   </span>
                 </li>
@@ -132,7 +132,7 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
           {remaining > 0 && (
             <Link
               href="/payments"
-              className="mt-3 block text-center text-xs text-gray-600 hover:text-gray-300 transition-colors"
+              className="mt-3 block text-center text-xs text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 transition-colors"
             >
               +{remaining} pago{remaining === 1 ? '' : 's'} más →
             </Link>
