@@ -92,9 +92,9 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                   ) : (
                     <Image src={product.photoUrl} alt={product.name} fill className="object-cover transition-transform duration-300 group-active:scale-95" sizes="100vw" />
                   )}
-                  {/* Subtle magnify hint — visible but unobtrusive */}
-                  <span className="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm text-sm opacity-70 group-active:opacity-100 transition-opacity">
-                    🔍
+                  {/* Amazon-style magnify badge */}
+                  <span className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/40 text-white backdrop-blur-sm text-[11px] font-medium opacity-0 group-hover:opacity-80 group-active:opacity-100 transition-opacity">
+                    🔍 <span className="hidden sm:inline">Ver detalle</span>
                   </span>
                 </button>
               ) : (
