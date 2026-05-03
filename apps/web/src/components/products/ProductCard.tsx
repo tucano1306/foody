@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
-import ProductDetailSheet from '@/components/ui/ProductDetailSheet';
+import PhotoLightbox from '@/components/ui/PhotoLightbox';
 
 interface LastPurchase {
   readonly purchasedAt: string;
@@ -106,7 +106,15 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState(product);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxOrigin, setLightboxOrigin] = useState<DOMRect | undefined>();
+  const photoRef = useRef<HTMLButtonElement>(null);
+
+  function openLightbox() {
+    if (!current.photoUrl) return;
+    setLightboxOrigin(photoRef.current?.getBoundingClientRect());
+    setLightboxOpen(true);
+  }
 
   const level: StockLevel = current.stockLevel ?? (current.isRunningLow ? 'half' : 'full');
   const cfg = LEVEL_CONFIG[level];
@@ -241,8 +249,8 @@ export default function ProductCard({ product, showActions = false, compact = fa
     return (
       <>
         <div className={`${sharedCls} flex flex-col`}>
-          {/* Photo → opens detail sheet with zoom */}
-          <button type="button" onClick={() => setDetailOpen(true)} className="w-full text-left focus:outline-none">
+          {/* Photo → opens lightbox directly */}
+          <button ref={photoRef} type="button" onClick={openLightbox} className="w-full text-left focus:outline-none">
             {photoSection}
           </button>
           {/* Info → opens action sheet */}
@@ -257,15 +265,16 @@ export default function ProductCard({ product, showActions = false, compact = fa
           actions={[
             ...(level === 'empty' ? [] : [{ label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') }]),
             { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
-            { label: 'Ver detalle', emoji: '📋', onClick: () => setDetailOpen(true) },
           ]}
         />
-        <ProductDetailSheet
-          product={current}
-          open={detailOpen}
-          onClose={() => setDetailOpen(false)}
-          lastPurchase={lastPurchase}
-        />
+        {lightboxOpen && current.photoUrl && (
+          <PhotoLightbox
+            src={current.photoUrl}
+            alt={current.name}
+            originRect={lightboxOrigin}
+            onClose={() => setLightboxOpen(false)}
+          />
+        )}
       </>
     );
   }
@@ -276,22 +285,16 @@ export default function ProductCard({ product, showActions = false, compact = fa
       <div className="aspect-4/3 bg-stone-50 relative overflow-hidden rounded-t-2xl">
         {current.photoUrl ? (
           <button
+            ref={photoRef}
             type="button"
             aria-label={`Ver foto de ${current.name}`}
-            onClick={(e) => { e.stopPropagation(); setDetailOpen(true); }}
+            onClick={(e) => { e.stopPropagation(); openLightbox(); }}
             className="absolute inset-0 w-full h-full focus:outline-none"
           >
             <ProductPhoto src={current.photoUrl} alt={current.name} />
           </button>
         ) : (
-          <button
-            type="button"
-            aria-label={`Options for ${current.name}`}
-            onClick={() => setDetailOpen(true)}
-            className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 focus:outline-none"
-          >
-            🥑
-          </button>
+          <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100" />
         )}
         <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-stone-700 shadow-sm">
           <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
@@ -373,12 +376,14 @@ export default function ProductCard({ product, showActions = false, compact = fa
         ]}
       />
 
-      <ProductDetailSheet
-        product={current}
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        lastPurchase={lastPurchase}
-      />
+      {lightboxOpen && current.photoUrl && (
+        <PhotoLightbox
+          src={current.photoUrl}
+          alt={current.name}
+          originRect={lightboxOrigin}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }
