@@ -8,6 +8,7 @@ import { haptic } from '@/lib/haptic';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
 import PhotoLightbox from '@/components/ui/PhotoLightbox';
+import SendGiftModal from '@/components/sharing/SendGiftModal';
 
 interface LastPurchase {
   readonly purchasedAt: string;
@@ -108,6 +109,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const [sheetOpen, setSheetOpen] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxOrigin, setLightboxOrigin] = useState<DOMRect | undefined>();
+  const [giftOpen, setGiftOpen] = useState(false);
   const photoRef = useRef<HTMLButtonElement>(null);
 
   function openLightbox() {
@@ -361,6 +363,14 @@ export default function ProductCard({ product, showActions = false, compact = fa
           </a>
           <button
             type="button"
+            onClick={() => setGiftOpen(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-600 transition"
+          >
+            <span className="text-base leading-none">🎁</span>
+            <span className="text-[11px] font-semibold">Enviar</span>
+          </button>
+          <button
+            type="button"
             onClick={handleDelete}
             className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 transition"
           >
@@ -378,7 +388,10 @@ export default function ProductCard({ product, showActions = false, compact = fa
           { label: 'Marcar como "Tengo"', emoji: '✅', onClick: () => setLevel('full') },
           { label: 'Marcar como "A la mitad"', emoji: '⚠️', onClick: () => setLevel('half') },
           ...(level === 'empty' ? [] : [{ label: 'Marcar como "Se acabó"', emoji: '🚨', onClick: () => setLevel('empty') }]),
-          ...(showActions ? [{ label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete }] : []),
+          ...(showActions ? [
+            { label: 'Enviar a un amigo', emoji: '🎁', onClick: () => setGiftOpen(true) },
+            { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete },
+          ] : []),
         ]}
       />
 
@@ -388,6 +401,13 @@ export default function ProductCard({ product, showActions = false, compact = fa
           alt={current.name}
           originRect={lightboxOrigin}
           onClose={() => setLightboxOpen(false)}
+        />
+      )}
+      {giftOpen && (
+        <SendGiftModal
+          productId={current.id}
+          productName={current.name}
+          onClose={() => setGiftOpen(false)}
         />
       )}
     </div>

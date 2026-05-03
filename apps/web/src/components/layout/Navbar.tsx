@@ -16,8 +16,10 @@ import {
   ArrowLeftStartOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
+  ShareIcon,
 } from '@heroicons/react/24/solid';
 import ThemeToggle from './ThemeToggle';
+import SharingBadge from '@/components/sharing/SharingBadge';
 
 const NAV_ITEMS = [
   { href: '/home',           icon: HomeIcon,           label: 'Casa' },
@@ -27,6 +29,7 @@ const NAV_ITEMS = [
   { href: '/payments',       icon: CreditCardIcon,     label: 'Pagos' },
   { href: '/stats',          icon: ChartBarIcon,       label: 'Stats' },
   { href: '/household',      icon: BuildingOfficeIcon, label: 'Hogar' },
+  { href: '/sharing',        icon: ShareIcon,          label: 'Compartir' },
 ];
 
 function NavItem({
@@ -34,12 +37,14 @@ function NavItem({
   icon: Icon,
   label,
   active,
+  showBadge,
   onClick,
 }: {
   readonly href: string;
   readonly icon: React.ElementType;
   readonly label: string;
   readonly active: boolean;
+  readonly showBadge?: boolean;
   readonly onClick?: () => void;
 }) {
   return (
@@ -71,9 +76,10 @@ function NavItem({
           />
         </motion.div>
         <span>{label}</span>
-        {active && (
+        {active && !showBadge && (
           <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
         )}
+        {showBadge && <SharingBadge />}
       </Link>
     </motion.div>
   );
@@ -111,6 +117,7 @@ export default function Navbar({ user }: Props) {
               icon={item.icon}
               label={item.label}
               active={isActive(item.href)}
+              showBadge={item.href === '/sharing'}
             />
           ))}
         </nav>
@@ -223,6 +230,7 @@ export default function Navbar({ user }: Props) {
                 icon={item.icon}
                 label={item.label}
                 active={isActive(item.href)}
+                showBadge={item.href === '/sharing'}
                 onClick={() => setMobileOpen(false)}
               />
             ))}
