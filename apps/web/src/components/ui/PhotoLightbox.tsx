@@ -126,8 +126,11 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
   // We cache the rect on mouseenter and invalidate it only on resize.
   const cachedRect      = useRef<DOMRect | null>(null);
   const panelInitialized = useRef(false);
+  const lensVisible      = useRef(false);   // skip redundant opacity writes
 
   const hideLens = useCallback(() => {
+    if (!lensVisible.current) return;
+    lensVisible.current = false;
     const lens = lensRef.current;
     if (lens) lens.style.opacity = '0';
     const panel = panelRef.current;
@@ -148,8 +151,12 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     const lx = Math.max(LENS_SIZE / 2, Math.min(rect.width  - LENS_SIZE / 2, rx));
     const ly = Math.max(LENS_SIZE / 2, Math.min(rect.height - LENS_SIZE / 2, ry));
 
+    // Show lens only once — avoids re-triggering CSS opacity transition every frame
+    if (!lensVisible.current) {
+      lens.style.opacity = '1';
+      lensVisible.current = true;
+    }
     // Pure GPU composite — no layout reads, no reflows
-    lens.style.opacity   = '1';
     lens.style.transform = `translate(${rect.left + lx - LENS_SIZE / 2}px, ${rect.top + ly - LENS_SIZE / 2}px)`;
 
     if (panel) {
@@ -157,10 +164,10 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
         panel.style.backgroundImage  = `url("${src}")`;
         panel.style.backgroundSize   = `${rect.width * LENS_ZOOM}px ${rect.height * LENS_ZOOM}px`;
         panel.style.backgroundRepeat = 'no-repeat';
+        panel.style.opacity = '1';
         panelInitialized.current = true;
       }
       panel.style.backgroundPosition = `${((lx / rect.width) * 100).toFixed(2)}% ${((ly / rect.height) * 100).toFixed(2)}%`;
-      panel.style.opacity = '1';
     }
   }, [src, hideLens]);
 
@@ -223,6 +230,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
       cachedRect.current = imgWrap!.getBoundingClientRect();
       // Re-initialize panel background size if image has been resized (e.g. first open)
       panelInitialized.current = false;
+      lensVisible.current = false;
     }
     // Invalidate on window resize so next mouseenter re-reads
     function onResize() { cachedRect.current = null; panelInitialized.current = false; }
@@ -240,14 +248,29 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     const container = containerRef.current;
     if (!container) return;
 
+    // rAF batching: coalesces multiple mousemove events into one update per frame.
+    // Prevents flooding the compositor with 120+ style changes per second on
+    // high-refresh-rate laptops.
+    let pendingRaf = 0;
+    let pendingX   = 0;
+    let pendingY   = 0;
+
     function onMouseMove(e: MouseEvent) {
       if (s.current.mouseDown) {
-        // drag
+        // drag — immediate response needed for feel
         s.current.x = e.clientX - s.current.mouseStartX;
         s.current.y = e.clientY - s.current.mouseStartY;
         applyTransform();
       } else {
-        updateLens(e.clientX, e.clientY);
+        // lens — batched to one update per frame
+        pendingX = e.clientX;
+        pendingY = e.clientY;
+        if (!pendingRaf) {
+          pendingRaf = requestAnimationFrame(() => {
+            pendingRaf = 0;
+            updateLens(pendingX, pendingY);
+          });
+        }
       }
     }
     function onMouseDown(e: MouseEvent) {
@@ -287,6 +310,7 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     container.addEventListener('wheel',      onWheel, { passive: false });
     container.addEventListener('click',      onClick);
     return () => {
+      if (pendingRaf) cancelAnimationFrame(pendingRaf);
       container.removeEventListener('mousemove',  onMouseMove);
       container.removeEventListener('mousedown',  onMouseDown);
       container.removeEventListener('mouseup',    onMouseUp);
@@ -341,7 +365,8 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
             aria-hidden="true"
             style={{ position: 'relative', display: 'inline-block' }}
           >
-            {/* Image — plain img, no JS overhead */}
+            {/* Image — own GPU layer via willChange so the lens moving never
+                 causes the image to be repainted */}
             <div
               ref={imgRef}
               style={{
@@ -349,6 +374,8 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
                 height: 'min(80vw, 70vh)',
                 position: 'relative',
                 transformOrigin: 'center center',
+                willChange: 'transform',
+                transform: 'translateZ(0)',
                 animation: originRect ? undefined : 'photoIn 0.2s cubic-bezier(0.34,1.56,0.64,1)',
               }}
             >
@@ -375,7 +402,6 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
               borderRadius: '50%',
               pointerEvents: 'none',
               background: 'rgba(200,169,81,0.08)',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
               zIndex: 30,
               opacity: 0,
               transition: 'opacity 0.1s ease',
