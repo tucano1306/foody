@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import type { MonthlyPayment, CreatePaymentDto } from '@foody/types';
-import { useRouter } from 'next/navigation';
 import { XMarkIcon, PencilSquareIcon, TrashIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
@@ -101,7 +100,6 @@ export default function PaymentDetailSheet({
   onDeleted,
 }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const router = useRouter();
   const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
 
   // Keep in sync when parent prop changes
@@ -177,14 +175,13 @@ export default function PaymentDetailSheet({
         setCurrentPayment(updated);
         onUpdated(updated);
         setMode('view');
-        router.refresh();
       } catch (err) {
         setError((err as Error).message);
       } finally {
         setSaving(false);
       }
     },
-    [form, notifyValue, notifyUnit, currentPayment.id, onUpdated, router],
+    [form, notifyValue, notifyUnit, currentPayment.id, onUpdated],
   );
 
   function handleDelete() {
@@ -196,7 +193,6 @@ export default function PaymentDetailSheet({
       if (res.ok) {
         onClose();
         onDeleted();
-        router.refresh();
       }
     });
   }
@@ -245,13 +241,12 @@ export default function PaymentDetailSheet({
           setCurrentPayment(updated);
           onUpdated(updated);
           setInlineField(null);
-          router.refresh();
         }
       } finally {
         setInlineSaving(false);
       }
     },
-    [inlineDueDay, inlineNotifyValue, inlineNotifyUnit, currentPayment.id, onUpdated, router],
+    [inlineDueDay, inlineNotifyValue, inlineNotifyUnit, currentPayment.id, onUpdated],
   );
 
   // ── View mode ────────────────────────────────────────────────────────────

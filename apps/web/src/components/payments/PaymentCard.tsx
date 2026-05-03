@@ -2,12 +2,14 @@
 
 import { useCallback, useState, useTransition } from 'react';
 import type { MonthlyPayment } from '@foody/types';
-import { useRouter } from 'next/navigation';
 import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
 
 interface Props {
   readonly payment: MonthlyPayment;
+  readonly onDeleted?: (id: string) => void;
+  readonly onUpdated?: (p: MonthlyPayment) => void;
+  readonly onPaidToggle?: (id: string, nowPaid: boolean) => void;
 }
 
 type Urgency = 'today' | 'urgent' | 'upcoming' | 'normal';
@@ -53,13 +55,11 @@ function getUrgencyBadgeCls(urgency: Urgency): string {
   return 'bg-white/10 text-gray-300';
 }
 
-export default function PaymentCard({ payment }: Props) {
-  const router = useRouter();
+export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggle }: Props) {
   const [, startTransition] = useTransition();
   const [isPaid, setIsPaid] = useState(payment.isPaidThisMonth);
   const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [deleted, setDeleted] = useState(false);
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
@@ -71,21 +71,21 @@ export default function PaymentCard({ payment }: Props) {
       const method = isPaid ? 'DELETE' : 'POST';
       const res = await fetch(endpoint, { method, credentials: 'include' });
       if (res.ok) {
-        setIsPaid((prev) => !prev);
-        router.refresh();
+        const nowPaid = !isPaid;
+        setIsPaid(nowPaid);
+        onPaidToggle?.(currentPayment.id, nowPaid);
       }
     });
-  }, [currentPayment.id, isPaid, router]);
+  }, [currentPayment.id, isPaid, onPaidToggle]);
 
   const handleUpdated = useCallback((updated: MonthlyPayment) => {
     setCurrentPayment(updated);
-  }, []);
+    onUpdated?.(updated);
+  }, [onUpdated]);
 
   const handleDeleted = useCallback(() => {
-    setDeleted(true);
-  }, []);
-
-  if (deleted) return null;
+    onDeleted?.(currentPayment.id);
+  }, [currentPayment.id, onDeleted]);
 
   return (
     <>
