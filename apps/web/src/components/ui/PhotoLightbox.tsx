@@ -226,8 +226,6 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
     // Read rect ONCE when mouse enters — pure layout read, then no more per frame
     function onEnter() {
       cachedRect.current = imgWrap!.getBoundingClientRect();
-      // Re-initialize panel background size if image has been resized (e.g. first open)
-      panelInitialized.current = false;
       lensVisible.current = false;
     }
     // Invalidate on window resize so next mouseenter re-reads
@@ -399,7 +397,6 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
               background: 'rgba(200,169,81,0.08)',
               zIndex: 30,
               opacity: 0,
-              transition: 'opacity 0.1s ease',
               willChange: 'transform',
             }}
           />
@@ -428,7 +425,6 @@ export default function PhotoLightbox({ src, alt, onClose, originRect }: Props) 
               borderRadius: 8,
               overflow: 'hidden',
               opacity: 0,
-              transition: 'opacity 0.12s ease',
             }}
             aria-hidden="true"
           />
