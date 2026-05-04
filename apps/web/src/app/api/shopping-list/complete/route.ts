@@ -62,8 +62,8 @@ async function insertPurchases(
     for (const row of items) {
       const qty = quantities[row.product_id] ?? (Number.parseFloat(row.quantity_needed) || 1);
       const unitPrice = priceMap[row.product_id] ?? null;
-      const totalPrice = unitPrice == null ? null : unitPrice * qty;
-      if (totalPrice != null) totalSpent += totalPrice;
+      const totalPrice = unitPrice === null ? null : unitPrice * qty;
+      if (totalPrice !== null) totalSpent += totalPrice;
       await sql`
         INSERT INTO product_purchases
           (product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
@@ -74,10 +74,46 @@ async function insertPurchases(
     }
     return { inserted, totalSpent, error: null };
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    console.error('[complete] product_purchases insert failed:', error);
-    return { inserted, totalSpent, error };
+    return { inserted, totalSpent, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * When the user enters a global trip total and some products have no stored
+ * price, distribute the unaccounted remainder proportionally by quantity so
+ * that stats always show real money instead of $0.
+ */
+function resolvePriceMap(
+  items: CartItem[],
+  quantities: Record<string, number>,
+  priceMap: Record<string, number | null>,
+  userTotalAmount: number | null,
+): Record<string, number | null> {
+  if (userTotalAmount === null) return priceMap;
+
+  const resolved: Record<string, number | null> = { ...priceMap };
+
+  const qtyFor = (id: string) => quantities[id] ?? (Number.parseFloat(items.find((r) => r.product_id === id)?.quantity_needed ?? '1') || 1);
+
+  const knownSpend = items.reduce((sum, row) => {
+    const p = priceMap[row.product_id];
+    return p === null ? sum : sum + p * qtyFor(row.product_id);
+  }, 0);
+
+  const remainder = Math.max(0, userTotalAmount - knownSpend);
+  const nullQtyTotal = items.reduce(
+    (sum, row) => (priceMap[row.product_id] === null ? sum + qtyFor(row.product_id) : sum),
+    0,
+  );
+
+  if (remainder > 0 && nullQtyTotal > 0) {
+    const fallbackUnit = remainder / nullQtyTotal;
+    for (const row of items) {
+      resolved[row.product_id] ??= fallbackUnit;
+    }
+  }
+
+  return resolved;
 }
 
 // POST /api/shopping-list/complete
@@ -110,8 +146,10 @@ export async function POST(request: NextRequest) {
     insertTrip(storeName, user.userId, now),
   ]);
 
+  const resolvedPriceMap = resolvePriceMap(items, quantities, priceMap, userTotalAmount);
+
   const { inserted: purchasesInserted, totalSpent, error: purchaseError } =
-    await insertPurchases(items, quantities, priceMap, storeName, tripId, user.userId, now);
+    await insertPurchases(items, quantities, resolvedPriceMap, storeName, tripId, user.userId, now);
 
   if (tripId) {
     const finalTotal = userTotalAmount ?? (totalSpent > 0 ? totalSpent : null);
