@@ -57,8 +57,8 @@ async function getStats(userId: string): Promise<StatsData> {
     sql`
       SELECT
         COALESCE(p.category, 'Sin categoría') AS category,
-        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW()) THEN pp.total_price ELSE 0 END) AS current_month,
-        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month') THEN pp.total_price ELSE 0 END) AS prev_month
+        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW()) THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS current_month,
+        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month') THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS prev_month
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
       WHERE ${ppScope}
