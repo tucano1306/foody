@@ -75,7 +75,7 @@ export default function BarcodeScanner({ onResult, onClose }: Props) {
 
         const codeReader = new BrowserMultiFormatReader();
         const controls = await codeReader.decodeFromVideoDevice(
-          deviceId ?? null,
+          deviceId ?? undefined,
           videoRef.current,
           (result) => {
             if (!result || detectedRef.current) return;
