@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type {
@@ -10,6 +11,12 @@ import type {
 } from '@foody/types';
 import StoreSelector from '@/components/stores/StoreSelector';
 import { haptic } from '@/lib/haptic';
+import type { ReceiptParseResult } from '@/components/shopping/ReceiptScanner';
+
+const ReceiptScanner = dynamic(
+  () => import('@/components/shopping/ReceiptScanner'),
+  { ssr: false },
+);
 import { useToast } from '@/components/ui/Toast';
 
 interface Props {
@@ -80,6 +87,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const addedIds = new Set(items.map((i) => i.productId));
   const searchQ = search.trim().toLowerCase();
@@ -112,6 +120,44 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         .slice(0, 8),
     [products, addedIds],
   );
+
+  function handleReceiptResult(data: ReceiptParseResult) {
+    setScannerOpen(false);
+    // Pre-fill total
+    if (data.total !== null && totalAmount === '') {
+      setTotalAmount(data.total.toFixed(2));
+    }
+    // Pre-fill store name
+    if (data.storeName !== null && store.storeName === null) {
+      setStore({ storeId: null, storeName: data.storeName });
+    }
+    // Pre-fill date
+    if (data.receiptDate !== null) {
+      setPurchasedAt(data.receiptDate);
+    }
+    // Match receipt items to known products, add unmatched as-is
+    for (const ri of data.items) {
+      const nameLower = ri.name.toLowerCase();
+      const matched = products.find(
+        (p) =>
+          !addedIds.has(p.id) &&
+          (p.name.toLowerCase().includes(nameLower) ||
+            nameLower.includes(p.name.toLowerCase().slice(0, 4))),
+      );
+      if (matched) {
+        setItems((prev) => [
+          ...prev,
+          {
+            productId: matched.id,
+            name: matched.name,
+            unit: matched.unit,
+            quantity: String(ri.quantity),
+            price: ri.unitPrice === null ? '' : ri.unitPrice.toFixed(2),
+          },
+        ]);
+      }
+    }
+  }
 
   function addProduct(p: Product) {
     setItems((prev) => [
@@ -254,6 +300,13 @@ export default function NewTripForm({ products }: Readonly<Props>) {
 
   return (
     <div className="space-y-4 pb-24">
+      {scannerOpen && (
+        <ReceiptScanner
+          onResult={handleReceiptResult}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-stone-800">🧾 Nueva compra</h1>
@@ -261,12 +314,24 @@ export default function NewTripForm({ products }: Readonly<Props>) {
             Captura tu ticket, pon precios donde recuerdes y Foody estima el resto.
           </p>
         </div>
-        <Link
-          href="/shopping-trips"
-          className="text-sm text-stone-500 hover:text-stone-700"
-        >
-          Cancelar
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setScannerOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-brand-50 border border-brand-200 text-brand-700 px-3 py-2 text-xs font-semibold hover:bg-brand-100 transition"
+            title="Escanear recibo con OCR"
+          >
+            <span aria-hidden="true">📄</span>
+            <span className="hidden sm:inline">Escanear recibo</span>
+            <span className="sm:hidden">Escanear</span>
+          </button>
+          <Link
+            href="/shopping-trips"
+            className="text-sm text-stone-500 hover:text-stone-700"
+          >
+            Cancelar
+          </Link>
+        </div>
       </header>
 
       {/* Store + date */}
