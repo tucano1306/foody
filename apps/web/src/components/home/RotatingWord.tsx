@@ -16,7 +16,7 @@ export default function RotatingWord({
   }, [words.length]);
   return (
     <span
-      key={i}
+      key={`${words[i]}-${i}`}
       className={`inline-block animate-fade-up text-brand-500 ${className}`}
     >
       {words[i]}

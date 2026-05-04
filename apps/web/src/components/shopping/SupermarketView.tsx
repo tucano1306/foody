@@ -229,9 +229,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
       if (res.ok) {
         const data = await res.json();
-        console.log('[SupermarketView] complete response:', JSON.stringify(data));
         if (data.purchaseError) {
-          console.warn('[SupermarketView] partial purchase error:', data.purchaseError);
           alert('Compra guardada, pero algunos registros de precio no se pudieron guardar.');
         }
         setShowModal(false);
@@ -241,11 +239,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         setItems((prev) => prev.filter((i) => !i.isInCart));
         router.refresh();
       } else {
-        console.error('[SupermarketView] complete failed:', res.status);
         alert('No se pudo completar la compra. Intenta de nuevo.');
       }
-    } catch (err) {
-      console.error('[SupermarketView] complete network error:', err);
+    } catch {
       alert('Sin conexión. Verifica tu red e intenta de nuevo.');
     } finally {
       setCompleting(false);

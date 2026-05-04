@@ -204,7 +204,7 @@ export default function Navbar({ user }: Props) {
         >
           <div className="flex items-center justify-between px-5 pt-6 pb-5">
             <div className="flex items-center gap-2.5">
-              <Image src="/logo.png" alt="Foody" width={32} height={32} className="object-contain drop-shadow-md" />
+              <Image src="/logo.png" alt="Foody" width={32} height={32} className="object-contain drop-shadow-md" priority />
               <span className="text-xl font-bold bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
                 Foody
               </span>

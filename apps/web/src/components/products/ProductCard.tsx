@@ -1,14 +1,17 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
-import PhotoLightbox from '@/components/ui/PhotoLightbox';
-import SendGiftModal from '@/components/sharing/SendGiftModal';
+
+// Loaded only when user taps a product photo or the gift button
+const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'));
+const SendGiftModal = dynamic(() => import('@/components/sharing/SendGiftModal'));
 
 interface LastPurchase {
   readonly purchasedAt: string;
