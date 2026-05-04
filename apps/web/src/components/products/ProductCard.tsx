@@ -302,7 +302,12 @@ export default function ProductCard({ product, showActions = false, compact = fa
             <ProductPhoto src={current.photoUrl} alt={current.name} />
           </button>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100" />
+          <button
+            type="button"
+            aria-label={`Opciones de ${current.name}`}
+            onClick={() => setSheetOpen(true)}
+            className="absolute inset-0 w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 focus:outline-none"
+          />
         )}
         <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-stone-700 shadow-sm">
           <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
@@ -352,33 +357,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
           </div>
         )}
       </button>
-      {showActions && (
-        <div className="px-2 pb-3 flex gap-1.5">
-          <a
-            href={`/products/${current.id}`}
-            className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
-          >
-            <span className="text-base leading-none">✏️</span>
-            <span className="text-[11px] font-semibold">Editar</span>
-          </a>
-          <button
-            type="button"
-            onClick={() => setGiftOpen(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-600 transition"
-          >
-            <span className="text-base leading-none">🎁</span>
-            <span className="text-[11px] font-semibold">Enviar</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 transition"
-          >
-            <span className="text-base leading-none">🗑️</span>
-            <span className="text-[11px] font-semibold">Eliminar</span>
-          </button>
-        </div>
-      )}
 
       <ActionSheet
         open={sheetOpen}
@@ -389,6 +367,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           { label: 'Marcar como "A la mitad"', emoji: '⚠️', onClick: () => setLevel('half') },
           ...(level === 'empty' ? [] : [{ label: 'Marcar como "Se acabó"', emoji: '🚨', onClick: () => setLevel('empty') }]),
           ...(showActions ? [
+            { label: 'Editar producto', emoji: '✏️', onClick: () => router.push(`/products/${current.id}`) },
             { label: 'Enviar a un amigo', emoji: '🎁', onClick: () => setGiftOpen(true) },
             { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete },
           ] : []),
