@@ -102,9 +102,9 @@ export default function Navbar({ user }: Props) {
     <>
       {/* ─── Desktop sidebar ────────────────────────────────────────────────── */}
       <aside className="hidden md:flex flex-col w-64 shrink-0 h-screen sticky top-0 bg-gray-950 border-r border-gray-800 shadow-xl z-40 overflow-y-auto">
-        <div className="flex items-center gap-3 px-6 pt-7 pb-6">
-          <Image src="/logo.png" alt="Foody" width={36} height={36} className="object-contain drop-shadow-md" priority />
-          <h1 className="text-2xl font-bold bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent tracking-tight">
+        <div className="flex items-center gap-4 px-6 pt-8 pb-7">
+          <Image src="/logo.png" alt="Foody" width={52} height={52} className="object-contain drop-shadow-md" priority />
+          <h1 className="text-3xl font-black bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent tracking-tight">
             Foody
           </h1>
         </div>
@@ -164,10 +164,10 @@ export default function Navbar({ user }: Props) {
 
       {/* ─── Mobile: top bar + slide drawer ────────────────────────────────── */}
       <div className="md:hidden">
-        <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-14 bg-gray-950/95 backdrop-blur border-b border-gray-800 shadow-lg">
-          <Link href="/home" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Foody" width={28} height={28} className="object-contain drop-shadow-md" priority />
-            <span className="text-lg font-bold bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+        <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-16 bg-gray-950/95 backdrop-blur border-b border-gray-800 shadow-lg">
+          <Link href="/home" className="flex items-center gap-2.5">
+            <Image src="/logo.png" alt="Foody" width={36} height={36} className="object-contain drop-shadow-md" priority />
+            <span className="text-xl font-black bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
               Foody
             </span>
           </Link>
