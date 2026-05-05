@@ -2,10 +2,12 @@
  * receipt-parser.ts
  * Parses raw OCR text from a supermarket receipt into structured line items.
  *
- * Supports common Mexican / Latin-American receipt formats:
- *   LECHE ENTERA 1L          2  x 19.90    39.80
- *   COCA COLA 600ML                         25.00
- *   TOTAL                                  348.50
+ * Supports US supermarket formats (Walmart, Publix, Aldi, Target, Kroger, etc.):
+ *   WHOLE MILK 1GL             2  @ 3.98      7.96
+ *   COCA COLA 2L                              2.49
+ *   TOTAL                                    54.82
+ *
+ * Date format: MM/DD/YYYY (US primary). Falls back to DD/MM/YYYY when month > 12.
  */
 
 export interface ReceiptItem {
@@ -30,11 +32,11 @@ export interface ReceiptParseResult {
 const PRICE_RE = /[-−]?\d{1,6}[.,]\d{2}(?:\s*[A-Z])?/g;
 
 /** Lines that are definitely not product lines — split into groups to keep complexity ≤ 20 */
-const SKIP_STORE = /^(tel[eé]fono|rfc|ticket|folio|caja|cliente|empleado|gracias)/i;
-const SKIP_FISCAL = /^(iva|descuento|cambio|efectivo|tarjeta|visa|mastercard|amex|subtotal)/i;
-const SKIP_DOC = /^(total\s+iva|impuesto|factura|recibo|address|direcci[oó]n)/i;
-const SKIP_IDENT = /^(hora|fecha|num[.]?\s*cliente|no[.]?\s*tienda|sucursal|clave)/i;
-const SKIP_MISC = /^(bar?code|c[oó]digo|operaci[oó]n|atendido|cajero|vendedor|tel[.:]|web[.:]|www[.]|http)/i;
+const SKIP_STORE = /^(phone|tel[.:]?|fax|store|manager|cashier|operator|server|clerk|associate|employee|thank)/i;
+const SKIP_FISCAL = /^(tax|sales\s*tax|subtotal|change|cash|savings|balance|amount\s+due|total\s+due)/i;
+const SKIP_DOC = /^(receipt|invoice|address|approved|authorized|declined|pin|account|member|reward|point)/i;
+const SKIP_IDENT = /^(date|time|transaction|trans[.]?|ref[.]?|auth[.]?|chip|swipe)/i;
+const SKIP_MISC = /^(barcode|www[.]|http|visa|mastercard|amex|discover|debit|credit|card|ebt)/i;
 
 function shouldSkipLine(line: string): boolean {
   return (
@@ -46,14 +48,14 @@ function shouldSkipLine(line: string): boolean {
   );
 }
 
-/** Lines that look like a TOTAL (single line, captures the amount) */
-const TOTAL_RE = /^\s*(?:total|importe\s+total|gran\s+total|monto\s+total|tot[.]?)\s+(.+)?$/i;
+/** Lines that look like a TOTAL */
+const TOTAL_RE = /^\s*(?:total|total\s+paid|grand\s+total|amount\s+due|tot[.]?)\s+(.+)?$/i;
 
-/** Lines that are clearly store headers (ALL CAPS, no digits) */
-const STORE_NAME_RE = /^[A-ZÁÉÍÓÚÑÜ\s&.,'-]{6,60}$/;
+/** Lines that are clearly store headers (ALL CAPS, no digits) — US stores use plain ASCII */
+const STORE_NAME_RE = /^[A-Z\s&.,'/\u002D]{5,60}$/;
 
-/** Qty × price pattern:  "2 x 19.90" or "3 X 12.5" */
-const QTY_X_PRICE_RE = /(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)/;
+/** Qty × price or qty @ price:  "2 x 3.99"  "3 @ 12.50" */
+const QTY_X_PRICE_RE = /(\d+(?:[.,]\d+)?)\s*[xX×@]\s*(\d+(?:[.,]\d+)?)/;
 
 /** Leading quantity like "  2  PRODUCT NAME" */
 const LEADING_QTY_RE = /^\s*(\d{1,3})\s{2,}(.+)/;
@@ -92,13 +94,18 @@ function isValidProductName(name: string): boolean {
 }
 
 function extractDate(line: string): string | null {
-  // dd/mm/yyyy or dd-mm-yyyy
-  const DATE_RE = /(\d{2})[/\-.](\d{2})[/\-.](\d{2,4})/;
+  // US format: MM/DD/YYYY (primary for Walmart, Publix, Aldi)
+  // Falls back to DD/MM/YYYY when first group > 12
+  const DATE_RE = /(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/;
   const m = DATE_RE.exec(line);
   if (!m) return null;
-  const [, d, mo, y] = m;
-  const year = y.length === 2 ? `20${y}` : y;
-  return `${year}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  const a = Number.parseInt(m[1], 10);
+  const b = Number.parseInt(m[2], 10);
+  const y = m[3].length === 2 ? `20${m[3]}` : m[3];
+  // If first group is > 12 it must be day-first (DD/MM)
+  const [month, day] = a > 12 ? [b, a] : [a, b];
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 // ─── Line-item extraction helpers ────────────────────────────────────────────

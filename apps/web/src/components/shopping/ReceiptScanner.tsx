@@ -2,9 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { parseReceiptText } from '@/lib/receipt-parser';
-import type { ReceiptParseResult } from '@/lib/receipt-parser';
-
-export type { ReceiptParseResult };
+export type { ReceiptParseResult } from '@/lib/receipt-parser';
 
 interface Props {
   readonly onResult: (data: ReceiptParseResult) => void;
@@ -43,7 +41,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       try {
         // Dynamically import Tesseract to avoid SSR / initial bundle bloat
         const { createWorker } = await import('tesseract.js');
-        const worker = await createWorker('spa+eng', 1, {
+        const worker = await createWorker('eng', 1, {
           logger: (m: { status: string; progress: number }) => {
             if (m.status === 'recognizing text') {
               setProgressPct(Math.round(m.progress * 100));
@@ -92,11 +90,10 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
   const statusText = getStatusText(state);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col bg-black/90"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Escáner de recibo"
+    <dialog
+      open
+      className="fixed inset-0 z-50 flex flex-col bg-black/90 m-0 p-0 max-w-none max-h-none w-full h-full border-none"
+      aria-label="Receipt scanner"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-safe-top pt-4 pb-3">
@@ -220,7 +217,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         accept="image/*"
         capture="environment"
         className="sr-only"
-        aria-hidden="true"
+        tabIndex={-1}
         onChange={handleFileChange}
       />
       <input
@@ -228,7 +225,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         type="file"
         accept="image/*"
         className="sr-only"
-        aria-hidden="true"
+        tabIndex={-1}
         onChange={handleFileChange}
       />
     </div>
