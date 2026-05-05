@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -65,6 +64,7 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'Rechazado', cls: 'bg-rose-100 text-rose-700' },
   revoked:  { label: 'Revocado',  cls: 'bg-gray-100 text-gray-600' },
   declined: { label: 'Rechazado', cls: 'bg-rose-100 text-rose-700' },
+  cancelled: { label: 'Cancelado', cls: 'bg-gray-100 text-gray-600' },
 };
 
 function StatusBadge({ status }: { readonly status: string }) {
@@ -295,7 +295,7 @@ function GiftCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-semibold text-gray-800 truncate">{gift.product_name}</p>
-            <StatusBadge status={gift.status} />
+            <StatusBadge status={direction === 'sent' && gift.status === 'declined' ? 'cancelled' : gift.status} />
           </div>
           {gift.product_category && (
             <p className="text-[10px] uppercase tracking-wide text-gray-400">{gift.product_category}</p>
@@ -368,15 +368,34 @@ type Tab = 'pantry' | 'gifts';
 type SubTab = 'received' | 'sent';
 
 export default function SharingHub({ initialPantrySent, initialPantryReceived, initialGiftsSent, initialGiftsReceived }: Props) {
-  const router = useRouter();
   const [tab, setTab] = useState<Tab>('pantry');
   const [subTab, setSubTab] = useState<SubTab>('received');
 
-  const pendingPantry = initialPantryReceived.filter((r) => r.status === 'pending').length;
-  const pendingGifts = initialGiftsReceived.filter((g) => g.status === 'pending').length;
+  const [pantrySent, setPantrySent] = useState<PantryShareRow[]>(initialPantrySent);
+  const [pantryReceived, setPantryReceived] = useState<PantryShareRow[]>(initialPantryReceived);
+  const [giftsSent, setGiftsSent] = useState<GiftRow[]>(initialGiftsSent);
+  const [giftsReceived, setGiftsReceived] = useState<GiftRow[]>(initialGiftsReceived);
 
-  function refresh() {
-    router.refresh();
+  const pendingPantry = pantryReceived.filter((r) => r.status === 'pending').length;
+  const pendingGifts = giftsReceived.filter((g) => g.status === 'pending').length;
+
+  async function refresh() {
+    try {
+      const [pantryRes, giftsRes] = await Promise.all([
+        fetch('/api/sharing/pantry', { credentials: 'include' }),
+        fetch('/api/sharing/gifts', { credentials: 'include' }),
+      ]);
+      if (pantryRes.ok) {
+        const data = await pantryRes.json() as { sent: PantryShareRow[]; received: PantryShareRow[] };
+        setPantrySent(data.sent);
+        setPantryReceived(data.received);
+      }
+      if (giftsRes.ok) {
+        const data = await giftsRes.json() as { sent: GiftRow[]; received: GiftRow[] };
+        setGiftsSent(data.sent);
+        setGiftsReceived(data.received);
+      }
+    } catch { /* silent */ }
   }
 
   return (
@@ -428,9 +447,9 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
 
           {subTab === 'received' && (
             <div className="space-y-3">
-              {initialPantryReceived.length === 0
+              {pantryReceived.length === 0
                 ? <EmptyState icon="📭" text="Nadie te ha compartido su despensa todavía" />
-                : initialPantryReceived.map((share) => (
+                : pantryReceived.map((share) => (
                   <PantryCard key={share.id} share={share} direction="received" onAction={refresh} />
                 ))}
             </div>
@@ -438,9 +457,9 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
 
           {subTab === 'sent' && (
             <div className="space-y-3">
-              {initialPantrySent.length === 0
+              {pantrySent.length === 0
                 ? <EmptyState icon="📤" text="Aún no has compartido tu despensa con nadie" />
-                : initialPantrySent.map((share) => (
+                : pantrySent.map((share) => (
                   <PantryCard key={share.id} share={share} direction="sent" onAction={refresh} />
                 ))}
             </div>
@@ -477,9 +496,9 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
 
           {subTab === 'received' && (
             <div className="space-y-3">
-              {initialGiftsReceived.length === 0
+              {giftsReceived.length === 0
                 ? <EmptyState icon="🎁" text="No has recibido ningún producto todavía" />
-                : initialGiftsReceived.map((gift) => (
+                : giftsReceived.map((gift) => (
                   <GiftCard key={gift.id} gift={gift} direction="received" onAction={refresh} />
                 ))}
             </div>
@@ -487,9 +506,9 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
 
           {subTab === 'sent' && (
             <div className="space-y-3">
-              {initialGiftsSent.length === 0
+              {giftsSent.length === 0
                 ? <EmptyState icon="📦" text="Aún no has enviado ningún producto" />
-                : initialGiftsSent.map((gift) => (
+                : giftsSent.map((gift) => (
                   <GiftCard key={gift.id} gift={gift} direction="sent" onAction={refresh} />
                 ))}
             </div>
