@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { parseReceiptText } from '@/lib/receipt-parser';
+import type { ReceiptParseResult } from '@/lib/receipt-parser';
 export type { ReceiptParseResult } from '@/lib/receipt-parser';
 
 interface Props {
