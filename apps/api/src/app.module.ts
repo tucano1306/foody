@@ -15,6 +15,10 @@ import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StorageModule } from './storage/storage.module';
 import { HouseholdsModule } from './households/households.module';
+import { PricesModule } from './prices/prices.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { BudgetModule } from './budget/budget.module';
+import { SupermarketModule } from './supermarket/supermarket.module';
 
 @Module({
   imports: [
@@ -72,6 +76,10 @@ import { HouseholdsModule } from './households/households.module';
     NotificationsModule,
     StorageModule,
     HouseholdsModule,
+    PricesModule,
+    TicketsModule,
+    BudgetModule,
+    SupermarketModule,
   ],
 })
 export class AppModule {}

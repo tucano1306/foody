@@ -294,7 +294,9 @@
     "algunos",
     "registros",
     "pudieron",
-    "guardar"
+    "guardar",
+    "neondatabase",
+    "focusable"
   ],
   "ignorePaths": [
     "node_modules/**",
