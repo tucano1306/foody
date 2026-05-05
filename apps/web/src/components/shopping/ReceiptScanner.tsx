@@ -228,6 +228,6 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         tabIndex={-1}
         onChange={handleFileChange}
       />
-    </div>
+    </dialog>
   );
 }
