@@ -117,6 +117,11 @@ export default function ProductCard({ product, showActions = false, compact = fa
 
   function openLightbox() {
     if (!current.photoUrl) return;
+    // Disabled on desktop/laptop — only works on mobile/tablet
+    if (typeof globalThis !== 'undefined' && typeof globalThis.matchMedia === 'function') {
+      const hasFinePointer = globalThis.matchMedia('(pointer: fine)').matches;
+      if (hasFinePointer) return;
+    }
     setLightboxOrigin(photoRef.current?.getBoundingClientRect());
     setLightboxOpen(true);
   }

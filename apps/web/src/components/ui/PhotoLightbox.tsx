@@ -210,7 +210,8 @@ export default function PhotoLightbox(props: Props) {
     return isCoarseOnly;
   });
 
-  return isMobile ? <MobileLightbox {...props} /> : <DesktopLightbox {...props} />;
+  if (!isMobile) return null;
+  return <MobileLightbox {...props} />;
 }
 
 function MobileLightbox({ src, alt, onClose, originRect }: Props) {
