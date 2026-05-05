@@ -21,7 +21,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const rows = await sql`
     UPDATE shopping_trips SET
       store_name = COALESCE(${body.storeName as string ?? null}, store_name),
-      total_spent = COALESCE(${body.totalSpent as number ?? null}, total_spent),
+      total_amount = COALESCE(${body.totalAmount as number ?? null}, total_amount),
       notes = COALESCE(${body.notes as string ?? null}, notes),
       updated_at = NOW()
     WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
