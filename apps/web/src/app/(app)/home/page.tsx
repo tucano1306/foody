@@ -16,28 +16,9 @@ import type { Product, MonthlyPayment } from '@foody/types';
 
 export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
 
-function getGreeting(h: number): string {
-  if (h >= 5 && h < 12) return '¡Buenos días';
-  if (h >= 12 && h < 19) return '¡Buenas tardes';
-  return '¡Buenas noches';
-}
-
-function getGreetingEmoji(h: number): string {
-  if (h >= 5 && h < 12) return '🌅';
-  if (h >= 12 && h < 19) return '☀️';
-  return '🌙';
-}
-
 export default async function HomePage() {
   const session = await getSession();
   const firstName = session.name?.split(' ')[0] ?? null;
-
-  const hour = new Date().getHours();
-  const greeting = getGreeting(hour);
-  const greetingEmoji = getGreetingEmoji(hour);
-  const greetingText = firstName
-    ? `${greeting}, ${firstName}! ${greetingEmoji}`
-    : `${greeting}! ${greetingEmoji}`;
 
   const [products, payments, lastPurchasesRaw]: [Product[], MonthlyPayment[], { productId: string; purchasedAt: string; storeName: string | null }[]] = await Promise.all([
     api.products.list().catch(() => [] as Product[]),
@@ -60,7 +41,7 @@ export default async function HomePage() {
     <div className="space-y-8">
       {/* ─── Header + Mode Toggle ───────────────────────────────────────────── */}
       <div className="relative bg-brand-700 text-white rounded-2xl p-5 sm:p-6 shadow-lg">
-        <GreetingToast greeting={greetingText} />
+        <GreetingToast firstName={firstName} />
         <ModernTitle
           title="🏠 Modo Casa"
           subtitle="Gestiona tu despensa y pagos"

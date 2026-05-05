@@ -13,7 +13,7 @@ interface Props {
 }
 
 function formatMoney(value: number): string {
-  return `$${value.toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
+  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
 }
 
 export default function StoreExpensesChart({ data }: Readonly<Props>) {
@@ -22,7 +22,7 @@ export default function StoreExpensesChart({ data }: Readonly<Props>) {
   const wheelData = data.map((d) => ({
     label: d.storeName,
     value: d.total,
-    sublabel: `${d.count} ${d.count === 1 ? 'ticket' : 'tickets'}`,
+    sublabel: `${d.count} ${d.count === 1 ? 'compra' : 'compras'}`,
   }));
   return (
     <StatsWheel data={wheelData} totalLabel="Total" totalValue={formatMoney(total)} formatValue={formatMoney} />

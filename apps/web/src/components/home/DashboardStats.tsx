@@ -41,13 +41,13 @@ export default function DashboardStats({
     {
       label: 'Pagos próximos',
       value: upcomingPaymentsCount,
-      sublabel: upcomingPaymentsCount === 0 ? 'sin vencimientos' : 'vencen esta semana',
+      sublabel: upcomingPaymentsCount === 0 ? 'sin vencimientos' : 'vencen este mes',
       icon: '💳',
       color: upcomingPaymentsCount > 0 ? '#ef4444' : '#a7ce39', // red-500 / energy
     },
     {
       label: 'Gasto del mes',
-      value: `$${totalMonthlyExpenses.toFixed(0)}`,
+      value: new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(totalMonthlyExpenses),
       sublabel: 'presupuesto estimado',
       icon: '💰',
       color: '#003b71', // brand-600
