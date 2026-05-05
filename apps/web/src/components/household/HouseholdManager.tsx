@@ -29,10 +29,15 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   });
   if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(msg || res.statusText);
+    const text = await res.text();
+    let msg = text || res.statusText;
+    try {
+      const json = JSON.parse(text) as { message?: string };
+      if (json.message) msg = json.message;
+    } catch { /* not JSON */ }
+    throw new Error(msg);
   }
-  return res.status === 204 ? (undefined as T) : res.json();
+  return res.status === 204 ? (undefined as T) : res.json() as Promise<T>;
 }
 
 export default function HouseholdManager() {
@@ -44,6 +49,8 @@ export default function HouseholdManager() {
   const [joinCode, setJoinCode] = useState('');
   const [newName, setNewName] = useState('');
   const [working, setWorking] = useState(false);
+
+  const isOwner = state?.isOwner ?? false;
 
   useEffect(() => {
     refresh();
@@ -102,7 +109,10 @@ export default function HouseholdManager() {
   }
 
   async function handleLeave() {
-    if (!globalThis.window.confirm('¿Seguro que quieres salir del hogar?')) return;
+    const warningMsg = isOwner
+      ? '¿Seguro? Eres el propietario. Al salir se disolverá el hogar y todos los miembros serán eliminados.'
+      : '¿Seguro que quieres salir del hogar?';
+    if (!globalThis.confirm(warningMsg)) return;
     setWorking(true);
     try {
       await fetchJson('/households/leave', { method: 'DELETE' });
@@ -210,7 +220,7 @@ export default function HouseholdManager() {
   }
 
   // ─── Has household ─────────────────────────────────────────────────────
-  const { household, members, isOwner } = state;
+  const { household, members } = state;
 
   return (
     <div className="space-y-6">
@@ -233,9 +243,9 @@ export default function HouseholdManager() {
             type="button"
             onClick={handleLeave}
             disabled={working}
-            className="text-sm text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 px-3 py-1.5 rounded-lg transition"
+            className={`text-sm px-3 py-1.5 rounded-lg transition ${isOwner ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 font-semibold' : 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30'}`}
           >
-            Salir
+            {isOwner ? 'Disolver hogar' : 'Salir'}
           </button>
         </div>
 

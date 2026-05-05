@@ -7,10 +7,23 @@ export async function DELETE(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  await sql`
-    UPDATE users SET household_id = NULL, updated_at = now()
-    WHERE id = ${user.userId}
-  `;
+  const userRows = await sql`SELECT household_id FROM users WHERE id = ${user.userId} LIMIT 1`;
+  const householdId = (userRows[0] as { household_id: string | null } | undefined)?.household_id;
+
+  if (!householdId) {
+    return new NextResponse(null, { status: 204 });
+  }
+
+  // Check if user is the owner — if so, dissolve the entire household.
+  // ON DELETE CASCADE removes household_invites; ON DELETE SET NULL clears all members' household_id.
+  const householdRows = await sql`SELECT owner_id FROM households WHERE id = ${householdId} LIMIT 1`;
+  const isOwner = (householdRows[0] as { owner_id: string } | undefined)?.owner_id === user.userId;
+
+  if (isOwner) {
+    await sql`DELETE FROM households WHERE id = ${householdId}`;
+  } else {
+    await sql`UPDATE users SET household_id = NULL, updated_at = now() WHERE id = ${user.userId}`;
+  }
 
   return new NextResponse(null, { status: 204 });
 }
