@@ -1,19 +1,27 @@
 # 🥑 Foody
 
-Aplicación para controlar el inventario de tu despensa y gestionar pagos mensuales recurrentes — con **modo Casa** y **modo Supermercado**.
+Aplicación personal para gestionar el inventario de despensa, compras del supermercado, pagos recurrentes y estadísticas de consumo — con modo **Casa** y modo **Supermercado**.
+
+Desplegada en producción: **https://foody-web-eight.vercel.app**
 
 ---
 
-## Funcionalidades principales
+## Funcionalidades
 
 | Módulo | Descripción |
 |---|---|
-| 🏠 **Modo Casa** | Visualiza todos tus productos, marca los que están terminando, agrega fotos |
-| 🛒 **Modo Supermercado** | Lista de compras interactiva — toca para agregar al carrito y finaliza la sesión |
-| 💳 **Pagos mensuales** | Registra pagos recurrentes, marca como pagados, recibe notificaciones push |
-| 📸 **Fotos de productos** | Sube fotos directamente a S3 desde el dispositivo |
-| 🔔 **Notificaciones** | Recordatorios automáticos vía OneSignal X días antes del vencimiento |
-| 🔐 **Auth** | Login local por email con sesion BFF (iron-session) + JWT |
+| 🏠 **Modo Casa** | Visualiza productos, stock levels (lleno / mitad / vacío), fotos |
+| 🛒 **Modo Supermercado** | Lista de compras interactiva — toca para carrito, finaliza y el inventario se actualiza solo |
+| 🧾 **Nueva compra** | Registra tickets con total, tienda, estrategia de reparto de precios y escaneo de recibo OCR |
+| 📄 **Escaneo de recibo** | OCR con Tesseract.js — fotografía el ticket y detecta productos, precios y total automáticamente |
+| 📷 **Código de barras** | Escanea EAN-13 / UPC-A con la cámara y autocompleta nombre, categoría e imagen del producto vía Open Food Facts |
+| 💳 **Pagos mensuales** | Registra pagos recurrentes, márcalos como pagados, recibe notificaciones push días antes del vencimiento |
+| 📊 **Estadísticas** | Gasto por categoría, este mes vs mes anterior, supermercados más usados y gráficas de consumo |
+| 🏪 **Comparador de precios** | Compara qué supermercado tiene cada producto más barato según historial de compras |
+| 👨‍👩‍👧 **Hogares** | Comparte despensa y lista de compras con otros miembros del hogar |
+| 📸 **Fotos de productos** | Sube fotos directamente a AWS S3 |
+| 🔔 **Notificaciones push** | Recordatorios automáticos vía OneSignal |
+| 🔐 **Autenticación** | Login por email con sesión BFF (iron-session + JWT) |
 
 ---
 
@@ -21,13 +29,139 @@ Aplicación para controlar el inventario de tu despensa y gestionar pagos mensua
 
 ```
 apps/
-  web/          → Next.js 15 + React 19 + Tailwind CSS v4
-  api/          → NestJS 11 + TypeORM + PostgreSQL 15
+  web/          → Next.js 15 · React 19 · Tailwind CSS v4
+  api/          → NestJS 11 · TypeORM · PostgreSQL 15
 packages/
-  types/        → Tipos TypeScript compartidos
+  types/        → Tipos TypeScript compartidos (@foody/types)
+```
+
+### Frontend — `apps/web`
+
+| Tecnología | Uso |
+|---|---|
+| **Next.js 15** | App Router, Server Components, API Routes, streaming |
+| **React 19** | Hooks, transitions, optimistic updates |
+| **Tailwind CSS v4** | CSS-first con `@theme` en `globals.css` |
+| **Framer Motion** | Animaciones fluidas en listas y modales |
+| **Tesseract.js** | OCR client-side para escanear recibos de supermercado |
+| **@zxing/browser** | Lectura de códigos de barras EAN/UPC vía cámara |
+| **Recharts** | Gráficas de consumo y estadísticas |
+| **Heroicons** | Iconografía SVG |
+| **iron-session** | Sesión server-side con cookie cifrada |
+
+### Backend — `apps/api`
+
+| Tecnología | Uso |
+|---|---|
+| **NestJS 11** | Módulos, guards, decoradores, Swagger |
+| **TypeORM** | ORM + sistema de migraciones |
+| **Passport / JWT** | Autenticación con `@nestjs/passport` + `@nestjs/jwt` |
+| **@neondatabase/serverless** | SQL tagged templates desde Next.js API routes |
+
+### Infraestructura
+
+| Tecnología | Uso |
+|---|---|
+| **PostgreSQL 15 / Neon** | Base de datos serverless |
+| **AWS S3** | Almacenamiento de imágenes de productos |
+| **Open Food Facts** | Datos de productos por código de barras (sin API key) |
+| **OneSignal** | Notificaciones push PWA |
+| **Vercel** | Deploy de web y api |
+| **Docker** | PostgreSQL local para desarrollo |
+| **pnpm workspaces + Turborepo** | Monorepo con builds incrementales |
+
+---
+
+## Modelo de datos (simplificado)
+
+```
+products          → inventario personal con stockLevel: full | half | empty
+shopping_list_items → productos pendientes de comprar (sincronizados con stock)
+shopping_trips    → historial de tickets por tienda
+product_purchases → línea de cada producto comprado con precio y cantidad
+payments          → pagos recurrentes mensuales
+households        → hogares compartidos entre usuarios
+```
+
+El `stockLevel` es la fuente de verdad. Al marcarlo como `half` o `empty` el producto se agrega automáticamente a la lista de compras. Al finalizar la sesión de supermercado se resetea a `full`.
+
+---
+
+## Desarrollo local
+
+### Requisitos
+
+- Node ≥ 20
+- pnpm ≥ 9
+- Docker (para PostgreSQL local)
+
+### Setup
+
+```bash
+# Instalar dependencias
+pnpm install
+
+# Levantar base de datos local
+pnpm docker:up
+
+# Correr migraciones
+pnpm --filter api migration:run
+
+# Arrancar en modo desarrollo (web + api en paralelo)
+pnpm dev
+```
+
+- Web: http://localhost:3000
+- API: http://localhost:3001
+- Swagger: http://localhost:3001/api/docs
+
+### Variables de entorno
+
+Crea `apps/web/.env.local` y `apps/api/.env` con:
+
+```env
+# apps/api/.env
+DATABASE_URL=postgresql://...
+JWT_SECRET=...
+
+# apps/web/.env.local
+NEXT_PUBLIC_API_URL=http://localhost:3001
+SESSION_SECRET=...
+AWS_S3_BUCKET=...
+AWS_REGION=...
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+ONESIGNAL_APP_ID=...
+ONESIGNAL_REST_API_KEY=...
 ```
 
 ---
+
+## Scripts
+
+```bash
+pnpm dev          # Arranca web + api en paralelo
+pnpm build        # Build completo del monorepo
+pnpm lint         # Lint de todos los paquetes
+pnpm docker:up    # Levanta PostgreSQL local
+pnpm docker:down  # Para PostgreSQL local
+```
+
+---
+
+## Testing
+
+```bash
+# Unit tests (web)
+pnpm --filter @foody/web test
+
+# E2E tests (web)
+pnpm --filter @foody/web test:e2e
+
+# Unit tests (api)
+pnpm --filter @foody/api test
+```
+
 
 ## Requisitos
 
