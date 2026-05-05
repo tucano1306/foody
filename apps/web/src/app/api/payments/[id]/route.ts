@@ -39,7 +39,7 @@ function mapPayment(row: Record<string, unknown>) {
     name: asText(row.name),
     description: (row.description as string | null | undefined) ?? null,
     amount: asNumber(row.amount),
-    currency: asText(row.currency, 'USD'),
+    currency: asText(row.currency, 'MXN'),
     dueDay,
     category: asText(row.category, 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
@@ -52,13 +52,24 @@ function mapPayment(row: Record<string, unknown>) {
   };
 }
 
+function getCurrentMonthYear(): { month: number; year: number } {
+  const now = new Date();
+  return { month: now.getMonth() + 1, year: now.getFullYear() };
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
   const rows = await sql`SELECT * FROM monthly_payments WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;
   if (!rows.length) return notFound();
-  return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>));
+
+  const { month, year } = getCurrentMonthYear();
+  const records = await sql`SELECT status FROM payment_records WHERE payment_id = ${id} AND user_id = ${user.userId} AND month = ${month} AND year = ${year} LIMIT 1`;
+  const isPaidThisMonth = records[0]?.status === 'paid';
+
+  const payment = mapPayment(rows[0] as Record<string, unknown>);
+  return NextResponse.json({ ...payment, isPaidThisMonth });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

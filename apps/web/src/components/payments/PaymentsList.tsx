@@ -36,6 +36,26 @@ export default function PaymentsList({ initialPayments }: Props) {
   const totalExpenses = payments.reduce((sum, p) => sum + p.amount, 0);
   const totalPaid = paid.reduce((sum, p) => sum + p.amount, 0);
 
+  // Use the most common currency, fallback to MXN
+  const currencies = payments.map((p) => p.currency);
+  const dominantCurrency = currencies.length > 0
+    ? [...currencies].sort((a, b) => currencies.filter((c) => c === b).length - currencies.filter((c) => c === a).length)[0]
+    : 'MXN';
+  const mixedCurrencies = new Set(currencies).size > 1;
+
+  function formatTotal(value: number): string {
+    if (mixedCurrencies) return value.toFixed(2);
+    try {
+      return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: dominantCurrency,
+        maximumFractionDigits: 2,
+      }).format(value);
+    } catch {
+      return `${dominantCurrency} ${value.toFixed(2)}`;
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -53,7 +73,7 @@ export default function PaymentsList({ initialPayments }: Props) {
             Total mensual
           </p>
           <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            ${totalExpenses.toFixed(2)}
+            {formatTotal(totalExpenses)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
           </p>
         </div>
 
@@ -68,7 +88,7 @@ export default function PaymentsList({ initialPayments }: Props) {
             Pagado
           </p>
           <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            ${totalPaid.toFixed(2)}
+            {formatTotal(totalPaid)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
           </p>
         </div>
 
@@ -83,7 +103,7 @@ export default function PaymentsList({ initialPayments }: Props) {
             Pendiente
           </p>
           <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            ${(totalExpenses - totalPaid).toFixed(2)}
+            {formatTotal(totalExpenses - totalPaid)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
           </p>
         </div>
       </div>

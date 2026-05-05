@@ -23,7 +23,7 @@ export default function PaymentForm() {
     name: '',
     amount: 0,
     dueDay: 1,
-    currency: 'USD',
+    currency: 'MXN',
     category: 'other',
     description: '',
   });
