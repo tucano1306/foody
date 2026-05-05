@@ -1,3 +1,4 @@
+<!-- cspell:disable -->
 # 🥑 Foody
 
 Aplicación personal para gestionar el inventario de despensa, compras del supermercado, pagos recurrentes y estadísticas de consumo — con modo **Casa** y modo **Supermercado**.
