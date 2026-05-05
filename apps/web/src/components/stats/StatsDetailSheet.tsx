@@ -136,7 +136,10 @@ export default function StatsDetailSheet({ open, detail, onClose }: Props) {
     }
 
     fetch(`/api/stats/detail?type=${type}&${param}`, { credentials: 'include' })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('fetch error');
+        return r.json() as Promise<unknown[]>;
+      })
       .then((data) => setRows(data as typeof rows))
       .catch(() => setError('No se pudo cargar el detalle'))
       .finally(() => setLoading(false));

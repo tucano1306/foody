@@ -108,9 +108,11 @@ export default function StatsContent({
               </span>
             )}
           </div>
-          <p className="text-stone-500 dark:text-stone-400 text-xs mb-4">
-            Toca un mes para ver el detalle
-          </p>
+          {monthlySpending.length > 0 && (
+            <p className="text-stone-500 dark:text-stone-400 text-xs mb-4">
+              Toca un mes para ver el detalle
+            </p>
+          )}
 
           {monthlySpending.length === 0 ? (
             <p className="text-stone-500 dark:text-stone-400 text-sm text-center py-4">
@@ -363,7 +365,7 @@ export default function StatsContent({
                         {store.name}
                       </span>
                       <span className="text-stone-500 dark:text-stone-400 text-xs">
-                        {store.trips} {store.trips === 1 ? 'visita' : 'visitas'} ·{' '}
+                        {store.trips} {store.trips === 1 ? 'compra' : 'compras'} ·{' '}
                         {formatCurrency(store.totalSpent)}
                       </span>
                     </div>
