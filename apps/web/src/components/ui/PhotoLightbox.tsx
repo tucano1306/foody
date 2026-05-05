@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * PhotoLightbox — Photo viewer
+ * PhotoLightbox — Mobile photo viewer
  *
- * Desktop: simple fullscreen photo + close button (no lens, no zoom panel —
- *          they were causing GPU compositor flicker on laptops)
- * Mobile:  Amazon-style pinch-to-zoom, double-tap, drag when zoomed
+ * Amazon-style pinch-to-zoom, double-tap, drag when zoomed.
+ * ProductCard already guards against desktop (pointer: fine without touch),
+ * so this component always renders the mobile lightbox directly.
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 interface Props {
   readonly src: string;
@@ -17,172 +17,7 @@ interface Props {
   readonly originRect?: DOMRect;
 }
 
-// ─── Desktop lightbox — scroll/double-click zoom + drag ─────────────────────
-// Pure CSS-transform zoom (no canvas, no lens overlay) → zero GPU compositor
-// flicker. All interactions are imperative (no setState) so there are no
-// React re-renders during gestures.
-function getCursor(scale: number, isDragging: boolean): string {
-  if (scale <= 1) return 'zoom-in';
-  return isDragging ? 'grabbing' : 'grab';
-}
-function DesktopLightbox({ src, alt, onClose, originRect: _originRect }: Props) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const imgDivRef = useRef<HTMLDivElement>(null);
-  // Stable ref so the main useEffect can use onClose without it as a dep
-  const onCloseRef = useRef(onClose);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-
-  // Lock body scroll
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
-  // Zoom + drag + close — one effect, all imperative
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!dialogRef.current || !imgDivRef.current) return;
-    const dlg = dialogRef.current;
-    const imgDiv = imgDivRef.current;
-
-    const st = { scale: 1, x: 0, y: 0, dragging: false, didDrag: false, startX: 0, startY: 0 };
-
-    function apply(transition = false) {
-      if (transition) imgDiv.style.transition = 'transform 0.22s ease';
-      imgDiv.style.transform = `translate(${st.x}px, ${st.y}px) scale(${st.scale})`;
-      dlg.style.cursor = getCursor(st.scale, st.dragging);
-      if (transition) setTimeout(() => { imgDiv.style.transition = 'none'; }, 240);
-    }
-
-    function reset() {
-      st.scale = 1; st.x = 0; st.y = 0;
-      apply(true);
-    }
-
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onCloseRef.current(); }
-
-    function onWheel(e: WheelEvent) {
-      e.preventDefault();
-      st.scale = Math.min(8, Math.max(1, st.scale * (e.deltaY < 0 ? 1.15 : 0.87)));
-      if (st.scale === 1) { st.x = 0; st.y = 0; }
-      apply();
-    }
-
-    function onMouseDown(e: MouseEvent) {
-      if (st.scale <= 1) return;
-      st.dragging = true;
-      st.didDrag = false;
-      st.startX = e.clientX - st.x;
-      st.startY = e.clientY - st.y;
-      apply();
-      e.preventDefault();
-    }
-
-    function onMouseMove(e: MouseEvent) {
-      if (!st.dragging) return;
-      st.x = e.clientX - st.startX;
-      st.y = e.clientY - st.startY;
-      st.didDrag = true;
-      apply();
-    }
-
-    function onMouseUp() {
-      st.dragging = false;
-      apply();
-      setTimeout(() => { st.didDrag = false; }, 0);
-    }
-
-    function onDblClick() {
-      if (st.scale > 1) {
-        reset();
-      } else {
-        st.scale = 3;
-        apply();
-      }
-    }
-
-    function onClick(e: MouseEvent) {
-      if (st.didDrag) return;
-      const target = e.target as HTMLElement;
-      if (target.dataset.backdrop === 'true' || target === dlg) onCloseRef.current();
-    }
-
-    apply(); // set initial cursor
-
-    document.addEventListener('keydown', onKey);
-    dlg.addEventListener('wheel', onWheel, { passive: false });
-    dlg.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-    dlg.addEventListener('dblclick', onDblClick);
-    dlg.addEventListener('click', onClick);
-
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      dlg.removeEventListener('wheel', onWheel);
-      dlg.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      dlg.removeEventListener('dblclick', onDblClick);
-      dlg.removeEventListener('click', onClick);
-    };
-  }, []); // intentional — all callbacks use stable refs
-
-  return (
-    <dialog
-      ref={dialogRef}
-      open
-      aria-label={`Foto de ${alt}`}
-      data-backdrop="true"
-      className="fixed inset-0 z-50 w-full h-full max-w-none max-h-none m-0 p-0 border-0 bg-black/90 animate-[fadeIn_0.16s_ease-out]"
-    >
-      {/* Top bar */}
-      <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/50 backdrop-blur-sm">
-        <span className="text-white/80 font-medium text-sm truncate max-w-[60%]">{alt}</span>
-        <div className="flex items-center gap-3">
-          <span className="hidden sm:block text-white/40 text-xs">Scroll · Doble clic para zoom</span>
-          <button
-            type="button"
-            aria-label="Cerrar"
-            onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-white/70 text-lg transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-
-      {/* Image area */}
-      <div
-        data-backdrop="true"
-        className="absolute inset-0 top-13 flex items-center justify-center overflow-hidden"
-      >
-        <div
-          ref={imgDivRef}
-          style={{ transformOrigin: 'center center', willChange: 'transform', lineHeight: 0 }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt={alt}
-            style={{
-              maxWidth: '90vw',
-              maxHeight: 'calc(90vh - 52px)',
-              objectFit: 'contain',
-              userSelect: 'none',
-              display: 'block',
-              pointerEvents: 'none',
-            }}
-            draggable={false}
-          />
-        </div>
-      </div>
-    </dialog>
-  );
-}
-
-// ─── Original mobile lightbox (Amazon-style with gestures) ──────────────────
+// ─── Mobile lightbox (Amazon-style pinch-to-zoom, double-tap, drag) ─────────
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 8;
@@ -197,20 +32,8 @@ function getDist(touches: TouchList) {
 }
 
 export default function PhotoLightbox(props: Props) {
-  // Detect once on mount.
-  // Use the CSS media features instead of `ontouchstart` so that laptops with
-  // touchscreens (which DO have ontouchstart) are still treated as desktops
-  // when they have a real mouse — `pointer: fine` means a mouse/trackpad.
-  const [isMobile] = useState(() => {
-    if (typeof globalThis === 'undefined' || typeof globalThis.matchMedia !== 'function') {
-      return false;
-    }
-    const hasFinePointer = globalThis.matchMedia('(pointer: fine)').matches;
-    const isCoarseOnly   = globalThis.matchMedia('(pointer: coarse)').matches && !hasFinePointer;
-    return isCoarseOnly;
-  });
-
-  if (!isMobile) return null;
+  // ProductCard already guards against desktop via `pointer: fine` check,
+  // so here we always render the mobile lightbox.
   return <MobileLightbox {...props} />;
 }
 

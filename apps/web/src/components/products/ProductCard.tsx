@@ -10,7 +10,7 @@ import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
 
 // Loaded only when user taps a product photo or the gift button
-const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'));
+const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
 const SendGiftModal = dynamic(() => import('@/components/sharing/SendGiftModal'));
 
 interface LastPurchase {
