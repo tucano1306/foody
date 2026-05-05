@@ -296,7 +296,17 @@
     "pudieron",
     "guardar",
     "neondatabase",
-    "focusable"
+    "focusable",
+    "Doble",
+    "doble",
+    "clic",
+    "trackpad",
+    "Pasa",
+    "pasa",
+    "sobre",
+    "imagen",
+    "Pellizca",
+    "pellizca"
   ],
   "ignorePaths": [
     "node_modules/**",
