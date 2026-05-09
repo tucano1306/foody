@@ -5,16 +5,25 @@ import { parseReceiptText } from '@/lib/receipt-parser';
 import type { ReceiptParseResult } from '@/lib/receipt-parser';
 export type { ReceiptParseResult } from '@/lib/receipt-parser';
 
-/** Resize large images before OCR to avoid WebAssembly OOM on mobile */
-function compressImageFile(file: File, maxWidth = 1400): Promise<Blob> {
+/**
+ * Resize + compress image before OCR to prevent WebAssembly OOM on mobile.
+ * Limits the longest side to maxPx AND caps total pixel count to ~1.2 MP,
+ * whichever scale factor is smaller.
+ */
+function compressImageFile(file: File, maxPx = 1000): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const scale = Math.min(1, maxWidth / img.width);
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
+      // Scale so neither side exceeds maxPx
+      const scaleByDim = Math.min(1, maxPx / Math.max(img.width, img.height));
+      // Also cap total pixels at 1.2 MP to stay well within mobile WASM limits
+      const MAX_PIXELS = 1_200_000;
+      const scaleByPixels = Math.sqrt(MAX_PIXELS / (img.width * img.height));
+      const scale = Math.min(scaleByDim, scaleByPixels, 1);
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
@@ -24,7 +33,7 @@ function compressImageFile(file: File, maxWidth = 1400): Promise<Blob> {
       canvas.toBlob(
         (blob) => { blob ? resolve(blob) : reject(new Error('Error al comprimir la imagen')); },
         'image/jpeg',
-        0.88,
+        0.85,
       );
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo cargar la imagen')); };
@@ -78,7 +87,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
 
       try {
         // Compress image to ≤1400px wide to prevent WebAssembly OOM on mobile
-        const compressed = await compressImageFile(file, 1400);
+        const compressed = await compressImageFile(file);
 
         // Dynamically import Tesseract to avoid SSR / initial bundle bloat
         const { createWorker } = await import('tesseract.js');
