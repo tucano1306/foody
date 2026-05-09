@@ -3,7 +3,7 @@ import type { NextConfig } from 'next';
 const CSP = [
   "default-src 'self'",
   // unsafe-inline for Next.js; wasm-unsafe-eval for Tesseract.js WebAssembly; CDNs for OneSignal + Tesseract
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.onesignal.com https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.onesignal.com https://api.onesignal.com https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline'",    // Tailwind inlines styles
   "img-src 'self' data: blob: https://*.amazonaws.com https://img.onesignal.com",
   "font-src 'self'",
