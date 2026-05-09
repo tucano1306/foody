@@ -5,6 +5,43 @@ import { parseReceiptText } from '@/lib/receipt-parser';
 import type { ReceiptParseResult } from '@/lib/receipt-parser';
 export type { ReceiptParseResult } from '@/lib/receipt-parser';
 
+/** Resize large images before OCR to avoid WebAssembly OOM on mobile */
+function compressImageFile(file: File, maxWidth = 1400): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas no disponible')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => { blob ? resolve(blob) : reject(new Error('Error al comprimir la imagen')); },
+        'image/jpeg',
+        0.88,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo cargar la imagen')); };
+    img.src = url;
+  });
+}
+
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'string' && err.trim().length > 0) return err;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const msg = String((err as Record<string, unknown>).message);
+    if (msg && msg !== 'undefined') return msg;
+  }
+  return 'No se pudo inicializar el lector. Verifica tu conexión a internet e inténtalo de nuevo.';
+}
+
 interface Props {
   readonly onResult: (data: ReceiptParseResult) => void;
   readonly onClose: () => void;
@@ -40,13 +77,21 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       setPreview(objectUrl);
 
       try {
+        // Compress image to ≤1400px wide to prevent WebAssembly OOM on mobile
+        const compressed = await compressImageFile(file, 1400);
+
         // Dynamically import Tesseract to avoid SSR / initial bundle bloat
         const { createWorker } = await import('tesseract.js');
         const worker = await createWorker('eng', 1, {
+          // workerBlobURL:false loads worker directly from CDN URL (no blob: needed)
+          workerBlobURL: false,
           logger: (m: { status: string; progress: number }) => {
             if (m.status === 'recognizing text') {
               setProgressPct(Math.round(m.progress * 100));
             }
+          },
+          errorHandler: (err: unknown) => {
+            console.error('[Tesseract]', err);
           },
         });
 
@@ -56,7 +101,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
           return;
         }
 
-        const { data: { text } } = await worker.recognize(file);
+        const { data: { text } } = await worker.recognize(compressed);
         await worker.terminate();
 
         if (abortRef.current) {
@@ -69,7 +114,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         onResult(parsed);
       } catch (err) {
         URL.revokeObjectURL(objectUrl);
-        setErrorMsg(err instanceof Error ? err.message : 'Error desconocido');
+        setErrorMsg(extractErrorMessage(err));
         setState('error');
       }
     },

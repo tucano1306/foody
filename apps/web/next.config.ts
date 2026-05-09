@@ -2,12 +2,15 @@ import type { NextConfig } from 'next';
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.onesignal.com",  // unsafe-inline for Next.js; CDN for OneSignal
+  // unsafe-inline for Next.js; wasm-unsafe-eval for Tesseract.js WebAssembly; CDNs for OneSignal + Tesseract
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.onesignal.com https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline'",    // Tailwind inlines styles
   "img-src 'self' data: blob: https://*.amazonaws.com https://img.onesignal.com",
   "font-src 'self'",
-  "connect-src 'self' https://*.neon.tech https://onesignal.com https://*.onesignal.com",
-  "worker-src 'self'",                   // service workers must come from same origin
+  // cdn.jsdelivr.net: Tesseract.js WASM core + traineddata downloads
+  "connect-src 'self' https://*.neon.tech https://onesignal.com https://*.onesignal.com https://cdn.jsdelivr.net",
+  // blob: needed for Tesseract.js blob-URL web workers; https://cdn.jsdelivr.net for direct worker URL fallback
+  "worker-src 'self' blob: https://cdn.jsdelivr.net",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
