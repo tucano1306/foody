@@ -9,8 +9,8 @@ const CSP = [
   "font-src 'self'",
   // cdn.jsdelivr.net: Tesseract.js WASM core + traineddata downloads
   "connect-src 'self' https://*.neon.tech https://onesignal.com https://*.onesignal.com https://cdn.jsdelivr.net",
-  // blob: needed for Tesseract.js blob-URL web workers; https://cdn.jsdelivr.net for direct worker URL fallback
-  "worker-src 'self' blob: https://cdn.jsdelivr.net",
+  // blob: for Tesseract.js workers; cdn.jsdelivr.net for Tesseract worker URL; cdn.onesignal.com for OneSignalSDKWorker importScripts
+  "worker-src 'self' blob: https://cdn.jsdelivr.net https://cdn.onesignal.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
