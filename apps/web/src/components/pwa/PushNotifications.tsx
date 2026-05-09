@@ -44,7 +44,6 @@ function initOneSignal(OneSignal: OneSignalSDK) {
       appId: APP_ID,
       serviceWorkerParam: { scope: '/' },
       serviceWorkerPath: '/sw.js',
-      serviceWorkerUpdaterPath: '/sw.js',
       notifyButton: { enable: false },
       welcomeNotification: { disable: true },
       allowLocalhostAsSecureOrigin: process.env.NODE_ENV === 'development',
@@ -81,7 +80,11 @@ export default function PushNotifications() {
     if (!APP_ID || !('serviceWorker' in navigator)) return;
 
     globalThis.OneSignalDeferred = globalThis.OneSignalDeferred ?? [];
-    globalThis.OneSignalDeferred.push(initOneSignal);
+    // Wait for the service worker to be active before initializing OneSignal
+    // to avoid the "[WM] No SW registration for postMessage" warning.
+    navigator.serviceWorker.ready
+      .then(() => { globalThis.OneSignalDeferred!.push(initOneSignal); })
+      .catch(() => { globalThis.OneSignalDeferred!.push(initOneSignal); });
   }, []);
 
   if (!APP_ID) return null;
