@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
 
-type StockFilter = 'all' | StockLevel;
+type StockFilter = 'all' | 'low' | StockLevel;
 type ViewMode = 'grid' | 'categories';
 
 interface Props {
@@ -22,7 +23,8 @@ interface Props {
 
 const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
   { key: 'all', label: 'Todos' },
-  { key: 'half', label: 'Bajo stock' },
+  { key: 'low', label: 'Stock bajo' },
+  { key: 'half', label: 'Mitad' },
   { key: 'empty', label: 'Sin stock' },
   { key: 'full', label: 'OK' },
 ];
@@ -198,15 +200,19 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     onLevelChange,
   } = props;
 
+  const searchParams = useSearchParams();
+  const initialFilter = (searchParams.get('filter') ?? 'all') as StockFilter;
+
   const [query, setQuery] = useState('');
-  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
+  const [stockFilter, setStockFilter] = useState<StockFilter>(initialFilter);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('categories');
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((p) => {
-      if (stockFilter !== 'all' && p.stockLevel !== stockFilter) return false;
+      if (stockFilter === 'low' && p.stockLevel === 'full') return false;
+      if (stockFilter !== 'all' && stockFilter !== 'low' && p.stockLevel !== stockFilter) return false;
       if (!q) return true;
       const hay = `${p.name} ${p.category ?? ''} ${p.description ?? ''}`.toLowerCase();
       return hay.includes(q);

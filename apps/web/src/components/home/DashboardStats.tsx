@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 interface Props {
   readonly totalProducts: number;
@@ -15,6 +16,7 @@ interface Stat {
   readonly sublabel: string;
   readonly icon: string;
   readonly color: string;
+  readonly href: string;
 }
 
 export default function DashboardStats({
@@ -29,28 +31,32 @@ export default function DashboardStats({
       value: totalProducts,
       sublabel: totalProducts === 1 ? 'artículo registrado' : 'artículos registrados',
       icon: '📦',
-      color: '#0ea5e9', // sky-500
+      color: '#0ea5e9',
+      href: '/products',
     },
     {
       label: 'Stock bajo',
       value: runningLowCount,
       sublabel: runningLowCount === 0 ? 'todo en orden' : 'requieren reposición',
       icon: '⚠️',
-      color: runningLowCount > 0 ? '#f59e0b' : '#a7ce39', // amber-500 / energy
+      color: runningLowCount > 0 ? '#f59e0b' : '#a7ce39',
+      href: '/products?filter=low',
     },
     {
       label: 'Pagos próximos',
       value: upcomingPaymentsCount,
       sublabel: upcomingPaymentsCount === 0 ? 'sin vencimientos' : 'vencen este mes',
       icon: '💳',
-      color: upcomingPaymentsCount > 0 ? '#ef4444' : '#a7ce39', // red-500 / energy
+      color: upcomingPaymentsCount > 0 ? '#ef4444' : '#a7ce39',
+      href: '/payments',
     },
     {
       label: 'Gasto del mes',
       value: new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(totalMonthlyExpenses),
       sublabel: 'presupuesto estimado',
       icon: '💰',
-      color: '#003b71', // brand-600
+      color: '#003b71',
+      href: '/shopping-trips',
     },
   ];
 
@@ -68,32 +74,36 @@ export default function DashboardStats({
           transition={{ type: 'spring', stiffness: 340, damping: 22 }}
           whileHover="card_hovered"
           whileTap="card_tapped"
-          className="flex flex-col items-center text-center bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm hover:shadow-lg cursor-default"
         >
-          <motion.div
-            className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3 shadow-md"
-            style={{
-              backgroundColor: stat.color,
-              boxShadow: `0 8px 20px -6px ${stat.color}`,
-            }}
-            aria-hidden="true"
-            variants={{
-              card_hovered: { scale: 1.22, rotate: [0, -14, 14, -8, 8, 0], y: -4 },
-              card_tapped: { scale: 0.85 },
-            }}
-            transition={{ type: 'spring', stiffness: 420, damping: 12 }}
+          <Link
+            href={stat.href}
+            className="flex flex-col items-center text-center bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm hover:shadow-lg active:scale-95 transition-[box-shadow,transform] duration-150 focus-visible:outline-2 focus-visible:outline-brand-500"
           >
-            <span className="text-xl sm:text-2xl leading-none">{stat.icon}</span>
-          </motion.div>
-          <h3 className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500 leading-tight">
-            {stat.label}
-          </h3>
-          <p className="stat-value mt-2 text-2xl sm:text-3xl font-extrabold text-stone-900 leading-none break-all">
-            {stat.value}
-          </p>
-          <p className="mt-1.5 text-[10px] sm:text-xs text-stone-400 truncate max-w-full">
-            {stat.sublabel}
-          </p>
+            <motion.div
+              className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3 shadow-md"
+              style={{
+                backgroundColor: stat.color,
+                boxShadow: `0 8px 20px -6px ${stat.color}`,
+              }}
+              aria-hidden="true"
+              variants={{
+                card_hovered: { scale: 1.22, rotate: [0, -14, 14, -8, 8, 0], y: -4 },
+                card_tapped: { scale: 0.85 },
+              }}
+              transition={{ type: 'spring', stiffness: 420, damping: 12 }}
+            >
+              <span className="text-xl sm:text-2xl leading-none">{stat.icon}</span>
+            </motion.div>
+            <h3 className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500 leading-tight">
+              {stat.label}
+            </h3>
+            <p className="stat-value mt-2 text-2xl sm:text-3xl font-extrabold text-stone-900 leading-none break-all">
+              {stat.value}
+            </p>
+            <p className="mt-1.5 text-[10px] sm:text-xs text-stone-400 truncate max-w-full">
+              {stat.sublabel}
+            </p>
+          </Link>
         </motion.div>
       ))}
     </motion.div>
