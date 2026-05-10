@@ -92,9 +92,10 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         // Dynamically import Tesseract to avoid SSR / initial bundle bloat
         const { createWorker } = await import('tesseract.js');
         const worker = await createWorker('eng', 1, {
-          // Serve worker from same origin to avoid cross-origin importScripts
-          // failures on mobile browsers (blob worker cannot load CDN scripts).
+          // Serve worker + WASM core from same origin to avoid cross-origin
+          // importScripts failures on mobile browsers.
           workerPath: '/tesseract-worker.min.js',
+          corePath: '/tesseract-core',
           logger: (m: { status: string; progress: number }) => {
             if (m.status === 'recognizing text') {
               setProgressPct(Math.round(m.progress * 100));
