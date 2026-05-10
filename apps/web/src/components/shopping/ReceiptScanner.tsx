@@ -123,6 +123,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
             // All assets served from same origin → no cross-origin importScripts failures
             workerPath: '/tesseract-worker.min.js',
             corePath: '/tesseract-core',
+            langPath: '/tessdata',
             logger: (m: { status: string; progress: number }) => {
               if (abortRef.current) return;
               const label = PHASE_LABELS[m.status] ?? m.status;
