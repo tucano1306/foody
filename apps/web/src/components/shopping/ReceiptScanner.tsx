@@ -92,8 +92,6 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         // Dynamically import Tesseract to avoid SSR / initial bundle bloat
         const { createWorker } = await import('tesseract.js');
         const worker = await createWorker('eng', 1, {
-          // workerBlobURL:false loads worker directly from CDN URL (no blob: needed)
-          workerBlobURL: false,
           logger: (m: { status: string; progress: number }) => {
             if (m.status === 'recognizing text') {
               setProgressPct(Math.round(m.progress * 100));
