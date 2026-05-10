@@ -80,11 +80,7 @@ export default function PushNotifications() {
     if (!APP_ID || !('serviceWorker' in navigator)) return;
 
     globalThis.OneSignalDeferred = globalThis.OneSignalDeferred ?? [];
-    // Wait for the service worker to be active before initializing OneSignal
-    // to avoid the "[WM] No SW registration for postMessage" warning.
-    navigator.serviceWorker.ready
-      .then(() => { globalThis.OneSignalDeferred!.push(initOneSignal); })
-      .catch(() => { globalThis.OneSignalDeferred!.push(initOneSignal); });
+    globalThis.OneSignalDeferred.push(initOneSignal);
   }, []);
 
   if (!APP_ID) return null;

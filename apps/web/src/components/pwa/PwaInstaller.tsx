@@ -10,7 +10,6 @@ interface BeforeInstallPromptEvent extends Event {
 function registerWorker(): void {
   navigator.serviceWorker
     .register('/sw.js', { updateViaCache: 'none' })
-    .then((registration) => registration.update())
     .catch(() => null);
 }
 
@@ -66,15 +65,15 @@ export default function PwaInstaller() {
           </p>
           <div className="flex gap-2 mt-3">
             <button
+              type="button"
               onClick={install}
-              className="flex-1 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold py-2 rounded-xl transition"
-            >
+              className="flex-1 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold py-2 rounded-xl transition">
               Instalar
             </button>
             <button
+              type="button"
               onClick={dismiss}
-              className="px-3 text-sm text-stone-500 hover:text-stone-700 transition"
-            >
+              className="px-3 text-sm text-stone-500 hover:text-stone-700 transition">
               Después
             </button>
           </div>

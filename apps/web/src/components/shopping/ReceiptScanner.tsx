@@ -45,8 +45,8 @@ function extractErrorMessage(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === 'string' && err.trim().length > 0) return err;
   if (typeof err === 'object' && err !== null && 'message' in err) {
-    const msg = String((err as Record<string, unknown>).message);
-    if (msg && msg !== 'undefined') return msg;
+    const raw = (err as { message: unknown }).message;
+    if (typeof raw === 'string' && raw.trim().length > 0) return raw;
   }
   return 'No se pudo inicializar el lector. Verifica tu conexión a internet e inténtalo de nuevo.';
 }
