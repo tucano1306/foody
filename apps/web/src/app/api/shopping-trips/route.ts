@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY purchased_at DESC`;
+  const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY date DESC`;
   return NextResponse.json(rows);
 }
 
@@ -156,9 +156,9 @@ export async function POST(request: NextRequest) {
   // Create trip
   await sql`
     INSERT INTO shopping_trips
-      (id, store_id, store_name, purchased_at, total_amount, currency, allocation_strategy, receipt_photo_url, notes, user_id, created_at, updated_at)
+      (id, store_id, store_name, date, total_spent, currency, notes, user_id, created_at, updated_at)
     VALUES
-      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${strategy}, ${body.receiptPhotoUrl ?? null}, ${body.notes ?? null}, ${user.userId}, ${now}, ${now})
+      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${user.userId}, ${now}, ${now})
   `;
 
   // Create product purchases
