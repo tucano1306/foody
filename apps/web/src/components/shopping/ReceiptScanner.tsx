@@ -307,6 +307,11 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
               <span aria-hidden="true">🖼️</span> Elegir imagen de galería
             </button>
 
+            {/* Tip: better results with flash */}
+            <p className="text-xs text-white/50 text-center">
+              💡 Activa la linterna para mejor lectura
+            </p>
+
             {state === 'error' && errorMsg && (
               <p className="text-xs text-red-400 text-center">{errorMsg}</p>
             )}
