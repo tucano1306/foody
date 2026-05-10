@@ -97,35 +97,51 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       const objectUrl = URL.createObjectURL(file);
       setPreview(objectUrl);
 
+      // Tesseract worker instance — kept outside try so finally can terminate it
+      let worker: { terminate: () => Promise<void>; recognize: (img: Blob) => Promise<{ data: { text: string } }> } | null = null;
+
+      // Hard timeout: if nothing finishes in 2 min, surface an error
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Tiempo de espera agotado. Comprueba tu conexión e inténtalo de nuevo.')),
+          120_000,
+        );
+      });
+
       try {
-        // Compress image to ≤1400px wide to prevent WebAssembly OOM on mobile
+        // Compress image to prevent WebAssembly OOM on mobile
         const compressed = await compressImageFile(file);
 
         // Dynamically import Tesseract to avoid SSR / initial bundle bloat
         const { createWorker } = await import('tesseract.js');
-        const worker = await createWorker('eng', 1, {
-          // Serve worker + WASM core from same origin to avoid cross-origin
-          // importScripts failures on mobile browsers.
-          workerPath: '/tesseract-worker.min.js',
-          corePath: '/tesseract-core',
-          logger: (m: { status: string; progress: number }) => {
-            const label = PHASE_LABELS[m.status] ?? m.status;
-            setPhase(label);
-            setProgressPct(Math.round(m.progress * 100));
-          },
-          errorHandler: (err: unknown) => {
-            console.error('[Tesseract]', err);
-          },
-        });
+
+        // Race createWorker against the hard timeout
+        worker = await Promise.race([
+          createWorker('eng', 1, {
+            // All assets served from same origin → no cross-origin importScripts failures
+            workerPath: '/tesseract-worker.min.js',
+            corePath: '/tesseract-core',
+            logger: (m: { status: string; progress: number }) => {
+              if (abortRef.current) return;
+              const label = PHASE_LABELS[m.status] ?? m.status;
+              setPhase(label);
+              setProgressPct(Math.round(m.progress * 100));
+            },
+            // NOTE: no errorHandler — let errors propagate to the catch block
+          }),
+          timeoutPromise,
+        ]);
 
         if (abortRef.current) {
-          await worker.terminate();
           URL.revokeObjectURL(objectUrl);
           return;
         }
 
-        const { data: { text } } = await worker.recognize(compressed);
-        await worker.terminate();
+        const { data: { text } } = await Promise.race([
+          worker.recognize(compressed),
+          timeoutPromise,
+        ]);
 
         if (abortRef.current) {
           URL.revokeObjectURL(objectUrl);
@@ -139,6 +155,9 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         URL.revokeObjectURL(objectUrl);
         setErrorMsg(extractErrorMessage(err));
         setState('error');
+      } finally {
+        if (timeoutId !== null) clearTimeout(timeoutId);
+        await worker?.terminate().catch(() => null);
       }
     },
     [onResult],
