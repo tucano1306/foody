@@ -98,7 +98,8 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       setPreview(objectUrl);
 
       // Tesseract worker instance — kept outside try so finally can terminate it
-      let worker: { terminate: () => Promise<void>; recognize: (img: Blob) => Promise<{ data: { text: string } }> } | null = null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let worker: any = null;
 
       // Hard timeout: if nothing finishes in 2 min, surface an error
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
