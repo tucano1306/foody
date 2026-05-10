@@ -40,6 +40,13 @@ async function savePlayerId(id: string) {
 
 function initOneSignal(OneSignal: OneSignalSDK) {
   void (async () => {
+    // Wait for an active SW before initialising OneSignal so that
+    // navigator.serviceWorker.controller is non-null and the SDK can
+    // immediately postMessage without logging "[WM] No SW registration".
+    if ('serviceWorker' in navigator) {
+      await navigator.serviceWorker.ready;
+    }
+
     await OneSignal.init({
       appId: APP_ID,
       serviceWorkerParam: { scope: '/' },
