@@ -58,8 +58,18 @@ interface Props {
 
 type ScanState = 'idle' | 'processing' | 'done' | 'error';
 
-function getStatusText(state: ScanState): string {
-  if (state === 'processing') return 'Leyendo recibo… puede tardar unos segundos';
+const PHASE_LABELS: Record<string, string> = {
+  'loading tesseract core': 'Cargando motor de lectura…',
+  'initializing tesseract': 'Inicializando…',
+  'initializing api': 'Inicializando…',
+  'loading language traineddata': 'Cargando modelo de idioma…',
+  'initialized tesseract': 'Motor listo…',
+  'initialized api': 'Motor listo…',
+  'recognizing text': 'Analizando texto…',
+};
+
+function getStatusText(state: ScanState, phase: string): string {
+  if (state === 'processing') return phase.length > 0 ? phase : 'Preparando lector…';
   if (state === 'done') return 'Listo';
   if (state === 'error') return 'No se pudo leer el recibo';
   return '';
@@ -69,6 +79,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
   const [state, setState] = useState<ScanState>('idle');
   const [preview, setPreview] = useState<string | null>(null);
   const [progressPct, setProgressPct] = useState(0);
+  const [phase, setPhase] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -80,6 +91,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       setState('processing');
       setErrorMsg(null);
       setProgressPct(0);
+      setPhase('');
 
       // Show preview
       const objectUrl = URL.createObjectURL(file);
@@ -97,9 +109,9 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
           workerPath: '/tesseract-worker.min.js',
           corePath: '/tesseract-core',
           logger: (m: { status: string; progress: number }) => {
-            if (m.status === 'recognizing text') {
-              setProgressPct(Math.round(m.progress * 100));
-            }
+            const label = PHASE_LABELS[m.status] ?? m.status;
+            setPhase(label);
+            setProgressPct(Math.round(m.progress * 100));
           },
           errorHandler: (err: unknown) => {
             console.error('[Tesseract]', err);
@@ -144,7 +156,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
   }
 
   const isProcessing = state === 'processing';
-  const statusText = getStatusText(state);
+  const statusText = getStatusText(state, phase);
 
   return (
     <dialog
@@ -225,7 +237,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         )}
 
         {/* Progress bar */}
-        {isProcessing && progressPct > 0 && (
+        {isProcessing && (
           <div className="w-full max-w-sm h-1.5 rounded-full bg-white/20 overflow-hidden">
             <div
               className="h-full bg-brand-400 rounded-full transition-all duration-300"
