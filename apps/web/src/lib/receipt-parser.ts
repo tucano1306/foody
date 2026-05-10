@@ -60,10 +60,31 @@ const QTY_X_PRICE_RE = /(\d+(?:[.,]\d+)?)\s*[xX×@]\s*(\d+(?:[.,]\d+)?)/;
 /** Leading quantity like "  2  PRODUCT NAME" */
 const LEADING_QTY_RE = /^\s*(\d{1,3})\s{2,}(.+)/;
 
+// ─── OCR correction ───────────────────────────────────────────────────────────
+
+/**
+ * Fix common OCR character confusions in a numeric context (price strings).
+ * Applied only to the portion of a line that looks like a number.
+ * E.g. "n,74" → "30,74" is hard to fix generically; instead we fix the
+ * characters that Tesseract commonly swaps inside digit sequences:
+ *   l/I/| → 1,  O/o/D → 0,  S/s → 5,  B → 8,  G → 6,  Z → 2
+ */
+function fixOcrDigits(s: string): string {
+  return s
+    .replaceAll(/(?<=[0-9,. ])l(?=[0-9,. ]|$)/g, '1')
+    .replaceAll(/(?<=[0-9,. ])[Iī|](?=[0-9,. ]|$)/g, '1')
+    .replaceAll(/(?<=[0-9,. ])[Oo](?=[0-9,. ]|$)/g, '0')
+    .replaceAll(/(?<=[0-9,. ])S(?=[0-9,. ]|$)/g, '5')
+    .replaceAll(/(?<=[0-9,. ])B(?=[0-9,. ]|$)/g, '8')
+    .replaceAll(/(?<=[0-9,. ])G(?=[0-9,. ]|$)/g, '6')
+    .replaceAll(/(?<=[0-9,. ])Z(?=[0-9,. ]|$)/g, '2');
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseMoney(raw: string): number | null {
-  const cleaned = raw.replaceAll(/[^0-9.,-]/g, '').replace(',', '.');
+  const fixed = fixOcrDigits(raw);
+  const cleaned = fixed.replaceAll(/[^0-9.,-]/g, '').replace(',', '.');
   const n = Number.parseFloat(cleaned);
   return Number.isFinite(n) ? Math.abs(n) : null;
 }

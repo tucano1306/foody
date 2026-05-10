@@ -6,34 +6,54 @@ import type { ReceiptParseResult } from '@/lib/receipt-parser';
 export type { ReceiptParseResult } from '@/lib/receipt-parser';
 
 /**
- * Resize + compress image before OCR to prevent WebAssembly OOM on mobile.
- * Limits the longest side to maxPx AND caps total pixel count to ~1.2 MP,
- * whichever scale factor is smaller.
+ * Resize + preprocess image for OCR:
+ * 1. Scales to ≤ maxPx on longest side and ≤ 1.2 MP total (prevents WASM OOM on mobile)
+ * 2. Converts to greyscale
+ * 3. Boosts contrast so faint receipt ink becomes dark against white background
+ * These steps dramatically reduce OCR misreads (e.g. "3" → "n", "0" → "o").
  */
-function compressImageFile(file: File, maxPx = 1000): Promise<Blob> {
+function compressImageFile(file: File, maxPx = 1400): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      // Scale so neither side exceeds maxPx
+
+      // ── 1. Scale ──────────────────────────────────────────────────────────
       const scaleByDim = Math.min(1, maxPx / Math.max(img.width, img.height));
-      // Also cap total pixels at 1.2 MP to stay well within mobile WASM limits
       const MAX_PIXELS = 1_200_000;
       const scaleByPixels = Math.sqrt(MAX_PIXELS / (img.width * img.height));
       const scale = Math.min(scaleByDim, scaleByPixels, 1);
       const w = Math.max(1, Math.round(img.width * scale));
       const h = Math.max(1, Math.round(img.height * scale));
+
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext('2d');
       if (!ctx) { reject(new Error('Canvas no disponible')); return; }
+
       ctx.drawImage(img, 0, 0, w, h);
+
+      // ── 2. Greyscale + contrast boost via pixel manipulation ───────────────
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        // Luminosity greyscale
+        const grey = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        // Contrast stretch: push darks down and lights up (factor 1.6, pivot 128)
+        const contrasted = Math.min(255, Math.max(0, Math.round(1.6 * (grey - 128) + 128)));
+        d[i] = contrasted;
+        d[i + 1] = contrasted;
+        d[i + 2] = contrasted;
+        // alpha (d[i+3]) unchanged
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      // ── 3. Export as PNG to preserve sharp edges (better than JPEG for text)
       canvas.toBlob(
         (blob) => { blob ? resolve(blob) : reject(new Error('Error al comprimir la imagen')); },
-        'image/jpeg',
-        0.85,
+        'image/png',
       );
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo cargar la imagen')); };
