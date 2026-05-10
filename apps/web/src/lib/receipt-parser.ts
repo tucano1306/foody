@@ -76,9 +76,9 @@ function extractPrices(line: string): number[] {
 function cleanProductName(raw: string): string {
   return raw
     // remove leading item codes like "1234 " or "* "
-    .replaceAll(/^\*?\s*\d{1,6}\s+/, '')
+    .replaceAll(/^\*?\s*\d{1,6}\s+/gm, '')
     // remove trailing codes / quantity annotations
-    .replaceAll(/\s+\d{1,6}\s*$/, '')
+    .replaceAll(/\s+\d{1,6}\s*$/gm, '')
     // normalise whitespace
     .replaceAll(/\s{2,}/g, ' ')
     .trim()
