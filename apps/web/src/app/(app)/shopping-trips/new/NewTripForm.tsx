@@ -445,9 +445,9 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-stone-800">Productos comprados</h2>
           <span className="text-xs text-stone-400">
-            {linkedItems.length} vinculado(s)
+            {items.length} artículo(s)
             {items.length > linkedItems.length && (
-              <span className="text-amber-600"> · {items.length - linkedItems.length} del recibo</span>
+              <span className="text-amber-600"> · {items.length - linkedItems.length} sin vincular</span>
             )}
           </span>
         </div>
