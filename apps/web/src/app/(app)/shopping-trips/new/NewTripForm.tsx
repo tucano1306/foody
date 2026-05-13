@@ -89,6 +89,8 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
+  // Per-item link search: maps item id → search query string
+  const [linkSearch, setLinkSearch] = useState<Record<string, string>>({});
 
   const addedIds = new Set(items.map((i) => i.productId));
   const searchQ = search.trim().toLowerCase();
@@ -193,6 +195,21 @@ export default function NewTripForm({ products }: Readonly<Props>) {
 
   function removeItem(idx: number) {
     setItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function linkItemToProduct(idx: number, p: Product) {
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === idx
+          ? { ...it, productId: p.id, name: p.name, unit: p.unit }
+          : it,
+      ),
+    );
+    setLinkSearch((prev) => {
+      const next = { ...prev };
+      delete next[items[idx].id];
+      return next;
+    });
   }
 
   // Preview allocation
@@ -481,7 +498,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                       <p className="font-medium text-stone-800 truncate">{it.name}</p>
                       {isUnlinked && (
                         <p className="text-[10px] text-amber-700 mt-0.5">
-                          Del recibo — busca abajo para vincular a un producto
+                          Del recibo — vincula a un producto de tu catálogo
                         </p>
                       )}
                     </div>
@@ -493,6 +510,48 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                       Quitar
                     </button>
                   </div>
+                  {isUnlinked && (
+                    <div className="mt-2 relative">
+                      <input
+                        type="text"
+                        placeholder="Buscar en tu catálogo para vincular…"
+                        value={linkSearch[it.id] ?? ''}
+                        onChange={(e) =>
+                          setLinkSearch((prev) => ({ ...prev, [it.id]: e.target.value }))
+                        }
+                        className="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                      />
+                      {(linkSearch[it.id] ?? '').trim().length > 0 && (
+                        <div className="absolute z-10 left-0 right-0 mt-1 rounded-xl border border-stone-200 bg-white shadow-md max-h-40 overflow-auto">
+                          {products
+                            .filter(
+                              (p) =>
+                                !addedIds.has(p.id) &&
+                                p.name.toLowerCase().includes((linkSearch[it.id] ?? '').trim().toLowerCase()),
+                            )
+                            .slice(0, 6)
+                            .map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => linkItemToProduct(idx, p)}
+                                className="w-full text-left px-3 py-2 text-xs hover:bg-brand-50 flex items-center justify-between"
+                              >
+                                <span className="font-medium text-stone-700 truncate">{p.name}</span>
+                                <span className="text-stone-400 ml-2 shrink-0">{p.unit}</span>
+                              </button>
+                            ))}
+                          {products.filter(
+                            (p) =>
+                              !addedIds.has(p.id) &&
+                              p.name.toLowerCase().includes((linkSearch[it.id] ?? '').trim().toLowerCase()),
+                          ).length === 0 && (
+                            <p className="px-3 py-2 text-xs text-stone-400">Sin coincidencias</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <label className="block">
                       <span className="block text-[10px] uppercase tracking-wide text-stone-400 mb-0.5">

@@ -48,8 +48,15 @@ function shouldSkipLine(line: string): boolean {
   );
 }
 
-/** Lines that look like a TOTAL */
-const TOTAL_RE = /^\s*(?:total|total\s+paid|grand\s+total|amount\s+due|tot[.]?)\s+(.+)?$/i;
+/**
+ * Lines that look like a TOTAL.
+ * Matches both "TOTAL 47.82" and "YOUR TOTAL 47.82" and "PURCHASE TOTAL: 47.82".
+ * The price is extracted separately via extractPrices().
+ */
+const TOTAL_RE = /\btotal\b|amount\s*due|balance\s*due/i;
+
+/** Lines that must NOT trigger total detection even though they contain the word 'total' */
+const TOTAL_SKIP_RE = /subtotal|total\s+savings|total\s+discount|points\s+total|tax\s+total/i;
 
 /** Lines that are clearly store headers — mostly ALL-CAPS but allow mixed case (e.g. "La Comer", "Soriana") */
 const STORE_NAME_RE = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s&.,'/\u002D]{5,60}$/;
@@ -74,7 +81,10 @@ function detectKnownChain(lines: string[]): string | null {
   for (const line of lines.slice(0, 10)) {
     const lower = line.toLowerCase();
     const hit = KNOWN_CHAINS.find((chain) => lower.includes(chain));
-    if (hit !== undefined) return line.trim();
+    if (hit !== undefined) {
+      // Return only the matched chain name (capitalised), not "PUBLIX #1476 JACKSONVILLE FL"
+      return hit.replace(/^./, (c) => c.toUpperCase());
+    }
   }
   return null;
 }
@@ -223,8 +233,8 @@ function processLine(
   // Date extraction
   ctx.receiptDate ??= extractDate(line);
 
-  // TOTAL detection
-  if (TOTAL_RE.test(line)) {
+  // TOTAL detection — relaxed: any line containing 'total'/'amount due'/'balance due'
+  if (TOTAL_RE.test(line) && !TOTAL_SKIP_RE.test(line)) {
     const prices = extractPrices(line);
     if (prices.length > 0) ctx.total = Math.max(...prices);
     return;
@@ -265,6 +275,20 @@ export function parseReceiptText(rawText: string): ReceiptParseResult {
 
   for (const line of lines) {
     processLine(line, ctx, items);
+  }
+
+  // Fallback: if no total found via normal detection, pick the largest price
+  // from any line that contains "total" but wasn't skipped (e.g. OCR oddly spaced)
+  if (ctx.total === null) {
+    for (const line of lines) {
+      if (/total/i.test(line) && !TOTAL_SKIP_RE.test(line)) {
+        const prices = extractPrices(line);
+        if (prices.length > 0) {
+          const candidate = Math.max(...prices);
+          if (ctx.total === null || candidate > ctx.total) ctx.total = candidate;
+        }
+      }
+    }
   }
 
   return { items, total: ctx.total, storeName: ctx.storeName, receiptDate: ctx.receiptDate };
