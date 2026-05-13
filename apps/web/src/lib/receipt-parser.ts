@@ -54,6 +54,29 @@ const TOTAL_RE = /^\s*(?:total|total\s+paid|grand\s+total|amount\s+due|tot[.]?)\
 /** Lines that are clearly store headers — mostly ALL-CAPS but allow mixed case (e.g. "La Comer", "Soriana") */
 const STORE_NAME_RE = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s&.,'/\u002D]{5,60}$/;
 
+/**
+ * Known supermarket / store chains.
+ * Scanned in the first 10 lines so names like "PUBLIX #1476" are detected
+ * even though the store number breaks STORE_NAME_RE.
+ */
+const KNOWN_CHAINS = [
+  'publix', 'walmart', 'winn-dixie', 'winn dixie', 'target', 'kroger',
+  'aldi', 'whole foods', 'trader joe', 'costco', "sam's club", "sam's",
+  'food lion', 'harris teeter', 'safeway', 'albertsons', 'meijer',
+  'h-e-b', 'heb', 'wegmans', 'stop & shop', 'giant eagle',
+  'soriana', 'chedraui', 'la comer', 'bodega aurrera', 'superama',
+  'oxxo', 'seven eleven', '7-eleven',
+];
+
+function detectKnownChain(lines: string[]): string | null {
+  for (const line of lines.slice(0, 10)) {
+    const lower = line.toLowerCase();
+    const hit = KNOWN_CHAINS.find((chain) => lower.includes(chain));
+    if (hit !== undefined) return line.trim();
+  }
+  return null;
+}
+
 /** Qty × price or qty @ price:  "2 x 3.99"  "3 @ 12.50" */
 const QTY_X_PRICE_RE = /(\d+(?:[.,]\d+)?)\s*[xX×@]\s*(\d+(?:[.,]\d+)?)/;
 
@@ -234,7 +257,9 @@ export function parseReceiptText(rawText: string): ReceiptParseResult {
     .filter((l) => l.length > 0);
 
   const items: ReceiptItem[] = [];
-  const ctx = { total: null as number | null, storeName: null as string | null, receiptDate: null as string | null, storeNameCandidates: 0 };
+  // Pre-scan for known chains before the main loop so names like "PUBLIX #1476"
+  // (which contain digits/# that break STORE_NAME_RE) are still captured.
+  const ctx = { total: null as number | null, storeName: detectKnownChain(lines), receiptDate: null as string | null, storeNameCandidates: 0 };
 
   for (const line of lines) {
     processLine(line, ctx, items);
