@@ -64,6 +64,8 @@ const KNOWN_CHAINS = [
   'aldi', 'whole foods', 'trader joe', 'costco', "sam's club", "sam's",
   'food lion', 'harris teeter', 'safeway', 'albertsons', 'meijer',
   'h-e-b', 'heb', 'wegmans', 'stop & shop', 'giant eagle',
+  'cvs', 'cvs pharmacy', 'walgreens', 'rite aid', 'dollar general',
+  'dollar tree', 'family dollar', 'ross', 'tj maxx', 'marshalls',
   'soriana', 'chedraui', 'la comer', 'bodega aurrera', 'superama',
   'oxxo', 'seven eleven', '7-eleven',
 ];
