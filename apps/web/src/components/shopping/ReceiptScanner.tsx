@@ -101,8 +101,6 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
   const [progressPct, setProgressPct] = useState(0);
   const [phase, setPhase] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
 
   const processImage = useCallback(
@@ -190,10 +188,19 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
     onClose();
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    void processImage(file);
+  function openFilePicker(capture?: 'environment') {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (capture) input.capture = capture;
+    input.style.cssText = 'position:fixed;top:-200px;left:-200px;opacity:0;';
+    document.body.appendChild(input);
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (file) void processImage(file);
+    });
+    input.click();
   }
 
   const isProcessing = state === 'processing';
@@ -293,7 +300,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
             {/* Camera capture (mobile) */}
             <button
               type="button"
-              onClick={() => cameraRef.current?.click()}
+              onClick={() => openFilePicker('environment')}
               className="flex items-center justify-center gap-2 rounded-2xl bg-brand-600 text-white px-5 py-3.5 font-semibold text-sm shadow-lg hover:bg-brand-700 transition"
             >
               <span aria-hidden="true">📷</span> Tomar foto del recibo
@@ -301,16 +308,20 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
             {/* File upload */}
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
+              onClick={() => openFilePicker()}
               className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 text-white px-5 py-3.5 font-semibold text-sm hover:bg-white/20 transition"
             >
               <span aria-hidden="true">🖼️</span> Elegir imagen de galería
             </button>
 
-            {/* Tip: better results with flash */}
-            <p className="text-xs text-white/50 text-center">
-              💡 Activa la linterna para mejor lectura
-            </p>
+            {/* Torch tip — prominent callout */}
+            <div className="flex items-start gap-2.5 rounded-xl bg-yellow-400/15 border border-yellow-400/30 px-3.5 py-2.5">
+              <span className="text-lg leading-none mt-0.5" aria-hidden="true">🔦</span>
+              <p className="text-xs text-yellow-200 leading-relaxed">
+                <strong className="font-semibold">Enciende la linterna antes de tomar la foto.</strong>
+                {' '}Los recibos se leen mucho mejor con buena iluminación.
+              </p>
+            </div>
 
             {state === 'error' && errorMsg && (
               <p className="text-xs text-red-400 text-center">{errorMsg}</p>
@@ -325,24 +336,6 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         )}
       </div>
 
-      {/* Hidden inputs */}
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={handleFileChange}
-      />
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={handleFileChange}
-      />
     </dialog>
   );
 }
