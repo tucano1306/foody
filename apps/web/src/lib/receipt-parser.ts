@@ -51,8 +51,8 @@ function shouldSkipLine(line: string): boolean {
 /** Lines that look like a TOTAL */
 const TOTAL_RE = /^\s*(?:total|total\s+paid|grand\s+total|amount\s+due|tot[.]?)\s+(.+)?$/i;
 
-/** Lines that are clearly store headers (ALL CAPS, no digits) — US stores use plain ASCII */
-const STORE_NAME_RE = /^[A-Z\s&.,'/\u002D]{5,60}$/;
+/** Lines that are clearly store headers — mostly ALL-CAPS but allow mixed case (e.g. "La Comer", "Soriana") */
+const STORE_NAME_RE = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s&.,'/\u002D]{5,60}$/;
 
 /** Qty × price or qty @ price:  "2 x 3.99"  "3 @ 12.50" */
 const QTY_X_PRICE_RE = /(\d+(?:[.,]\d+)?)\s*[xX×@]\s*(\d+(?:[.,]\d+)?)/;

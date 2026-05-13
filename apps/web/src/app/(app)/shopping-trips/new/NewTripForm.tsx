@@ -24,7 +24,8 @@ interface Props {
 }
 
 interface LineItem {
-  productId: string;
+  id: string;
+  productId: string; // '' = item from receipt not yet linked to a catalog product
   name: string;
   unit: string;
   quantity: string;
@@ -135,27 +136,37 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     if (data.receiptDate !== null) {
       setPurchasedAt(data.receiptDate);
     }
-    // Match receipt items to known products, add unmatched as-is
-    for (const ri of data.items) {
+    // Build all items in a single batch to avoid stale-closure duplicates
+    const alreadyLinked = new Set(addedIds);
+    const newItems: LineItem[] = data.items.map((ri) => {
       const nameLower = ri.name.toLowerCase();
       const matched = products.find(
         (p) =>
-          !addedIds.has(p.id) &&
+          !alreadyLinked.has(p.id) &&
           (p.name.toLowerCase().includes(nameLower) ||
             nameLower.includes(p.name.toLowerCase().slice(0, 4))),
       );
-      if (matched) {
-        setItems((prev) => [
-          ...prev,
-          {
+      if (matched) alreadyLinked.add(matched.id);
+      return matched === undefined
+        ? {
+            id: crypto.randomUUID(),
+            productId: '',
+            name: ri.name,
+            unit: 'ud',
+            quantity: String(ri.quantity),
+            price: ri.unitPrice === null ? '' : ri.unitPrice.toFixed(2),
+          }
+        : {
+            id: crypto.randomUUID(),
             productId: matched.id,
             name: matched.name,
             unit: matched.unit,
             quantity: String(ri.quantity),
             price: ri.unitPrice === null ? '' : ri.unitPrice.toFixed(2),
-          },
-        ]);
-      }
+          };
+    });
+    if (newItems.length > 0) {
+      setItems((prev) => [...prev, ...newItems]);
     }
   }
 
@@ -163,6 +174,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     setItems((prev) => [
       ...prev,
       {
+        id: crypto.randomUUID(),
         productId: p.id,
         name: p.name,
         unit: p.unit,
@@ -247,9 +259,12 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     });
   }, [items, strategy, parsedTotal, totalValid]);
 
+  // Items linked to a catalog product (productId !== '') are the only ones sent to the API
+  const linkedItems = items.filter((it) => it.productId !== '');
+
   const canSubmit =
-    items.length > 0 &&
-    items.every((it) => Number.parseFloat(it.quantity) > 0) &&
+    linkedItems.length > 0 &&
+    linkedItems.every((it) => Number.parseFloat(it.quantity) > 0) &&
     (strategy === 'none' || totalValid) &&
     !submitting;
 
@@ -257,6 +272,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
+    const unlinkedCount = items.length - linkedItems.length;
     try {
       const dto: CreateShoppingTripDto = {
         storeId: store.storeId ?? undefined,
@@ -265,7 +281,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         totalAmount: totalValid ? parsedTotal : 0,
         currency,
         allocationStrategy: strategy,
-        items: items.map((it) => {
+        items: linkedItems.map((it) => {
           const qty = Number.parseFloat(it.quantity);
           const price = Number.parseFloat(it.price);
           const hasPrice =
@@ -288,7 +304,10 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         throw new Error(text || `Error ${res.status}`);
       }
       haptic([15, 40, 20]);
-      toast.show('Compra guardada ✨', 'success');
+      const msg = unlinkedCount > 0
+        ? `Compra guardada ✨ (${unlinkedCount} del recibo sin vincular se omitieron)`
+        : 'Compra guardada ✨';
+      toast.show(msg, 'success');
       router.push('/shopping-trips');
       router.refresh();
     } catch (e) {
@@ -408,7 +427,12 @@ export default function NewTripForm({ products }: Readonly<Props>) {
       <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-stone-800">Productos comprados</h2>
-          <span className="text-xs text-stone-400">{items.length} artículo(s)</span>
+          <span className="text-xs text-stone-400">
+            {linkedItems.length} vinculado(s)
+            {items.length > linkedItems.length && (
+              <span className="text-amber-600"> · {items.length - linkedItems.length} del recibo</span>
+            )}
+          </span>
         </div>
 
         {/* Smart suggestions — predictive */}
@@ -446,17 +470,25 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           <ul className="space-y-2">
             {items.map((it, idx) => {
               const prev = preview[idx];
+              const isUnlinked = it.productId === '';
               return (
                 <li
-                  key={it.productId}
-                  className="rounded-xl border border-stone-100 p-3 bg-stone-50/50"
+                  key={it.id}
+                  className={`rounded-xl border p-3 ${isUnlinked ? 'border-amber-200 bg-amber-50/50' : 'border-stone-100 bg-stone-50/50'}`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium text-stone-800 truncate">{it.name}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-stone-800 truncate">{it.name}</p>
+                      {isUnlinked && (
+                        <p className="text-[10px] text-amber-700 mt-0.5">
+                          Del recibo — busca abajo para vincular a un producto
+                        </p>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeItem(idx)}
-                      className="text-xs text-red-500 hover:text-red-700"
+                      className="text-xs text-red-500 hover:text-red-700 shrink-0"
                     >
                       Quitar
                     </button>
