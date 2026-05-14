@@ -110,38 +110,6 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     if (data.receiptDate !== null) {
       setPurchasedAt(data.receiptDate);
     }
-    // Build all items in a single batch to avoid stale-closure duplicates
-    const alreadyLinked = new Set(addedIds);
-    const newItems: LineItem[] = data.items.map((ri) => {
-      const nameLower = ri.name.toLowerCase();
-      const matched = products.find(
-        (p) =>
-          !alreadyLinked.has(p.id) &&
-          (p.name.toLowerCase().includes(nameLower) ||
-            nameLower.includes(p.name.toLowerCase().slice(0, 4))),
-      );
-      if (matched) alreadyLinked.add(matched.id);
-      return matched === undefined
-        ? {
-            id: crypto.randomUUID(),
-            productId: '',
-            name: ri.name,
-            unit: 'ud',
-            quantity: String(ri.quantity),
-            price: ri.unitPrice === null ? '' : ri.unitPrice.toFixed(2),
-          }
-        : {
-            id: crypto.randomUUID(),
-            productId: matched.id,
-            name: matched.name,
-            unit: matched.unit,
-            quantity: String(ri.quantity),
-            price: ri.unitPrice === null ? '' : ri.unitPrice.toFixed(2),
-          };
-    });
-    if (newItems.length > 0) {
-      setItems((prev) => [...prev, ...newItems]);
-    }
   }
 
   function addProduct(p: Product) {
