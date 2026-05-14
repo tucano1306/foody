@@ -162,8 +162,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const storeNameValid = storeName.trim().length > 0;
   const canSubmit =
     storeNameValid &&
-    linkedItems.length > 0 &&
-    linkedItems.every((it) => Number.parseFloat(it.quantity) > 0) &&
+    totalValid &&
     !submitting;
 
   async function handleSubmit() {
