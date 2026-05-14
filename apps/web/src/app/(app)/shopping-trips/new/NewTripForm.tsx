@@ -9,7 +9,6 @@ import type {
   CreateShoppingTripDto,
   Product,
 } from '@foody/types';
-import StoreSelector from '@/components/stores/StoreSelector';
 import { haptic } from '@/lib/haptic';
 import type { ReceiptParseResult } from '@/components/shopping/ReceiptScanner';
 
@@ -75,9 +74,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const router = useRouter();
   const toast = useToast();
 
-  const [store, setStore] = useState<{ storeId: string | null; storeName: string | null }>(
-    { storeId: null, storeName: null },
-  );
+  const [storeName, setStoreName] = useState<string>('');
   const [purchasedAt, setPurchasedAt] = useState<string>(
     new Date().toISOString().slice(0, 10),
   );
@@ -130,9 +127,9 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     if (data.total !== null && totalAmount === '') {
       setTotalAmount(data.total.toFixed(2));
     }
-    // Pre-fill store name
-    if (data.storeName !== null && store.storeName === null) {
-      setStore({ storeId: null, storeName: data.storeName });
+    // Pre-fill store name if user hasn't typed one yet
+    if (data.storeName !== null && storeName.trim() === '') {
+      setStoreName(data.storeName);
     }
     // Pre-fill date
     if (data.receiptDate !== null) {
@@ -281,7 +278,9 @@ export default function NewTripForm({ products }: Readonly<Props>) {
 
   // 'equal' and 'by_quantity' need a total to be meaningful; other strategies work without one
   const strategyNeedsTotal = strategy === 'equal' || strategy === 'by_quantity';
+  const storeNameValid = storeName.trim().length > 0;
   const canSubmit =
+    storeNameValid &&
     linkedItems.length > 0 &&
     linkedItems.every((it) => Number.parseFloat(it.quantity) > 0) &&
     (!strategyNeedsTotal || totalValid) &&
@@ -294,8 +293,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     const unlinkedCount = items.length - linkedItems.length;
     try {
       const dto: CreateShoppingTripDto = {
-        storeId: store.storeId ?? undefined,
-        storeName: store.storeName ?? undefined,
+        storeName: storeName.trim(),
         purchasedAt: new Date(purchasedAt).toISOString(),
         totalAmount: totalValid ? parsedTotal : 0,
         currency,
@@ -374,10 +372,23 @@ export default function NewTripForm({ products }: Readonly<Props>) {
 
       {/* Store + date */}
       <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100 space-y-3">
-        <div>
-          <p className="block text-xs font-semibold text-stone-500 mb-1">Tienda</p>
-          <StoreSelector value={store} onChange={setStore} />
-        </div>
+        <label className="block">
+          <span className="block text-xs font-semibold text-stone-500 mb-1">
+            Tienda <span className="text-red-500">*</span>
+          </span>
+          <input
+            type="text"
+            placeholder="Ej. Walmart, Publix, Soriana…"
+            value={storeName}
+            onChange={(e) => setStoreName(e.target.value)}
+            className={`w-full rounded-xl border px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:border-brand-500 ${
+              storeNameValid ? 'border-stone-200 bg-white' : 'border-red-300 bg-red-50'
+            }`}
+          />
+          {!storeNameValid && (
+            <p className="text-xs text-red-500 mt-1">Escribe el nombre de la tienda para continuar</p>
+          )}
+        </label>
         <label className="block">
           <span className="block text-xs font-semibold text-stone-500 mb-1">Fecha</span>
           <input
