@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
 import { ShoppingTrip, AllocationStrategy } from './shopping-trip.entity';
@@ -100,10 +100,6 @@ export class ShoppingTripsService {
   }
 
   async create(userId: string, dto: CreateShoppingTripDto) {
-    if (!dto.items || dto.items.length === 0) {
-      throw new BadRequestException('items is required');
-    }
-
     const strategy: AllocationStrategy = dto.allocationStrategy ?? 'manual_partial';
     const currency = dto.currency ?? 'MXN';
 
@@ -118,6 +114,28 @@ export class ShoppingTripsService {
         if (!store) throw new NotFoundException(`Store ${dto.storeId} not found`);
         storeId = store.id;
         storeName = store.name;
+      }
+
+      const totalAmount = round2(dto.totalAmount);
+
+      // Persist trip first (we need id)
+      const trip = manager.create(ShoppingTrip, {
+        storeId,
+        storeName,
+        purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : new Date(),
+        totalAmount,
+        currency,
+        allocationStrategy: strategy,
+        receiptPhotoUrl: dto.receiptPhotoUrl ?? null,
+        notes: dto.notes ?? null,
+        userId,
+        householdId: scope.householdId,
+      });
+      const savedTrip = await manager.save(trip);
+
+      // If no items provided, just save the trip header (total-only mode)
+      if (!dto.items || dto.items.length === 0) {
+        return { trip: savedTrip, items: [] };
       }
 
       // Load products in scope
@@ -146,23 +164,7 @@ export class ShoppingTripsService {
       });
 
       // Compute allocations
-      const totalAmount = round2(dto.totalAmount);
       const allocations = allocate(resolved, totalAmount, strategy);
-
-      // Persist trip first (we need id)
-      const trip = manager.create(ShoppingTrip, {
-        storeId,
-        storeName,
-        purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : new Date(),
-        totalAmount,
-        currency,
-        allocationStrategy: strategy,
-        receiptPhotoUrl: dto.receiptPhotoUrl ?? null,
-        notes: dto.notes ?? null,
-        userId,
-        householdId: scope.householdId,
-      });
-      const savedTrip = await manager.save(trip);
 
       // Apply each purchase
       const appliedPurchases: ProductPurchase[] = [];
