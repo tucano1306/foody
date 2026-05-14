@@ -58,9 +58,6 @@ const TOTAL_RE = /\btotal\b|amount\s*due|balance\s*due/i;
 /** Lines that must NOT trigger total detection even though they contain the word 'total' */
 const TOTAL_SKIP_RE = /subtotal|total\s+savings|total\s+discount|points\s+total|tax\s+total/i;
 
-/** Lines that are clearly store headers — mostly ALL-CAPS but allow mixed case (e.g. "La Comer", "Soriana") */
-const STORE_NAME_RE = /^[A-Za-záéíóúÁÉÍÓÚñÑ\s&.,'/\u002D]{5,60}$/;
-
 /**
  * Known supermarket / store chains.
  * Scanned in the first 10 lines so names like "PUBLIX #1476" are detected
@@ -227,28 +224,34 @@ function parseProductLine(line: string): RawLineItem | null {
 
 function processLine(
   line: string,
-  ctx: { total: number | null; storeName: string | null; receiptDate: string | null; storeNameCandidates: number },
+  ctx: { total: number | null; storeName: string | null; receiptDate: string | null; awaitingTotal: boolean },
   items: ReceiptItem[],
 ): void {
   // Date extraction
   ctx.receiptDate ??= extractDate(line);
 
+  // If the previous line was a TOTAL header with no inline price,
+  // grab the first price we see on this line as the total.
+  if (ctx.awaitingTotal) {
+    ctx.awaitingTotal = false;
+    const prices = extractPrices(line);
+    if (prices.length > 0) { ctx.total = Math.max(...prices); return; }
+  }
+
   // TOTAL detection — relaxed: any line containing 'total'/'amount due'/'balance due'
   if (TOTAL_RE.test(line) && !TOTAL_SKIP_RE.test(line)) {
     const prices = extractPrices(line);
-    if (prices.length > 0) ctx.total = Math.max(...prices);
+    if (prices.length > 0) {
+      ctx.total = Math.max(...prices);
+    } else {
+      // Price might be on the next line (e.g. "TOTAL\n54.82")
+      ctx.awaitingTotal = true;
+    }
     return;
   }
 
   // Skip header / footer lines
   if (shouldSkipLine(line)) return;
-
-  // Store name detection (first few ALL-CAPS lines with no price)
-  if (ctx.storeNameCandidates < 3 && STORE_NAME_RE.test(line) && extractPrices(line).length === 0) {
-    ctx.storeName ??= line.trim();
-    ctx.storeNameCandidates++;
-    return;
-  }
 
   // Product line
   const parsed = parseProductLine(line);
@@ -271,7 +274,7 @@ export function parseReceiptText(rawText: string): ReceiptParseResult {
   const items: ReceiptItem[] = [];
   // Pre-scan for known chains before the main loop so names like "PUBLIX #1476"
   // (which contain digits/# that break STORE_NAME_RE) are still captured.
-  const ctx = { total: null as number | null, storeName: detectKnownChain(lines), receiptDate: null as string | null, storeNameCandidates: 0 };
+  const ctx = { total: null as number | null, storeName: detectKnownChain(lines), receiptDate: null as string | null, awaitingTotal: false };
 
   for (const line of lines) {
     processLine(line, ctx, items);
