@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type {
-  AllocationStrategy,
   CreateShoppingTripDto,
   Product,
 } from '@foody/types';
@@ -47,29 +46,6 @@ function formatCurrency(value: number, currency: string): string {
   }
 }
 
-const STRATEGY_OPTIONS: ReadonlyArray<{
-  value: AllocationStrategy;
-  label: string;
-  hint: string;
-}> = [
-  {
-    value: 'manual_partial',
-    label: 'Mixto',
-    hint: 'Pon precio donde recuerdes, Foody estima el resto.',
-  },
-  {
-    value: 'by_quantity',
-    label: 'Por cantidad',
-    hint: 'Reparte el total según cantidad y precio previo.',
-  },
-  { value: 'equal', label: 'Igual', hint: 'Divide el total en partes iguales.' },
-  {
-    value: 'none',
-    label: 'Sin precios',
-    hint: 'Solo actualiza stock, no guarda precios.',
-  },
-];
-
 export default function NewTripForm({ products }: Readonly<Props>) {
   const router = useRouter();
   const toast = useToast();
@@ -80,7 +56,6 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   );
   const [totalAmount, setTotalAmount] = useState<string>('');
   const [currency] = useState<string>('MXN');
-  const [strategy, setStrategy] = useState<AllocationStrategy>('manual_partial');
   const [items, setItems] = useState<LineItem[]>([]);
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -213,77 +188,14 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const parsedTotal = Number.parseFloat(totalAmount);
   const totalValid = Number.isFinite(parsedTotal) && parsedTotal > 0;
 
-  const preview = useMemo(() => {
-    const n = items.length;
-    if (n === 0) return [] as { total: number; source: 'manual' | 'allocated' | 'unknown' }[];
-
-    const parsed = items.map((it) => {
-      const qty = Number.parseFloat(it.quantity);
-      const price = Number.parseFloat(it.price);
-      const hasManualUnit = Number.isFinite(price) && price >= 0 && it.price.trim() !== '';
-      const qtyOk = Number.isFinite(qty) && qty > 0;
-      return { qty: qtyOk ? qty : 0, manualUnit: hasManualUnit ? price : null };
-    });
-
-    if (strategy === 'none') {
-      return parsed.map((p) => ({
-        total: p.manualUnit == null ? 0 : round2(p.manualUnit * p.qty),
-        source: p.manualUnit == null ? ('unknown' as const) : ('manual' as const),
-      }));
-    }
-    if (!totalValid) {
-      return parsed.map((p) => ({
-        total: p.manualUnit == null ? 0 : round2(p.manualUnit * p.qty),
-        source: p.manualUnit == null ? ('unknown' as const) : ('manual' as const),
-      }));
-    }
-
-    if (strategy === 'equal') {
-      const per = round2(parsedTotal / n);
-      return parsed.map(() => ({ total: per, source: 'allocated' as const }));
-    }
-
-    const weights = parsed.map((p) => Math.max(0.01, p.qty * (p.manualUnit ?? 1)));
-    const sumW = weights.reduce((a, b) => a + b, 0) || n;
-
-    if (strategy === 'by_quantity') {
-      return parsed.map((_, i) => ({
-        total: round2((parsedTotal * weights[i]) / sumW),
-        source: 'allocated' as const,
-      }));
-    }
-
-    // manual_partial
-    const manualSum = parsed.reduce(
-      (s, p) => s + (p.manualUnit == null ? 0 : p.manualUnit * p.qty),
-      0,
-    );
-    const remaining = round2(parsedTotal - manualSum);
-    const unpricedW = parsed
-      .map((p, i) => ({ idx: i, w: p.manualUnit == null ? weights[i] : 0 }))
-      .filter((x) => x.w > 0);
-    const unpricedSum = unpricedW.reduce((a, b) => a + b.w, 0) || 1;
-    return parsed.map((p, i) => {
-      if (p.manualUnit == null) {
-        if (remaining <= 0) return { total: 0, source: 'unknown' as const };
-        const share = round2((remaining * weights[i]) / unpricedSum);
-        return { total: share, source: 'allocated' as const };
-      }
-      return { total: round2(p.manualUnit * p.qty), source: 'manual' as const };
-    });
-  }, [items, strategy, parsedTotal, totalValid]);
-
   // Items linked to a catalog product (productId !== '') are the only ones sent to the API
   const linkedItems = items.filter((it) => it.productId !== '');
 
-  // 'equal' and 'by_quantity' need a total to be meaningful; other strategies work without one
-  const strategyNeedsTotal = strategy === 'equal' || strategy === 'by_quantity';
   const storeNameValid = storeName.trim().length > 0;
   const canSubmit =
     storeNameValid &&
     linkedItems.length > 0 &&
     linkedItems.every((it) => Number.parseFloat(it.quantity) > 0) &&
-    (!strategyNeedsTotal || totalValid) &&
     !submitting;
 
   async function handleSubmit() {
@@ -297,7 +209,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         purchasedAt: new Date(purchasedAt).toISOString(),
         totalAmount: totalValid ? parsedTotal : 0,
         currency,
-        allocationStrategy: strategy,
+        allocationStrategy: 'manual_partial',
         items: linkedItems.map((it) => {
           const qty = Number.parseFloat(it.quantity);
           const price = Number.parseFloat(it.price);
@@ -426,45 +338,9 @@ export default function NewTripForm({ products }: Readonly<Props>) {
       </section>
 
       {/* Strategy */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100">
-        <p className="text-xs font-semibold text-stone-500 mb-2">
-          ¿Cómo quieres repartir precios?
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {STRATEGY_OPTIONS.map((opt) => {
-            const selected = strategy === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setStrategy(opt.value)}
-                className={
-                  'text-left rounded-xl border p-3 transition ' +
-                  (selected
-                    ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
-                    : 'border-stone-200 bg-white hover:border-stone-300')
-                }
-              >
-                <p className="text-sm font-semibold text-stone-800">{opt.label}</p>
-                <p className="text-xs text-stone-500 mt-0.5 leading-snug">{opt.hint}</p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
 
       {/* Items */}
       <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-stone-800">Productos comprados</h2>
-          <span className="text-xs text-stone-400">
-            {items.length} artículo(s)
-            {items.length > linkedItems.length && (
-              <span className="text-amber-600"> · {items.length - linkedItems.length} sin vincular</span>
-            )}
-          </span>
-        </div>
-
         {/* Smart suggestions — predictive */}
         {smartSuggestions.length > 0 && (
           <div className="rounded-xl bg-brand-50/50 border border-brand-100 p-3">
@@ -499,7 +375,6 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         {items.length > 0 && (
           <ul className="space-y-2">
             {items.map((it, idx) => {
-              const prev = preview[idx];
               const isUnlinked = it.productId === '';
               return (
                 <li
@@ -598,24 +473,6 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                       />
                     </label>
                   </div>
-                  {prev && (
-                    <p className="text-xs text-stone-500 mt-1.5 flex items-center gap-1">
-                      <span>Subtotal:</span>
-                      <strong className="text-stone-700">
-                        {formatCurrency(prev.total, currency)}
-                      </strong>
-                      {prev.source === 'allocated' && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
-                          est.
-                        </span>
-                      )}
-                      {prev.source === 'unknown' && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-stone-200 text-stone-600 rounded">
-                          sin precio
-                        </span>
-                      )}
-                    </p>
-                  )}
                 </li>
               );
             })}
