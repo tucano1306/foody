@@ -17,6 +17,15 @@ export default function StoreSelector(props: Readonly<Props>) {
   const [creating, setCreating] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
+  // Sync internal query when parent sets storeName externally (e.g. from receipt scan)
+  useEffect(() => {
+    if (value.storeName !== null && value.storeName !== query) {
+      setQuery(value.storeName);
+    }
+    // Only re-run when the parent value changes — intentionally omit `query`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.storeName]);
+
   useEffect(() => {
     let alive = true;
     void fetch('/api/proxy/stores', { credentials: 'include' })

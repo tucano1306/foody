@@ -279,10 +279,12 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   // Items linked to a catalog product (productId !== '') are the only ones sent to the API
   const linkedItems = items.filter((it) => it.productId !== '');
 
+  // 'equal' and 'by_quantity' need a total to be meaningful; other strategies work without one
+  const strategyNeedsTotal = strategy === 'equal' || strategy === 'by_quantity';
   const canSubmit =
     linkedItems.length > 0 &&
     linkedItems.every((it) => Number.parseFloat(it.quantity) > 0) &&
-    (strategy === 'none' || totalValid) &&
+    (!strategyNeedsTotal || totalValid) &&
     !submitting;
 
   async function handleSubmit() {
