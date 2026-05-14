@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { parseReceiptText } from '@/lib/receipt-parser';
 import type { ReceiptParseResult } from '@/lib/receipt-parser';
 export type { ReceiptParseResult } from '@/lib/receipt-parser';
@@ -60,74 +60,6 @@ function compressImageFile(file: File, maxPx = 1400): Promise<Blob> {
     img.src = url;
   });
 }
-
-// ─── Live camera quality analysis ───────────────────────────────────────────
-
-interface FrameQuality {
-  sharpness: number;    // Laplacian variance — higher = sharper
-  brightness: number;  // 0-255 mean luminance
-  edgeDensity: number; // fraction of pixels with strong edges (0-1)
-}
-
-type QualityLevel = 'poor' | 'fair' | 'good';
-
-function analyzeFrame(imageData: ImageData): FrameQuality {
-  const { data, width, height } = imageData;
-  const gray = new Uint8Array(width * height);
-  let brightnessSum = 0;
-  for (let i = 0; i < width * height; i++) {
-    const v = Math.round(0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]);
-    gray[i] = v;
-    brightnessSum += v;
-  }
-  const brightness = brightnessSum / gray.length;
-
-  let lapSum = 0, lapSum2 = 0, edgeCount = 0, count = 0;
-  for (let y = 1; y < height - 1; y += 2) {
-    for (let x = 1; x < width - 1; x += 2) {
-      const lap =
-        gray[(y - 1) * width + x] +
-        gray[y * width + (x - 1)] +
-        gray[y * width + (x + 1)] +
-        gray[(y + 1) * width + x] -
-        4 * gray[y * width + x];
-      lapSum += lap;
-      lapSum2 += lap * lap;
-      if (Math.abs(lap) > 30) edgeCount++;
-      count++;
-    }
-  }
-  const lapMean = lapSum / count;
-  const sharpness = lapSum2 / count - lapMean * lapMean;
-  const edgeDensity = edgeCount / count;
-  return { sharpness, brightness, edgeDensity };
-}
-
-function getQualityFeedback(q: FrameQuality): { level: QualityLevel; label: string; hint: string } {
-  if (q.brightness < 50) {
-    return { level: 'poor', label: 'Muy oscuro', hint: 'Enciende la linterna del teléfono' };
-  }
-  if (q.edgeDensity < 0.03 && q.sharpness < 25) {
-    return { level: 'poor', label: 'Demasiado lejos', hint: 'Acércate hasta que el recibo llene la pantalla' };
-  }
-  if (q.edgeDensity > 0.48) {
-    return { level: 'fair', label: 'Demasiado cerca', hint: 'Aléjate un poco para capturar todo el recibo' };
-  }
-  if (q.sharpness < 25) {
-    return { level: 'poor', label: 'Muy borroso', hint: 'Aleja el teléfono lentamente y mantén quieto' };
-  }
-  if (q.edgeDensity < 0.04) {
-    return { level: 'fair', label: 'Muy lejos', hint: 'Acércate un poco más al recibo' };
-  }
-  if (q.sharpness < 70) {
-    return { level: 'fair', label: 'Casi listo', hint: 'Mantén el teléfono quieto un momento…' };
-  }
-  if (q.brightness < 80) {
-    return { level: 'fair', label: 'Poco luminoso', hint: 'Activa la linterna para mejor resultado' };
-  }
-  return { level: 'good', label: '¡Listo para capturar!', hint: 'Toca el botón Capturar' };
-}
-
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === 'string' && err.trim().length > 0) return err;
@@ -169,19 +101,6 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
   const [phase, setPhase] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const abortRef = useRef(false);
-
-  // Live camera
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const analysisRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [quality, setQuality] = useState<FrameQuality | null>(null);
-
-  // Stop stream on unmount
-  useEffect(() => () => {
-    if (analysisRef.current !== null) clearInterval(analysisRef.current);
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-  }, []);
 
   const processImage = useCallback(
     async (file: File) => {
@@ -265,64 +184,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
 
   function handleClose() {
     abortRef.current = true;
-    stopCamera();
     onClose();
-  }
-
-  function stopCamera() {
-    if (analysisRef.current !== null) { clearInterval(analysisRef.current); analysisRef.current = null; }
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setQuality(null);
-    setCameraOpen(false);
-  }
-
-  async function startCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-      });
-      streamRef.current = stream;
-      setCameraOpen(true);
-      // Attach stream after state update (video element renders)
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play();
-        }
-      });
-      analysisRef.current = setInterval(() => {
-        const video = videoRef.current;
-        if (!video || video.readyState < 2) return;
-        const W = 320;
-        const H = Math.round(W * video.videoHeight / (video.videoWidth || 1));
-        const canvas = document.createElement('canvas');
-        canvas.width = W; canvas.height = H;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(video, 0, 0, W, H);
-        setQuality(analyzeFrame(ctx.getImageData(0, 0, W, H)));
-      }, 400);
-    } catch {
-      // getUserMedia failed (denied or not supported) \u2014 fall back to native file picker
-      openFilePicker('environment');
-    }
-  }
-
-  function captureFrame() {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      stopCamera();
-      void processImage(new File([blob], 'receipt.jpg', { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.95);
   }
 
   function openFilePicker(capture?: 'environment') {
@@ -437,7 +299,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
             {/* Camera capture (mobile) */}
             <button
               type="button"
-              onClick={() => void startCamera()}
+              onClick={() => openFilePicker('environment')}
               className="flex items-center justify-center gap-2 rounded-2xl bg-brand-600 text-white px-5 py-3.5 font-semibold text-sm shadow-lg hover:bg-brand-700 transition"
             >
               <span aria-hidden="true">📷</span> Tomar foto del recibo
@@ -473,104 +335,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         )}
       </div>
 
-      {/* ── Live camera overlay ──────────────────────────────── */}
-      {cameraOpen && <CameraOverlay
-        videoRef={videoRef}
-        quality={quality}
-        onCapture={captureFrame}
-        onCancel={stopCamera}
-      />}
-
     </dialog>
   );
 }
 
-// \u2500\u2500\u2500 CameraOverlay \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
-interface CameraOverlayProps {
-  readonly videoRef: React.RefObject<HTMLVideoElement | null>;
-  readonly quality: FrameQuality | null;
-  readonly onCapture: () => void;
-  readonly onCancel: () => void;
-}
-
-const LEVEL_BORDER: Record<QualityLevel, string> = {
-  poor: 'border-red-400',
-  fair: 'border-yellow-400',
-  good: 'border-green-400',
-};
-const LEVEL_BADGE: Record<QualityLevel, string> = {
-  poor: 'bg-red-500/90 text-white',
-  fair: 'bg-yellow-400/90 text-black',
-  good: 'bg-green-500/90 text-white',
-};
-const LEVEL_BTN: Record<QualityLevel, string> = {
-  poor: 'bg-white/20 text-white/50 cursor-not-allowed',
-  fair: 'bg-yellow-400 text-black hover:bg-yellow-300',
-  good: 'bg-green-500 text-white hover:bg-green-400',
-};
-
-function CameraOverlay({ videoRef, quality, onCapture, onCancel }: CameraOverlayProps) {
-  const feedback = quality ? getQualityFeedback(quality) : null;
-  const level: QualityLevel = feedback?.level ?? 'poor';
-  const canCapture = level === 'good' || level === 'fair';
-
-  return (
-    <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
-      {/* Live video feed */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="absolute inset-0 w-full h-full object-cover"
-      />
-
-      {/* Dim vignette */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 45%, transparent 50%, rgba(0,0,0,.55) 100%)' }} />
-
-      {/* Viewfinder frame */}
-      <div className={`absolute inset-x-8 top-[15%] bottom-[28%] rounded-2xl border-2 ${LEVEL_BORDER[level]} transition-colors duration-300`}>
-        {/* Corner guides */}
-        {['top-0 left-0 border-t-4 border-l-4', 'top-0 right-0 border-t-4 border-r-4', 'bottom-0 left-0 border-b-4 border-l-4', 'bottom-0 right-0 border-b-4 border-r-4'].map((cls) => (
-          <div key={cls} className={`absolute w-6 h-6 rounded-sm ${LEVEL_BORDER[level]} ${cls}`} />
-        ))}
-      </div>
-
-      {/* Quality badge */}
-      <div className="absolute inset-x-0 bottom-[27%] flex flex-col items-center gap-1.5 px-8">
-        {feedback && (
-          <span className={`px-3 py-1 rounded-full text-sm font-semibold shadow ${LEVEL_BADGE[level]}`}>
-            {feedback.label}
-          </span>
-        )}
-        {feedback && (
-          <p className="text-xs text-white/80 text-center leading-tight">{feedback.hint}</p>
-        )}
-        {!feedback && (
-          <p className="text-xs text-white/50 text-center">Analizando imagen\u2026</p>
-        )}
-      </div>
-
-      {/* Buttons */}
-      <div className="absolute bottom-8 inset-x-6 flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 rounded-2xl bg-white/10 text-white px-5 py-3.5 font-semibold text-sm hover:bg-white/20 transition"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={onCapture}
-          disabled={!canCapture}
-          className={`flex-[2] rounded-2xl px-5 py-3.5 font-semibold text-sm transition shadow-lg ${LEVEL_BTN[level]}`}
-        >
-          {level === 'good' ? '📸 Capturar' : '⏳ Capturar'}
-        </button>
-      </div>
-    </div>
-  );
-}
