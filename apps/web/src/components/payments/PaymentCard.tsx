@@ -77,14 +77,22 @@ function renderStatusBadge(isPaid: boolean, isSnoozed: boolean, urgency: Urgency
   );
 }
 
+function getSnoozeBtnLabel(pending: boolean, error: boolean): string {
+  if (pending) return '⏳ Posponiendo...';
+  if (error) return '❌ Error, intenta de nuevo';
+  return '⏰ Posponer 3d';
+}
+
 export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggle }: Props) {
   const [, startTransition] = useTransition();
+  const [isSnoozePending, startSnoozeTransition] = useTransition();
   const [isPaid, setIsPaid] = useState(payment.isPaidThisMonth);
   const [isSnoozed, setIsSnoozed] = useState(
     payment.snoozedUntil != null && new Date(payment.snoozedUntil) > new Date(),
   );
   const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [snoozeError, setSnoozeError] = useState(false);
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
@@ -105,12 +113,17 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
   }, [currentPayment.id, isPaid, onPaidToggle]);
 
   const snooze = useCallback(() => {
-    startTransition(async () => {
+    setSnoozeError(false);
+    startSnoozeTransition(async () => {
       const res = await fetch(`/api/payments/${currentPayment.id}/snooze`, {
         method: 'POST',
         credentials: 'include',
       });
-      if (res.ok) setIsSnoozed(true);
+      if (res.ok) {
+        setIsSnoozed(true);
+      } else {
+        setSnoozeError(true);
+      }
     });
   }, [currentPayment.id]);
 
@@ -174,10 +187,11 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
           </button>
           <button
             type="button"
+            disabled={isSnoozePending}
             onClick={(e) => { e.stopPropagation(); snooze(); }}
-            className="flex-1 py-2.5 rounded-xl bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 text-stone-700 dark:text-stone-200 text-sm font-semibold transition-all"
+            className="flex-1 py-2.5 rounded-xl bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 text-stone-700 dark:text-stone-200 text-sm font-semibold transition-all disabled:opacity-60"
           >
-            ⏰ Posponer 3d
+            {getSnoozeBtnLabel(isSnoozePending, snoozeError)}
           </button>
         </div>
       )}

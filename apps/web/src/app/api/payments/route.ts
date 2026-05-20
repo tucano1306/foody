@@ -55,6 +55,7 @@ function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
     updatedAt: new Date(String(row.updated_at)).toISOString(),
     isPaidThisMonth,
     daysUntilDue: daysUntilDue(dueDay),
+    snoozedUntil: row.snoozed_until == null ? null : new Date(row.snoozed_until as string).toISOString(),
   };
 }
 
