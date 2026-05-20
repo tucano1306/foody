@@ -20,6 +20,7 @@ const configuration = () => ({
     appId: process.env.ONESIGNAL_APP_ID ?? '',
     apiKey: process.env.ONESIGNAL_API_KEY ?? '',
   },
+  webAppUrl: process.env.WEB_APP_URL ?? 'https://foody-web-eight.vercel.app',
   webUrl: process.env.WEB_URL ?? 'http://localhost:3000',
 });
 

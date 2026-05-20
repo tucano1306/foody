@@ -147,7 +147,8 @@ CREATE TABLE IF NOT EXISTS "monthly_payments" (
   "due_day"                  SMALLINT      NOT NULL,
   "category"                 VARCHAR(100),
   "is_active"                BOOLEAN       NOT NULL DEFAULT true,
-  "notification_days_before" SMALLINT      NOT NULL DEFAULT 3,
+  "notification_days_before" SMALLINT      NOT NULL DEFAULT 1,
+  "snoozed_until"            TIMESTAMPTZ,
   "user_id"                  UUID          NOT NULL,
   "created_at"               TIMESTAMP     NOT NULL DEFAULT now(),
   "updated_at"               TIMESTAMP     NOT NULL DEFAULT now(),
@@ -258,4 +259,8 @@ CREATE TABLE IF NOT EXISTS "ticket_items" (
 );
 
 CREATE INDEX IF NOT EXISTS "IDX_ticket_items_ticket" ON "ticket_items" ("ticket_id");
+
+-- ─── Migrations ──────────────────────────────────────────────
+ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "snoozed_until" TIMESTAMPTZ NULL;
+ALTER TABLE "monthly_payments" ALTER COLUMN "notification_days_before" SET DEFAULT 1;
 

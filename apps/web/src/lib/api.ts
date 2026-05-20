@@ -150,15 +150,16 @@ function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: Payment
     amount: asNumber(row.amount),
     currency: asText(row.currency, 'USD'),
     dueDay,
-    category: ((row.category as string | null | undefined) ?? 'other') as MonthlyPayment['category'],
+    category: ((row.category as string | null | undefined) ?? 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
-    notificationDaysBefore: asInteger(row.notification_days_before, 3),
+    notificationDaysBefore: asInteger(row.notification_days_before, 1),
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
     isPaidThisMonth: currentRecord?.status === 'paid',
     daysUntilDue: daysUntilDue(dueDay),
     currentRecord,
+    snoozedUntil: row.snoozed_until === null || row.snoozed_until === undefined ? null : new Date(row.snoozed_until as string | number | Date).toISOString(),
   };
 }
 

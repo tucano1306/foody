@@ -8,6 +8,7 @@ import ExpensesByStore from '@/components/home/ExpensesByStore';
 import StoreVisitsWheel from '@/components/home/StoreVisitsWheel';
 import MonthlyFoodWheel from '@/components/home/MonthlyFoodWheel';
 import HomeProductsShell from '@/components/home/HomeProductsShell';
+import MonthlyExpenseSummary from '@/components/home/MonthlyExpenseSummary';
 import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
 import GreetingToast from '@/components/home/GreetingToast';
@@ -59,6 +60,8 @@ export default async function HomePage() {
       />
 
       <FrequentProducts />
+
+      <MonthlyExpenseSummary />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StoreVisitsWheel />

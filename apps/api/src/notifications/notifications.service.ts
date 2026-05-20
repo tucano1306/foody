@@ -48,6 +48,9 @@ export class NotificationsService {
     });
 
     for (const payment of allPayments) {
+      // Skip snoozed payments
+      if (payment.snoozedUntil && new Date(payment.snoozedUntil) > now) continue;
+
       const daysUntilDue = this.daysUntilDue(payment.dueDay, today);
 
       if (daysUntilDue <= payment.notificationDaysBefore && daysUntilDue >= 0) {
@@ -99,6 +102,12 @@ export class NotificationsService {
         paymentId: payment.id,
         daysUntilDue,
       };
+      // Web push action buttons
+      const webAppUrl = this.config.get<string>('webAppUrl') ?? 'https://foody-web-eight.vercel.app';
+      (notification as Record<string, unknown>)['web_buttons'] = [
+        { id: 'view_payments', text: '💳 Ver pagos', url: `${webAppUrl}/payments` },
+      ];
+      (notification as Record<string, unknown>)['url'] = `${webAppUrl}/payments`;
 
       await this.onesignalClient.createNotification(notification);
       this.logger.log(`Notification sent for payment "${payment.name}" to user ${user.id}`);

@@ -199,6 +199,7 @@ export interface MonthlyPayment {
   isPaidThisMonth: boolean;
   daysUntilDue: number;
   currentRecord?: PaymentRecord;
+  snoozedUntil: string | null;
 }
 
 export interface CreatePaymentDto {

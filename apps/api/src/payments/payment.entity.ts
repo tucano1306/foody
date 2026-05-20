@@ -28,7 +28,7 @@ export class MonthlyPayment {
     scale: 2,
     transformer: {
       to: (v: number) => v,
-      from: (v: string) => parseFloat(v),
+      from: (v: string) => Number.parseFloat(v),
     },
   })
   amount: number;
@@ -47,8 +47,11 @@ export class MonthlyPayment {
   isActive: boolean;
 
   /** Days before due date to send notification */
-  @Column({ name: 'notification_days_before', default: 3, type: 'smallint' })
+  @Column({ name: 'notification_days_before', default: 1, type: 'smallint' })
   notificationDaysBefore: number;
+
+  @Column({ name: 'snoozed_until', nullable: true, type: 'timestamptz' })
+  snoozedUntil: Date | null;
 
   @Column({ name: 'user_id' })
   userId: string;

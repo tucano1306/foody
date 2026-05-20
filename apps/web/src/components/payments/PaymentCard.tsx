@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useState, useTransition } from 'react';
+import type React from 'react';
 import type { MonthlyPayment } from '@foody/types';
 import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
-
 interface Props {
   readonly payment: MonthlyPayment;
   readonly onDeleted?: (id: string) => void;
@@ -55,15 +55,41 @@ function getUrgencyBadgeCls(urgency: Urgency): string {
   return 'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400';
 }
 
+function renderStatusBadge(isPaid: boolean, isSnoozed: boolean, urgency: Urgency, daysUntilDue: number): React.ReactNode {
+  if (isPaid) {
+    return (
+      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+        ✓ Pagado este mes
+      </span>
+    );
+  }
+  if (isSnoozed) {
+    return (
+      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400">
+        ⏸ Pospuesto 3 días
+      </span>
+    );
+  }
+  return (
+    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getUrgencyBadgeCls(urgency)}`}>
+      {getUrgencyBadge(urgency, daysUntilDue)}
+    </span>
+  );
+}
+
 export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggle }: Props) {
   const [, startTransition] = useTransition();
   const [isPaid, setIsPaid] = useState(payment.isPaidThisMonth);
+  const [isSnoozed, setIsSnoozed] = useState(
+    payment.snoozedUntil != null && new Date(payment.snoozedUntil) > new Date(),
+  );
   const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
   const circleColor = getCircleColor(urgency, isPaid);
+  const showQuickActions = !isPaid && (urgency === 'today' || currentPayment.daysUntilDue <= 1);
 
   const togglePaid = useCallback(() => {
     startTransition(async () => {
@@ -77,6 +103,16 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
       }
     });
   }, [currentPayment.id, isPaid, onPaidToggle]);
+
+  const snooze = useCallback(() => {
+    startTransition(async () => {
+      const res = await fetch(`/api/payments/${currentPayment.id}/snooze`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) setIsSnoozed(true);
+    });
+  }, [currentPayment.id]);
 
   const handleUpdated = useCallback((updated: MonthlyPayment) => {
     setCurrentPayment(updated);
@@ -119,20 +155,32 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
           </div>
         </div>
 
-        {/* Bottom row: status badge */}
+        {/* Bottom row: status badge + quick actions */}
         <div className="mt-4 flex items-center justify-between gap-2">
-          {isPaid ? (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-              ✓ Pagado este mes
-            </span>
-          ) : (
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getUrgencyBadgeCls(urgency)}`}>
-              {getUrgencyBadge(urgency, currentPayment.daysUntilDue)}
-            </span>
-          )}
+          {renderStatusBadge(isPaid, isSnoozed, urgency, currentPayment.daysUntilDue)}
           <span className="text-stone-400 dark:text-stone-500 text-xs">Toca para ver más →</span>
         </div>
       </button>
+
+      {/* Quick actions for urgent payments */}
+      {showQuickActions && !isSnoozed && (
+        <div className="flex gap-2 mt-2 px-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); togglePaid(); }}
+            className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold transition-all"
+          >
+            ✅ Pagado
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); snooze(); }}
+            className="flex-1 py-2.5 rounded-xl bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 text-stone-700 dark:text-stone-200 text-sm font-semibold transition-all"
+          >
+            ⏰ Posponer 3d
+          </button>
+        </div>
+      )}
 
       {/* Detail sheet */}
       <PaymentDetailSheet
