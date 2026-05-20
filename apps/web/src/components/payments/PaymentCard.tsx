@@ -89,7 +89,7 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
   const circleColor = getCircleColor(urgency, isPaid);
-  const showQuickActions = !isPaid && (urgency === 'today' || currentPayment.daysUntilDue <= 1);
+  const showQuickActions = !isPaid && !isSnoozed;
 
   const togglePaid = useCallback(() => {
     startTransition(async () => {
