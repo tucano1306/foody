@@ -11,15 +11,21 @@ export async function POST(
   if (!user) return unauthorized();
 
   const { id } = await params;
-  const rows = await sql`
-    UPDATE monthly_payments
-       SET snoozed_until = NOW() + INTERVAL '3 days',
-           updated_at    = NOW()
-     WHERE id = ${id} AND user_id = ${user.userId}
-     RETURNING id
-  `;
-  if (!rows.length) return notFound();
-  return NextResponse.json({ snoozedUntil: new Date(Date.now() + 3 * 86_400_000).toISOString() });
+  try {
+    const rows = await sql`
+      UPDATE monthly_payments
+         SET snoozed_until = NOW() + INTERVAL '3 days',
+             updated_at    = NOW()
+       WHERE id = ${id} AND user_id = ${user.userId}
+       RETURNING id
+    `;
+    if (!rows.length) return notFound();
+    return NextResponse.json({ snoozedUntil: new Date(Date.now() + 3 * 86_400_000).toISOString() });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[snooze] SQL error:', message);
+    return NextResponse.json({ message }, { status: 500 });
+  }
 }
 
 /** DELETE /api/payments/[id]/snooze — clear snooze */
