@@ -7,7 +7,7 @@ export const IS_PUBLIC_KEY = 'isPublic';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
+  constructor(private readonly reflector: Reflector) {
     super();
   }
 

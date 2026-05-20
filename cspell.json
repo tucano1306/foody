@@ -395,7 +395,11 @@
     "desde",
     "pestaña",
     "recibo",
-    "omitieron"
+    "omitieron",
+    "continuar",
+    "vincula",
+    "catálogo",
+    "catalogo"
   ],
   "ignorePaths": [
     "node_modules/**",
