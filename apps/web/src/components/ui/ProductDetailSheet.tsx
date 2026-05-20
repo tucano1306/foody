@@ -38,6 +38,13 @@ function formatRelativeTime(dateStr: string): string {
   return `hace ${months} ${months === 1 ? 'mes' : 'meses'}`;
 }
 
+function latestPurchaseDate(a?: string | null, b?: string | null): string | null {
+  if (!a && !b) return null;
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return new Date(a) >= new Date(b) ? a : b;
+}
+
 export default function ProductDetailSheet({ product, open, onClose, lastPurchase }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const photoButtonRef = useRef<HTMLButtonElement>(null);
@@ -141,7 +148,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                     <div className="flex-1 rounded-xl bg-stone-50 p-3">
                       <p className="text-[10px] text-stone-400 uppercase tracking-wide">Última compra</p>
                       <p className="text-sm font-semibold text-stone-700 mt-0.5">
-                        {formatRelativeTime(lastPurchase?.purchasedAt ?? product.lastPurchaseDate!)}
+                        {formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, product.lastPurchaseDate)!)}
                       </p>
                       {lastPurchase?.storeName && (
                         <p className="text-[10px] text-stone-400 truncate mt-0.5">🏪 {lastPurchase.storeName}</p>

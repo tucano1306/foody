@@ -105,6 +105,13 @@ function formatRelativeTime(dateStr: string): string {
   return `hace ${months} ${months === 1 ? 'mes' : 'meses'}`;
 }
 
+function latestPurchaseDate(a?: string | null, b?: string | null): string | null {
+  if (!a && !b) return null;
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return new Date(a) >= new Date(b) ? a : b;
+}
+
 export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, lastPurchase }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -223,7 +230,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
           <p className="flex items-center gap-1">
             <span>🕐</span>
-            <span>{formatRelativeTime(lastPurchase?.purchasedAt ?? current.lastPurchaseDate!)}</span>
+            <span>{formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, current.lastPurchaseDate)!)}</span>
           </p>
           {lastPurchase?.storeName && (
             <p className="flex items-center gap-1 mt-0.5">
@@ -348,7 +355,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
             <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
             <p className="flex items-center gap-1">
               <span>🕐</span>
-              <span>{formatRelativeTime(lastPurchase?.purchasedAt ?? current.lastPurchaseDate!)}</span>
+              <span>{formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, current.lastPurchaseDate)!)}</span>
             </p>
             {lastPurchase?.storeName && (
               <p className="flex items-center gap-1 mt-0.5">
