@@ -122,6 +122,8 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
       if (res.ok) {
         setIsSnoozed(true);
       } else {
+        const body = await res.json().catch(() => ({})) as { message?: string };
+        console.error('[snooze] error:', res.status, body.message);
         setSnoozeError(true);
       }
     });

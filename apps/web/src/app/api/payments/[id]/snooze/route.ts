@@ -7,23 +7,24 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const user = await getRouteUser(request);
-  if (!user) return unauthorized();
-
-  const { id } = await params;
   try {
+    const user = await getRouteUser(request);
+    if (!user) return unauthorized();
+
+    const { id } = await params;
+    const snoozedUntil = new Date(Date.now() + 3 * 86_400_000).toISOString();
     const rows = await sql`
       UPDATE monthly_payments
-         SET snoozed_until = NOW() + INTERVAL '3 days',
+         SET snoozed_until = ${snoozedUntil}::timestamptz,
              updated_at    = NOW()
        WHERE id = ${id} AND user_id = ${user.userId}
        RETURNING id
     `;
     if (!rows.length) return notFound();
-    return NextResponse.json({ snoozedUntil: new Date(Date.now() + 3 * 86_400_000).toISOString() });
+    return NextResponse.json({ snoozedUntil });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[snooze] SQL error:', message);
+    console.error('[snooze] error:', message);
     return NextResponse.json({ message }, { status: 500 });
   }
 }
