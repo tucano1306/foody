@@ -305,7 +305,7 @@ function allocate(
       return items.map((it) => ({
         unitPrice: it.manualUnitPrice,
         totalPrice: it.manualTotalPrice,
-        priceSource: 'manual' as PriceSource,
+        priceSource: 'manual',
       }));
     }
 
@@ -313,11 +313,11 @@ function allocate(
     if (remaining <= 0) {
       return items.map((it) =>
         it.manualTotalPrice == null
-          ? { unitPrice: null, totalPrice: null, priceSource: 'unknown' as PriceSource }
+          ? { unitPrice: null, totalPrice: null, priceSource: 'unknown' }
           : {
               unitPrice: it.manualUnitPrice,
               totalPrice: it.manualTotalPrice,
-              priceSource: 'manual' as PriceSource,
+              priceSource: 'manual',
             },
       );
     }
@@ -341,7 +341,7 @@ function allocate(
         return {
           unitPrice: it.manualUnitPrice,
           totalPrice: it.manualTotalPrice,
-          priceSource: 'manual' as PriceSource,
+          priceSource: 'manual',
         };
       }
       const share = unpricedShares[unpricedIdx];
@@ -350,7 +350,7 @@ function allocate(
       return {
         unitPrice: unit,
         totalPrice: share,
-        priceSource: 'allocated' as PriceSource,
+        priceSource: 'allocated',
       };
     });
   }
@@ -364,7 +364,7 @@ function allocate(
     return items.map((it, i) => ({
       unitPrice: it.quantity > 0 ? round2(shares[i] / it.quantity) : 0,
       totalPrice: shares[i],
-      priceSource: 'allocated' as PriceSource,
+      priceSource: 'allocated',
     }));
   }
 
@@ -377,7 +377,7 @@ function allocate(
   return items.map((it, i) => ({
     unitPrice: it.quantity > 0 ? round2(shares[i] / it.quantity) : 0,
     totalPrice: shares[i],
-    priceSource: 'allocated' as PriceSource,
+    priceSource: 'allocated',
   }));
 }
 

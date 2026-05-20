@@ -185,6 +185,7 @@ export const PAYMENTS: MonthlyPayment[] = [
     updatedAt: '2026-04-01T00:00:00.000Z',
     isPaidThisMonth: false,
     daysUntilDue: 16,
+    snoozedUntil: null,
   },
   {
     id: 'pay-0002-0000-0000-000000000002',
@@ -212,6 +213,7 @@ export const PAYMENTS: MonthlyPayment[] = [
       userId: TEST_USER_ID,
       createdAt: '2026-04-05T10:00:00.000Z',
     },
+    snoozedUntil: null,
   },
   {
     id: 'pay-0003-0000-0000-000000000003',
@@ -228,6 +230,7 @@ export const PAYMENTS: MonthlyPayment[] = [
     updatedAt: '2026-04-01T00:00:00.000Z',
     isPaidThisMonth: false,
     daysUntilDue: 2,
+    snoozedUntil: null,
   },
 ];
 
