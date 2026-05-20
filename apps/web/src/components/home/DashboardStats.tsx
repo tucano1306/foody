@@ -53,10 +53,10 @@ export default function DashboardStats({
     {
       label: 'Gasto del mes',
       value: new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(totalMonthlyExpenses),
-      sublabel: 'presupuesto estimado',
+      sublabel: 'en pagos recurrentes',
       icon: '💰',
       color: '#003b71',
-      href: '/shopping-trips',
+      href: '/payments',
     },
   ];
 
