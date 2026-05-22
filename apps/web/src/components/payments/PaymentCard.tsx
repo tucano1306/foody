@@ -10,6 +10,7 @@ interface Props {
   readonly onDeleted?: (id: string) => void;
   readonly onUpdated?: (p: MonthlyPayment) => void;
   readonly onPaidToggle?: (id: string, nowPaid: boolean) => void;
+  readonly onSnoozed?: (id: string, snoozedUntil: string) => void;
 }
 
 type Urgency = 'today' | 'urgent' | 'upcoming' | 'normal';
@@ -83,7 +84,7 @@ function getSnoozeBtnLabel(pending: boolean, error: boolean): string {
   return '⏰ Posponer 3d';
 }
 
-export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggle }: Props) {
+export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggle, onSnoozed }: Props) {
   const [, startTransition] = useTransition();
   const [isSnoozePending, startSnoozeTransition] = useTransition();
   const [isPaid, setIsPaid] = useState(payment.isPaidThisMonth);
@@ -120,7 +121,10 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
         credentials: 'include',
       });
       if (res.ok) {
+        const body = await res.json().catch(() => ({})) as { snoozedUntil?: string };
+        const snoozedUntil = body.snoozedUntil ?? new Date(Date.now() + 3 * 86_400_000).toISOString();
         setIsSnoozed(true);
+        onSnoozed?.(currentPayment.id, snoozedUntil);
       } else {
         const body = await res.json().catch(() => ({})) as { message?: string };
         console.error('[snooze] error:', res.status, body.message);

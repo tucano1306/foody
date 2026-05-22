@@ -10,8 +10,13 @@ interface Props {
   readonly initialPayments: MonthlyPayment[];
 }
 
+type Filter = 'all' | 'pending' | 'paid';
+
 export default function PaymentsList({ initialPayments }: Props) {
   const [payments, setPayments] = useState<MonthlyPayment[]>(initialPayments);
+  const [filter, setFilter] = useState<Filter>('all');
+
+  const toggleFilter = (f: Filter) => setFilter((prev) => (prev === f ? 'all' : f));
 
   // ── Callbacks ────────────────────────────────────────────────────────────
 
@@ -29,12 +34,24 @@ export default function PaymentsList({ initialPayments }: Props) {
     );
   }, []);
 
+  const handleSnoozed = useCallback((id: string, snoozedUntil: string) => {
+    setPayments((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, snoozedUntil } : p)),
+    );
+  }, []);
+
   // ── Derived values ───────────────────────────────────────────────────────
 
-  const pending = payments.filter((p) => !p.isPaidThisMonth);
+  const now = new Date();
+  const snoozed = payments.filter(
+    (p) => !p.isPaidThisMonth && p.snoozedUntil != null && new Date(p.snoozedUntil) > now,
+  );
+  const snoozedIds = new Set(snoozed.map((p) => p.id));
+  const pending = payments.filter((p) => !p.isPaidThisMonth && !snoozedIds.has(p.id));
   const paid = payments.filter((p) => p.isPaidThisMonth);
   const totalExpenses = payments.reduce((sum, p) => sum + p.amount, 0);
   const totalPaid = paid.reduce((sum, p) => sum + p.amount, 0);
+  const totalSnoozed = snoozed.reduce((sum, p) => sum + p.amount, 0);
 
   // Use the most common currency, fallback to MXN
   const currencies = payments.map((p) => p.currency);
@@ -62,7 +79,16 @@ export default function PaymentsList({ initialPayments }: Props) {
     <div className="space-y-6">
       {/* ─── Monthly summary ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="flex flex-col items-center bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-xl p-4 sm:p-6 shadow-sm hover:scale-105 transition-transform duration-300 min-w-0">
+        {/* Total mensual — resets filter */}
+        <button
+          type="button"
+          onClick={() => setFilter('all')}
+          className={`flex flex-col items-center bg-white dark:bg-stone-900 border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+            filter === 'all'
+              ? 'border-[#4F46E5] ring-2 ring-[#4F46E5]/30 scale-[1.03]'
+              : 'border-stone-100 dark:border-stone-800 hover:scale-105'
+          }`}
+        >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
             style={{ backgroundColor: '#4F46E5' }}
@@ -75,9 +101,18 @@ export default function PaymentsList({ initialPayments }: Props) {
           <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
             {formatTotal(totalExpenses)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
           </p>
-        </div>
+        </button>
 
-        <div className="flex flex-col items-center bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-xl p-4 sm:p-6 shadow-sm hover:scale-105 transition-transform duration-300 min-w-0">
+        {/* Pagado */}
+        <button
+          type="button"
+          onClick={() => toggleFilter('paid')}
+          className={`flex flex-col items-center bg-white dark:bg-stone-900 border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+            filter === 'paid'
+              ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.03]'
+              : 'border-stone-100 dark:border-stone-800 hover:scale-105'
+          }`}
+        >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
             style={{ backgroundColor: '#10B981' }}
@@ -90,9 +125,18 @@ export default function PaymentsList({ initialPayments }: Props) {
           <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
             {formatTotal(totalPaid)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
           </p>
-        </div>
+        </button>
 
-        <div className="flex flex-col items-center bg-white dark:bg-stone-900 border border-stone-100 dark:border-stone-800 rounded-xl p-4 sm:p-6 shadow-sm hover:scale-105 transition-transform duration-300 min-w-0">
+        {/* Pendiente */}
+        <button
+          type="button"
+          onClick={() => toggleFilter('pending')}
+          className={`flex flex-col items-center bg-white dark:bg-stone-900 border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+            filter === 'pending'
+              ? 'border-amber-400 ring-2 ring-amber-400/30 scale-[1.03]'
+              : 'border-stone-100 dark:border-stone-800 hover:scale-105'
+          }`}
+        >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
             style={{ backgroundColor: '#F59E0B' }}
@@ -105,11 +149,16 @@ export default function PaymentsList({ initialPayments }: Props) {
           <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
             {formatTotal(totalExpenses - totalPaid)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
           </p>
-        </div>
+          {totalSnoozed > 0 && (
+            <p className="text-stone-400 dark:text-stone-500 text-[10px] sm:text-xs mt-1 text-center leading-tight">
+              incl. {formatTotal(totalSnoozed)} pospuesto
+            </p>
+          )}
+        </button>
       </div>
 
       {/* ─── Pending payments ─────────────────────────────────────────────── */}
-      {pending.length > 0 && (
+      {pending.length > 0 && filter !== 'paid' && (
         <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
           <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
             ⏰ Pendientes ({pending.length})
@@ -122,6 +171,28 @@ export default function PaymentsList({ initialPayments }: Props) {
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
                 onPaidToggle={handlePaidToggle}
+                onSnoozed={handleSnoozed}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ─── Snoozed payments ─────────────────────────────────────────────── */}
+      {snoozed.length > 0 && filter !== 'paid' && (
+        <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
+            ⏸ Pospuestos ({snoozed.length})
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {snoozed.map((payment) => (
+              <PaymentCard
+                key={payment.id}
+                payment={payment}
+                onDeleted={handleDeleted}
+                onUpdated={handleUpdated}
+                onPaidToggle={handlePaidToggle}
+                onSnoozed={handleSnoozed}
               />
             ))}
           </div>
@@ -129,7 +200,7 @@ export default function PaymentsList({ initialPayments }: Props) {
       )}
 
       {/* ─── Paid this month ──────────────────────────────────────────────── */}
-      {paid.length > 0 && (
+      {paid.length > 0 && filter !== 'pending' && (
         <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
           <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
             ✅ Pagados este mes ({paid.length})
@@ -142,6 +213,7 @@ export default function PaymentsList({ initialPayments }: Props) {
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
                 onPaidToggle={handlePaidToggle}
+                onSnoozed={handleSnoozed}
               />
             ))}
           </div>
