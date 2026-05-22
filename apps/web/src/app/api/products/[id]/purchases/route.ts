@@ -52,7 +52,9 @@ export async function POST(
   const currency =
     typeof body.currency === 'string' ? body.currency : ((product as Record<string, unknown>).currency as string | null) ?? 'MXN';
   const purchasedAt =
-    typeof body.purchasedAt === 'string' ? body.purchasedAt : new Date().toISOString();
+    typeof body.purchasedAt === 'string' && !Number.isNaN(Date.parse(body.purchasedAt))
+      ? body.purchasedAt
+      : new Date().toISOString();
   const storeName =
     typeof body.storeName === 'string' && body.storeName.trim() ? body.storeName.trim() : null;
   const storeId =

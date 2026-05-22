@@ -38,9 +38,23 @@ export default function PaymentForm() {
     setError(null);
 
     try {
+      const trimmedName = form.name.trim();
+      if (!trimmedName) {
+        setError('El nombre es obligatorio');
+        setSaving(false);
+        return;
+      }
+
+      if (!form.amount || form.amount <= 0) {
+        setError('El monto debe ser mayor a cero');
+        setSaving(false);
+        return;
+      }
+
       const parsedNotify = notifyValue === '' ? 0 : Number.parseInt(notifyValue, 10);
-      const daysBeforeValue = notifyUnit === 'months' ? parsedNotify * 30 : parsedNotify;
-      const payload = { ...form, notificationDaysBefore: daysBeforeValue };
+      const safeNotify = Number.isNaN(parsedNotify) ? 0 : parsedNotify;
+      const daysBeforeValue = notifyUnit === 'months' ? safeNotify * 30 : safeNotify;
+      const payload = { ...form, name: trimmedName, notificationDaysBefore: daysBeforeValue };
 
       const res = await fetch(`/api/proxy/payments`, {
         method: 'POST',
@@ -98,7 +112,7 @@ export default function PaymentForm() {
               id="payment-amount"
               required
               type="number"
-              min={0}
+              min={0.01}
               step="0.01"
               value={form.amount === 0 ? '' : form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: Number.parseFloat(e.target.value) || 0 }))}

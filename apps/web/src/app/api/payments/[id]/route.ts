@@ -24,7 +24,14 @@ function asText(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
-function daysUntilDue(dueDay: number): number {
+function toISOStringSafe(value: unknown): string {
+  if (!value) return new Date().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  const d = new Date(value as string);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+
   const now = new Date();
   const today = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -45,8 +52,8 @@ function mapPayment(row: Record<string, unknown>) {
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     userId: String(row.user_id),
-    createdAt: new Date(String(row.created_at)).toISOString(),
-    updatedAt: new Date(String(row.updated_at)).toISOString(),
+    createdAt: toISOStringSafe(row.created_at),
+    updatedAt: toISOStringSafe(row.updated_at),
     isPaidThisMonth: false,
     daysUntilDue: daysUntilDue(dueDay),
   };
@@ -72,26 +79,67 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({ ...payment, isPaidThisMonth });
 }
 
+function validatePatchName(body: Record<string, unknown>): string | null {
+  if (body.name === undefined) return null;
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  return name || null;
+}
+
+function parsePatchAmount(body: Record<string, unknown>): number | null {
+  if (body.amount === undefined) return null;
+  if (typeof body.amount === 'number') return body.amount;
+  if (typeof body.amount === 'string') return Number.parseFloat(body.amount);
+  return null;
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const body = await request.json() as Record<string, unknown>;
 
-  const rows = await sql`
-    UPDATE monthly_payments SET
-      name = COALESCE(${body.name as string ?? null}, name),
-      description = COALESCE(${body.description as string ?? null}, description),
-      amount = COALESCE(${body.amount as number ?? null}, amount),
-      currency = COALESCE(${body.currency as string ?? null}, currency),
-      due_day = COALESCE(${body.dueDay as number ?? null}, due_day),
-      category = COALESCE(${body.category as string ?? null}, category),
-      notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
-      updated_at = NOW()
-    WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
-  `;
-  if (!rows.length) return notFound();
-  return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>));
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json() as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  // Validate name if provided
+  if (body.name !== undefined) {
+    const name = validatePatchName(body);
+    if (!name) return NextResponse.json({ message: 'name cannot be empty' }, { status: 422 });
+    if (name.length > 255) return NextResponse.json({ message: 'name must be 255 characters or fewer' }, { status: 422 });
+    body = { ...body, name };
+  }
+
+  // Validate amount if provided
+  if (body.amount !== undefined) {
+    const amount = parsePatchAmount(body);
+    if (amount === null || !Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ message: 'amount must be a positive number' }, { status: 422 });
+    }
+    body = { ...body, amount };
+  }
+
+  try {
+    const rows = await sql`
+      UPDATE monthly_payments SET
+        name = COALESCE(${body.name as string ?? null}, name),
+        description = COALESCE(${body.description as string ?? null}, description),
+        amount = COALESCE(${body.amount as number ?? null}, amount),
+        currency = COALESCE(${body.currency as string ?? null}, currency),
+        due_day = COALESCE(${body.dueDay as number ?? null}, due_day),
+        category = COALESCE(${body.category as string ?? null}, category),
+        notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
+        updated_at = NOW()
+      WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
+    `;
+    if (!rows.length) return notFound();
+    return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Database error';
+    return NextResponse.json({ message }, { status: 500 });
+  }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

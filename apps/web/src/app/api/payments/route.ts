@@ -25,7 +25,14 @@ function asText(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
-function daysUntilDue(dueDay: number): number {
+function toISOStringSafe(value: unknown): string {
+  if (!value) return new Date().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  const d = new Date(value as string);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+
   const now = new Date();
   const today = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -51,8 +58,8 @@ function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     userId: String(row.user_id),
-    createdAt: new Date(String(row.created_at)).toISOString(),
-    updatedAt: new Date(String(row.updated_at)).toISOString(),
+    createdAt: toISOStringSafe(row.created_at),
+    updatedAt: toISOStringSafe(row.updated_at),
     isPaidThisMonth,
     daysUntilDue: daysUntilDue(dueDay),
     snoozedUntil: row.snoozed_until == null ? null : new Date(row.snoozed_until as string).toISOString(),
@@ -77,35 +84,67 @@ export async function GET(request: NextRequest) {
   );
 }
 
+function parseAmount(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return Number.parseFloat(value);
+  return Number.NaN;
+}
+
+function validatePaymentBody(body: Record<string, unknown>): { name: string; amount: number; dueDay: number; notifyDays: number } | { error: string; status: number } {
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name) return { error: 'name is required', status: 422 };
+  if (name.length > 255) return { error: 'name must be 255 characters or fewer', status: 422 };
+
+  const amount = parseAmount(body.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'amount must be a positive number', status: 422 };
+
+  const dueDay = typeof body.dueDay === 'number' ? Math.trunc(body.dueDay) : 1;
+  if (dueDay < 1 || dueDay > 31) return { error: 'dueDay must be between 1 and 31', status: 422 };
+
+  const rawNotify = typeof body.notificationDaysBefore === 'number' ? Math.trunc(body.notificationDaysBefore) : 3;
+  const notifyDays = Number.isFinite(rawNotify) && rawNotify >= 0 ? rawNotify : 3;
+
+  return { name, amount, dueDay, notifyDays };
+}
+
 export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
-  const body = await request.json() as {
-    name: string;
-    amount: number;
-    description?: string;
-    currency?: string;
-    dueDay?: number;
-    category?: string;
-    notificationDaysBefore?: number;
-  };
 
-  const id = randomUUID();
-  const rows = await sql`
-    INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, user_id, created_at, updated_at)
-    VALUES (
-      ${id},
-      ${body.name},
-      ${body.description ?? null},
-      ${body.amount},
-      ${body.currency ?? 'MXN'},
-      ${body.dueDay ?? 1},
-      ${body.category ?? null},
-      true,
-      ${body.notificationDaysBefore ?? 3},
-      ${user.userId},
-      NOW(), NOW()
-    ) RETURNING *
-  `;
-  return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>), { status: 201 });
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json() as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const validated = validatePaymentBody(body);
+  if ('error' in validated) {
+    return NextResponse.json({ message: validated.error }, { status: validated.status });
+  }
+  const { name, amount, dueDay, notifyDays } = validated;
+
+  try {
+    const id = randomUUID();
+    const rows = await sql`
+      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, user_id, created_at, updated_at)
+      VALUES (
+        ${id},
+        ${name},
+        ${typeof body.description === 'string' ? body.description.slice(0, 1000) : null},
+        ${amount},
+        ${typeof body.currency === 'string' ? body.currency : 'MXN'},
+        ${dueDay},
+        ${typeof body.category === 'string' ? body.category : null},
+        true,
+        ${notifyDays},
+        ${user.userId},
+        NOW(), NOW()
+      ) RETURNING *
+    `;
+    return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>), { status: 201 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Database error';
+    return NextResponse.json({ message }, { status: 500 });
+  }
 }

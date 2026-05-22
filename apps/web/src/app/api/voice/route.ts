@@ -155,6 +155,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ reply: 'No entendí nada. Intenta de nuevo.' });
   }
 
+  if (transcript.length > 500) {
+    return NextResponse.json({ reply: 'El mensaje es demasiado largo. Intenta con una frase más corta.' });
+  }
+
   const norm = normalize(transcript);
 
   // ─── Help

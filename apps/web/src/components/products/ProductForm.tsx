@@ -172,6 +172,12 @@ export default function ProductForm({ product, inHousehold }: Props) {
     setSaving(true);
     setError(null);
 
+    if (!form.name?.trim()) {
+      setError('El nombre del producto es obligatorio');
+      setSaving(false);
+      return;
+    }
+
     try {
       const url = product
         ? `/api/proxy/products/${product.id}`

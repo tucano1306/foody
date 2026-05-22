@@ -22,23 +22,31 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(rows);
 }
 
+function deriveStockLevel(needsShopping: boolean, isRunningLow: boolean): 'full' | 'half' | 'empty' {
+  if (needsShopping) return 'empty';
+  if (isRunningLow) return 'half';
+  return 'full';
+}
+
 // POST /api/products
 export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const body = await request.json() as {
-    name: string;
-    description?: string;
-    photoUrl?: string;
-    category?: string;
-    currentQuantity?: number;
-    minQuantity?: number;
-    unit?: string;
-    needsShopping?: boolean;
-    isRunningLow?: boolean;
-    isPrivate?: boolean;
-  };
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json() as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name) {
+    return NextResponse.json({ message: 'name is required' }, { status: 422 });
+  }
+  if (name.length > 255) {
+    return NextResponse.json({ message: 'name must be 255 characters or fewer' }, { status: 422 });
+  }
 
   // Per-user isolation: products are always created as personal (no
   // household sharing). The isPrivate flag is kept for forward compat but
@@ -46,39 +54,47 @@ export async function POST(request: NextRequest) {
   const effectiveHouseholdId = null;
 
   const id = randomUUID();
-  const currentQty = body.currentQuantity ?? 0;
-  const minQty = body.minQuantity ?? 1;
-  const needsShopping = body.needsShopping ?? false;
-  const isRunningLow = body.isRunningLow ?? false;
-  let stockLevel: 'full' | 'half' | 'empty' = 'full';
-  if (needsShopping) stockLevel = 'empty';
-  if (isRunningLow) stockLevel = 'half';
+  const currentQty = typeof body.currentQuantity === 'number' ? body.currentQuantity : 0;
+  const minQty = typeof body.minQuantity === 'number' ? body.minQuantity : 1;
+  const needsShopping = body.needsShopping === true;
+  const isRunningLow = body.isRunningLow === true;
+  const stockLevel = deriveStockLevel(needsShopping, isRunningLow);
 
-  const rows = await sql`
-    INSERT INTO products (
-      id, name, description, photo_url, category,
-      current_quantity, min_quantity, unit,
-      stock_level, is_running_low, needs_shopping,
-      user_id, household_id,
-      created_at, updated_at
-    ) VALUES (
-      ${id}, ${body.name}, ${body.description ?? null}, ${body.photoUrl ?? null}, ${body.category ?? null},
-      ${currentQty}, ${minQty}, ${body.unit ?? 'units'},
-      ${stockLevel}, ${isRunningLow}, ${needsShopping},
-      ${user.userId}, ${effectiveHouseholdId},
-      NOW(), NOW()
-    ) RETURNING *
-  `;
+  const description = typeof body.description === 'string' ? body.description.slice(0, 1000) : null;
+  const photoUrl = typeof body.photoUrl === 'string' ? body.photoUrl : null;
+  const category = typeof body.category === 'string' ? body.category : null;
+  const unit = typeof body.unit === 'string' ? body.unit : 'units';
 
-  // Add to shopping list if needed
-  if (needsShopping || isRunningLow) {
-    const listId = randomUUID();
-    await sql`
-      INSERT INTO shopping_list_items (id, product_id, user_id, household_id, created_at, updated_at)
-      VALUES (${listId}, ${id}, ${user.userId}, ${effectiveHouseholdId}, NOW(), NOW())
-      ON CONFLICT DO NOTHING
+  try {
+    const rows = await sql`
+      INSERT INTO products (
+        id, name, description, photo_url, category,
+        current_quantity, min_quantity, unit,
+        stock_level, is_running_low, needs_shopping,
+        user_id, household_id,
+        created_at, updated_at
+      ) VALUES (
+        ${id}, ${name}, ${description}, ${photoUrl}, ${category},
+        ${currentQty}, ${minQty}, ${unit},
+        ${stockLevel}, ${isRunningLow}, ${needsShopping},
+        ${user.userId}, ${effectiveHouseholdId},
+        NOW(), NOW()
+      ) RETURNING *
     `;
-  }
 
-  return NextResponse.json(rows[0], { status: 201 });
+    // Add to shopping list if needed
+    if (needsShopping || isRunningLow) {
+      const listId = randomUUID();
+      await sql`
+        INSERT INTO shopping_list_items (id, product_id, user_id, household_id, created_at, updated_at)
+        VALUES (${listId}, ${id}, ${user.userId}, ${effectiveHouseholdId}, NOW(), NOW())
+        ON CONFLICT DO NOTHING
+      `;
+    }
+
+    return NextResponse.json(rows[0], { status: 201 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Database error';
+    return NextResponse.json({ message }, { status: 500 });
+  }
 }
