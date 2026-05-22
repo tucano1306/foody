@@ -245,7 +245,8 @@ export const api = {
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
     },
     get: async (id: string) => {
-      const rows = await sql`SELECT * FROM products WHERE id = ${id} LIMIT 1`;
+      const { userId } = await getAuthContext();
+      const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
       return rows[0] ? mapProduct(rows[0] as Record<string, unknown>) : null;
     },
     create: async (data: CreateProductDto) => {
@@ -259,6 +260,7 @@ export const api = {
       return mapProduct(rows[0] as Record<string, unknown>);
     },
     update: async (id: string, data: UpdateProductDto) => {
+      const { userId } = await getAuthContext();
       const rows = await sql`
         UPDATE products SET
           name = COALESCE(${data.name ?? null}, name),
@@ -268,7 +270,7 @@ export const api = {
           min_quantity = COALESCE(${data.minQuantity ?? null}, min_quantity),
           unit = COALESCE(${data.unit ?? null}, unit),
           updated_at = NOW()
-        WHERE id = ${id} RETURNING *
+        WHERE id = ${id} AND user_id = ${userId} RETURNING *
       `;
       return mapProduct(rows[0] as Record<string, unknown>);
     },
@@ -297,7 +299,8 @@ export const api = {
       return mapProduct(rows[0] as Record<string, unknown>);
     },
     delete: async (id: string) => {
-      await sql`DELETE FROM products WHERE id = ${id}`;
+      const { userId } = await getAuthContext();
+      await sql`DELETE FROM products WHERE id = ${id} AND user_id = ${userId}`;
     },
     getUploadUrl: async (_fileName: string, _contentType: string) => {
       // File upload requires Supabase Storage — not yet configured

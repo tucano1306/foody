@@ -1,3 +1,9 @@
+function requireEnv(key: string): string {
+  const value = process.env[key];
+  if (!value) throw new Error(`Missing required environment variable: ${key}`);
+  return value;
+}
+
 const configuration = () => ({
   port: Number.parseInt(process.env.PORT ?? '3001', 10),
   database: {
@@ -7,7 +13,7 @@ const configuration = () => ({
     url: process.env.REDIS_URL ?? 'redis://localhost:6379',
   },
   jwt: {
-    secret: process.env.JWT_SECRET ?? 'fallback-dev-secret-change-in-production',
+    secret: process.env.NODE_ENV === 'production' ? requireEnv('JWT_SECRET') : (process.env.JWT_SECRET ?? 'dev-only-secret-not-for-production'),
     expiresIn: '7d',
   },
   aws: {

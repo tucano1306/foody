@@ -48,8 +48,11 @@ interface SendLoginCodeParams {
   code: string;
 }
 
-export async function sendLoginCodeEmail(params: SendLoginCodeParams): Promise<{ debugCode?: string }> {
+export async function sendLoginCodeEmail(params: SendLoginCodeParams): Promise<void> {
   const { email, code } = params;
-  console.info(`[auth] Login code for ${email}: ${code}`);
-  return { debugCode: code };
+  // Integrate a real email provider (Resend, SendGrid, etc.) before going to production.
+  // In development, the code is available only via the debug endpoint /api/auth/debug-code
+  if (process.env.NODE_ENV !== 'production') {
+    console.info(`[auth:dev] Login code for ${email}: ${code}`);
+  }
 }

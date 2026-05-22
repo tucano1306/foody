@@ -246,7 +246,6 @@ export interface SessionData {
     codeHash: string;
     expiresAt: string;
     attempts: number;
-    debugCode?: string;
   };
 }
 

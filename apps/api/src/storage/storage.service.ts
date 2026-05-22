@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -33,6 +33,18 @@ export class StorageService {
     originalFileName: string,
     contentType: string,
   ): Promise<{ uploadUrl: string; fileUrl: string; key: string }> {
+    const ALLOWED_TYPES = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'image/heic',
+      'image/heif',
+    ]);
+    if (!ALLOWED_TYPES.has(contentType)) {
+      throw new BadRequestException('Invalid content type. Only image uploads are allowed.');
+    }
+
     const ext = originalFileName.split('.').pop() ?? 'jpg';
     const key = `products/${uuidv4()}.${ext}`;
 

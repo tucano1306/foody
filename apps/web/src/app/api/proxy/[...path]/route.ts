@@ -25,6 +25,13 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
   }
 
   const nestPath = path.join('/');
+
+  // Block path traversal attempts (e.g. ../../etc/passwd or URL-encoded variants)
+  const DOT_SEGMENT = /(?:^|\/)\.\.(?:\/|$)/;
+  if (DOT_SEGMENT.test(nestPath) || nestPath.includes('%2e') || nestPath.includes('%2E')) {
+    return NextResponse.json({ message: 'Bad Request' }, { status: 400 });
+  }
+
   const internalPath = mapPath(nestPath);
 
   // Forward to internal Next.js API (same origin)

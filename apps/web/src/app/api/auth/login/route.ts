@@ -80,10 +80,9 @@ export async function POST(request: NextRequest) {
   }
 
   const code = generateLoginCode();
-  let emailResult: { debugCode?: string };
 
   try {
-    emailResult = await sendLoginCodeEmail({ email, code });
+    await sendLoginCodeEmail({ email, code });
   } catch {
     const url = new URL('/login', request.url);
     url.searchParams.set('error', 'email_delivery_failed');
@@ -111,7 +110,6 @@ export async function POST(request: NextRequest) {
     codeHash: hashLoginCode(email, code),
     expiresAt: getOtpExpiryIso(),
     attempts: 0,
-    debugCode: emailResult.debugCode,
   };
   await session.save();
 

@@ -30,7 +30,6 @@ export default async function VerifyLoginPage(props: Readonly<Props>) {
         callbackUrl={params.callbackUrl ?? pendingLogin.callbackUrl}
         error={params.error}
         name={params.name ?? pendingLogin.name ?? undefined}
-        debugCode={pendingLogin.debugCode}
       />
     </div>
   );

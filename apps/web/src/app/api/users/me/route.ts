@@ -7,7 +7,8 @@ export async function GET(request: NextRequest) {
   if (!user) return unauthorized();
 
   const rows = await sql`
-    SELECT * FROM users WHERE id = ${user.userId} LIMIT 1
+    SELECT id, name, email, avatar_url, household_id, created_at, updated_at
+    FROM users WHERE id = ${user.userId} LIMIT 1
   `;
   if (!rows.length) return NextResponse.json({ message: 'Not found' }, { status: 404 });
   return NextResponse.json(rows[0]);
@@ -26,7 +27,7 @@ export async function PATCH(request: NextRequest) {
       onesignal_player_id = COALESCE(${body.onesignalPlayerId ?? null}, onesignal_player_id),
       updated_at = NOW()
     WHERE id = ${user.userId}
-    RETURNING *
+    RETURNING id, name, email, avatar_url, household_id, created_at, updated_at
   `;
   return NextResponse.json(rows[0]);
 }
