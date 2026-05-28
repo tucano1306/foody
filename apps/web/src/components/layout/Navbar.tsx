@@ -17,6 +17,7 @@ import {
   Bars3Icon,
   XMarkIcon,
   ShareIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/solid';
 import ThemeToggle from './ThemeToggle';
 import SharingBadge from '@/components/sharing/SharingBadge';
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { href: '/supermarket',    icon: ShoppingCartIcon,   label: 'Super' },
   { href: '/products',       icon: CubeIcon,           label: 'Productos' },
   { href: '/shopping-trips', icon: ReceiptPercentIcon, label: 'Compras' },
+  { href: '/budget',         icon: BanknotesIcon,      label: 'Presupuesto' },
   { href: '/payments',       icon: CreditCardIcon,     label: 'Pagos' },
   { href: '/stats',          icon: ChartBarIcon,       label: 'Stats' },
   { href: '/household',      icon: BuildingOfficeIcon, label: 'Hogar' },

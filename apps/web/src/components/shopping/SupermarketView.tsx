@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
@@ -93,6 +93,18 @@ function getCategoryEmoji(category: string | null): string {
   return CATEGORY_EMOJI[category.toLowerCase()] ?? '🏷️';
 }
 
+function getCalculatorLabel(hasEstimated: boolean, total: number): string {
+  if (hasEstimated) return 'Estimado en carrito';
+  if (total > 0) return 'Total en carrito';
+  return 'Carrito';
+}
+
+function getPriceSubtitle(priceCount: number, total: number, inCartCount: number, hasEstimated: boolean): string {
+  if (priceCount === 0) return `${total} ${total === 1 ? 'producto' : 'productos'} · escanea 📷 para ver el total`;
+  const suffix = hasEstimated ? ' · precios estimados' : '';
+  return `${priceCount} de ${inCartCount} con precio${suffix}`;
+}
+
 function getCategorySubtitle(urgentCount: number, total: number): string {
   const plural = total === 1 ? '' : 's';
   if (urgentCount > 0) {
@@ -168,12 +180,17 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
   const runningTotal = useMemo(() =>
     inCart.reduce((sum, item) => {
-      const price = scannedPrices[item.product.id];
-      if (price === undefined) return sum;
+      const price = scannedPrices[item.product.id] ?? item.product.lastPurchasePrice ?? null;
+      if (price === null) return sum;
       return sum + price * (item.quantityNeeded > 0 ? item.quantityNeeded : 1);
     }, 0),
   [inCart, scannedPrices]);
   const scannedCount = inCart.filter((i) => scannedPrices[i.product.id] !== undefined).length;
+  const estimatedCount = inCart.filter(
+    (i) => scannedPrices[i.product.id] === undefined && i.product.lastPurchasePrice !== null,
+  ).length;
+  const priceCount = scannedCount + estimatedCount;
+  const hasEstimated = estimatedCount > 0;
 
   function replaceItem(id: string, updated: ShoppingListItem) {
     setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
@@ -327,6 +344,58 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           />
         </div>
       </div>
+
+      {/* ─── Calculator banner ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {inCart.length > 0 && (
+          <motion.div
+            key="cart-calculator"
+            initial={{ opacity: 0, y: -12, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 22 }}
+            className="bg-linear-to-br from-market-50 to-emerald-50 border border-market-200 rounded-2xl px-4 py-3 shadow-sm overflow-hidden"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-semibold text-market-600 uppercase tracking-wider mb-0.5">
+                  🧮 {getCalculatorLabel(hasEstimated, runningTotal)}
+                </p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-base font-bold text-market-700">$</span>
+                  <motion.span
+                    key={Math.round(runningTotal * 100)}
+                    initial={{ y: 6, opacity: 0.6 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 600, damping: 18 }}
+                    className="text-3xl font-black text-market-800 tabular-nums"
+                  >
+                    {runningTotal > 0 ? runningTotal.toFixed(2) : '0.00'}
+                  </motion.span>
+                </div>
+                <p className="text-[11px] text-market-600/70 mt-0.5">
+                  {getPriceSubtitle(priceCount, runningTotal, inCart.length, hasEstimated)}
+                </p>
+              </div>
+
+              <div className="flex flex-col items-center justify-center bg-market-600 text-white rounded-xl px-3 py-2 shrink-0 shadow-sm">
+                <motion.span
+                  key={inCart.length}
+                  initial={{ scale: 0.65, opacity: 0.5 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 600, damping: 14 }}
+                  className="text-2xl font-black tabular-nums leading-none"
+                >
+                  {inCart.length}
+                </motion.span>
+                <span className="text-[10px] font-medium opacity-80 mt-0.5">
+                  {pluralize(inCart.length, 'ítem', 'ítems')}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ─── Modo compra rápida banner ─────────────────────────────────────── */}
       <div className="flex items-center gap-2.5 bg-indigo-950/80 border border-indigo-700/40 rounded-2xl px-4 py-2.5">
@@ -511,7 +580,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 >
                   <ShoppingCartIcon className="w-5 h-5" />
                 </motion.span>
-                {`Finalizar compra · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`}
+                {runningTotal > 0
+                  ? `Finalizar · $${runningTotal.toFixed(2)} · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`
+                  : `Finalizar compra · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`}
               </>
             )}
           </motion.button>

@@ -399,7 +399,21 @@
     "continuar",
     "vincula",
     "catálogo",
-    "catalogo"
+    "catalogo",
+    "escaneado",
+    "costó",
+    "costo",
+    "llevar",
+    "automático",
+    "automatico",
+    "calculado",
+    "Usar",
+    "usar",
+    "escanea",
+    "estimados",
+    "nums",
+    "ítem",
+    "ítems"
   ],
   "ignorePaths": [
     "node_modules/**",
