@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { getSessionOptions } from '@/lib/session';
-import {
-  generateLoginCode,
-  getOtpExpiryIso,
-  hashLoginCode,
-  normalizeCallbackUrl,
-  sendLoginCodeEmail,
-} from '@/lib/login-otp';
+import { normalizeCallbackUrl } from '@/lib/login-otp';
+import { emailToUuid, signJWT } from '@/lib/server-auth';
+import { sql } from '@/lib/db';
 import type { SessionData } from '@foody/types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -79,39 +75,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(url, { status: 303 });
   }
 
-  const code = generateLoginCode();
+  const userId = emailToUuid(email);
 
   try {
-    await sendLoginCodeEmail({ email, code });
-  } catch {
+    await sql`
+      INSERT INTO users (id, email, name, avatar_url, created_at, updated_at)
+      VALUES (${userId}, ${email}, ${name}, null, NOW(), NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        name = COALESCE(EXCLUDED.name, users.name),
+        updated_at = NOW()
+    `;
+  } catch (err) {
+    console.error('[login] upsert user failed:', err);
     const url = new URL('/login', request.url);
-    url.searchParams.set('error', 'email_delivery_failed');
-    url.searchParams.set('callbackUrl', callbackUrl);
+    url.searchParams.set('error', 'server_error');
     return NextResponse.redirect(url, { status: 303 });
   }
 
-  const verifyUrl = new URL('/login/verify', request.url);
-  verifyUrl.searchParams.set('email', email);
-  verifyUrl.searchParams.set('callbackUrl', callbackUrl);
-  if (name) verifyUrl.searchParams.set('name', name);
+  const jwt = await signJWT({ sub: userId, email, name, avatarUrl: null });
 
-  const response = NextResponse.redirect(verifyUrl, { status: 303 });
-  const session = await getIronSession<SessionData>(request, response, getSessionOptions());
-  session.jwt = '';
-  session.userId = '';
-  session.email = '';
-  session.name = null;
+  const redirectResponse = NextResponse.redirect(new URL(callbackUrl, request.url), { status: 303 });
+  const session = await getIronSession<SessionData>(request, redirectResponse, getSessionOptions());
+  session.jwt = jwt;
+  session.userId = userId;
+  session.email = email;
+  session.name = name;
   session.avatarUrl = null;
-  session.isLoggedIn = false;
-  session.pendingLogin = {
-    email,
-    name,
-    callbackUrl,
-    codeHash: hashLoginCode(email, code),
-    expiresAt: getOtpExpiryIso(),
-    attempts: 0,
-  };
+  session.isLoggedIn = true;
+  session.pendingLogin = undefined;
   await session.save();
 
-  return response;
+  return redirectResponse;
 }
