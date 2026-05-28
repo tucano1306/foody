@@ -1,12 +1,15 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
+
+const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 
 interface Props {
   readonly initialItems: ShoppingListItem[];
@@ -150,6 +153,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const [totalAmount, setTotalAmount] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [searchFocused, setSearchFocused] = useState(false);
+  const [scannedPrices, setScannedPrices] = useState<Record<string, number>>({});
+  const [scanningProductId, setScanningProductId] = useState<string | null>(null);
 
   const { inCart, notInCart, urgent, low } = useMemo(() => {
     const inCart = items.filter((i) => i.isInCart);
@@ -160,6 +165,15 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   }, [items]);
 
   const progress = items.length === 0 ? 0 : (inCart.length / items.length) * 100;
+
+  const runningTotal = useMemo(() =>
+    inCart.reduce((sum, item) => {
+      const price = scannedPrices[item.product.id];
+      if (price === undefined) return sum;
+      return sum + price * (item.quantityNeeded > 0 ? item.quantityNeeded : 1);
+    }, 0),
+  [inCart, scannedPrices]);
+  const scannedCount = inCart.filter((i) => scannedPrices[i.product.id] !== undefined).length;
 
   function replaceItem(id: string, updated: ShoppingListItem) {
     setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
@@ -202,6 +216,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       initQty[item.product.id] = item.quantityNeeded > 0 ? item.quantityNeeded : 1;
     }
     setQuantities(initQty);
+    if (!totalAmount.trim() && runningTotal > 0) {
+      setTotalAmount(runningTotal.toFixed(2));
+    }
     setShowModal(true);
     haptic(12);
   }
@@ -224,6 +241,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           storeName: storeName.trim() || undefined,
           totalAmount: totalAmount.trim() ? Number.parseFloat(totalAmount) : undefined,
           quantities,
+          unitPrices: Object.keys(scannedPrices).length > 0 ? scannedPrices : undefined,
         }),
       });
 
@@ -236,6 +254,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         setStoreName('');
         setTotalAmount('');
         setQuantities({});
+        setScannedPrices({});
         setItems((prev) => prev.filter((i) => !i.isInCart));
         router.refresh();
       } else {
@@ -442,9 +461,21 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       {inCart.length > 0 && (
         <Section
           title="✔️ Comprados"
-          subtitle={`${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · inventario actualizado`}
+          subtitle={
+            runningTotal > 0
+              ? `${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · $${runningTotal.toFixed(2)} escaneado`
+              : `${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · toca 📷 para registrar precios`
+          }
           badgeCls="bg-green-100 text-green-700"
         >
+          {scannedCount === 0 && (
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-market-50 border border-market-200 rounded-xl mb-1">
+              <span className="text-lg shrink-0">📷</span>
+              <p className="text-xs text-market-700 leading-snug">
+                Toca el precio <strong>(📷)</strong> en cada producto para registrar cuánto costó y llevar el total automático
+              </p>
+            </div>
+          )}
           {inCart.map((item) => (
             <ShoppingItemRow
               key={item.id}
@@ -452,6 +483,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               onToggle={() => toggleItem(item.id)}
               disabled={isPending}
               inCart
+              scannedPrice={scannedPrices[item.product.id]}
+              onScanPrice={() => setScanningProductId(item.product.id)}
             />
           ))}
         </Section>
@@ -486,6 +519,19 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       )}
 
       {/* ─── Completion modal ───────────────────────────────────────────────── */}
+      {/* ─── Price scanner modal ─────────────────────────────────────────────── */}
+      {scanningProductId && (
+        <PriceScannerModal
+          productName={items.find((i) => i.product.id === scanningProductId)?.product.name ?? ''}
+          onPrice={(price) => {
+            setScannedPrices((prev) => ({ ...prev, [scanningProductId]: price }));
+            setScanningProductId(null);
+            haptic(20);
+          }}
+          onClose={() => setScanningProductId(null)}
+        />
+      )}
+
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           {/* Backdrop */}
@@ -554,37 +600,80 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               />
             </div>
 
-            {/* Quantities */}
+            {/* Quantities + Prices */}
             <p className="text-sm font-semibold text-stone-700 mb-2">
-              Cantidad comprada
+              Cantidad y precio por producto
             </p>
+
+            {/* Calculated total pill */}
+            {runningTotal > 0 && (
+              <div className="flex items-center justify-between bg-market-50 border border-market-200 rounded-xl px-3 py-2 mb-3">
+                <span className="text-sm text-market-700 font-medium">
+                  💰 Total calculado ({scannedCount}/{inCart.length})
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-market-700">${runningTotal.toFixed(2)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setTotalAmount(runningTotal.toFixed(2))}
+                    className="text-xs px-2.5 py-0.5 rounded-full bg-market-600 text-white font-semibold transition hover:bg-market-700"
+                  >
+                    Usar
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto space-y-2 mb-5 pr-1">
               {inCart.map((item) => {
                 const qty = quantities[item.product.id] ?? item.quantityNeeded;
+                const unitPrice = scannedPrices[item.product.id];
+                const lineTotal = unitPrice === undefined ? null : unitPrice * (qty || 1);
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 bg-stone-50 rounded-xl px-3 py-2.5 border border-stone-100"
+                    className="bg-stone-50 rounded-xl px-3 py-2.5 border border-stone-100"
                   >
-                    <span className="flex-1 text-sm font-medium text-stone-700 truncate min-w-0">
-                      {item.product.name}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={qty === 0 ? '' : qty}
-                        placeholder="0"
-                        onChange={(e) => {
-                          const val = e.target.value === '' ? 0 : Number(e.target.value);
-                          setQuantities((prev) => ({ ...prev, [item.product.id]: val }));
-                        }}
-                        className="w-16 text-center text-sm font-bold text-stone-800 bg-white border border-stone-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
-                      />
-                      {item.product.unit && (
-                        <span className="text-xs text-stone-400">{item.product.unit}</span>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-sm font-medium text-stone-700 truncate min-w-0">
+                        {item.product.name}
+                      </span>
+                      {lineTotal !== null && (
+                        <span className="text-xs font-bold text-market-700 shrink-0">
+                          ${lineTotal.toFixed(2)}
+                        </span>
                       )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={qty === 0 ? '' : qty}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : Number(e.target.value);
+                            setQuantities((prev) => ({ ...prev, [item.product.id]: val }));
+                          }}
+                          className="w-14 text-center text-sm font-bold text-stone-800 bg-white border border-stone-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                        />
+                        {item.product.unit && (
+                          <span className="text-xs text-stone-400">{item.product.unit}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setScanningProductId(item.product.id)}
+                        className={`ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition ${
+                          unitPrice === undefined
+                            ? 'bg-white border-stone-200 text-stone-500 hover:border-market-300'
+                            : 'bg-market-50 border-market-300 text-market-700 hover:bg-market-100'
+                        }`}
+                      >
+                        <span>📷</span>
+                        <span>{unitPrice === undefined ? 'Precio' : `$${unitPrice.toFixed(2)}`}</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -648,83 +737,107 @@ function ShoppingItemRow({
   disabled,
   inCart = false,
   urgent = false,
+  scannedPrice,
+  onScanPrice,
 }: {
   readonly item: ShoppingListItem;
   readonly onToggle: () => void;
   readonly disabled: boolean;
   readonly inCart?: boolean;
   readonly urgent?: boolean;
+  readonly scannedPrice?: number;
+  readonly onScanPrice?: () => void;
 }) {
   const product = item.product;
   const rowCls = getRowCls(inCart, urgent);
   const checkboxCls = getCheckboxCls(inCart, urgent);
 
   return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      className={`w-full flex items-center gap-3 p-3 rounded-2xl border transition-all text-left active:scale-[0.98] ${rowCls} disabled:opacity-60`}
-    >
-      {/* Checkbox */}
-      <div
-        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${checkboxCls}`}
+    <div className={`w-full flex items-center gap-2 p-3 rounded-2xl border transition-all ${rowCls}`}>
+      {/* Toggle area */}
+      <button
+        onClick={onToggle}
+        disabled={disabled}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-[0.98] disabled:opacity-60"
       >
-        {inCart && <span className="text-white text-xs font-bold">✓</span>}
-      </div>
+        {/* Checkbox */}
+        <div
+          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${checkboxCls}`}
+        >
+          {inCart && <span className="text-white text-xs font-bold">✓</span>}
+        </div>
 
-      {/* Photo */}
-      <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 shrink-0">
-        {product.photoUrl ? (
-          <Image
-            src={product.photoUrl}
-            alt={product.name}
-            width={48}
-            height={48}
-            className="object-cover w-full h-full"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-xl">
-            <motion.span
-              animate={{ rotate: [0, -12, 10, -5, 0], y: [0, -3, 1, -1, 0] }}
-              transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 2.5, ease: 'easeInOut' }}
-            >
-              🛒
-            </motion.span>
-          </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p
-            className={`font-semibold text-sm truncate ${
-              inCart ? 'line-through text-stone-400' : 'text-stone-800'
-            }`}
-          >
-            {product.name}
-          </p>
-          {urgent && !inCart && (
-            <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
-              Urgente
-            </span>
+        {/* Photo */}
+        <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 shrink-0">
+          {product.photoUrl ? (
+            <Image
+              src={product.photoUrl}
+              alt={product.name}
+              width={48}
+              height={48}
+              className="object-cover w-full h-full"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-xl">
+              <motion.span
+                animate={{ rotate: [0, -12, 10, -5, 0], y: [0, -3, 1, -1, 0] }}
+                transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 2.5, ease: 'easeInOut' }}
+              >
+                🛒
+              </motion.span>
+            </div>
           )}
         </div>
-        {product.category && (
-          <p className="text-xs text-stone-400 truncate">{product.category}</p>
-        )}
-      </div>
 
-      {/* Quantity / undo */}
-      {inCart ? (
-        <span className="shrink-0 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-          ✔ Comprado
-        </span>
-      ) : (
-        <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-stone-400 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded-full">
-          🛒 {item.quantityNeeded}{product.unit ? ` ${product.unit}` : ''}
-        </span>
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p
+              className={`font-semibold text-sm truncate ${
+                inCart ? 'line-through text-stone-400' : 'text-stone-800'
+              }`}
+            >
+              {product.name}
+            </p>
+            {urgent && !inCart && (
+              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
+                Urgente
+              </span>
+            )}
+          </div>
+          {product.category && (
+            <p className="text-xs text-stone-400 truncate">{product.category}</p>
+          )}
+        </div>
+
+        {/* Status badge — not-in-cart or in-cart without scan */}
+        {!inCart && (
+          <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-stone-400 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded-full">
+            🛒 {item.quantityNeeded}{product.unit ? ` ${product.unit}` : ''}
+          </span>
+        )}
+        {inCart && !onScanPrice && (
+          <span className="shrink-0 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+            ✔ Comprado
+          </span>
+        )}
+      </button>
+
+      {/* Camera / price button (in-cart + scan enabled) */}
+      {inCart && onScanPrice && (
+        <button
+          type="button"
+          onClick={onScanPrice}
+          className={`shrink-0 flex flex-col items-center justify-center px-2 py-1.5 rounded-xl text-[10px] font-bold border transition min-w-13 ${
+            scannedPrice === undefined
+              ? 'bg-stone-50 border-stone-200 text-stone-400 hover:border-market-300 hover:text-market-600'
+              : 'bg-market-50 border-market-300 text-market-700'
+          }`}
+        >
+          <span className="text-base leading-none mb-0.5">📷</span>
+          <span>{scannedPrice === undefined ? 'precio' : `$${scannedPrice.toFixed(2)}`}</span>
+        </button>
       )}
-    </button>
+    </div>
   );
 }

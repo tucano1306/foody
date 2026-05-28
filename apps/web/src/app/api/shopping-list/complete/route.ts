@@ -7,6 +7,7 @@ interface CompletionBody {
   storeName?: string;
   totalAmount?: number;
   quantities?: Record<string, number>;
+  unitPrices?: Record<string, number>;
 }
 
 type CartItem = { product_id: string; quantity_needed: string };
@@ -116,6 +117,20 @@ function resolvePriceMap(
   return resolved;
 }
 
+function mergeScannedPrices(
+  priceMap: Record<string, number | null>,
+  rawUnitPrices: Record<string, unknown>,
+  productIds: string[],
+): Record<string, number | null> {
+  const merged: Record<string, number | null> = { ...priceMap };
+  for (const [pid, p] of Object.entries(rawUnitPrices)) {
+    if (typeof p === 'number' && p > 0 && productIds.includes(pid)) {
+      merged[pid] = p;
+    }
+  }
+  return merged;
+}
+
 // POST /api/shopping-list/complete
 export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
@@ -127,6 +142,9 @@ export async function POST(request: NextRequest) {
   const storeName = body.storeName?.trim() || null;
   const quantities: Record<string, number> = body.quantities ?? {};
   const userTotalAmount = typeof body.totalAmount === 'number' && body.totalAmount > 0 ? body.totalAmount : null;
+  const rawUnitPrices = (typeof body.unitPrices === 'object' && body.unitPrices !== null)
+    ? body.unitPrices
+    : {};
 
   await ensurePurchaseSchema();
 
@@ -146,7 +164,10 @@ export async function POST(request: NextRequest) {
     insertTrip(storeName, user.userId, now),
   ]);
 
-  const resolvedPriceMap = resolvePriceMap(items, quantities, priceMap, userTotalAmount);
+  // Merge user-scanned prices over DB prices (validated: positive number, known product)
+  const mergedPriceMap = mergeScannedPrices(priceMap, rawUnitPrices, productIds);
+
+  const resolvedPriceMap = resolvePriceMap(items, quantities, mergedPriceMap, userTotalAmount);
 
   const { inserted: purchasesInserted, totalSpent, error: purchaseError } =
     await insertPurchases(items, quantities, resolvedPriceMap, storeName, tripId, user.userId, now);
