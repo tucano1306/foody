@@ -30,8 +30,9 @@ export async function POST(request: NextRequest) {
   try {
     const mod = await import('heic-convert');
     const convert = mod.default;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const outputBuffer = await convert({
-      buffer: new Uint8Array(inputArrayBuffer),
+      buffer: inputArrayBuffer as any,
       format: 'JPEG',
       quality: 0.78,
     });
