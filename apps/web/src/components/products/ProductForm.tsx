@@ -231,22 +231,17 @@ async function loadAndCompressInner(file: File): Promise<string> {
     try {
       loaded = await loadImageViaDataUrl(file);
     } catch {
-      // 3. Último recurso solo si es HEIC y el archivo es pequeño (<4 MB)
+      // 3. Último recurso: servidor HEIC (solo archivos pequeños por límite Vercel 4.5 MB)
       if (!isHeicFile(file)) throw new Error('No se pudo procesar la imagen');
       if (file.size > 4 * 1024 * 1024) {
         throw new Error(
-          'La foto HEIC es muy grande. En tu iPhone ve a Ajustes > Cámara > Formatos > Más Compatible para guardar en JPEG.',
+          'Foto demasiado grande. Ve a Ajustes > Cámara > Formatos > Más Compatible en tu iPhone y vuelve a intentarlo.',
         );
       }
-      const jpegBlob = await convertHeicToJpegBlob(file).catch((err: unknown) => {
-        // Si el servidor falla (red, límite de tamaño, etc.) dar un mensaje útil
-        const detail = err instanceof Error ? err.message : '';
-        if (detail.toLowerCase().includes('fetch') || detail.toLowerCase().includes('network')) {
-          throw new Error(
-            'No se pudo convertir la foto. Ve a Ajustes > Cámara > Formatos > Más Compatible en tu iPhone y vuelve a intentarlo.',
-          );
-        }
-        throw err;
+      const jpegBlob = await convertHeicToJpegBlob(file).catch(() => {
+        throw new Error(
+          'No se pudo convertir la foto. Ve a Ajustes > Cámara > Formatos > Más Compatible en tu iPhone.',
+        );
       });
       loaded = await loadImageFromBlob(jpegBlob);
     }
@@ -430,7 +425,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
           <input
             ref={cameraRef}
             type="file"
-            accept="image/*,.heic,.heif"
+            accept="image/*"
             capture="environment"
             className="hidden"
             onChange={handlePhotoChange}
@@ -438,7 +433,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
           <input
             ref={fileRef}
             type="file"
-            accept="image/*,.heic,.heif"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
             className="hidden"
             onChange={handlePhotoChange}
           />
