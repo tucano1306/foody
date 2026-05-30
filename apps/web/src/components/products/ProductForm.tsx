@@ -433,7 +433,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
           <input
             ref={fileRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             className="hidden"
             onChange={handlePhotoChange}
           />
