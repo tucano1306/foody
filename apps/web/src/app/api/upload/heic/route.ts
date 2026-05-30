@@ -26,20 +26,25 @@ export async function POST(request: NextRequest) {
   }
 
   const inputArrayBuffer = await file.arrayBuffer();
+  // heic-convert needs a Node.js Buffer (Uint8Array subclass)
+  const inputBuffer = Buffer.from(new Uint8Array(inputArrayBuffer));
 
   try {
     const mod = await import('heic-convert');
-    const convert = mod.default;
+    // heic-convert is CJS; handle both mod.default and mod itself being the function
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const convert: (opts: any) => Promise<ArrayBuffer> = (typeof mod.default === 'function' ? mod.default : mod) as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const outputBuffer = await convert({
-      buffer: inputArrayBuffer as any,
+      buffer: inputBuffer,
       format: 'JPEG',
       quality: 0.78,
     });
-    const base64 = Buffer.from(outputBuffer).toString('base64');
+    const base64 = Buffer.from(new Uint8Array(outputBuffer)).toString('base64');
     return NextResponse.json({ dataUrl: `data:image/jpeg;base64,${base64}` });
   } catch (err) {
-    console.error('[upload/heic] conversion failed:', err);
-    return NextResponse.json({ message: 'No se pudo convertir la foto HEIC' }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[upload/heic] conversion failed:', message);
+    return NextResponse.json({ message: `No se pudo convertir la foto HEIC: ${message}` }, { status: 500 });
   }
 }
