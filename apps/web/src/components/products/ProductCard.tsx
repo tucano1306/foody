@@ -39,6 +39,7 @@ interface Props {
   readonly showActions?: boolean;
   readonly compact?: boolean; // tap navigates to product page, hides stock buttons
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
+  readonly onDelete?: (id: string) => void;
   readonly lastPurchase?: LastPurchase;
 }
 
@@ -112,7 +113,7 @@ function latestPurchaseDate(a?: string | null, b?: string | null): string | null
   return new Date(a) >= new Date(b) ? a : b;
 }
 
-export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, lastPurchase }: Props) {
+export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, onDelete, lastPurchase }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState(product);
@@ -173,6 +174,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
 
   async function handleDelete() {
     if (!globalThis.window.confirm(`¿Eliminar "${current.name}"?`)) return;
+    onDelete?.(current.id);
     await fetch(`/api/proxy/products/${current.id}`, {
       method: 'DELETE',
       credentials: 'include',

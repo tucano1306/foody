@@ -81,14 +81,16 @@ interface GridOptions {
   compact: boolean;
   lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   onLevelChange?: (id: string, newLevel: StockLevel) => void;
+  onDelete?: (id: string) => void;
 }
 
-function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelChange }: {
+function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelChange, onDelete }: {
   readonly products: readonly Product[];
   readonly showActions: boolean;
   readonly compact: boolean;
   readonly lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
+  readonly onDelete?: (id: string) => void;
 }) {
   return (
     <div className={`grid gap-2 sm:gap-3 ${showActions ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'}`}>
@@ -100,6 +102,7 @@ function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelC
           compact={compact}
           lastPurchase={lastPurchaseMap?.[product.id]}
           onLevelChange={onLevelChange}
+          onDelete={onDelete}
         />
       ))}
     </div>
@@ -116,6 +119,7 @@ function renderGrid({
   compact,
   lastPurchaseMap,
   onLevelChange,
+  onDelete,
 }: GridOptions): React.ReactNode {
   if (searchOnly && !trimmedQuery) {
     return (
@@ -133,7 +137,7 @@ function renderGrid({
     );
   }
   return (
-    <ProductGrid products={visible} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} />
+    <ProductGrid products={visible} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} onDelete={onDelete} />
   );
 }
 
@@ -144,6 +148,7 @@ function renderGrouped({
   compact,
   lastPurchaseMap,
   onLevelChange,
+  onDelete,
 }: Omit<GridOptions, 'visible' | 'trimmedQuery' | 'searchOnly'>): React.ReactNode {
   if (filtered.length === 0) {
     return (
@@ -179,7 +184,7 @@ function renderGrouped({
                 {items.length} {items.length === 1 ? 'producto' : 'productos'}
               </span>
             </div>
-            <ProductGrid products={items} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} />
+            <ProductGrid products={items} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} onDelete={onDelete} />
           </section>
         );
       })}
@@ -189,7 +194,7 @@ function renderGrouped({
 
 export default function ProductsBrowser(props: Readonly<Props>) {
   const {
-    products,
+    products: initialProducts,
     showActions = false,
     compact = false,
     showStockFilter = false,
@@ -203,14 +208,19 @@ export default function ProductsBrowser(props: Readonly<Props>) {
   const searchParams = useSearchParams();
   const initialFilter = (searchParams.get('filter') ?? 'all') as StockFilter;
 
+  const [localProducts, setLocalProducts] = useState<readonly Product[]>(initialProducts);
   const [query, setQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>(initialFilter);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('categories');
 
+  const handleDelete = (id: string) => {
+    setLocalProducts((prev) => prev.filter((p) => p.id !== id));
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return products.filter((p) => {
+    return localProducts.filter((p) => {
       if (stockFilter === 'low' && p.stockLevel === 'full') return false;
       if (stockFilter !== 'all' && stockFilter !== 'low' && p.stockLevel !== stockFilter) return false;
       if (!q) return true;
@@ -331,8 +341,8 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
       {/* Grid or Grouped */}
       {viewMode === 'categories' && !searchOnly
-        ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange })
-        : renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange })}
+        ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange, onDelete: handleDelete })
+        : renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange, onDelete: handleDelete })}
 
       {/* Pagination — only in grid mode */}
       {viewMode === 'grid' && totalPages > 1 && (
