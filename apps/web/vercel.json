@@ -2,5 +2,11 @@
   "framework": "nextjs",
   "buildCommand": "pnpm build",
   "outputDirectory": ".next",
-  "installCommand": "pnpm install --frozen-lockfile"
+  "installCommand": "pnpm install --frozen-lockfile",
+  "crons": [
+    {
+      "path": "/api/cron/payments-reminder",
+      "schedule": "0 9,18 * * *"
+    }
+  ]
 }
