@@ -56,23 +56,46 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-async function canDecodeNatively(file: Blob): Promise<boolean> {
+async function loadImageFromBlob(file: Blob): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(file);
   try {
     const img = new globalThis.Image();
+    img.decoding = 'async';
     img.src = url;
+
     if (typeof img.decode === 'function') {
-      await img.decode();
-      return img.naturalWidth > 0 && img.naturalHeight > 0;
+      try {
+        await img.decode();
+      } catch {
+        // decode() rechaza en algunos navegadores aunque la imagen sí cargue;
+        // dejamos que el path de eventos resuelva.
+      }
     }
-    return await new Promise<boolean>((resolve) => {
-      img.onload = () => resolve(img.naturalWidth > 0);
-      img.onerror = () => resolve(false);
-    });
+
+    if (img.naturalWidth === 0) {
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('No se pudo procesar la imagen'));
+      });
+    }
+
+    if (img.naturalWidth === 0) {
+      throw new Error('No se pudo procesar la imagen');
+    }
+    return img;
+  } finally {
+    // Mantener la URL viva mientras la imagen exista. Revoke con un pequeño
+    // delay para asegurar que el decode terminó pero sin retener memoria.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+}
+
+async function canDecodeNatively(file: Blob): Promise<boolean> {
+  try {
+    const img = await loadImageFromBlob(file);
+    return img.naturalWidth > 0 && img.naturalHeight > 0;
   } catch {
     return false;
-  } finally {
-    URL.revokeObjectURL(url);
   }
 }
 
@@ -111,50 +134,13 @@ function drawBitmapToJpeg(source: CanvasImageSource, srcWidth: number, srcHeight
   return canvas.toDataURL('image/jpeg', 0.72);
 }
 
-function compressViaFileReader(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
-    reader.onload = (evt) => {
-      const src = evt.target?.result;
-      if (typeof src !== 'string') { reject(new Error('No se pudo leer el archivo')); return; }
-      const img = new globalThis.Image();
-      img.onerror = () => reject(new Error('No se pudo procesar la imagen'));
-      img.onload = () => {
-        try { resolve(drawBitmapToJpeg(img, img.naturalWidth, img.naturalHeight)); }
-        catch (e) { reject(e); }
-      };
-      img.src = src;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function compressViaImageBitmap(file: File | Blob): Promise<string> {
-  // Primero leemos sólo metadata para conocer las dimensiones reales y pedir
-  // un downsample durante la decodificación (mucho menos memoria que decodificar
-  // los 12MP completos y después escalar).
-  const probe = await createImageBitmap(file);
-  const { w, h } = computeFitDimensions(probe.width, probe.height, MAX_OUTPUT_DIMENSION);
-  probe.close();
-
-  const bmp = await createImageBitmap(file, {
-    resizeWidth: w,
-    resizeHeight: h,
-    resizeQuality: 'medium',
-  });
-  try {
-    return drawBitmapToJpeg(bmp, bmp.width, bmp.height);
-  } finally {
-    bmp.close();
-  }
+async function compressImageInner(file: File | Blob): Promise<string> {
+  const img = await loadImageFromBlob(file);
+  return drawBitmapToJpeg(img, img.naturalWidth, img.naturalHeight);
 }
 
 function compressImage(file: File | Blob): Promise<string> {
-  const run = typeof createImageBitmap === 'function'
-    ? compressViaImageBitmap(file).catch(() => compressViaFileReader(file))
-    : compressViaFileReader(file);
-  return withTimeout(run, COMPRESS_TIMEOUT_MS, 'La compresión de la imagen');
+  return withTimeout(compressImageInner(file), COMPRESS_TIMEOUT_MS, 'La compresión de la imagen');
 }
 
 export default function ProductForm({ product, inHousehold }: Props) {
