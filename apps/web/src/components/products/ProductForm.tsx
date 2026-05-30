@@ -70,13 +70,23 @@ function loadImageFromBlob(file: Blob): Promise<LoadedImage> {
 
     img.onload = () => {
       if (settled) return;
-      settled = true;
-      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+      // Use img.decode() to ensure pixel data is available (prevents naturalWidth=0 on async decode)
+      const decoded = typeof img.decode === 'function' ? img.decode() : Promise.resolve();
+      decoded.then(() => {
+        if (settled) return;
+        settled = true;
+        if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+          release();
+          reject(new Error('No se pudo procesar la imagen'));
+          return;
+        }
+        resolve({ img, release });
+      }).catch(() => {
+        if (settled) return;
+        settled = true;
         release();
         reject(new Error('No se pudo procesar la imagen'));
-        return;
-      }
-      resolve({ img, release });
+      });
     };
     img.onerror = () => {
       if (settled) return;
@@ -85,9 +95,35 @@ function loadImageFromBlob(file: Blob): Promise<LoadedImage> {
       reject(new Error('No se pudo procesar la imagen'));
     };
 
-    img.decoding = 'async';
     img.src = url;
   });
+}
+
+async function compressViaImageBitmap(file: Blob): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  if (bitmap.width === 0 || bitmap.height === 0) {
+    bitmap.close();
+    throw new Error('No se pudo procesar la imagen');
+  }
+  const sizes = [MAX_OUTPUT_DIMENSION, 384, 256];
+  let lastErr: unknown;
+  for (const size of sizes) {
+    try {
+      const { w, h } = computeFitDimensions(bitmap.width, bitmap.height, size);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas no disponible');
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      bitmap.close();
+      return await canvasToJpegDataUrl(canvas);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  bitmap.close();
+  throw lastErr instanceof Error ? lastErr : new Error('No se pudo procesar la imagen');
 }
 
 async function convertHeicToJpegBlob(file: File): Promise<Blob> {
@@ -215,32 +251,38 @@ function onReaderLoad(
     settled = true;
     reject(new Error('No se pudo procesar la imagen'));
   };
-  img.decoding = 'async';
   img.src = src;
 }
 
 function noop(): void { /* data URL — nada que liberar */ }
 
 async function loadAndCompressInner(file: File): Promise<string> {
-  // 1. Intento con object URL (rápido, bajo memoria)
+  // 0. createImageBitmap — nativo del browser, decodifica HEIC en iOS Safari 15+
+  if (typeof createImageBitmap !== 'undefined') {
+    try {
+      return await compressViaImageBitmap(file);
+    } catch { /* fall through */ }
+  }
+
+  // 1. Object URL → <img> element
   let loaded: LoadedImage | null = null;
   try {
     loaded = await loadImageFromBlob(file);
   } catch {
-    // 2. Fallback vía FileReader → data URL (funciona con HEIC en iOS Safari)
+    // 2. FileReader → data URL → <img>
     try {
       loaded = await loadImageViaDataUrl(file);
     } catch {
-      // 3. Último recurso: servidor HEIC (solo archivos pequeños por límite Vercel 4.5 MB)
+      // 3. Último recurso: servidor HEIC (solo archivos <4 MB por límite Vercel)
       if (!isHeicFile(file)) throw new Error('No se pudo procesar la imagen');
       if (file.size > 4 * 1024 * 1024) {
         throw new Error(
-          'Foto demasiado grande. Ve a Ajustes > Cámara > Formatos > Más Compatible en tu iPhone y vuelve a intentarlo.',
+          'Foto demasiado grande. En tu iPhone ve a Ajustes > Cámara > Formatos > Más Compatible y vuelve a intentarlo.',
         );
       }
-      const jpegBlob = await convertHeicToJpegBlob(file).catch(() => {
-        throw new Error(
-          'No se pudo convertir la foto. Ve a Ajustes > Cámara > Formatos > Más Compatible en tu iPhone.',
+      const jpegBlob = await convertHeicToJpegBlob(file).catch((err: unknown) => {
+        throw err instanceof Error ? err : new Error(
+          'No se pudo convertir la foto. En tu iPhone ve a Ajustes > Cámara > Formatos > Más Compatible.',
         );
       });
       loaded = await loadImageFromBlob(jpegBlob);
