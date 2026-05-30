@@ -25,13 +25,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'File too large' }, { status: 413 });
   }
 
-  const inputBuffer = Buffer.from(await file.arrayBuffer());
+  const inputArrayBuffer = await file.arrayBuffer();
 
   try {
     const mod = await import('heic-convert');
     const convert = mod.default;
     const outputBuffer = await convert({
-      buffer: inputBuffer,
+      buffer: new Uint8Array(inputArrayBuffer),
       format: 'JPEG',
       quality: 0.78,
     });
