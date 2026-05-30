@@ -10,9 +10,9 @@ const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false })
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
-const MAX_OUTPUT_DIMENSION = 640;
-const COMPRESS_TIMEOUT_MS = 25_000;
-const HEIC_CONVERT_TIMEOUT_MS = 20_000;
+const MAX_OUTPUT_DIMENSION = 512;
+const COMPRESS_TIMEOUT_MS = 30_000;
+const HEIC_CONVERT_TIMEOUT_MS = 25_000;
 
 const CATEGORIES = [
   'Frutas y Verduras',
@@ -85,30 +85,12 @@ function loadImageFromBlob(file: Blob): Promise<LoadedImage> {
       reject(new Error('No se pudo procesar la imagen'));
     };
 
-    // crossOrigin/decoding hints help iOS Safari pre-decode async
     img.decoding = 'async';
     img.src = url;
   });
 }
 
-async function canDecodeNatively(file: Blob): Promise<boolean> {
-  try {
-    const { img, release } = await loadImageFromBlob(file);
-    const ok = img.naturalWidth > 0 && img.naturalHeight > 0;
-    release();
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
-async function normalizeImageFile(file: File): Promise<File | Blob> {
-  if (!isHeicFile(file)) return file;
-
-  // Si el navegador puede decodificar HEIC nativamente (iOS/Safari), evita
-  // el heavy-weight heic2any que satura memoria y a veces nunca resuelve.
-  if (await canDecodeNatively(file)) return file;
-
+async function convertHeicToJpegBlob(file: File): Promise<Blob> {
   const mod = await import('heic2any');
   const convert = mod.default;
   const converted = await withTimeout(
@@ -116,7 +98,6 @@ async function normalizeImageFile(file: File): Promise<File | Blob> {
     HEIC_CONVERT_TIMEOUT_MS,
     'La conversión HEIC',
   );
-
   return Array.isArray(converted) ? converted[0] : converted;
 }
 
@@ -126,28 +107,91 @@ function computeFitDimensions(srcWidth: number, srcHeight: number, max: number):
   return { w: Math.max(1, Math.round((srcWidth * max) / srcHeight)), h: max };
 }
 
-function drawBitmapToJpeg(source: CanvasImageSource, srcWidth: number, srcHeight: number): string {
-  const { w, h } = computeFitDimensions(srcWidth, srcHeight, MAX_OUTPUT_DIMENSION);
+function canvasToJpegDataUrl(canvas: HTMLCanvasElement): Promise<string> {
+  // toBlob es mucho más estable en iOS Safari que toDataURL con imágenes grandes
+  return new Promise((resolve, reject) => {
+    if (typeof canvas.toBlob === 'function') {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('No se pudo procesar la imagen'));
+            return;
+          }
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('No se pudo procesar la imagen'));
+          reader.onload = () => {
+            const result = reader.result;
+            if (typeof result !== 'string') {
+              reject(new Error('No se pudo procesar la imagen'));
+              return;
+            }
+            resolve(result);
+          };
+          reader.readAsDataURL(blob);
+        },
+        'image/jpeg',
+        0.72,
+      );
+      return;
+    }
+    try {
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+      if (!dataUrl || dataUrl === 'data:,') {
+        reject(new Error('No se pudo procesar la imagen'));
+        return;
+      }
+      resolve(dataUrl);
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error('No se pudo procesar la imagen'));
+    }
+  });
+}
+
+async function drawToJpegAtMax(img: HTMLImageElement, max: number): Promise<string> {
+  const { w, h } = computeFitDimensions(img.naturalWidth, img.naturalHeight, max);
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas no disponible');
-  ctx.drawImage(source, 0, 0, w, h);
-  return canvas.toDataURL('image/jpeg', 0.72);
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvasToJpegDataUrl(canvas);
 }
 
-async function compressImageInner(file: File | Blob): Promise<string> {
-  const { img, release } = await loadImageFromBlob(file);
+async function compressLoadedImage(img: HTMLImageElement): Promise<string> {
+  // Si el primer intento falla por OOM en móvil, reintentar con tamaños menores
+  const sizes = [MAX_OUTPUT_DIMENSION, 384, 256];
+  let lastErr: unknown;
+  for (const size of sizes) {
+    try {
+      return await drawToJpegAtMax(img, size);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('No se pudo procesar la imagen');
+}
+
+async function loadAndCompressInner(file: File): Promise<string> {
+  // 1. Intento directo (cubre JPG, PNG, WEBP y también HEIC en iOS nativo)
+  let loaded: LoadedImage | null = null;
   try {
-    return drawBitmapToJpeg(img, img.naturalWidth, img.naturalHeight);
+    loaded = await loadImageFromBlob(file);
+  } catch {
+    // 2. Si era HEIC y el navegador no lo decodifica, usar heic2any
+    if (!isHeicFile(file)) throw new Error('No se pudo procesar la imagen');
+    const jpegBlob = await convertHeicToJpegBlob(file);
+    loaded = await loadImageFromBlob(jpegBlob);
+  }
+  try {
+    return await compressLoadedImage(loaded.img);
   } finally {
-    release();
+    loaded.release();
   }
 }
 
-function compressImage(file: File | Blob): Promise<string> {
-  return withTimeout(compressImageInner(file), COMPRESS_TIMEOUT_MS, 'La compresión de la imagen');
+function compressImage(file: File): Promise<string> {
+  return withTimeout(loadAndCompressInner(file), COMPRESS_TIMEOUT_MS, 'La compresión de la imagen');
 }
 
 export default function ProductForm({ product, inHousehold }: Props) {
@@ -200,8 +244,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
         throw new Error('La foto es muy pesada. Usa una imagen menor a 15 MB.');
       }
 
-      const normalizedFile = await normalizeImageFile(file).catch(() => file);
-      const dataUrl = await compressImage(normalizedFile);
+      const dataUrl = await compressImage(file);
       setForm((f) => ({ ...f, photoUrl: dataUrl }));
       setPhotoPreview(dataUrl);
     } catch (err) {
