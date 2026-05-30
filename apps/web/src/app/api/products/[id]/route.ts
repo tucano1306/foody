@@ -27,11 +27,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const body = await request.json() as Record<string, unknown>;
 
+  // Treat empty string as null so a missing photo never clears an existing one
+  const newPhotoUrl = typeof body.photoUrl === 'string' && body.photoUrl ? body.photoUrl : null;
+
   const rows = await sql`
     UPDATE products SET
       name = COALESCE(${body.name as string ?? null}, name),
       description = COALESCE(${body.description as string ?? null}, description),
-      photo_url = COALESCE(${body.photoUrl as string ?? null}, photo_url),
+      photo_url = COALESCE(${newPhotoUrl}, photo_url),
       category = COALESCE(${body.category as string ?? null}, category),
       current_quantity = COALESCE(${body.currentQuantity as number ?? null}, current_quantity),
       min_quantity = COALESCE(${body.minQuantity as number ?? null}, min_quantity),

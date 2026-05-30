@@ -311,7 +311,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
     currentQuantity: product?.currentQuantity ?? 0,
     minQuantity: product?.minQuantity ?? 1,
     unit: product?.unit ?? 'unidades',
-    photoUrl: product?.photoUrl ?? '',
+    photoUrl: product?.photoUrl ?? undefined,
   });
 
   const [photoPreview, setPhotoPreview] = useState<string | null>(product?.photoUrl ?? null);
