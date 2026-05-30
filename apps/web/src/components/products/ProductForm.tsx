@@ -178,16 +178,78 @@ async function compressLoadedImage(img: HTMLImageElement): Promise<string> {
   throw lastErr instanceof Error ? lastErr : new Error('No se pudo procesar la imagen');
 }
 
+// Fallback: lee el archivo como data URL y lo carga en un <img>.
+// Funciona con HEIC en iOS Safari cuando el object URL falla.
+function loadImageViaDataUrl(file: Blob): Promise<LoadedImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+    reader.onload = (e) => onReaderLoad(e, resolve, reject);
+    reader.readAsDataURL(file);
+  });
+}
+
+function onReaderLoad(
+  e: ProgressEvent<FileReader>,
+  resolve: (v: LoadedImage) => void,
+  reject: (err: Error) => void,
+): void {
+  const src = e.target?.result;
+  if (typeof src !== 'string' || !src) {
+    reject(new Error('No se pudo leer el archivo'));
+    return;
+  }
+  const img = new globalThis.Image();
+  let settled = false;
+  img.onload = () => {
+    if (settled) return;
+    settled = true;
+    if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+      reject(new Error('No se pudo procesar la imagen'));
+      return;
+    }
+    resolve({ img, release: noop });
+  };
+  img.onerror = () => {
+    if (settled) return;
+    settled = true;
+    reject(new Error('No se pudo procesar la imagen'));
+  };
+  img.decoding = 'async';
+  img.src = src;
+}
+
+function noop(): void { /* data URL — nada que liberar */ }
+
 async function loadAndCompressInner(file: File): Promise<string> {
-  // 1. Intento directo (cubre JPG, PNG, WEBP y también HEIC en iOS nativo)
+  // 1. Intento con object URL (rápido, bajo memoria)
   let loaded: LoadedImage | null = null;
   try {
     loaded = await loadImageFromBlob(file);
   } catch {
-    // 2. Si era HEIC y el navegador no lo decodifica, usar heic2any
-    if (!isHeicFile(file)) throw new Error('No se pudo procesar la imagen');
-    const jpegBlob = await convertHeicToJpegBlob(file);
-    loaded = await loadImageFromBlob(jpegBlob);
+    // 2. Fallback vía FileReader → data URL (funciona con HEIC en iOS Safari)
+    try {
+      loaded = await loadImageViaDataUrl(file);
+    } catch {
+      // 3. Último recurso solo si es HEIC y el archivo es pequeño (<4 MB)
+      if (!isHeicFile(file)) throw new Error('No se pudo procesar la imagen');
+      if (file.size > 4 * 1024 * 1024) {
+        throw new Error(
+          'La foto HEIC es muy grande. En tu iPhone ve a Ajustes > Cámara > Formatos > Más Compatible para guardar en JPEG.',
+        );
+      }
+      const jpegBlob = await convertHeicToJpegBlob(file).catch((err: unknown) => {
+        // Si el servidor falla (red, límite de tamaño, etc.) dar un mensaje útil
+        const detail = err instanceof Error ? err.message : '';
+        if (detail.toLowerCase().includes('fetch') || detail.toLowerCase().includes('network')) {
+          throw new Error(
+            'No se pudo convertir la foto. Ve a Ajustes > Cámara > Formatos > Más Compatible en tu iPhone y vuelve a intentarlo.',
+          );
+        }
+        throw err;
+      });
+      loaded = await loadImageFromBlob(jpegBlob);
+    }
   }
   try {
     return await compressLoadedImage(loaded.img);
