@@ -147,7 +147,8 @@ export default function ProductForm({ product, inHousehold }: Props) {
     setError(null);
 
     try {
-      if (!file.type.startsWith('image/') && !isHeicFile(file)) {
+      const isImage = file.type.startsWith('image/') || file.type === '';
+      if (!isImage && !isHeicFile(file)) {
         throw new Error(`Formato no compatible. Usa ${ACCEPTED_IMAGE_TYPES}.`);
       }
 
@@ -155,7 +156,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
         throw new Error('La foto es muy pesada. Usa una imagen menor a 15 MB.');
       }
 
-      const normalizedFile = await normalizeImageFile(file);
+      const normalizedFile = await normalizeImageFile(file).catch(() => file);
       const dataUrl = await compressImage(normalizedFile);
       setForm((f) => ({ ...f, photoUrl: dataUrl }));
       setPhotoPreview(dataUrl);
