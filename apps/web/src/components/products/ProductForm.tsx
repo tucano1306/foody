@@ -12,7 +12,7 @@ const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
 const MAX_OUTPUT_DIMENSION = 512;
 const COMPRESS_TIMEOUT_MS = 30_000;
-const HEIC_CONVERT_TIMEOUT_MS = 25_000;
+const HEIC_CONVERT_TIMEOUT_MS = 60_000;
 
 const CATEGORIES = [
   'Frutas y Verduras',
@@ -91,14 +91,20 @@ function loadImageFromBlob(file: Blob): Promise<LoadedImage> {
 }
 
 async function convertHeicToJpegBlob(file: File): Promise<Blob> {
-  const mod = await import('heic2any');
-  const convert = mod.default;
-  const converted = await withTimeout(
-    convert({ blob: file, toType: 'image/jpeg', quality: 0.82 }),
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  const res = await withTimeout(
+    fetch('/api/upload/heic', { method: 'POST', body: formData, credentials: 'include' }),
     HEIC_CONVERT_TIMEOUT_MS,
     'La conversión HEIC',
   );
-  return Array.isArray(converted) ? converted[0] : converted;
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ message: 'No se pudo convertir la foto HEIC' }));
+    throw new Error(data.message ?? 'No se pudo convertir la foto HEIC');
+  }
+  const { dataUrl } = (await res.json()) as { dataUrl: string };
+  const resp = await fetch(dataUrl);
+  return resp.blob();
 }
 
 function computeFitDimensions(srcWidth: number, srcHeight: number, max: number): { w: number; h: number } {
