@@ -1,4 +1,6 @@
+import Image from 'next/image';
 import { api } from '@/lib/api';
+import { getStoreLogo } from '@/lib/store-logo';
 
 function formatMoney(value: number): string {
   return new Intl.NumberFormat('es-MX', {
@@ -22,6 +24,7 @@ export default async function TopStoreCard() {
   const top = sorted[0];
   const totalVisits = data.reduce((sum, d) => sum + d.count, 0);
   const pct = totalVisits > 0 ? Math.round((top.count / totalVisits) * 100) : 0;
+  const logo = getStoreLogo(top.storeName);
 
   return (
     <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm flex flex-col gap-3">
@@ -33,8 +36,12 @@ export default async function TopStoreCard() {
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl shrink-0 border border-sky-100">
-          🛒
+        <div className="w-12 h-12 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl shrink-0 border border-sky-100 overflow-hidden">
+          {logo ? (
+            <Image src={logo} alt={top.storeName} width={48} height={48} className="object-contain w-full h-full" />
+          ) : (
+            '🛒'
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-bold text-stone-900 text-lg leading-tight truncate">{top.storeName}</p>

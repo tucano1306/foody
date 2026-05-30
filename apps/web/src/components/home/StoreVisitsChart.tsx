@@ -1,5 +1,6 @@
 'use client';
 
+import { getStoreLogo } from '@/lib/store-logo';
 import StatsWheel from './StatsWheel';
 
 interface Slice {
@@ -21,6 +22,7 @@ export default function StoreVisitsChart({ data }: Readonly<Props>) {
     label: d.storeName,
     value: d.count,
     sublabel: `${d.count} ${d.count === 1 ? 'visita' : 'visitas'}`,
+    logo: getStoreLogo(d.storeName),
   }));
 
   return (

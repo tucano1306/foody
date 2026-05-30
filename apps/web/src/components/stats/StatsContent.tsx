@@ -1,7 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useState } from 'react';
 import StatsDetailSheet, { type ActiveDetail, type DetailType } from './StatsDetailSheet';
+import { getStoreLogo } from '@/lib/store-logo';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -361,7 +363,16 @@ export default function StatsContent({
                   >
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-stone-800 dark:text-stone-100 font-medium flex items-center gap-1.5 group-hover:text-brand-500 dark:group-hover:text-brand-400 transition">
-                        <span>{medals[i] ?? `${i + 1}.`}</span>
+                        {(() => {
+                          const logo = getStoreLogo(store.name);
+                          return logo ? (
+                            <span className="w-5 h-5 rounded-sm overflow-hidden flex items-center justify-center bg-white border border-stone-100 shrink-0">
+                              <Image src={logo} alt={store.name} width={20} height={20} className="object-contain w-full h-full" />
+                            </span>
+                          ) : (
+                            <span>{medals[i] ?? `${i + 1}.`}</span>
+                          );
+                        })()}
                         {store.name}
                       </span>
                       <span className="text-stone-500 dark:text-stone-400 text-xs">

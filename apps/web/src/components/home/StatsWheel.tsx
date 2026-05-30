@@ -1,11 +1,13 @@
 'use client';
 
+import Image from 'next/image';
 import { useMemo, useState } from 'react';
 
 export interface WheelSlice {
   readonly label: string;
   readonly value: number;
   readonly sublabel?: string;
+  readonly logo?: string | null;
 }
 
 interface Props {
@@ -160,10 +162,16 @@ export default function StatsWheel(props: Readonly<Props>) {
               onMouseLeave={() => setActiveIndex(null)}
               onTouchStart={() => setActiveIndex((prev) => prev === s.index ? null : s.index)}
             >
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: s.color }}
-              />
+              {s.logo ? (
+                <span className="w-5 h-5 rounded-sm shrink-0 overflow-hidden flex items-center justify-center bg-white border border-stone-100">
+                  <Image src={s.logo} alt={s.label} width={20} height={20} className="object-contain w-full h-full" />
+                </span>
+              ) : (
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: s.color }}
+                />
+              )}
               <span className="flex-1 text-xs text-stone-700 dark:text-stone-200 truncate font-medium">
                 {s.label}
               </span>

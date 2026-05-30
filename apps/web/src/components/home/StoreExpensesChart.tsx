@@ -1,5 +1,6 @@
 'use client';
 
+import { getStoreLogo } from '@/lib/store-logo';
 import StatsWheel from './StatsWheel';
 
 interface Slice {
@@ -23,6 +24,7 @@ export default function StoreExpensesChart({ data }: Readonly<Props>) {
     label: d.storeName,
     value: d.total,
     sublabel: `${d.count} ${d.count === 1 ? 'compra' : 'compras'}`,
+    logo: getStoreLogo(d.storeName),
   }));
   return (
     <StatsWheel data={wheelData} totalLabel="Total" totalValue={formatMoney(total)} formatValue={formatMoney} />
