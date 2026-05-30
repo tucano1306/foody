@@ -301,7 +301,6 @@ function compressImage(file: File): Promise<string> {
 
 export default function ProductForm({ product, inHousehold }: Props) {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [isPrivate, setIsPrivate] = useState(false);
 
@@ -447,20 +446,13 @@ export default function ProductForm({ product, inHousehold }: Props) {
             </div>
           )}
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3">
             <button
               type="button"
               onClick={() => cameraRef.current?.click()}
-              className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition"
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition"
             >
               📸 Cámara
-            </button>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold transition"
-            >
-              🖼️ Galería
             </button>
           </div>
 
@@ -469,13 +461,6 @@ export default function ProductForm({ product, inHousehold }: Props) {
             type="file"
             accept="image/*"
             capture="environment"
-            className="hidden"
-            onChange={handlePhotoChange}
-          />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
             className="hidden"
             onChange={handlePhotoChange}
           />
