@@ -227,7 +227,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       const hay = `${p.name} ${p.category ?? ''} ${p.description ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [products, query, stockFilter]);
+  }, [localProducts, query, stockFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
