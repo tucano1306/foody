@@ -56,44 +56,47 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-async function loadImageFromBlob(file: Blob): Promise<HTMLImageElement> {
-  const url = URL.createObjectURL(file);
-  try {
+interface LoadedImage {
+  img: HTMLImageElement;
+  release: () => void;
+}
+
+function loadImageFromBlob(file: Blob): Promise<LoadedImage> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
     const img = new globalThis.Image();
+    let settled = false;
+    const release = () => URL.revokeObjectURL(url);
+
+    img.onload = () => {
+      if (settled) return;
+      settled = true;
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        release();
+        reject(new Error('No se pudo procesar la imagen'));
+        return;
+      }
+      resolve({ img, release });
+    };
+    img.onerror = () => {
+      if (settled) return;
+      settled = true;
+      release();
+      reject(new Error('No se pudo procesar la imagen'));
+    };
+
+    // crossOrigin/decoding hints help iOS Safari pre-decode async
     img.decoding = 'async';
     img.src = url;
-
-    if (typeof img.decode === 'function') {
-      try {
-        await img.decode();
-      } catch {
-        // decode() rechaza en algunos navegadores aunque la imagen sí cargue;
-        // dejamos que el path de eventos resuelva.
-      }
-    }
-
-    if (img.naturalWidth === 0) {
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('No se pudo procesar la imagen'));
-      });
-    }
-
-    if (img.naturalWidth === 0) {
-      throw new Error('No se pudo procesar la imagen');
-    }
-    return img;
-  } finally {
-    // Mantener la URL viva mientras la imagen exista. Revoke con un pequeño
-    // delay para asegurar que el decode terminó pero sin retener memoria.
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-  }
+  });
 }
 
 async function canDecodeNatively(file: Blob): Promise<boolean> {
   try {
-    const img = await loadImageFromBlob(file);
-    return img.naturalWidth > 0 && img.naturalHeight > 0;
+    const { img, release } = await loadImageFromBlob(file);
+    const ok = img.naturalWidth > 0 && img.naturalHeight > 0;
+    release();
+    return ok;
   } catch {
     return false;
   }
@@ -135,8 +138,12 @@ function drawBitmapToJpeg(source: CanvasImageSource, srcWidth: number, srcHeight
 }
 
 async function compressImageInner(file: File | Blob): Promise<string> {
-  const img = await loadImageFromBlob(file);
-  return drawBitmapToJpeg(img, img.naturalWidth, img.naturalHeight);
+  const { img, release } = await loadImageFromBlob(file);
+  try {
+    return drawBitmapToJpeg(img, img.naturalWidth, img.naturalHeight);
+  } finally {
+    release();
+  }
 }
 
 function compressImage(file: File | Blob): Promise<string> {
