@@ -10,6 +10,9 @@ const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false })
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
+const MAX_OUTPUT_DIMENSION = 640;
+const COMPRESS_TIMEOUT_MS = 25_000;
+const HEIC_CONVERT_TIMEOUT_MS = 20_000;
 
 const CATEGORIES = [
   'Frutas y Verduras',
@@ -43,28 +46,62 @@ function isHeicFile(file: File): boolean {
     || name.endsWith('.heif');
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} tardó demasiado. Intenta con otra foto.`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
+async function canDecodeNatively(file: Blob): Promise<boolean> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new globalThis.Image();
+    img.src = url;
+    if (typeof img.decode === 'function') {
+      await img.decode();
+      return img.naturalWidth > 0 && img.naturalHeight > 0;
+    }
+    return await new Promise<boolean>((resolve) => {
+      img.onload = () => resolve(img.naturalWidth > 0);
+      img.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function normalizeImageFile(file: File): Promise<File | Blob> {
   if (!isHeicFile(file)) return file;
 
+  // Si el navegador puede decodificar HEIC nativamente (iOS/Safari), evita
+  // el heavy-weight heic2any que satura memoria y a veces nunca resuelve.
+  if (await canDecodeNatively(file)) return file;
+
   const mod = await import('heic2any');
   const convert = mod.default;
-  const converted = await convert({
-    blob: file,
-    toType: 'image/jpeg',
-    quality: 0.82,
-  });
+  const converted = await withTimeout(
+    convert({ blob: file, toType: 'image/jpeg', quality: 0.82 }),
+    HEIC_CONVERT_TIMEOUT_MS,
+    'La conversión HEIC',
+  );
 
   return Array.isArray(converted) ? converted[0] : converted;
 }
 
+function computeFitDimensions(srcWidth: number, srcHeight: number, max: number): { w: number; h: number } {
+  if (srcWidth <= max && srcHeight <= max) return { w: srcWidth, h: srcHeight };
+  if (srcWidth > srcHeight) return { w: max, h: Math.max(1, Math.round((srcHeight * max) / srcWidth)) };
+  return { w: Math.max(1, Math.round((srcWidth * max) / srcHeight)), h: max };
+}
+
 function drawBitmapToJpeg(source: CanvasImageSource, srcWidth: number, srcHeight: number): string {
-  const MAX = 640;
-  let w = srcWidth;
-  let h = srcHeight;
-  if (w > MAX || h > MAX) {
-    if (w > h) { h = Math.round((h * MAX) / w); w = MAX; }
-    else { w = Math.round((w * MAX) / h); h = MAX; }
-  }
+  const { w, h } = computeFitDimensions(srcWidth, srcHeight, MAX_OUTPUT_DIMENSION);
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -93,17 +130,31 @@ function compressViaFileReader(file: Blob): Promise<string> {
   });
 }
 
-function compressImage(file: File | Blob): Promise<string> {
-  if (typeof createImageBitmap === 'function') {
-    return createImageBitmap(file)
-      .then((bmp) => {
-        const result = drawBitmapToJpeg(bmp, bmp.width, bmp.height);
-        bmp.close();
-        return result;
-      })
-      .catch(() => compressViaFileReader(file));
+async function compressViaImageBitmap(file: File | Blob): Promise<string> {
+  // Primero leemos sólo metadata para conocer las dimensiones reales y pedir
+  // un downsample durante la decodificación (mucho menos memoria que decodificar
+  // los 12MP completos y después escalar).
+  const probe = await createImageBitmap(file);
+  const { w, h } = computeFitDimensions(probe.width, probe.height, MAX_OUTPUT_DIMENSION);
+  probe.close();
+
+  const bmp = await createImageBitmap(file, {
+    resizeWidth: w,
+    resizeHeight: h,
+    resizeQuality: 'medium',
+  });
+  try {
+    return drawBitmapToJpeg(bmp, bmp.width, bmp.height);
+  } finally {
+    bmp.close();
   }
-  return compressViaFileReader(file);
+}
+
+function compressImage(file: File | Blob): Promise<string> {
+  const run = typeof createImageBitmap === 'function'
+    ? compressViaImageBitmap(file).catch(() => compressViaFileReader(file))
+    : compressViaFileReader(file);
+  return withTimeout(run, COMPRESS_TIMEOUT_MS, 'La compresión de la imagen');
 }
 
 export default function ProductForm({ product, inHousehold }: Props) {
