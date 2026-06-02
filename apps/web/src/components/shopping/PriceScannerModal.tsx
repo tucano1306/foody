@@ -44,30 +44,65 @@ function compressForOcr(file: File): Promise<Blob> {
   });
 }
 
-function extractPrices(text: string): number[] {
-  const candidates: number[] = [];
-  const seen = new Set<number>();
+type PriceQuality = 'strong' | 'weak' | 'none';
+interface PriceExtraction {
+  readonly prices: readonly number[];
+  readonly quality: PriceQuality;
+  readonly hasDigits: boolean;
+}
 
-  const addCandidate = (raw: string) => {
+// Numbers that look like a price but almost never are:
+//  - 4-digit years (1900-2099) when there's no currency / decimal
+//  - numbers attached to %  (e.g. "100%")
+function isLikelyNonPrice(raw: string, context: string, index: number): boolean {
+  const n = Number.parseInt(raw, 10);
+  if (Number.isFinite(n) && n >= 1900 && n <= 2099 && raw.length === 4) return true;
+  const after = context.slice(index + raw.length, index + raw.length + 2);
+  if (after.trimStart().startsWith('%')) return true;
+  return false;
+}
+
+function extractPrices(text: string): PriceExtraction {
+  const strong: number[] = [];
+  const weak: number[] = [];
+  const seen = new Set<number>();
+  const hasDigits = /\d/.test(text);
+
+  const push = (bucket: number[], raw: string) => {
     const n = Number.parseFloat(raw.replaceAll(',', '.'));
     if (!Number.isNaN(n) && n > 0 && n < 10_000 && !seen.has(n)) {
       seen.add(n);
-      candidates.push(n);
+      bucket.push(n);
     }
   };
 
-  for (const m of text.matchAll(/\$\s*(\d{1,5}(?:[.,]\d{1,2})?)/g)) addCandidate(m[1]);
-  for (const m of text.matchAll(/\b(\d{1,4}[.,]\d{2})\b/g)) addCandidate(m[1]);
-  if (candidates.length === 0) {
-    for (const m of text.matchAll(/\b(\d{2,4})\b/g)) addCandidate(m[1]);
+  // Strong signals: explicit "$" or decimal point/comma
+  for (const m of text.matchAll(/\$\s*(\d{1,5}(?:[.,]\d{1,2})?)/g)) push(strong, m[1]);
+  for (const m of text.matchAll(/\b(\d{1,4}[.,]\d{2})\b/g)) push(strong, m[1]);
+
+  // Weak signal: bare integers — only useful when no strong matches
+  if (strong.length === 0) {
+    for (const m of text.matchAll(/\b(\d{2,4})\b/g)) {
+      if (m.index === undefined) continue;
+      if (isLikelyNonPrice(m[1], text, m.index)) continue;
+      push(weak, m[1]);
+    }
   }
-  return candidates;
+
+  let quality: PriceQuality;
+  if (strong.length > 0) quality = 'strong';
+  else if (weak.length > 0) quality = 'weak';
+  else quality = 'none';
+
+  return { prices: strong.length > 0 ? strong : weak, quality, hasDigits };
 }
 
 export default function PriceScannerModal({ productName, onPrice, onClose }: Props) {
   const [state, setState] = useState<ScanState>('idle');
   const [preview, setPreview] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<number[]>([]);
+  const [quality, setQuality] = useState<PriceQuality>('none');
+  const [hasDigits, setHasDigits] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
   const [manual, setManual] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -97,9 +132,12 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
         },
       });
       const { data: { text } } = await worker.recognize(compressed) as { data: { text: string } };
-      const found = extractPrices(text);
-      setCandidates(found);
-      setSelected(found[0] ?? null);
+      const result = extractPrices(text);
+      setCandidates([...result.prices]);
+      setQuality(result.quality);
+      setHasDigits(result.hasDigits);
+      // Only auto-select when we're confident; for weak matches force user to pick
+      setSelected(result.quality === 'strong' ? result.prices[0] ?? null : null);
       setState('preview');
     } catch (err) {
       URL.revokeObjectURL(objectUrl);
@@ -249,7 +287,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
         {/* preview — detected prices */}
         {state === 'preview' && (
           <div className="space-y-3">
-            {candidates.length > 0 ? (
+            {quality === 'strong' && candidates.length > 0 && (
               <>
                 <p className="text-sm font-semibold text-stone-700">
                   Precios detectados — toca el correcto:
@@ -271,9 +309,45 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                   ))}
                 </div>
               </>
-            ) : (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                <p className="text-amber-700 text-sm">No se detectó un precio claro. Ingrésalo manualmente.</p>
+            )}
+
+            {quality === 'weak' && candidates.length > 0 && (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                  <p className="text-amber-800 text-sm font-semibold">⚠️ No vimos un precio claro</p>
+                  <p className="text-amber-700 text-xs mt-0.5">
+                    Estos números podrían no ser precios. Confirma uno o escríbelo manualmente.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {candidates.slice(0, 8).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => { setSelected(c); setManual(''); }}
+                      className={`px-4 py-2 rounded-xl font-bold text-sm border-2 transition ${
+                        selected === c
+                          ? 'border-amber-500 bg-amber-50 text-amber-800'
+                          : 'border-stone-200 bg-white text-stone-600 hover:border-amber-300'
+                      }`}
+                    >
+                      ${c.toFixed(2)}?
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {quality === 'none' && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                <p className="text-red-800 text-sm font-semibold">
+                  {hasDigits ? '⚠️ No parece un precio' : '⚠️ No se detectó texto'}
+                </p>
+                <p className="text-red-700 text-xs mt-0.5">
+                  {hasDigits
+                    ? 'No encontramos un valor que parezca un precio. Toma otra foto enfocando solo el monto (ej. $12.99) o escríbelo abajo.'
+                    : 'La foto está borrosa o no muestra números. Reintenta acercando la cámara al precio.'}
+                </p>
               </div>
             )}
 
