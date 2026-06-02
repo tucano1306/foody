@@ -28,10 +28,10 @@ export const viewport: Viewport = {
 };
 
 // Blocking script — reads localStorage before paint to avoid FOUC.
-// Falls back to dark if no preference is stored.
+// Falls back to light if no preference is stored.
 const themeInitScript = `(function(){
   var t = localStorage.getItem('foody-theme');
-  document.documentElement.classList.toggle('dark', t !== 'light');
+  document.documentElement.classList.toggle('dark', t === 'dark');
 })();`;
 
 export default function RootLayout({
