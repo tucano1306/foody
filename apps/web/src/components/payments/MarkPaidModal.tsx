@@ -33,7 +33,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [amount, setAmount] = useState<string>('');
   const [method, setMethod] = useState<PaymentMethod | null>(null);
-  const [bankAccount, setBankAccount] = useState<string>('');
+  const [bankName, setBankName] = useState<string>('');
+  const [accountNumber, setAccountNumber] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
       el.showModal();
       setAmount(payment.isVariableAmount ? '' : payment.amount.toFixed(2));
       setMethod(null);
-      setBankAccount('');
+      setBankName('');
+      setAccountNumber('');
       setNotes('');
       setError(null);
     }
@@ -78,6 +80,13 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
 
     setSaving(true);
     try {
+      const bank = bankName.trim();
+      const acct = accountNumber.trim();
+      let combined: string | undefined;
+      if (bank && acct) combined = `${bank} •••${acct}`;
+      else if (bank) combined = bank;
+      else if (acct) combined = `•••${acct}`;
+
       const res = await fetch(`/api/payments/${payment.id}/mark-paid`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,7 +94,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
         body: JSON.stringify({
           amount: parsedAmount,
           paymentMethod: method,
-          bankAccount: bankAccount.trim() || undefined,
+          bankAccount: combined,
           notes: notes.trim() || undefined,
         }),
       });
@@ -103,6 +112,17 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
   }
 
   const needsBank = method === 'transfer' || method === 'debit_card' || method === 'credit_card' || method === 'bank_account';
+  const isCard = method === 'debit_card' || method === 'credit_card';
+  const accountLabel = isCard ? 'Últimos 4 dígitos' : 'Número de cuenta';
+  const accountPlaceholder = isCard ? '1234' : 'Ej: 1234567890';
+  const accountMaxLen = isCard ? 4 : 32;
+
+  function handleAccountChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    // only digits; cap length
+    const digits = raw.replaceAll(/\D/g, '').slice(0, accountMaxLen);
+    setAccountNumber(digits);
+  }
 
   return (
     <dialog
@@ -207,22 +227,53 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
               </div>
             </fieldset>
 
-            {/* Bank / account */}
+            {/* Bank + account / card */}
             {needsBank && (
-              <div>
-                <label htmlFor="mark-paid-bank" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
-                  Banco o cuenta {needsBank && <span className="text-stone-400 dark:text-gray-500 font-normal">(opcional)</span>}
-                </label>
-                <input
-                  id="mark-paid-bank"
-                  type="text"
-                  value={bankAccount}
-                  onChange={(e) => setBankAccount(e.target.value)}
-                  list="recent-bank-accounts"
-                  placeholder="Ej: Bancolombia •••1234"
-                  maxLength={100}
-                  className="w-full px-4 py-3 rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
-                />
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-[1fr_auto] gap-2">
+                  <div>
+                    <label htmlFor="mark-paid-bank" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
+                      {isCard ? 'Emisor de la tarjeta' : 'Banco / entidad'}
+                    </label>
+                    <input
+                      id="mark-paid-bank"
+                      type="text"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      list="recent-bank-accounts"
+                      placeholder={isCard ? 'Ej: Visa Nu' : 'Ej: Bancolombia'}
+                      maxLength={50}
+                      className="w-full px-4 py-3 rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
+                    />
+                  </div>
+                  <div className="min-w-24">
+                    <label htmlFor="mark-paid-account" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
+                      {accountLabel}
+                    </label>
+                    <div className="relative">
+                      {isCard && (
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-gray-500 text-sm font-mono select-none">•••</span>
+                      )}
+                      <input
+                        id="mark-paid-account"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={accountNumber}
+                        onChange={handleAccountChange}
+                        placeholder={accountPlaceholder}
+                        maxLength={accountMaxLen}
+                        className={`w-full ${isCard ? 'pl-10' : 'pl-4'} pr-3 py-3 rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm font-mono tracking-wider`}
+                      />
+                    </div>
+                  </div>
+                </div>
+                {isCard && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-300 flex items-start gap-1.5">
+                    <span>🔒</span>
+                    <span>Por seguridad, solo guardamos los <strong>últimos 4 dígitos</strong>. Nunca ingreses el número completo.</span>
+                  </p>
+                )}
                 {recentBankAccounts.length > 0 && (
                   <>
                     <datalist id="recent-bank-accounts">
@@ -230,12 +281,12 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                         <option key={acc} value={acc} />
                       ))}
                     </datalist>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {recentBankAccounts.slice(0, 4).map((acc) => (
                         <button
                           key={acc}
                           type="button"
-                          onClick={() => setBankAccount(acc)}
+                          onClick={() => setBankName(acc)}
                           className="text-[11px] px-2.5 py-1 rounded-full bg-stone-100 dark:bg-white/10 text-stone-600 dark:text-gray-300 hover:bg-stone-200 dark:hover:bg-white/20 transition"
                         >
                           {acc}
