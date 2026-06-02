@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -78,8 +77,8 @@ export class NotificationsService implements OnModuleInit {
     });
   }
 
-  // ─── Payment reminders — daily at 9 AM ─────────────────────────────────────
-  @Cron('0 9 * * *')
+  // ─── Payment reminders ──────────────────────────────────────────────────────
+  // Scheduled by Vercel Cron via apps/web/src/app/api/cron/payments-daily/route.ts
   async sendPaymentReminders(): Promise<void> {
     this.logger.log('Running payment reminder notifications...');
     const now = new Date();
@@ -125,8 +124,8 @@ export class NotificationsService implements OnModuleInit {
     if (ok) this.logger.log(`Payment reminder sent: "${payment.name}" → user ${user.id}`);
   }
 
-  // ─── Stock alerts — daily at 8 AM ──────────────────────────────────────────
-  @Cron('0 8 * * *')
+  // ─── Stock alerts ───────────────────────────────────────────────────────────
+  // Scheduled by Vercel Cron via apps/web/src/app/api/cron/stock-alerts/route.ts
   async sendStockAlerts(): Promise<void> {
     this.logger.log('Running predictive stock alerts...');
     const products = await this.productsRepo.find({
