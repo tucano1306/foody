@@ -51,6 +51,7 @@ function mapPayment(row: Record<string, unknown>) {
     category: asText(row.category, 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
+    isVariableAmount: Boolean(row.is_variable_amount),
     userId: String(row.user_id),
     createdAt: toISOStringSafe(row.created_at),
     updatedAt: toISOStringSafe(row.updated_at),
@@ -131,6 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         due_day = COALESCE(${body.dueDay as number ?? null}, due_day),
         category = COALESCE(${body.category as string ?? null}, category),
         notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
+        is_variable_amount = COALESCE(${body.isVariableAmount === undefined ? null : Boolean(body.isVariableAmount)}, is_variable_amount),
         updated_at = NOW()
       WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
     `;

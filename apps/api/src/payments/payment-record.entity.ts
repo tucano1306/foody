@@ -10,6 +10,7 @@ import { MonthlyPayment } from './payment.entity';
 import { User } from '../users/user.entity';
 
 export type PaymentStatus = 'pending' | 'paid' | 'overdue';
+export type PaymentMethod = 'transfer' | 'debit_card' | 'credit_card' | 'cash' | 'bank_account' | 'other';
 
 @Entity('payment_records')
 export class PaymentRecord {
@@ -45,6 +46,28 @@ export class PaymentRecord {
 
   @Column({ type: 'varchar', length: 20, default: 'pending' })
   status: PaymentStatus;
+
+  @Column({
+    name: 'actual_amount',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    transformer: {
+      to: (v: number | null) => v,
+      from: (v: string | null) => (v === null ? null : Number.parseFloat(v)),
+    },
+  })
+  actualAmount: number | null;
+
+  @Column({ name: 'payment_method', type: 'varchar', length: 20, nullable: true })
+  paymentMethod: PaymentMethod | null;
+
+  @Column({ name: 'bank_account', type: 'varchar', length: 100, nullable: true })
+  bankAccount: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
 
   @Column({ name: 'user_id' })
   userId: string;

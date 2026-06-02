@@ -5,6 +5,7 @@ import type React from 'react';
 import type { MonthlyPayment } from '@foody/types';
 import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
+import MarkPaidModal from '@/components/payments/MarkPaidModal';
 interface Props {
   readonly payment: MonthlyPayment;
   readonly onDeleted?: (id: string) => void;
@@ -93,6 +94,7 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
   );
   const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [snoozeError, setSnoozeError] = useState(false);
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
@@ -101,17 +103,27 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
   const showQuickActions = !isPaid && !isSnoozed;
 
   const togglePaid = useCallback(() => {
+    if (!isPaid) {
+      // Opening the modal collects method + bank + amount, then POSTs.
+      setMarkPaidOpen(true);
+      return;
+    }
     startTransition(async () => {
-      const endpoint = `/api/payments/${currentPayment.id}/mark-paid`;
-      const method = isPaid ? 'DELETE' : 'POST';
-      const res = await fetch(endpoint, { method, credentials: 'include' });
+      const res = await fetch(`/api/payments/${currentPayment.id}/mark-paid`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
       if (res.ok) {
-        const nowPaid = !isPaid;
-        setIsPaid(nowPaid);
-        onPaidToggle?.(currentPayment.id, nowPaid);
+        setIsPaid(false);
+        onPaidToggle?.(currentPayment.id, false);
       }
     });
   }, [currentPayment.id, isPaid, onPaidToggle]);
+
+  const handleMarkPaidConfirmed = useCallback(() => {
+    setIsPaid(true);
+    onPaidToggle?.(currentPayment.id, true);
+  }, [currentPayment.id, onPaidToggle]);
 
   const snooze = useCallback(() => {
     setSnoozeError(false);
@@ -168,9 +180,14 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
           </div>
           <div className="text-right shrink-0">
             <p className="text-stone-800 dark:text-white font-extrabold text-lg leading-tight">
+              {currentPayment.isVariableAmount && (
+                <span className="text-stone-400 dark:text-stone-500 mr-0.5" title="Monto variable">≈</span>
+              )}
               {currentPayment.currency} {currentPayment.amount.toFixed(2)}
             </p>
-            <p className="text-stone-400 dark:text-stone-500 text-[11px]">Día {currentPayment.dueDay} / mes</p>
+            <p className="text-stone-400 dark:text-stone-500 text-[11px]">
+              {currentPayment.isVariableAmount ? `Variable · Día ${currentPayment.dueDay}` : `Día ${currentPayment.dueDay} / mes`}
+            </p>
           </div>
         </div>
 
@@ -211,6 +228,14 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
         onPaidToggle={togglePaid}
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
+      />
+
+      {/* Mark paid modal */}
+      <MarkPaidModal
+        payment={currentPayment}
+        open={markPaidOpen}
+        onClose={() => setMarkPaidOpen(false)}
+        onConfirmed={handleMarkPaidConfirmed}
       />
     </>
   );

@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import type { MonthlyPayment, CreatePaymentDto } from '@foody/types';
+import type { MonthlyPayment, CreatePaymentDto, PaymentMethod } from '@foody/types';
 import { XMarkIcon, PencilSquareIcon, TrashIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
+import { PAYMENT_METHOD_LABELS } from '@/components/payments/MarkPaidModal';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ function buildEditState(payment: MonthlyPayment): {
       category: payment.category,
       notificationDaysBefore: payment.notificationDaysBefore,
       description: payment.description ?? '',
+      isVariableAmount: payment.isVariableAmount,
     },
     notifyValue: value,
     notifyUnit: unit,
@@ -77,6 +79,20 @@ function plural(n: number, word: string): string {
 
 type Mode = 'view' | 'edit' | 'confirm-delete';
 type InlineField = 'dueDay' | 'notify' | null;
+
+interface HistoryRecord {
+  id: string;
+  month: number;
+  year: number;
+  paidAt: string | null;
+  amount: number;
+  actualAmount: number | null;
+  paymentMethod: PaymentMethod | null;
+  bankAccount: string | null;
+  notes: string | null;
+}
+
+const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 interface Props {
   readonly payment: MonthlyPayment;
@@ -119,6 +135,10 @@ export default function PaymentDetailSheet({
   const [notifyUnit, setNotifyUnit] = useState<'days' | 'months'>(() => buildEditState(payment).notifyUnit);
   const [notifyValue, setNotifyValue] = useState<string>(() => buildEditState(payment).notifyValue);
 
+  // History
+  const [history, setHistory] = useState<HistoryRecord[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   // Sync form when payment prop changes
   useEffect(() => {
     const { form: f, notifyValue: nv, notifyUnit: nu } = buildEditState(payment);
@@ -140,6 +160,17 @@ export default function PaymentDetailSheet({
     }
     if (!open && el.open) el.close();
   }, [open]);
+
+  // Lazy-load history when opened in view mode
+  useEffect(() => {
+    if (!open || mode !== 'view') return;
+    setHistoryLoading(true);
+    fetch(`/api/payments/${currentPayment.id}/records`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: HistoryRecord[]) => setHistory(data))
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [open, mode, currentPayment.id, isPaid]);
 
   // Close on backdrop click
   useEffect(() => {
@@ -277,10 +308,23 @@ export default function PaymentDetailSheet({
 
         {/* Amount */}
         <div className="bg-white/5 rounded-2xl p-4 mb-4">
-          <p className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-1">Monto mensual</p>
+          <p className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-1 flex items-center gap-2">
+            {currentPayment.isVariableAmount ? 'Monto estimado' : 'Monto mensual'}
+            {currentPayment.isVariableAmount && (
+              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 tracking-normal">
+                ⚡ Variable
+              </span>
+            )}
+          </p>
           <p className="text-white text-3xl font-extrabold">
+            {currentPayment.isVariableAmount && <span className="text-gray-400 mr-1">≈</span>}
             {currentPayment.currency} {currentPayment.amount.toFixed(2)}
           </p>
+          {currentPayment.isVariableAmount && (
+            <p className="text-gray-500 text-[11px] mt-1">
+              El monto real se captura al pagar (recibo de consumo)
+            </p>
+          )}
         </div>
 
         {/* Info grid — tappable cells */}
@@ -446,7 +490,76 @@ export default function PaymentDetailSheet({
             </button>
           </div>
         </div>
+
+        {/* History */}
+        {renderHistory()}
       </>
+    );
+  }
+
+  // ── History (recent payment records) ────────────────────────────────────
+  function renderHistory() {
+    if (historyLoading && !history) {
+      return (
+        <div className="mt-6 pt-5 border-t border-white/10">
+          <p className="text-gray-500 text-xs">Cargando historial…</p>
+        </div>
+      );
+    }
+    if (!history || history.length === 0) {
+      return (
+        <div className="mt-6 pt-5 border-t border-white/10">
+          <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-2">Historial</p>
+          <p className="text-gray-500 text-xs">Aún no hay pagos registrados.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-6 pt-5 border-t border-white/10">
+        <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-3">
+          Historial reciente
+        </p>
+        <ul className="flex flex-col gap-2">
+          {history.slice(0, 6).map((rec) => {
+            const methodInfo = rec.paymentMethod ? PAYMENT_METHOD_LABELS[rec.paymentMethod] : null;
+            const monthLabel = `${MONTH_NAMES[rec.month - 1]} ${rec.year}`;
+            return (
+              <li
+                key={rec.id}
+                className="bg-white/5 rounded-xl p-3 flex items-start gap-3"
+              >
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-base shrink-0">
+                  {methodInfo?.icon ?? '✓'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-white text-sm font-semibold">{monthLabel}</p>
+                    <p className="text-white text-sm font-bold">
+                      {currentPayment.currency} {(rec.actualAmount ?? rec.amount).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-400 flex-wrap">
+                    {methodInfo && <span>{methodInfo.label}</span>}
+                    {rec.bankAccount && (
+                      <>
+                        {methodInfo && <span className="text-gray-600">·</span>}
+                        <span className="truncate">{rec.bankAccount}</span>
+                      </>
+                    )}
+                    {!methodInfo && !rec.bankAccount && (
+                      <span className="text-gray-500">Sin detalles de método</span>
+                    )}
+                  </div>
+                  {rec.notes && (
+                    <p className="text-[11px] text-gray-500 mt-1 italic line-clamp-2">{rec.notes}</p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     );
   }
 
@@ -524,7 +637,7 @@ export default function PaymentDetailSheet({
         {/* Monto + Moneda */}
         <div>
           <label htmlFor="edit-payment-amount" className="block text-xs font-semibold text-gray-400 mb-1.5">
-            Monto <span className="text-brand-400">*</span>
+            {form.isVariableAmount ? 'Monto estimado' : 'Monto'} <span className="text-brand-400">*</span>
           </label>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -552,6 +665,32 @@ export default function PaymentDetailSheet({
               <option value="OTHER" className="bg-gray-900">Otra</option>
             </select>
           </div>
+
+          {/* Variable toggle */}
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, isVariableAmount: !f.isVariableAmount }))}
+            aria-pressed={form.isVariableAmount}
+            className={`mt-2 w-full flex items-start gap-2.5 p-3 rounded-xl border text-left transition ${
+              form.isVariableAmount
+                ? 'bg-amber-500/15 border-amber-500/40'
+                : 'bg-white/5 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div
+              className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 transition ${
+                form.isVariableAmount ? 'bg-amber-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
+              }`}
+            >
+              ✓
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-white">⚡ Monto variable (por consumo)</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Al pagar te pediremos el valor exacto del recibo.
+              </p>
+            </div>
+          </button>
         </div>
 
         {/* Día vencimiento + Avisar antes */}

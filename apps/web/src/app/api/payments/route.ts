@@ -57,6 +57,7 @@ function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
     category: asText(row.category, 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
+    isVariableAmount: Boolean(row.is_variable_amount),
     userId: String(row.user_id),
     createdAt: toISOStringSafe(row.created_at),
     updatedAt: toISOStringSafe(row.updated_at),
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
   try {
     const id = randomUUID();
     const rows = await sql`
-      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, user_id, created_at, updated_at)
+      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, is_variable_amount, user_id, created_at, updated_at)
       VALUES (
         ${id},
         ${name},
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
         ${typeof body.category === 'string' ? body.category : null},
         true,
         ${notifyDays},
+        ${Boolean(body.isVariableAmount)},
         ${user.userId},
         NOW(), NOW()
       ) RETURNING *

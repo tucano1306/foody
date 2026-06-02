@@ -53,6 +53,9 @@ export class MonthlyPayment {
   @Column({ name: 'snoozed_until', nullable: true, type: 'timestamptz' })
   snoozedUntil: Date | null;
 
+  @Column({ name: 'is_variable_amount', default: false })
+  isVariableAmount: boolean;
+
   @Column({ name: 'user_id' })
   userId: string;
 

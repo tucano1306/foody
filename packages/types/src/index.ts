@@ -192,6 +192,7 @@ export interface MonthlyPayment {
   category: PaymentCategory | (string & {});
   isActive: boolean;
   notificationDaysBefore: number;
+  isVariableAmount: boolean;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -210,6 +211,7 @@ export interface CreatePaymentDto {
   dueDay: number;
   category?: string;
   notificationDaysBefore?: number;
+  isVariableAmount?: boolean;
 }
 
 export interface UpdatePaymentDto extends Partial<CreatePaymentDto> {
@@ -218,6 +220,7 @@ export interface UpdatePaymentDto extends Partial<CreatePaymentDto> {
 
 // ─── Payment Record ───────────────────────────────────────────────────────────
 export type PaymentStatus = 'pending' | 'paid' | 'overdue';
+export type PaymentMethod = 'transfer' | 'debit_card' | 'credit_card' | 'cash' | 'bank_account' | 'other';
 
 export interface PaymentRecord {
   id: string;
@@ -226,9 +229,20 @@ export interface PaymentRecord {
   year: number;
   paidAt: string | null;
   amount: number;
+  actualAmount: number | null;
+  paymentMethod: PaymentMethod | null;
+  bankAccount: string | null;
+  notes: string | null;
   status: PaymentStatus;
   userId: string;
   createdAt: string;
+}
+
+export interface MarkPaidDto {
+  amount?: number;
+  paymentMethod?: PaymentMethod;
+  bankAccount?: string;
+  notes?: string;
 }
 
 // ─── Session ──────────────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ export default function PaymentForm() {
     currency: 'MXN',
     category: 'other',
     description: '',
+    isVariableAmount: false,
   });
   const [notifyValue, setNotifyValue] = useState('');
   const [notifyUnit, setNotifyUnit] = useState<'days' | 'months'>('days');
@@ -103,7 +104,7 @@ export default function PaymentForm() {
       {/* ─── Monto + Moneda ──────────────────────────────────────────────── */}
       <div>
         <label htmlFor="payment-amount" className="block text-sm font-semibold text-stone-700 mb-1.5">
-          Monto <span className="text-brand-500">*</span>
+          {form.isVariableAmount ? 'Monto estimado' : 'Monto'} <span className="text-brand-500">*</span>
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -132,6 +133,34 @@ export default function PaymentForm() {
             <option value="OTHER">Otra</option>
           </select>
         </div>
+
+        {/* Variable amount toggle */}
+        <button
+          type="button"
+          onClick={() => setForm((f) => ({ ...f, isVariableAmount: !f.isVariableAmount }))}
+          aria-pressed={form.isVariableAmount}
+          className={`mt-2 w-full flex items-start gap-3 p-3 rounded-2xl border text-left transition ${
+            form.isVariableAmount
+              ? 'bg-amber-50 border-amber-300'
+              : 'bg-white border-stone-200 hover:border-stone-300'
+          }`}
+        >
+          <div
+            className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold shrink-0 transition ${
+              form.isVariableAmount ? 'bg-amber-500 text-white' : 'bg-stone-100 text-transparent border border-stone-300'
+            }`}
+          >
+            ✓
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-stone-800 flex items-center gap-1.5">
+              ⚡ Monto variable (por consumo)
+            </p>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Ej: luz, agua, gas. El monto del recibo cambia cada mes; al pagar te pediremos el valor exacto.
+            </p>
+          </div>
+        </button>
       </div>
 
       {/* ─── Día vencimiento + Notificación ──────────────────────────────── */}
