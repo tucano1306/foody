@@ -39,7 +39,7 @@ export class PaymentRecord {
     scale: 2,
     transformer: {
       to: (v: number) => v,
-      from: (v: string) => parseFloat(v),
+      from: (v: string) => Number.parseFloat(v),
     },
   })
   amount: number;
