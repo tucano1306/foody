@@ -29,7 +29,7 @@ const METHODS: readonly MethodOption[] = [
   { value: 'other',        icon: '➕', label: 'Otro',             hint: '' },
 ];
 
-export default function MarkPaidModal({ payment, open, onClose, onConfirmed, recentBankAccounts = [] }: Props) {
+export default function MarkPaidModal({ payment, open, onClose, onConfirmed, recentBankAccounts: recentBankAccountsProp = [] }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [amount, setAmount] = useState<string>('');
   const [method, setMethod] = useState<PaymentMethod | null>(null);
@@ -38,6 +38,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
   const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentBanks, setRecentBanks] = useState<readonly string[]>(recentBankAccountsProp);
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -53,6 +54,17 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
     }
     if (!open && el.open) el.close();
   }, [open, payment.isVariableAmount, payment.amount]);
+
+  // Lazy-load recent banks from history when the modal opens
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/payments/recent-banks', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: string[]) => {
+        if (Array.isArray(data) && data.length > 0) setRecentBanks(data);
+      })
+      .catch(() => undefined);
+  }, [open]);
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -75,6 +87,11 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
     }
     if (!method) {
       setError('Selecciona cómo pagaste');
+      return;
+    }
+    const requiresBank = method === 'transfer' || method === 'debit_card' || method === 'credit_card' || method === 'bank_account';
+    if (requiresBank && !bankName.trim()) {
+      setError(method === 'transfer' || method === 'bank_account' ? 'Indica el banco' : 'Indica el emisor de la tarjeta');
       return;
     }
 
@@ -230,13 +247,41 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
             {/* Bank + account / card */}
             {needsBank && (
               <div className="flex flex-col gap-2">
+                {recentBanks.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-stone-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
+                      Bancos que ya usaste
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {recentBanks.slice(0, 6).map((b) => {
+                        const selected = bankName.trim().toLowerCase() === b.toLowerCase();
+                        return (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => setBankName(b)}
+                            aria-pressed={selected}
+                            className={`text-xs px-3 py-1.5 rounded-full border transition active:scale-95 ${
+                              selected
+                                ? 'bg-brand-500 border-brand-500 text-white'
+                                : 'bg-stone-100 dark:bg-white/10 border-stone-200 dark:border-white/10 text-stone-700 dark:text-gray-200 hover:border-brand-300'
+                            }`}
+                          >
+                            🏦 {b}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-[1fr_auto] gap-2">
                   <div>
                     <label htmlFor="mark-paid-bank" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
-                      {isCard ? 'Emisor de la tarjeta' : 'Banco / entidad'}
+                      {isCard ? 'Emisor de la tarjeta' : 'Banco / entidad'} <span className="text-brand-500">*</span>
                     </label>
                     <input
                       id="mark-paid-bank"
+                      required
                       type="text"
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
@@ -274,27 +319,11 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                     <span>Por seguridad, solo guardamos los <strong>últimos 4 dígitos</strong>. Nunca ingreses el número completo.</span>
                   </p>
                 )}
-                {recentBankAccounts.length > 0 && (
-                  <>
-                    <datalist id="recent-bank-accounts">
-                      {recentBankAccounts.map((acc) => (
-                        <option key={acc} value={acc} />
-                      ))}
-                    </datalist>
-                    <div className="flex flex-wrap gap-1.5">
-                      {recentBankAccounts.slice(0, 4).map((acc) => (
-                        <button
-                          key={acc}
-                          type="button"
-                          onClick={() => setBankName(acc)}
-                          className="text-[11px] px-2.5 py-1 rounded-full bg-stone-100 dark:bg-white/10 text-stone-600 dark:text-gray-300 hover:bg-stone-200 dark:hover:bg-white/20 transition"
-                        >
-                          {acc}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+                <datalist id="recent-bank-accounts">
+                  {recentBanks.map((acc) => (
+                    <option key={acc} value={acc} />
+                  ))}
+                </datalist>
               </div>
             )}
 
