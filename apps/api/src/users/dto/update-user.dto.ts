@@ -1,5 +1,6 @@
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsObject, IsOptional, IsString, Length } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import type { PushSubscriptionData } from '../user.entity';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({ description: 'User display name' })
@@ -8,8 +9,8 @@ export class UpdateUserDto {
   @Length(1, 100)
   name?: string;
 
-  @ApiPropertyOptional({ description: 'OneSignal player/subscription ID for push notifications' })
+  @ApiPropertyOptional({ description: 'Web Push subscription object (PushSubscription.toJSON())' })
   @IsOptional()
-  @IsString()
-  onesignalPlayerId?: string;
+  @IsObject()
+  pushSubscription?: PushSubscriptionData | null;
 }

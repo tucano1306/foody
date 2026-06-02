@@ -22,9 +22,10 @@ const configuration = () => ({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
     s3Bucket: process.env.AWS_S3_BUCKET ?? 'foody-product-photos',
   },
-  onesignal: {
-    appId: process.env.ONESIGNAL_APP_ID ?? '',
-    apiKey: process.env.ONESIGNAL_API_KEY ?? '',
+  webPush: {
+    publicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+    privateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+    contact: process.env.VAPID_CONTACT ?? 'mailto:admin@foody.app',
   },
   webAppUrl: process.env.WEB_APP_URL ?? 'https://foody-web-eight.vercel.app',
   webUrl: process.env.WEB_URL ?? 'http://localhost:3000',

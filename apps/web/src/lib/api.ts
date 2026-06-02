@@ -1,6 +1,13 @@
 import { getSession } from './session';
 import { sql } from './db';
 import { randomUUID } from 'node:crypto';
+
+interface PushSubscriptionJSON {
+  endpoint: string;
+  expirationTime: number | null;
+  keys: { p256dh: string; auth: string };
+}
+
 import type {
   AllocationStrategy,
   CreateShoppingTripDto,
@@ -520,10 +527,11 @@ export const api = {
       const rows = await sql`SELECT * FROM users WHERE id = ${userId} LIMIT 1`;
       return rows[0] ?? null;
     },
-    updateMe: async (data: { name?: string; onesignalPlayerId?: string }) => {
+    updateMe: async (data: { name?: string; pushSubscription?: PushSubscriptionJSON | null }) => {
       const { userId } = await getAuthContext();
+      const pushSubJson = data.pushSubscription === undefined ? null : JSON.stringify(data.pushSubscription);
       const rows = await sql`
-        UPDATE users SET name = COALESCE(${data.name ?? null}, name), onesignal_player_id = COALESCE(${data.onesignalPlayerId ?? null}, onesignal_player_id), updated_at = NOW()
+        UPDATE users SET name = COALESCE(${data.name ?? null}, name), push_subscription = COALESCE(${pushSubJson}::jsonb, push_subscription), updated_at = NOW()
         WHERE id = ${userId} RETURNING *
       `;
       return rows[0];

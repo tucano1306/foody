@@ -1,101 +1,69 @@
 'use client';
 
 import { useEffect } from 'react';
-import Script from 'next/script';
 
-const APP_ID = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const SUBSCRIBED_KEY = 'foody_webpush_endpoint';
 
-declare global {
-  // eslint-disable-next-line no-var
-  var OneSignalDeferred: Array<(os: OneSignalSDK) => void | Promise<void>> | undefined;
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replaceAll('-', '+').replaceAll('_', '/');
+  const rawData = atob(base64);
+  const buffer = new ArrayBuffer(rawData.length);
+  const output = new Uint8Array(buffer);
+  for (let i = 0; i < rawData.length; i++) output[i] = rawData.codePointAt(i) ?? 0;
+  return output;
 }
 
-interface OneSignalSDK {
-  init(config: Record<string, unknown>): Promise<void>;
-  User: {
-    PushSubscription: {
-      id: string | null;
-      optIn(): Promise<void>;
-      addEventListener(event: 'change', cb: (e: { current: { id: string | null } }) => void): void;
-    };
-  };
-  Notifications: {
-    requestPermission(): Promise<void>;
-    permissionNative: string;
-  };
-}
-
-async function savePlayerId(id: string) {
+async function saveSubscription(sub: PushSubscription): Promise<boolean> {
   try {
-    await fetch('/api/proxy/users/me', {
+    const res = await fetch('/api/users/me', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ onesignalPlayerId: id }),
+      body: JSON.stringify({ pushSubscription: sub.toJSON() }),
     });
+    return res.ok;
   } catch {
-    // Non-critical — notifications will not work but the app is fine
+    return false;
   }
 }
 
-function initOneSignal(OneSignal: OneSignalSDK) {
-  void (async () => {
-    // Wait for an active SW before initialising OneSignal so that
-    // navigator.serviceWorker.controller is non-null and the SDK can
-    // immediately postMessage without logging "[WM] No SW registration".
-    if ('serviceWorker' in navigator) {
-      await navigator.serviceWorker.ready;
-    }
+async function setupPush(): Promise<void> {
+  if (!VAPID_PUBLIC_KEY) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in globalThis)) return;
+  if (Notification.permission === 'denied') return;
 
-    await OneSignal.init({
-      appId: APP_ID,
-      serviceWorkerParam: { scope: '/' },
-      serviceWorkerPath: '/sw.js',
-      notifyButton: { enable: false },
-      welcomeNotification: { disable: true },
-      allowLocalhostAsSecureOrigin: process.env.NODE_ENV === 'development',
-    });
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
 
-    // Save subscription ID whenever it changes (grant, revoke, refresh)
-    OneSignal.User.PushSubscription.addEventListener('change', (event) => {
-      if (event.current.id) {
-        void savePlayerId(event.current.id);
-      }
-    });
+  if (localStorage.getItem(SUBSCRIBED_KEY) === sub?.endpoint) return;
 
-    // If already subscribed, ensure we have the ID on record
-    const existingId = OneSignal.User.PushSubscription.id;
-    if (existingId) {
-      void savePlayerId(existingId);
+  if (Notification.permission === 'default') {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return;
+  }
+
+  if (!sub) {
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    } catch (err) {
+      console.error('[Push] subscribe failed:', err);
       return;
     }
+  }
 
-    // Request permission only if the user hasn't been asked before
-    if (OneSignal.Notifications.permissionNative === 'default') {
-      await OneSignal.Notifications.requestPermission();
-    }
-  })();
+  const saved = await saveSubscription(sub);
+  if (saved) localStorage.setItem(SUBSCRIBED_KEY, sub.endpoint);
 }
 
-/**
- * Bootstraps OneSignal web push notifications.
- * Requires NEXT_PUBLIC_ONESIGNAL_APP_ID to be set.
- * Silently skips if the env var is missing or the browser has no SW support.
- */
 export default function PushNotifications() {
   useEffect(() => {
-    if (!APP_ID || !('serviceWorker' in navigator)) return;
-
-    globalThis.OneSignalDeferred = globalThis.OneSignalDeferred ?? [];
-    globalThis.OneSignalDeferred.push(initOneSignal);
+    void setupPush();
   }, []);
 
-  if (!APP_ID) return null;
-
-  return (
-    <Script
-      src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
-      strategy="afterInteractive"
-    />
-  );
+  return null;
 }

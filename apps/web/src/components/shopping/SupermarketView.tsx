@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
@@ -163,10 +163,28 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const [showModal, setShowModal] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    try {
+      const s = sessionStorage.getItem('foody-mkt-quantities');
+      return s ? (JSON.parse(s) as Record<string, number>) : {};
+    } catch { return {}; }
+  });
   const [searchFocused, setSearchFocused] = useState(false);
-  const [scannedPrices, setScannedPrices] = useState<Record<string, number>>({});
+  const [scannedPrices, setScannedPrices] = useState<Record<string, number>>(() => {
+    try {
+      const s = sessionStorage.getItem('foody-mkt-prices');
+      return s ? (JSON.parse(s) as Record<string, number>) : {};
+    } catch { return {}; }
+  });
   const [scanningProductId, setScanningProductId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('foody-mkt-prices', JSON.stringify(scannedPrices)); } catch { /* ignore */ }
+  }, [scannedPrices]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('foody-mkt-quantities', JSON.stringify(quantities)); } catch { /* ignore */ }
+  }, [quantities]);
 
   const { inCart, notInCart, urgent, low } = useMemo(() => {
     const inCart = items.filter((i) => i.isInCart);
@@ -272,6 +290,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         setTotalAmount('');
         setQuantities({});
         setScannedPrices({});
+        try { sessionStorage.removeItem('foody-mkt-prices'); sessionStorage.removeItem('foody-mkt-quantities'); } catch { /* ignore */ }
         setItems((prev) => prev.filter((i) => !i.isInCart));
         router.refresh();
       } else {

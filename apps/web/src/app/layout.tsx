@@ -44,7 +44,6 @@ export default function RootLayout({
       <head>
         {/* Preconnect to external image CDN to reduce LCP latency */}
         <link rel="preconnect" href="https://foody-uploads.s3.amazonaws.com" />
-        <link rel="dns-prefetch" href="https://onesignal.com" />
         <Script id="theme-init" strategy="beforeInteractive">
           {themeInitScript}
         </Script>

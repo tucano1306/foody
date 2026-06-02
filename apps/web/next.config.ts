@@ -2,15 +2,15 @@ import type { NextConfig } from 'next';
 
 const CSP = [
   "default-src 'self'",
-  // unsafe-inline for Next.js; wasm-unsafe-eval for Tesseract.js WebAssembly; CDNs for OneSignal + Tesseract
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.onesignal.com https://api.onesignal.com https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline' https://onesignal.com https://*.onesignal.com",    // Tailwind inlines styles + OneSignal prompt CSS
-  "img-src 'self' data: blob: https://*.amazonaws.com https://img.onesignal.com",
+  // unsafe-inline for Next.js; wasm-unsafe-eval for Tesseract.js WebAssembly; cdn.jsdelivr.net for Tesseract
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://*.amazonaws.com",
   "font-src 'self'",
   // cdn.jsdelivr.net: Tesseract.js WASM core + traineddata downloads
-  "connect-src 'self' https://*.neon.tech https://onesignal.com https://*.onesignal.com https://cdn.jsdelivr.net",
-  // blob: for Tesseract.js workers (blob wraps importScripts to CDN); cdn.onesignal.com for OneSignalSDKWorker importScripts
-  "worker-src 'self' blob: https://cdn.onesignal.com",
+  "connect-src 'self' https://*.neon.tech https://cdn.jsdelivr.net",
+  // blob: for Tesseract.js workers (blob wraps importScripts to CDN)
+  "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

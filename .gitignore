@@ -36,3 +36,5 @@ Thumbs.db
 
 cookies.txt
 *.cookies
+.vercel
+.env*.local

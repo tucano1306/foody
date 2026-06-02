@@ -1,47 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { sql } from '@/lib/db';
+import { sendWebPush } from '@/lib/web-push';
+import type { PushSubscription } from 'web-push';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const user = await getRouteUser(request);
-  if (!user) return unauthorized();
+  try {
+    const user = await getRouteUser(request);
+    if (!user) return unauthorized();
 
-  const appId = process.env.ONESIGNAL_APP_ID;
-  const apiKey = process.env.ONESIGNAL_API_KEY;
-  if (!appId || !apiKey) {
-    return NextResponse.json({ sent: false, error: 'OneSignal not configured' }, { status: 500 });
+    const rows = await sql`
+      SELECT push_subscription FROM users WHERE id = ${user.userId} LIMIT 1
+    `;
+    const subscription = rows[0]?.push_subscription as PushSubscription | null | undefined;
+
+    if (!subscription) {
+      return NextResponse.json(
+        { sent: false, error: 'Sin suscripción push. Acepta permisos primero.' },
+        { status: 400 },
+      );
+    }
+
+    const result = await sendWebPush(subscription, {
+      title: '🥑 Foody',
+      body: '¡Las notificaciones push están funcionando correctamente!',
+      url: '/home',
+    });
+
+    if (!result.ok) {
+      if (result.gone) {
+        await sql`UPDATE users SET push_subscription = NULL WHERE id = ${user.userId}`;
+      }
+      return NextResponse.json({ sent: false, error: result.error }, { status: 502 });
+    }
+
+    return NextResponse.json({ sent: true });
+  } catch (err) {
+    console.error('[notifications/test] crash:', err);
+    return NextResponse.json(
+      { sent: false, error: (err as Error).message ?? 'unknown' },
+      { status: 500 },
+    );
   }
-
-  const rows = await sql`
-    SELECT onesignal_player_id FROM users WHERE id = ${user.userId} LIMIT 1
-  `;
-  const playerId = rows[0]?.onesignal_player_id as string | null | undefined;
-
-  if (!playerId) {
-    return NextResponse.json({ sent: false, error: 'No player ID — accept push permissions first' });
-  }
-
-  const res = await fetch('https://onesignal.com/api/v1/notifications', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Key ${apiKey}`,
-    },
-    body: JSON.stringify({
-      app_id: appId,
-      include_subscription_ids: [playerId],
-      headings: { en: '🥑 Foody', es: '🥑 Foody' },
-      contents: {
-        en: '¡Las notificaciones push están funcionando correctamente!',
-        es: '¡Las notificaciones push están funcionando correctamente!',
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    return NextResponse.json({ sent: false, error: body }, { status: 502 });
-  }
-
-  return NextResponse.json({ sent: true });
 }

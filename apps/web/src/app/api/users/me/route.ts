@@ -18,16 +18,27 @@ export async function PATCH(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const body = await request.json() as { name?: string; onesignalPlayerId?: string };
+  const body = await request.json() as {
+    name?: string;
+    pushSubscription?: PushSubscriptionJSON | null;
+  };
+
+  const pushSubJson = body.pushSubscription === undefined ? null : JSON.stringify(body.pushSubscription);
 
   const rows = await sql`
     UPDATE users
     SET
       name = COALESCE(${body.name ?? null}, name),
-      onesignal_player_id = COALESCE(${body.onesignalPlayerId ?? null}, onesignal_player_id),
+      push_subscription = COALESCE(${pushSubJson}::jsonb, push_subscription),
       updated_at = NOW()
     WHERE id = ${user.userId}
     RETURNING id, name, email, avatar_url, household_id, created_at, updated_at
   `;
   return NextResponse.json(rows[0]);
+}
+
+interface PushSubscriptionJSON {
+  endpoint: string;
+  expirationTime: number | null;
+  keys: { p256dh: string; auth: string };
 }

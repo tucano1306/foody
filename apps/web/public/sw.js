@@ -1,13 +1,6 @@
-/* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue */
+/* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue, web push */
 
-/* OneSignal push notification handling — noop if SDK is not loaded */
-try {
-  importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
-} catch (e) {
-  console.warn('[SW] OneSignal SDK unavailable — push notifications disabled', e);
-}
-
-const VERSION = 'foody-v4';
+const VERSION = 'foody-v7';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;
@@ -33,15 +26,61 @@ globalThis.addEventListener('install', (event) => {
 
 globalThis.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => !k.startsWith(VERSION))
-          .map((k) => caches.delete(k)),
-      ),
-    ),
+    (async () => {
+      // One-time cleanup of legacy OneSignal IndexedDB from previous SW versions.
+      await new Promise((res) => {
+        const req = indexedDB.deleteDatabase('ONE_SIGNAL_SDK_DB');
+        req.onsuccess = res;
+        req.onerror = res;
+        req.onblocked = res;
+      });
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k)));
+      await globalThis.clients.claim();
+    })(),
   );
-  globalThis.clients.claim();
+});
+
+/* ── Web Push ──────────────────────────────────────────────────────────────── */
+globalThis.addEventListener('push', (event) => {
+  let payload = { title: 'Foody', body: 'Tienes una notificación nueva' };
+  if (event.data) {
+    try {
+      payload = { ...payload, ...event.data.json() };
+    } catch {
+      payload.body = event.data.text();
+    }
+  }
+  const { title, body, url, data } = payload;
+  event.waitUntil(
+    globalThis.registration.showNotification(title, {
+      body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: url || '/home', ...data },
+    }),
+  );
+});
+
+globalThis.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || '/home';
+  event.waitUntil(
+    (async () => {
+      const all = await globalThis.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of all) {
+        if ('focus' in client) {
+          try {
+            await client.navigate(target);
+            return client.focus();
+          } catch {
+            // fall through to openWindow
+          }
+        }
+      }
+      if (globalThis.clients.openWindow) await globalThis.clients.openWindow(target);
+    })(),
+  );
 });
 
 function isNavigation(req) {

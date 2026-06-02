@@ -6,6 +6,12 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export interface PushSubscriptionData {
+  endpoint: string;
+  expirationTime: number | null;
+  keys: { p256dh: string; auth: string };
+}
+
 @Entity('users')
 export class User {
   @PrimaryColumn('uuid')
@@ -20,8 +26,8 @@ export class User {
   @Column({ name: 'avatar_url', nullable: true, type: 'varchar' })
   avatarUrl: string | null;
 
-  @Column({ name: 'onesignal_player_id', nullable: true, type: 'varchar' })
-  onesignalPlayerId: string | null;
+  @Column({ name: 'push_subscription', nullable: true, type: 'jsonb' })
+  pushSubscription: PushSubscriptionData | null;
 
   @Column({ name: 'household_id', nullable: true, type: 'uuid' })
   householdId: string | null;

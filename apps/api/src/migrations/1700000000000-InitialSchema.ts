@@ -11,7 +11,7 @@ export class InitialSchema1700000000000 implements MigrationInterface {
         "email"                 VARCHAR(255) NOT NULL,
         "name"                  VARCHAR(255),
         "avatar_url"            TEXT,
-        "onesignal_player_id"   VARCHAR(255),
+        "push_subscription"     JSONB,
         "created_at"            TIMESTAMP    NOT NULL DEFAULT now(),
         "updated_at"            TIMESTAMP    NOT NULL DEFAULT now(),
         CONSTRAINT "PK_users" PRIMARY KEY ("id"),

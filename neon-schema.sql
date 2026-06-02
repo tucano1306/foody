@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   "email"               VARCHAR(255) NOT NULL,
   "name"                VARCHAR(255),
   "avatar_url"          TEXT,
-  "onesignal_player_id" VARCHAR(255),
+  "push_subscription"   JSONB,
   "household_id"        UUID         NULL,
   "created_at"          TIMESTAMP    NOT NULL DEFAULT now(),
   "updated_at"          TIMESTAMP    NOT NULL DEFAULT now(),

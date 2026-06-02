@@ -1,20 +1,25 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import * as OneSignal from '@onesignal/node-onesignal';
+import * as webPush from 'web-push';
 import { MonthlyPayment } from '../payments/payment.entity';
 import { User } from '../users/user.entity';
 import { Product } from '../products/product.entity';
 import { ProductPurchase } from '../products/product-purchase.entity';
 
+interface NotificationPayload {
+  title: string;
+  body: string;
+  url?: string;
+  data?: Record<string, unknown>;
+}
+
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly onesignalClient: ReturnType<typeof OneSignal.createConfiguration> extends never
-    ? never
-    : OneSignal.DefaultApi;
+  private webPushReady = false;
 
   constructor(
     private readonly config: ConfigService,
@@ -26,19 +31,57 @@ export class NotificationsService {
     private readonly productsRepo: Repository<Product>,
     @InjectRepository(ProductPurchase)
     private readonly purchasesRepo: Repository<ProductPurchase>,
-  ) {
-    const appKey = this.config.get<string>('onesignal.apiKey');
-    const configuration = OneSignal.createConfiguration({
-      restApiKey: appKey ?? '',
-    });
-    this.onesignalClient = new OneSignal.DefaultApi(configuration);
+  ) {}
+
+  onModuleInit() {
+    const publicKey = this.config.get<string>('webPush.publicKey');
+    const privateKey = this.config.get<string>('webPush.privateKey');
+    const contact = this.config.get<string>('webPush.contact') ?? 'mailto:admin@foody.app';
+
+    if (!publicKey || !privateKey) {
+      this.logger.warn('VAPID keys not configured — push notifications disabled');
+      return;
+    }
+    webPush.setVapidDetails(contact, publicKey, privateKey);
+    this.webPushReady = true;
+    this.logger.log('Web Push configured');
   }
 
-  // ─── Runs every day at 9 AM ───────────────────────────────────────────────
+  private async sendToUser(user: User, payload: NotificationPayload): Promise<boolean> {
+    if (!this.webPushReady) return false;
+    const sub = user.pushSubscription;
+    if (!sub?.endpoint) return false;
+
+    try {
+      await webPush.sendNotification(sub, JSON.stringify(payload));
+      return true;
+    } catch (err) {
+      const status = (err as { statusCode?: number }).statusCode;
+      // 404/410 = subscription expired; clear it so we don't keep retrying
+      if (status === 404 || status === 410) {
+        await this.usersRepo.update(user.id, { pushSubscription: null });
+        this.logger.log(`Removed expired push subscription for user ${user.id}`);
+      } else {
+        this.logger.error(`Push send failed for user ${user.id}:`, err);
+      }
+      return false;
+    }
+  }
+
+  async sendTestNotification(userId: string, message: string): Promise<boolean> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) return false;
+    return this.sendToUser(user, {
+      title: '🥑 Foody',
+      body: message,
+      url: '/home',
+    });
+  }
+
+  // ─── Payment reminders — daily at 9 AM ─────────────────────────────────────
   @Cron('0 9 * * *')
   async sendPaymentReminders(): Promise<void> {
     this.logger.log('Running payment reminder notifications...');
-
     const now = new Date();
     const today = now.getDate();
 
@@ -48,11 +91,8 @@ export class NotificationsService {
     });
 
     for (const payment of allPayments) {
-      // Skip snoozed payments
       if (payment.snoozedUntil && new Date(payment.snoozedUntil) > now) continue;
-
       const daysUntilDue = this.daysUntilDue(payment.dueDay, today);
-
       if (daysUntilDue <= payment.notificationDaysBefore && daysUntilDue >= 0) {
         await this.sendPaymentNotification(payment, daysUntilDue);
       }
@@ -66,84 +106,29 @@ export class NotificationsService {
     return daysInMonth - today + dueDay;
   }
 
-  private async sendPaymentNotification(
-    payment: MonthlyPayment,
-    daysUntilDue: number,
-  ): Promise<void> {
+  private async sendPaymentNotification(payment: MonthlyPayment, daysUntilDue: number): Promise<void> {
     const user = payment.user;
-
-    if (!user?.onesignalPlayerId) {
-      this.logger.warn(
-        `User ${user?.id ?? payment.userId} has no OneSignal player ID — skipping notification`,
-      );
-      return;
-    }
-
-    const appId = this.config.get<string>('onesignal.appId');
-    if (!appId) {
-      this.logger.error('ONESIGNAL_APP_ID is not configured');
-      return;
-    }
+    if (!user) return;
 
     const plural = daysUntilDue > 1 ? 's' : '';
-    const message =
+    const body =
       daysUntilDue === 0
         ? `¡${payment.name} vence HOY! Monto: ${payment.currency} ${payment.amount}`
         : `${payment.name} vence en ${daysUntilDue} día${plural}. Monto: ${payment.currency} ${payment.amount}`;
 
-    try {
-      const notification = new OneSignal.Notification();
-      notification.app_id = appId;
-      notification.include_subscription_ids = [user.onesignalPlayerId];
-      notification.contents = { en: message, es: message };
-      notification.headings = { en: '💳 Foody — Recordatorio de pago', es: '💳 Foody — Recordatorio de pago' };
-      notification.data = {
-        type: 'payment_reminder',
-        paymentId: payment.id,
-        daysUntilDue,
-      };
-      // Web push action buttons
-      const webAppUrl = this.config.get<string>('webAppUrl') ?? 'https://foody-web-eight.vercel.app';
-      (notification as Record<string, unknown>)['web_buttons'] = [
-        { id: 'view_payments', text: '💳 Ver pagos', url: `${webAppUrl}/payments` },
-      ];
-      (notification as Record<string, unknown>)['url'] = `${webAppUrl}/payments`;
-
-      await this.onesignalClient.createNotification(notification);
-      this.logger.log(`Notification sent for payment "${payment.name}" to user ${user.id}`);
-    } catch (err) {
-      this.logger.error(`Failed to send notification for payment ${payment.id}`, err);
-    }
+    const ok = await this.sendToUser(user, {
+      title: '💳 Foody — Recordatorio de pago',
+      body,
+      url: '/payments',
+      data: { type: 'payment_reminder', paymentId: payment.id, daysUntilDue },
+    });
+    if (ok) this.logger.log(`Payment reminder sent: "${payment.name}" → user ${user.id}`);
   }
 
-  /** Manual trigger — called when a payment is created or updated */
-  async sendTestNotification(userId: string, message: string): Promise<boolean> {
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
-
-    if (!user?.onesignalPlayerId) return false;
-
-    const appId = this.config.get<string>('onesignal.appId');
-    if (!appId) return false;
-
-    try {
-      const notification = new OneSignal.Notification();
-      notification.app_id = appId;
-      notification.include_subscription_ids = [user.onesignalPlayerId];
-      notification.contents = { en: message, es: message };
-      notification.headings = { en: '🥑 Foody', es: '🥑 Foody' };
-
-      await this.onesignalClient.createNotification(notification);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // ─── Runs every day at 8 AM — predictive stock alerts ────────────────────
+  // ─── Stock alerts — daily at 8 AM ──────────────────────────────────────────
   @Cron('0 8 * * *')
   async sendStockAlerts(): Promise<void> {
     this.logger.log('Running predictive stock alerts...');
-
     const products = await this.productsRepo.find({
       where: { stockLevel: 'full' },
       relations: ['user'],
@@ -154,26 +139,14 @@ export class NotificationsService {
       if (result === null) continue;
 
       const { daysRemaining, avgIntervalDays } = result;
-
-      // Alert threshold: whichever is larger — 3 days or 25% of the avg cycle
       const alertThreshold = Math.max(3, Math.round(avgIntervalDays * 0.25));
       if (daysRemaining > alertThreshold) continue;
 
-      // Deduplicate: only alert once per "running low" cycle.
-      // We consider the product was already alerted if the last purchase was
-      // recent enough that the cycle hasn't reset (stock still > 0).
-      const alreadyAlerted = await this.wasAlertedThisCycle(product.id, avgIntervalDays);
-      if (alreadyAlerted) continue;
-
+      if (await this.wasAlertedThisCycle(product.id, avgIntervalDays)) continue;
       await this.sendStockNotification(product, daysRemaining, avgIntervalDays);
     }
   }
 
-  /**
-   * Returns true if we already sent a stock alert in the current consumption cycle.
-   * We track this by checking if there's a purchase newer than (now - avgInterval).
-   * If not, the alert was sent in a previous cycle — safe to alert again.
-   */
   private async wasAlertedThisCycle(productId: string, avgIntervalDays: number): Promise<boolean> {
     const cycleStart = new Date(Date.now() - avgIntervalDays * 0.75 * 86_400_000);
     const recent = await this.purchasesRepo.findOne({
@@ -181,28 +154,21 @@ export class NotificationsService {
       order: { purchasedAt: 'DESC' },
     });
     if (!recent) return false;
-    // If last purchase is within 75% of the avg cycle, we're still in the same cycle
     return new Date(recent.purchasedAt) >= cycleStart;
   }
 
-  /**
-   * Calculates estimated days until a product runs out based on:
-   * 1. Average interval between purchases (consumption rate)
-   * 2. Current stock level as a fraction
-   */
-  private async estimateDaysRemaining(product: Product): Promise<{ daysRemaining: number; avgIntervalDays: number } | null> {
+  private async estimateDaysRemaining(
+    product: Product,
+  ): Promise<{ daysRemaining: number; avgIntervalDays: number } | null> {
     const purchases = await this.purchasesRepo.find({
       where: { productId: product.id },
       order: { purchasedAt: 'ASC' },
     });
-
     if (purchases.length < 2) return null;
 
     const dates = purchases.map((p) => new Date(p.purchasedAt).getTime());
     let totalIntervalMs = 0;
-    for (let i = 1; i < dates.length; i++) {
-      totalIntervalMs += dates[i] - dates[i - 1];
-    }
+    for (let i = 1; i < dates.length; i++) totalIntervalMs += dates[i] - dates[i - 1];
     const avgIntervalDays = totalIntervalMs / (dates.length - 1) / 86_400_000;
 
     let stockFraction = 0.1;
@@ -212,38 +178,35 @@ export class NotificationsService {
     return { daysRemaining: Math.round(avgIntervalDays * stockFraction), avgIntervalDays };
   }
 
-  private async sendStockNotification(product: Product, daysRemaining: number, avgIntervalDays: number): Promise<void> {
+  private async sendStockNotification(
+    product: Product,
+    daysRemaining: number,
+    avgIntervalDays: number,
+  ): Promise<void> {
     const user = product.user;
-    if (!user?.onesignalPlayerId) return;
-
-    const appId = this.config.get<string>('onesignal.appId');
-    if (!appId) return;
+    if (!user) return;
 
     const firstName = user.name?.split(' ')[0] ?? null;
     const greeting = firstName ? `Hola ${firstName}, ` : '¡Hola! ';
     const cycleText = Math.round(avgIntervalDays);
 
-    let message: string;
+    let body: string;
     if (daysRemaining <= 0) {
-      message = `${greeting}parece que ${product.name} ya se agotó. ¡Te lo agregamos a la lista del súper! 🛒`;
+      body = `${greeting}parece que ${product.name} ya se agotó. ¡Te lo agregamos a la lista del súper! 🛒`;
     } else if (daysRemaining === 1) {
-      message = `${greeting}basándonos en tu consumo habitual, ${product.name} te durará solo 1 día más. ¿Lo agregamos a la lista? 🛒`;
+      body = `${greeting}basándonos en tu consumo habitual, ${product.name} te durará solo 1 día más. ¿Lo agregamos a la lista? 🛒`;
     } else {
-      message = `${greeting}según tus patrones de compra (cada ~${cycleText} días), ${product.name} te durará unos ${daysRemaining} días más. ¡Buen momento para reponerlo! 🛒`;
+      body = `${greeting}según tus patrones de compra (cada ~${cycleText} días), ${product.name} te durará unos ${daysRemaining} días más. ¡Buen momento para reponerlo! 🛒`;
     }
 
-    try {
-      const notification = new OneSignal.Notification();
-      notification.app_id = appId;
-      notification.include_subscription_ids = [user.onesignalPlayerId];
-      notification.contents = { en: message, es: message };
-      notification.headings = { en: '🥑 Foody — Se te acaba', es: '🥑 Foody — Se te acaba' };
-      notification.data = { type: 'stock_alert', productId: product.id, daysRemaining };
-
-      await this.onesignalClient.createNotification(notification);
-      this.logger.log(`Stock alert sent for "${product.name}" (~${daysRemaining}d) to user ${user.id}`);
-    } catch (err) {
-      this.logger.error(`Failed to send stock alert for product ${product.id}`, err);
-    }
+    const ok = await this.sendToUser(user, {
+      title: '🥑 Foody — Se te acaba',
+      body,
+      url: '/shopping-trips',
+      data: { type: 'stock_alert', productId: product.id, daysRemaining },
+    });
+    if (ok) this.logger.log(`Stock alert sent: "${product.name}" (~${daysRemaining}d) → user ${user.id}`);
   }
 }
+
+export type { PushSubscriptionData } from '../users/user.entity';
