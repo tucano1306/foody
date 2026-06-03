@@ -38,6 +38,7 @@ export default function PhotoLightbox(props: Props) {
 }
 
 function MobileLightbox({ src, alt, onClose, originRect }: Props) {
+  const dialogRef    = useRef<HTMLDialogElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef       = useRef<HTMLDivElement>(null);
   const imgWrapRef   = useRef<HTMLDivElement>(null);
@@ -70,7 +71,19 @@ function MobileLightbox({ src, alt, onClose, originRect }: Props) {
     }
   }, []);
 
-  // ── Close on Escape ───────────────────────────────────────────────────────
+  // ── Enter the browser top layer via showModal() ─────────────────────────
+  // <dialog open> (static attribute) is a non-modal dialog NOT in the top
+  // layer, so any showModal() dialog (ActionSheet, ProductDetailSheet…)
+  // renders above it and blocks all interaction — app appears frozen.
+  // Using showModal() guarantees this lightbox is always on top.
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    if (!el.open) el.showModal();
+    return () => { if (el.open) el.close(); };
+  }, []);
+
+  // ── Close on Escape (showModal already handles it, but belt-and-suspenders)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
@@ -320,9 +333,10 @@ function MobileLightbox({ src, alt, onClose, originRect }: Props) {
 
   return (
     <dialog
-      open
+      ref={dialogRef}
+      onClose={onClose}
       aria-label={`Foto de ${alt}`}
-      className="fixed inset-0 z-50 w-full h-full max-w-none max-h-none m-0 p-0 border-0 bg-white animate-[fadeIn_0.16s_ease-out]"
+      className="fixed inset-0 z-50 w-full h-full max-w-none max-h-none m-0 p-0 border-0 bg-white animate-[fadeIn_0.16s_ease-out] backdrop:hidden"
     >
       {/* ── Top bar — desktop only ───────────────────────────────────────── */}
       <div className="hidden sm:flex absolute top-0 inset-x-0 z-20 items-center justify-between px-4 py-3 border-b border-stone-100">
