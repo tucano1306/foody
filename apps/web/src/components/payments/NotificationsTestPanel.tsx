@@ -110,7 +110,8 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
   async function handleTrigger() {
     setBusy('trigger');
     try {
-      const res = await fetch('/api/notifications/trigger', {
+      // force=true: ignore notification window, send for ALL pending unpaid payments
+      const res = await fetch('/api/notifications/trigger?force=true', {
         method: 'POST',
         credentials: 'include',
       });
@@ -119,19 +120,14 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
         const n = typeof data.sent === 'number' ? data.sent : 0;
         if (n > 0) {
           toast.show(`✅ Se enviaron ${n} notificación(es)`, 'success');
-          // Clear snooze in local state for expired ones — easiest: emit empty to refresh
-          if (data.expiredCleared && data.expiredCleared > 0) {
-            // Caller will refresh via revisits; for now just signal a refresh by snoozing
-            // those that were cleared. Skipped — server already cleared them.
-          }
         } else {
-          toast.show(data.message ?? 'Ningún pago dentro de la ventana', 'info');
+          toast.show(data.message ?? 'No hay pagos pendientes activos', 'info');
         }
       } else {
         toast.show(data.message ?? data.error ?? 'No se pudo disparar', 'error');
       }
-    } catch {
-      toast.show('Error de red', 'error');
+    } catch (err) {
+      toast.show((err as Error).message ?? 'Error de red', 'error');
     } finally {
       setBusy(null);
     }
@@ -242,8 +238,8 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
             </summary>
             <ul className="mt-2 space-y-1 pl-4 list-disc">
               <li><strong>Push de prueba:</strong> envía una notificación al instante a este dispositivo.</li>
-              <li><strong>Disparar recordatorios:</strong> ejecuta la lógica del cron solo para ti. Notifica pagos dentro de la ventana o pospuestos que ya vencieron.</li>
-              <li><strong>Posponer 5 min:</strong> snoozea todos los pendientes 5 minutos. Luego toca &quot;Disparar recordatorios&quot; para verlos llegar.</li>
+              <li><strong>Disparar recordatorios:</strong> envía ahora mismo un recordatorio de <em>cada pago pendiente sin pagar</em>, con el mensaje real que llegaría automáticamente (nombre, monto, días restantes).</li>
+              <li><strong>Posponer 5 min:</strong> snoozea todos los pendientes 5 minutos. Luego toca &quot;Disparar recordatorios&quot; para ver el mensaje de &quot;recordatorio vencido&quot;.</li>
             </ul>
           </details>
         </div>

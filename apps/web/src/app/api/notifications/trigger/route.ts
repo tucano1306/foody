@@ -29,15 +29,60 @@ function buildBody(name: string, days: number, currency: string, amount: string)
   return `${name} vence en ${days} día${plural}. Monto: ${currency} ${amount}`;
 }
 
+type RowOutcome = 'sent' | 'sent_expired' | 'skipped';
+
+async function processRow(
+  row: PaymentRow,
+  subscription: PushSubscription,
+  now: Date,
+  today: number,
+  daysInMonth: number,
+  force: boolean,
+): Promise<RowOutcome> {
+  const snoozeDate = row.snoozed_until ? new Date(row.snoozed_until) : null;
+  const snoozeActive = snoozeDate !== null && snoozeDate > now;
+  const snoozeExpired = snoozeDate !== null && snoozeDate <= now;
+  const days = daysUntilDue(row.due_day, today, daysInMonth);
+
+  // Expired snooze → "recordatorio vencido"
+  if (snoozeExpired) {
+    const r = await sendWebPush(subscription, {
+      title: '💳 Pago pendiente',
+      body: `El recordatorio de "${row.name}" que pospusiste ya venció. ¡No olvides pagarlo!`,
+      url: '/payments',
+    });
+    return r.ok ? 'sent_expired' : 'skipped';
+  }
+
+  // Active snooze → skip always
+  if (snoozeActive) return 'skipped';
+
+  // No snooze: send if force OR within notification window
+  const withinWindow = days >= 0 && days <= row.notification_days_before;
+  if (force || withinWindow) {
+    const r = await sendWebPush(subscription, {
+      title: '💳 Foody — Recordatorio de pago',
+      body: buildBody(row.name, days, row.currency, row.amount),
+      url: '/payments',
+      data: { type: 'payment_reminder', paymentId: row.id, daysUntilDue: days },
+    });
+    return r.ok ? 'sent' : 'skipped';
+  }
+
+  return 'skipped';
+}
+
 /**
  * POST /api/notifications/trigger
  * Runs the same logic as the daily/reminder crons but only for the current
  * user, on-demand. Useful for testing without waiting for the 9 AM UTC cron.
+ * ?force=true → send for ALL pending unpaid payments, bypassing the window.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
+  const force = request.nextUrl.searchParams.get('force') === 'true';
   const now = new Date();
   const today = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -52,65 +97,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   ` as PaymentRow[];
 
   if (rows.length === 0) {
-    return NextResponse.json({
-      ok: true,
-      checked: 0,
-      sent: 0,
-      message: 'No tienes pagos activos.',
-    });
+    return NextResponse.json({ ok: true, checked: 0, sent: 0, message: 'No tienes pagos activos.' });
   }
 
   const subscription = rows[0].push_subscription;
   if (!subscription) {
     return NextResponse.json(
-      {
-        ok: false,
-        reason: 'no_subscription',
-        message: 'No tienes notificaciones activadas en este dispositivo.',
-      },
+      { ok: false, reason: 'no_subscription', message: 'No tienes notificaciones activadas en este dispositivo.' },
       { status: 400 },
     );
   }
 
   let sent = 0;
   let skipped = 0;
-  let expiredCleared = 0;
   const expiredIds: string[] = [];
 
   for (const row of rows) {
-    const snoozeDate = row.snoozed_until ? new Date(row.snoozed_until) : null;
-    const snoozeActive = snoozeDate !== null && snoozeDate > now;
-    const snoozeExpired = snoozeDate !== null && snoozeDate <= now;
-    const days = daysUntilDue(row.due_day, today, daysInMonth);
-    const withinWindow = days >= 0 && days <= row.notification_days_before;
-
-    // Case 1: snooze expired → "el recordatorio pospuesto ya venció" + clear snooze
-    if (snoozeExpired) {
-      const r = await sendWebPush(subscription, {
-        title: '💳 Pago pendiente',
-        body: `El recordatorio de "${row.name}" que pospusiste ya venció. ¡No olvides pagarlo!`,
-        url: '/payments',
-      });
-      if (r.ok) {
-        sent++;
-        expiredIds.push(row.id);
-      }
-      continue;
-    }
-
-    // Case 2: due within window and not snoozed → normal reminder
-    if (!snoozeActive && withinWindow) {
-      const r = await sendWebPush(subscription, {
-        title: '💳 Foody — Recordatorio de pago',
-        body: buildBody(row.name, days, row.currency, row.amount),
-        url: '/payments',
-        data: { type: 'payment_reminder', paymentId: row.id, daysUntilDue: days },
-      });
-      if (r.ok) sent++;
-      continue;
-    }
-
-    skipped++;
+    const outcome = await processRow(row, subscription, now, today, daysInMonth, force);
+    if (outcome === 'sent_expired') { sent++; expiredIds.push(row.id); }
+    else if (outcome === 'sent') sent++;
+    else skipped++;
   }
 
   if (expiredIds.length > 0) {
@@ -119,7 +125,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       SET snoozed_until = NULL, updated_at = NOW()
       WHERE id = ANY(${expiredIds}::uuid[])
     `;
-    expiredCleared = expiredIds.length;
   }
 
   return NextResponse.json({
@@ -127,7 +132,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     checked: rows.length,
     sent,
     skipped,
-    expiredCleared,
+    expiredCleared: expiredIds.length,
     message: sent === 0
       ? 'Ningún pago está dentro de la ventana de notificación (ni hay pospuestos vencidos).'
       : `Se enviaron ${sent} notificación(es).`,
