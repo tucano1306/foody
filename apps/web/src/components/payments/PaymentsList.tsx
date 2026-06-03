@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { MonthlyPayment } from '@foody/types';
 import { BanknotesIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/solid';
 import PaymentCard from '@/components/payments/PaymentCard';
+import NotificationsTestPanel from '@/components/payments/NotificationsTestPanel';
 
 interface Props {
   readonly initialPayments: MonthlyPayment[];
@@ -76,7 +77,8 @@ export default function PaymentsList({ initialPayments }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6">      {/* ─── Notifications test panel (collapsible) ─────────────────── */}
+      <NotificationsTestPanel payments={payments} onSnoozed={handleSnoozed} />
       {/* ─── Monthly summary ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
         {/* Total mensual — resets filter */}
