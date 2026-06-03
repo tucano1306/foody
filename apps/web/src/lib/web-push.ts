@@ -23,7 +23,7 @@ export interface PushPayload {
 export async function sendWebPush(
   subscription: PushSubscription,
   payload: PushPayload,
-): Promise<{ ok: boolean; gone: boolean; error?: string }> {
+): Promise<{ ok: boolean; gone: boolean; error?: string; statusCode?: number }> {
   if (!ensureConfigured()) {
     return { ok: false, gone: false, error: 'VAPID not configured' };
   }
@@ -31,8 +31,9 @@ export async function sendWebPush(
     await webPush.sendNotification(subscription, JSON.stringify(payload));
     return { ok: true, gone: false };
   } catch (err) {
-    const status = (err as { statusCode?: number }).statusCode;
-    const gone = status === 404 || status === 410;
-    return { ok: false, gone, error: (err as Error).message };
+    const statusCode = (err as { statusCode?: number }).statusCode;
+    // 404 / 410 → endpoint gone. 403 usually means VAPID key changed → must resubscribe.
+    const gone = statusCode === 404 || statusCode === 410 || statusCode === 403;
+    return { ok: false, gone, error: (err as Error).message, statusCode };
   }
 }

@@ -30,10 +30,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     if (!result.ok) {
-      if (result.gone) {
+      const vapidMissing = result.error === 'VAPID not configured';
+      let friendly: string;
+      if (vapidMissing) {
+        friendly = 'Servidor sin VAPID configurado. Falta variable de entorno.';
+      } else if (result.gone) {
         await sql`UPDATE users SET push_subscription = NULL WHERE id = ${user.userId}`;
+        friendly = result.statusCode === 403
+          ? 'Tu suscripción ya no es válida (clave VAPID cambió). Desactiva y vuelve a activar las notificaciones.'
+          : 'Tu suscripción expiró. Vuelve a activar las notificaciones.';
+      } else {
+        friendly = `Error del servicio push (${result.statusCode ?? '?'}): ${result.error ?? 'desconocido'}`;
       }
-      return NextResponse.json({ sent: false, error: result.error }, { status: 502 });
+      console.error('[notifications/test] failed:', {
+        statusCode: result.statusCode,
+        error: result.error,
+        gone: result.gone,
+      });
+      return NextResponse.json(
+        { sent: false, error: friendly, statusCode: result.statusCode, gone: result.gone },
+        { status: result.gone ? 410 : 502 },
+      );
     }
 
     return NextResponse.json({ sent: true });

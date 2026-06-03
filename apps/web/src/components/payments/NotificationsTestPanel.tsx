@@ -9,7 +9,7 @@ interface Props {
   readonly onSnoozed: (id: string, snoozedUntil: string) => void;
 }
 
-type Busy = 'test' | 'trigger' | 'snooze' | null;
+type Busy = 'test' | 'trigger' | 'snooze' | 'resubscribe' | null;
 
 interface ApiResp {
   readonly ok?: boolean;
@@ -18,17 +18,21 @@ interface ApiResp {
   readonly expiredCleared?: number;
   readonly message?: string;
   readonly error?: string;
+  readonly statusCode?: number;
+  readonly gone?: boolean;
 }
 
 export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<Busy>(null);
+  const [needsResubscribe, setNeedsResubscribe] = useState(false);
   const toast = useToast();
 
   const activePending = payments.filter((p) => !p.isPaidThisMonth);
 
   async function handleTest() {
     setBusy('test');
+    setNeedsResubscribe(false);
     try {
       const res = await fetch('/api/notifications/test', {
         method: 'POST',
@@ -38,10 +42,66 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
       if (res.ok && data.sent) {
         toast.show('✅ Notificación de prueba enviada', 'success');
       } else {
-        toast.show(data.error ?? data.message ?? 'No se pudo enviar', 'error');
+        const msg = data.error ?? data.message ?? `Error ${res.status}`;
+        toast.show(msg, 'error');
+        if (data.gone || res.status === 410) setNeedsResubscribe(true);
       }
-    } catch {
-      toast.show('Error de red al enviar la prueba', 'error');
+    } catch (err) {
+      toast.show((err as Error).message ?? 'Error de red', 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleResubscribe() {
+    setBusy('resubscribe');
+    try {
+      // Clear local "already-saved" flag so PushNotifications re-saves on next load
+      try { localStorage.removeItem('foody_webpush_endpoint'); } catch { /* ignore */ }
+
+      if (!('serviceWorker' in navigator) || !('PushManager' in globalThis)) {
+        toast.show('Este navegador no soporta notificaciones push', 'error');
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        await existing.unsubscribe().catch(() => undefined);
+      }
+
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        toast.show('Falta VAPID public key en el cliente', 'error');
+        return;
+      }
+      // Convert base64url to Uint8Array
+      const pad = '='.repeat((4 - (vapidKey.length % 4)) % 4);
+      const b64 = (vapidKey + pad).replaceAll('-', '+').replaceAll('_', '/');
+      const raw = atob(b64);
+      const buf = new ArrayBuffer(raw.length);
+      const key = new Uint8Array(buf);
+      for (let i = 0; i < raw.length; i++) key[i] = raw.codePointAt(i) ?? 0;
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: key,
+      });
+
+      const save = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ pushSubscription: sub.toJSON() }),
+      });
+      if (!save.ok) {
+        toast.show('No se pudo guardar la nueva suscripción', 'error');
+        return;
+      }
+      try { localStorage.setItem('foody_webpush_endpoint', sub.endpoint); } catch { /* ignore */ }
+      toast.show('✅ Re-suscrito. Prueba la notificación de nuevo.', 'success');
+      setNeedsResubscribe(false);
+    } catch (err) {
+      toast.show(`No se pudo re-suscribir: ${(err as Error).message}`, 'error');
     } finally {
       setBusy(null);
     }
@@ -130,6 +190,22 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
           <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
             Los recordatorios automáticos se envían a las 9:00 UTC. Usa estos botones para probarlos sin esperar.
           </p>
+
+          {needsResubscribe && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 flex items-center justify-between gap-2">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                Tu suscripción no es válida. Re-suscríbete para volver a recibir notificaciones.
+              </p>
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={handleResubscribe}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition disabled:opacity-50"
+              >
+                {busy === 'resubscribe' ? '…' : '🔄 Re-suscribir'}
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
