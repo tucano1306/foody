@@ -45,13 +45,43 @@ function getCurrentMonthYear() {
   return { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
-function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
+/**
+ * Count how many past months had the due date pass without a paid record.
+ * Starts from the payment's creation month and walks up to (but not including)
+ * any month whose due date hasn't passed yet.
+ */
+function computeMissedMonths(
+  createdAt: Date,
+  dueDay: number,
+  paidKeys: Set<string>, // "YEAR-MONTH" strings
+  now: Date,
+): number {
+  let count = 0;
+  const cursor = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
+  while (true) {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth() + 1;
+    const dim = new Date(y, m, 0).getDate();
+    const due = new Date(y, m - 1, Math.min(dueDay, dim), 23, 59, 59, 999);
+    if (due >= now) break; // due date not yet passed — stop
+    if (!paidKeys.has(`${y}-${m}`)) count++;
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return count;
+}
+
+function mapPayment(
+  row: Record<string, unknown>,
+  isPaidThisMonth = false,
+  missedMonths = 0,
+) {
   const dueDay = asInteger(row.due_day, 1);
+  const amount = asNumber(row.amount);
   return {
     id: String(row.id),
     name: asText(row.name),
     description: (row.description as string | null | undefined) ?? null,
-    amount: asNumber(row.amount),
+    amount,
     currency: asText(row.currency, 'MXN'),
     dueDay,
     category: asText(row.category, 'other'),
@@ -64,6 +94,8 @@ function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
     isPaidThisMonth,
     daysUntilDue: daysUntilDue(dueDay),
     snoozedUntil: row.snoozed_until == null ? null : new Date(row.snoozed_until as string).toISOString(),
+    missedMonths,
+    accumulatedDebt: missedMonths * amount,
   };
 }
 
@@ -71,17 +103,34 @@ export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const rows = await sql`SELECT * FROM monthly_payments WHERE user_id = ${user.userId} AND is_active = true ORDER BY due_day ASC`;
+  const now = new Date();
   const { month, year } = getCurrentMonthYear();
-  const records = await sql`SELECT payment_id, status FROM payment_records WHERE user_id = ${user.userId} AND month = ${month} AND year = ${year}`;
-  const paidIds = new Set(
-    records
-      .filter((row) => row.status === 'paid')
-      .map((row) => String(row.payment_id)),
-  );
+
+  const [rows, allRecords] = await Promise.all([
+    sql`SELECT * FROM monthly_payments WHERE user_id = ${user.userId} AND is_active = true ORDER BY due_day ASC`,
+    // Fetch all paid records for this user to compute accumulated debt
+    sql`SELECT payment_id, month, year FROM payment_records WHERE user_id = ${user.userId} AND status = 'paid'`,
+  ]);
+
+  // Build a per-payment Set of "YEAR-MONTH" paid keys
+  const paidByPayment = new Map<string, Set<string>>();
+  for (const rec of allRecords) {
+    const pid = String(rec.payment_id);
+    if (!paidByPayment.has(pid)) paidByPayment.set(pid, new Set());
+    paidByPayment.get(pid)!.add(`${rec.year}-${rec.month}`);
+  }
+
+  const currentMonthKey = `${year}-${month}`;
 
   return NextResponse.json(
-    rows.map((row) => mapPayment(row as Record<string, unknown>, paidIds.has(String(row.id)))),
+    rows.map((row) => {
+      const pid = String(row.id);
+      const paidKeys = paidByPayment.get(pid) ?? new Set<string>();
+      const isPaidThisMonth = paidKeys.has(currentMonthKey);
+      const createdAt = new Date(row.created_at as string);
+      const missed = computeMissedMonths(createdAt, asInteger(row.due_day, 1), paidKeys, now);
+      return mapPayment(row as Record<string, unknown>, isPaidThisMonth, missed);
+    }),
   );
 }
 

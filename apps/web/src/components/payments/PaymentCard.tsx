@@ -93,6 +93,7 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
     payment.snoozedUntil != null && new Date(payment.snoozedUntil) > new Date(),
   );
   const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
+  const [missedMonths, setMissedMonths] = useState(payment.missedMonths ?? 0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [snoozeError, setSnoozeError] = useState(false);
@@ -122,6 +123,7 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
 
   const handleMarkPaidConfirmed = useCallback(() => {
     setIsPaid(true);
+    setMissedMonths((prev) => Math.max(0, prev - 1));
     onPaidToggle?.(currentPayment.id, true);
   }, [currentPayment.id, onPaidToggle]);
 
@@ -196,6 +198,21 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
           {renderStatusBadge(isPaid, isSnoozed, urgency, currentPayment.daysUntilDue)}
           <span className="text-stone-400 dark:text-stone-500 text-xs">Toca para ver más →</span>
         </div>
+
+        {/* Accumulated debt banner */}
+        {missedMonths > 0 && !isPaid && (
+          <div className="mt-3 flex items-center justify-between gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base">🚨</span>
+              <span className="text-xs font-semibold text-red-700 dark:text-red-300">
+                {missedMonths} {missedMonths === 1 ? 'mes sin pagar' : 'meses sin pagar'}
+              </span>
+            </div>
+            <span className="text-sm font-extrabold text-red-700 dark:text-red-300">
+              {currentPayment.currency} {(missedMonths * currentPayment.amount).toFixed(2)}
+            </span>
+          </div>
+        )}
       </button>
 
       {/* Quick actions for urgent payments */}

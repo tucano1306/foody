@@ -172,6 +172,8 @@ function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: Payment
     daysUntilDue: daysUntilDue(dueDay),
     currentRecord,
     snoozedUntil: row.snoozed_until === null || row.snoozed_until === undefined ? null : new Date(row.snoozed_until as string | number | Date).toISOString(),
+    missedMonths: asInteger(row.missed_months, 0),
+    accumulatedDebt: asNumber(row.accumulated_debt ?? 0),
   };
 }
 

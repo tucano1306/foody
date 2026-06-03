@@ -201,6 +201,10 @@ export interface MonthlyPayment {
   daysUntilDue: number;
   currentRecord?: PaymentRecord;
   snoozedUntil: string | null;
+  /** How many past months the due date passed without a paid record */
+  missedMonths: number;
+  /** missedMonths × amount (estimated accumulated debt) */
+  accumulatedDebt: number;
 }
 
 export interface CreatePaymentDto {

@@ -53,6 +53,8 @@ export default function PaymentsList({ initialPayments }: Props) {
   const totalExpenses = payments.reduce((sum, p) => sum + p.amount, 0);
   const totalPaid = paid.reduce((sum, p) => sum + p.amount, 0);
   const totalSnoozed = snoozed.reduce((sum, p) => sum + p.amount, 0);
+  // Total accumulated debt across ALL payments with missed months
+  const totalAccumulated = payments.reduce((sum, p) => sum + (p.accumulatedDebt ?? 0), 0);
 
   // Use the most common currency, fallback to MXN
   const currencies = payments.map((p) => p.currency);
@@ -79,6 +81,25 @@ export default function PaymentsList({ initialPayments }: Props) {
   return (
     <div className="space-y-6">      {/* ─── Notifications test panel (collapsible) ─────────────────── */}
       <NotificationsTestPanel payments={payments} onSnoozed={handleSnoozed} />
+
+      {/* ─── Accumulated debt alert ──────────────────────────────────────── */}
+      {totalAccumulated > 0 && (
+        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl px-4 py-3">
+          <span className="text-2xl shrink-0">🚨</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-700 dark:text-red-300">
+              Pagos atrasados de meses anteriores
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+              Marca cada pago como pagado para ir liquidando el acumulado mes a mes.
+            </p>
+          </div>
+          <span className="text-lg font-extrabold text-red-700 dark:text-red-300 shrink-0">
+            {formatTotal(totalAccumulated)}
+          </span>
+        </div>
+      )}
+
       {/* ─── Monthly summary ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
         {/* Total mensual — resets filter */}

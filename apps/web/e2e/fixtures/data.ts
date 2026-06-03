@@ -187,6 +187,8 @@ export const PAYMENTS: MonthlyPayment[] = [
     isPaidThisMonth: false,
     daysUntilDue: 16,
     snoozedUntil: null,
+    missedMonths: 0,
+    accumulatedDebt: 0,
   },
   {
     id: 'pay-0002-0000-0000-000000000002',
@@ -204,6 +206,8 @@ export const PAYMENTS: MonthlyPayment[] = [
     updatedAt: '2026-04-01T00:00:00.000Z',
     isPaidThisMonth: true,
     daysUntilDue: 6,
+    missedMonths: 0,
+    accumulatedDebt: 0,
     currentRecord: {
       id: 'rec-0001-0000-0000-000000000001',
       paymentId: 'pay-0002-0000-0000-000000000002',
@@ -238,6 +242,8 @@ export const PAYMENTS: MonthlyPayment[] = [
     isPaidThisMonth: false,
     daysUntilDue: 2,
     snoozedUntil: null,
+    missedMonths: 0,
+    accumulatedDebt: 0,
   },
 ];
 
