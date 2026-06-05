@@ -59,6 +59,18 @@ export class MonthlyPayment {
   @Column({ name: 'is_auto_pay', default: false })
   isAutoPay: boolean;
 
+  /** Preferred/default way this bill is normally paid */
+  @Column({ name: 'payment_method', type: 'varchar', length: 20, nullable: true })
+  paymentMethod: string | null;
+
+  /** Bank or card issuer name for the default payment method */
+  @Column({ name: 'bank_name', type: 'varchar', length: 100, nullable: true })
+  bankName: string | null;
+
+  /** Last 4 digits of the card/account (never store the full number) */
+  @Column({ name: 'account_last4', type: 'varchar', length: 4, nullable: true })
+  accountLast4: string | null;
+
   @Column({ name: 'user_id' })
   userId: string;
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import type { MonthlyPayment, PaymentMethod } from '@foody/types';
+import { PAYMENT_METHODS, isCardMethod, methodNeedsBank } from '@/lib/payment-methods';
 
 interface Props {
   readonly payment: MonthlyPayment;
@@ -12,22 +13,6 @@ interface Props {
   /** Recently used bank accounts for quick-pick suggestions */
   readonly recentBankAccounts?: readonly string[];
 }
-
-interface MethodOption {
-  readonly value: PaymentMethod;
-  readonly icon: string;
-  readonly label: string;
-  readonly hint: string;
-}
-
-const METHODS: readonly MethodOption[] = [
-  { value: 'transfer',     icon: '🔁', label: 'Transferencia',  hint: 'SPEI, PSE, ACH…' },
-  { value: 'debit_card',   icon: '💳', label: 'T. Débito',       hint: 'Cobro inmediato' },
-  { value: 'credit_card',  icon: '💳', label: 'T. Crédito',      hint: 'Pago mensual' },
-  { value: 'bank_account', icon: '🏦', label: 'Cuenta bancaria', hint: 'Cargo directo' },
-  { value: 'cash',         icon: '💵', label: 'Efectivo',        hint: 'Ventanilla' },
-  { value: 'other',        icon: '➕', label: 'Otro',             hint: '' },
-];
 
 export default function MarkPaidModal({ payment, open, onClose, onConfirmed, recentBankAccounts: recentBankAccountsProp = [] }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -46,14 +31,14 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
     if (open && !el.open) {
       el.showModal();
       setAmount(payment.isVariableAmount ? '' : payment.amount.toFixed(2));
-      setMethod(null);
-      setBankName('');
-      setAccountNumber('');
+      setMethod(payment.paymentMethod ?? null);
+      setBankName(payment.bankName ?? '');
+      setAccountNumber(payment.accountLast4 ?? '');
       setNotes('');
       setError(null);
     }
     if (!open && el.open) el.close();
-  }, [open, payment.isVariableAmount, payment.amount]);
+  }, [open, payment.isVariableAmount, payment.amount, payment.paymentMethod, payment.bankName, payment.accountLast4]);
 
   // Lazy-load recent banks from history when the modal opens
   useEffect(() => {
@@ -89,7 +74,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
       setError('Selecciona cómo pagaste');
       return;
     }
-    const requiresBank = method === 'transfer' || method === 'debit_card' || method === 'credit_card' || method === 'bank_account';
+    const requiresBank = methodNeedsBank(method);
     if (requiresBank && !bankName.trim()) {
       setError(method === 'transfer' || method === 'bank_account' ? 'Indica el banco' : 'Indica el emisor de la tarjeta');
       return;
@@ -128,8 +113,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
     }
   }
 
-  const needsBank = method === 'transfer' || method === 'debit_card' || method === 'credit_card' || method === 'bank_account';
-  const isCard = method === 'debit_card' || method === 'credit_card';
+  const needsBank = methodNeedsBank(method);
+  const isCard = isCardMethod(method);
   const accountLabel = isCard ? 'Últimos 4 dígitos' : 'Número de cuenta';
   const accountPlaceholder = isCard ? '1234' : 'Ej: 1234567890';
   const accountMaxLen = isCard ? 4 : 32;
@@ -215,7 +200,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                 ¿Cómo pagaste? <span className="text-brand-500">*</span>
               </legend>
               <div className="grid grid-cols-2 gap-2">
-                {METHODS.map((m) => {
+                {PAYMENT_METHODS.map((m) => {
                   const selected = method === m.value;
                   return (
                     <button
@@ -230,8 +215,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                       }`}
                     >
                       <span className="flex items-center gap-1.5 text-sm font-semibold">
-                        <span>{m.icon}</span>
-                        <span>{m.label}</span>
+                        <span aria-hidden="true">{m.icon}</span>
+                        <span>{m.shortLabel}</span>
                       </span>
                       {m.hint && (
                         <span className={`text-[10px] ${selected ? 'text-white/80' : 'text-stone-400 dark:text-gray-500'}`}>
@@ -367,11 +352,4 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
   );
 }
 
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, { icon: string; label: string }> = {
-  transfer:     { icon: '🔁', label: 'Transferencia' },
-  debit_card:   { icon: '💳', label: 'Tarjeta de débito' },
-  credit_card:  { icon: '💳', label: 'Tarjeta de crédito' },
-  bank_account: { icon: '🏦', label: 'Cuenta bancaria' },
-  cash:         { icon: '💵', label: 'Efectivo' },
-  other:        { icon: '➕', label: 'Otro' },
-};
+export { PAYMENT_METHOD_LABELS } from '@/lib/payment-methods';

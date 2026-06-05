@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
 import { randomUUID } from 'node:crypto';
 
 function asNumber(value: unknown, fallback = 0): number {
@@ -89,6 +90,9 @@ function mapPayment(
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     isVariableAmount: Boolean(row.is_variable_amount),
     isAutoPay: Boolean(row.is_auto_pay),
+    paymentMethod: (row.payment_method as string | null | undefined) ?? null,
+    bankName: (row.bank_name as string | null | undefined) ?? null,
+    accountLast4: (row.account_last4 as string | null | undefined) ?? null,
     userId: String(row.user_id),
     createdAt: toISOStringSafe(row.created_at),
     updatedAt: toISOStringSafe(row.updated_at),
@@ -175,10 +179,16 @@ export async function POST(request: NextRequest) {
   }
   const { name, amount, dueDay, notifyDays } = validated;
 
+  const paymentMethod = normalizePaymentMethod(body.paymentMethod);
+  const bankName =
+    typeof body.bankName === 'string' && body.bankName.trim() ? body.bankName.trim().slice(0, 100) : null;
+  const accountLast4 =
+    typeof body.accountLast4 === 'string' && toLast4(body.accountLast4) ? toLast4(body.accountLast4) : null;
+
   try {
     const id = randomUUID();
     const rows = await sql`
-      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, is_variable_amount, is_auto_pay, user_id, created_at, updated_at)
+      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, is_variable_amount, is_auto_pay, payment_method, bank_name, account_last4, user_id, created_at, updated_at)
       VALUES (
         ${id},
         ${name},
@@ -191,6 +201,9 @@ export async function POST(request: NextRequest) {
         ${notifyDays},
         ${Boolean(body.isVariableAmount)},
         ${Boolean(body.isAutoPay)},
+        ${paymentMethod},
+        ${bankName},
+        ${accountLast4},
         ${user.userId},
         NOW(), NOW()
       ) RETURNING *

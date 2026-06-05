@@ -50,4 +50,22 @@ export class CreatePaymentDto {
   @Min(0)
   @Max(30)
   notificationDaysBefore?: number;
+
+  @ApiPropertyOptional({ example: 'credit_card', description: 'Preferred payment method' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 20)
+  paymentMethod?: string;
+
+  @ApiPropertyOptional({ example: 'Bancolombia', description: 'Bank or card issuer name' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  bankName?: string;
+
+  @ApiPropertyOptional({ example: '1234', description: 'Last 4 digits of the card/account' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 4)
+  accountLast4?: string;
 }

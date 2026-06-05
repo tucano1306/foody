@@ -166,6 +166,9 @@ function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: Payment
     notificationDaysBefore: asInteger(row.notification_days_before, 1),
     isVariableAmount: Boolean(row.is_variable_amount),
     isAutoPay: Boolean(row.is_auto_pay),
+    paymentMethod: (row.payment_method as MonthlyPayment['paymentMethod'] | null | undefined) ?? null,
+    bankName: (row.bank_name as string | null | undefined) ?? null,
+    accountLast4: (row.account_last4 as string | null | undefined) ?? null,
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
@@ -481,8 +484,8 @@ export const api = {
       const { userId } = await getAuthContext();
       const id = randomUUID();
       const rows = await sql`
-        INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, user_id, created_at, updated_at)
-        VALUES (${id}, ${data.name}, ${data.description ?? null}, ${data.amount}, ${data.currency ?? 'USD'}, ${data.dueDay}, ${data.category ?? null}, true, ${data.notificationDaysBefore ?? 3}, ${userId}, NOW(), NOW())
+        INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, payment_method, bank_name, account_last4, user_id, created_at, updated_at)
+        VALUES (${id}, ${data.name}, ${data.description ?? null}, ${data.amount}, ${data.currency ?? 'USD'}, ${data.dueDay}, ${data.category ?? null}, true, ${data.notificationDaysBefore ?? 3}, ${data.paymentMethod ?? null}, ${data.bankName ?? null}, ${data.accountLast4 ?? null}, ${userId}, NOW(), NOW())
         RETURNING *
       `;
       return mapMonthlyPayment(rows[0] as Record<string, unknown>);
@@ -498,6 +501,9 @@ export const api = {
           due_day = COALESCE(${data.dueDay ?? null}, due_day),
           category = COALESCE(${data.category ?? null}, category),
           notification_days_before = COALESCE(${data.notificationDaysBefore ?? null}, notification_days_before),
+          payment_method = COALESCE(${data.paymentMethod ?? null}, payment_method),
+          bank_name = COALESCE(${data.bankName ?? null}, bank_name),
+          account_last4 = COALESCE(${data.accountLast4 ?? null}, account_last4),
           updated_at = NOW()
         WHERE id = ${id} AND user_id = ${userId} RETURNING *
       `;

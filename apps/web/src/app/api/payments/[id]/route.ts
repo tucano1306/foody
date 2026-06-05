@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
+import { methodNeedsBank, normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -53,6 +54,9 @@ function mapPayment(row: Record<string, unknown>) {
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     isVariableAmount: Boolean(row.is_variable_amount),
     isAutoPay: Boolean(row.is_auto_pay),
+    paymentMethod: (row.payment_method as string | null | undefined) ?? null,
+    bankName: (row.bank_name as string | null | undefined) ?? null,
+    accountLast4: (row.account_last4 as string | null | undefined) ?? null,
     userId: String(row.user_id),
     createdAt: toISOStringSafe(row.created_at),
     updatedAt: toISOStringSafe(row.updated_at),
@@ -128,6 +132,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ('error' in check) return NextResponse.json({ message: check.error }, { status: check.status });
   const body = check.validated;
 
+  // When the payment method is being edited, set method + bank + last4 together
+  // (switching to e.g. cash must also clear any stored bank/card details).
+  const methodProvided = body.paymentMethod !== undefined;
+  const newMethod = normalizePaymentMethod(body.paymentMethod);
+  const keepBank = methodNeedsBank(newMethod);
+  const newBankName =
+    keepBank && typeof body.bankName === 'string' && body.bankName.trim()
+      ? body.bankName.trim().slice(0, 100)
+      : null;
+  const newLast4 =
+    keepBank && typeof body.accountLast4 === 'string' && toLast4(body.accountLast4)
+      ? toLast4(body.accountLast4)
+      : null;
+
   try {
     const rows = await sql`
       UPDATE monthly_payments SET
@@ -140,6 +158,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
         is_variable_amount = COALESCE(${body.isVariableAmount === undefined ? null : Boolean(body.isVariableAmount)}, is_variable_amount),
         is_auto_pay = COALESCE(${body.isAutoPay === undefined ? null : Boolean(body.isAutoPay)}, is_auto_pay),
+        payment_method = CASE WHEN ${methodProvided} THEN ${newMethod} ELSE payment_method END,
+        bank_name = CASE WHEN ${methodProvided} THEN ${newBankName} ELSE bank_name END,
+        account_last4 = CASE WHEN ${methodProvided} THEN ${newLast4} ELSE account_last4 END,
         updated_at = NOW()
       WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
     `;

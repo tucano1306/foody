@@ -150,6 +150,9 @@ CREATE TABLE IF NOT EXISTS "monthly_payments" (
   "notification_days_before" SMALLINT      NOT NULL DEFAULT 1,
   "snoozed_until"            TIMESTAMPTZ,
   "is_variable_amount"       BOOLEAN       NOT NULL DEFAULT false,
+  "payment_method"           VARCHAR(20),
+  "bank_name"                VARCHAR(100),
+  "account_last4"            VARCHAR(4),
   "user_id"                  UUID          NOT NULL,
   "created_at"               TIMESTAMP     NOT NULL DEFAULT now(),
   "updated_at"               TIMESTAMP     NOT NULL DEFAULT now(),
@@ -268,4 +271,7 @@ CREATE INDEX IF NOT EXISTS "IDX_ticket_items_ticket" ON "ticket_items" ("ticket_
 -- ─── Migrations ──────────────────────────────────────────────
 ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "snoozed_until" TIMESTAMPTZ NULL;
 ALTER TABLE "monthly_payments" ALTER COLUMN "notification_days_before" SET DEFAULT 1;
+ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "payment_method" VARCHAR(20) NULL;
+ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "bank_name" VARCHAR(100) NULL;
+ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "account_last4" VARCHAR(4) NULL;
 

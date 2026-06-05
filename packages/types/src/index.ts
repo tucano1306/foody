@@ -195,6 +195,12 @@ export interface MonthlyPayment {
   isVariableAmount: boolean;
   /** Payment is handled automatically (e.g. direct debit). App marks it paid on the due date. */
   isAutoPay: boolean;
+  /** Preferred/default way this bill is normally paid */
+  paymentMethod: PaymentMethod | null;
+  /** Bank or card issuer name for the default payment method */
+  bankName: string | null;
+  /** Last 4 digits of the default card/account (never store the full number) */
+  accountLast4: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -219,6 +225,9 @@ export interface CreatePaymentDto {
   notificationDaysBefore?: number;
   isVariableAmount?: boolean;
   isAutoPay?: boolean;
+  paymentMethod?: PaymentMethod | null;
+  bankName?: string | null;
+  accountLast4?: string | null;
 }
 
 export interface UpdatePaymentDto extends Partial<CreatePaymentDto> {

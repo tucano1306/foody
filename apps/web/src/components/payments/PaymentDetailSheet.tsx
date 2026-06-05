@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import type { MonthlyPayment, CreatePaymentDto, PaymentMethod } from '@foody/types';
 import { XMarkIcon, PencilSquareIcon, TrashIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
-import { PAYMENT_METHOD_LABELS } from '@/components/payments/MarkPaidModal';
+import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
+import { PAYMENT_METHOD_LABELS, maskLast4, methodNeedsBank } from '@/lib/payment-methods';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -32,6 +33,16 @@ const CATEGORIES = [
 
 const CURRENCIES = ['USD', 'EUR', 'MXN', 'COP', 'ARS', 'CLP', 'PEN'];
 
+/** Background gradient per method for the little icon tile */
+const METHOD_TILE_BG: Record<PaymentMethod, string> = {
+  transfer: 'linear-gradient(135deg,#3B82F6,#2563EB)',
+  debit_card: 'linear-gradient(135deg,#6366F1,#4F46E5)',
+  credit_card: 'linear-gradient(135deg,#8B5CF6,#6D28D9)',
+  bank_account: 'linear-gradient(135deg,#10B981,#059669)',
+  cash: 'linear-gradient(135deg,#22C55E,#16A34A)',
+  other: 'linear-gradient(135deg,#6B7280,#4B5563)',
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function buildNotifyDisplay(days: number): { value: string; unit: 'days' | 'months' } {
@@ -57,6 +68,9 @@ function buildEditState(payment: MonthlyPayment): {
       description: payment.description ?? '',
       isVariableAmount: payment.isVariableAmount,
       isAutoPay: payment.isAutoPay,
+      paymentMethod: payment.paymentMethod,
+      bankName: payment.bankName,
+      accountLast4: payment.accountLast4,
     },
     notifyValue: value,
     notifyUnit: unit,
@@ -136,6 +150,13 @@ export default function PaymentDetailSheet({
   const [notifyUnit, setNotifyUnit] = useState<'days' | 'months'>(() => buildEditState(payment).notifyUnit);
   const [notifyValue, setNotifyValue] = useState<string>(() => buildEditState(payment).notifyValue);
 
+  // Inline payment-method editor (view mode)
+  const [editingMethod, setEditingMethod] = useState(false);
+  const [methodDraft, setMethodDraft] = useState<PaymentMethod | null>(payment.paymentMethod);
+  const [bankDraft, setBankDraft] = useState(payment.bankName ?? '');
+  const [last4Draft, setLast4Draft] = useState(payment.accountLast4 ?? '');
+  const [methodSaving, setMethodSaving] = useState(false);
+
   // History
   const [history, setHistory] = useState<HistoryRecord[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -147,6 +168,7 @@ export default function PaymentDetailSheet({
     setNotifyValue(nv);
     setNotifyUnit(nu);
     setInlineField(null);
+    setEditingMethod(false);
   }, [payment]);
 
   // Open / close the native dialog
@@ -280,6 +302,40 @@ export default function PaymentDetailSheet({
     },
     [inlineDueDay, inlineNotifyValue, inlineNotifyUnit, currentPayment.id, onUpdated],
   );
+
+  const openMethodEditor = useCallback(() => {
+    setMethodDraft(currentPayment.paymentMethod);
+    setBankDraft(currentPayment.bankName ?? '');
+    setLast4Draft(currentPayment.accountLast4 ?? '');
+    setEditingMethod(true);
+  }, [currentPayment.paymentMethod, currentPayment.bankName, currentPayment.accountLast4]);
+
+  const saveMethod = useCallback(async () => {
+    if (!methodDraft) return;
+    setMethodSaving(true);
+    const keepBank = methodNeedsBank(methodDraft);
+    const patch: Partial<CreatePaymentDto> = {
+      paymentMethod: methodDraft,
+      bankName: keepBank ? bankDraft.trim() || null : null,
+      accountLast4: keepBank ? last4Draft || null : null,
+    };
+    try {
+      const res = await fetch(`/api/payments/${currentPayment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) {
+        const updated = (await res.json()) as MonthlyPayment;
+        setCurrentPayment(updated);
+        onUpdated(updated);
+        setEditingMethod(false);
+      }
+    } finally {
+      setMethodSaving(false);
+    }
+  }, [methodDraft, bankDraft, last4Draft, currentPayment.id, onUpdated]);
 
   // ── View mode ────────────────────────────────────────────────────────────
   function renderView() {
@@ -442,6 +498,9 @@ export default function PaymentDetailSheet({
           )}
         </div>
 
+        {/* Payment method */}
+        {renderMethodSection()}
+
         {/* Description */}
         {currentPayment.description && (
           <div className="bg-white/5 rounded-xl p-3 mb-4">
@@ -500,6 +559,107 @@ export default function PaymentDetailSheet({
         {/* History */}
         {renderHistory()}
       </>
+    );
+  }
+
+  // ── Payment method (default) ─────────────────────────────────────────────
+  function renderMethodSection() {
+    if (!editingMethod) return renderMethodCard();
+    return (
+      <div className="bg-brand-500/10 border border-brand-500/30 rounded-2xl p-3.5 mb-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-brand-300 text-xs font-semibold uppercase tracking-wide">Método de pago</p>
+          {currentPayment.paymentMethod && (
+            <button
+              type="button"
+              onClick={() => setEditingMethod(false)}
+              aria-label="Cerrar edición de método"
+              className="text-gray-400 hover:text-white transition"
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <PaymentMethodPicker
+          method={methodDraft}
+          bankName={bankDraft}
+          accountLast4={last4Draft}
+          onMethodChange={setMethodDraft}
+          onBankNameChange={setBankDraft}
+          onAccountLast4Change={setLast4Draft}
+          idPrefix="inline-method"
+          variant="dark"
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setEditingMethod(false)}
+            className="flex-1 py-2.5 rounded-xl bg-white/10 text-gray-300 text-sm font-semibold hover:bg-white/20 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={methodSaving || !methodDraft}
+            onClick={saveMethod}
+            className="flex-1 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-bold disabled:opacity-50 transition"
+          >
+            {methodSaving ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderMethodCard() {
+    const method = currentPayment.paymentMethod;
+    if (!method) {
+      return (
+        <button
+          type="button"
+          onClick={openMethodEditor}
+          className="w-full mb-4 flex items-center gap-3 p-3.5 rounded-2xl border border-dashed border-white/20 bg-white/3 hover:bg-white/6 hover:border-brand-500/50 transition text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-xl shrink-0" aria-hidden="true">💳</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-semibold">Agregar método de pago</p>
+            <p className="text-gray-500 text-xs">Banco, tarjeta o efectivo</p>
+          </div>
+          <span className="text-brand-400 text-lg shrink-0 group-hover:translate-x-0.5 transition" aria-hidden="true">＋</span>
+        </button>
+      );
+    }
+    const info = PAYMENT_METHOD_LABELS[method];
+    const masked = maskLast4(currentPayment.accountLast4);
+    const hasDetail = Boolean(currentPayment.bankName) || Boolean(masked);
+    return (
+      <button
+        type="button"
+        onClick={openMethodEditor}
+        className="w-full mb-4 flex items-center gap-3 p-3.5 rounded-2xl border border-white/10 bg-linear-to-br from-white/8 to-white/2 hover:border-brand-500/40 transition text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      >
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner"
+          style={{ background: METHOD_TILE_BG[method] }}
+          aria-hidden="true"
+        >
+          {info.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-wide mb-0.5">Método de pago</p>
+          <p className="text-white text-sm font-bold truncate">{info.label}</p>
+          {hasDetail ? (
+            <p className="text-gray-400 text-xs truncate">
+              {currentPayment.bankName && <span>{currentPayment.bankName}</span>}
+              {currentPayment.bankName && masked && <span className="text-gray-600"> · </span>}
+              {masked && <span className="font-mono tracking-wider">{masked}</span>}
+            </p>
+          ) : (
+            <p className="text-gray-500 text-xs">Toca para añadir banco o tarjeta</p>
+          )}
+        </div>
+        <PencilSquareIcon className="w-4 h-4 text-gray-500 group-hover:text-brand-400 transition shrink-0" />
+      </button>
     );
   }
 
@@ -806,6 +966,21 @@ export default function PaymentDetailSheet({
             placeholder="Ej: Incluye cuenta familiar…"
             rows={2}
             className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm resize-none"
+          />
+        </div>
+
+        {/* Método de pago */}
+        <div>
+          <span className="block text-xs font-semibold text-gray-400 mb-2">Método de pago habitual</span>
+          <PaymentMethodPicker
+            method={form.paymentMethod ?? null}
+            bankName={form.bankName ?? ''}
+            accountLast4={form.accountLast4 ?? ''}
+            onMethodChange={(m) => setForm((f) => ({ ...f, paymentMethod: m }))}
+            onBankNameChange={(v) => setForm((f) => ({ ...f, bankName: v }))}
+            onAccountLast4Change={(v) => setForm((f) => ({ ...f, accountLast4: v }))}
+            idPrefix="edit-method"
+            variant="dark"
           />
         </div>
 

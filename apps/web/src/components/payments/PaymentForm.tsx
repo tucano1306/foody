@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CreatePaymentDto } from '@foody/types';
+import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 
 const CATEGORIES = [
   { value: 'utilities', label: '💡', name: 'Servicios' },
@@ -28,6 +29,9 @@ export default function PaymentForm() {
     description: '',
     isVariableAmount: false,
     isAutoPay: false,
+    paymentMethod: null,
+    bankName: '',
+    accountLast4: '',
   });
   const [notifyValue, setNotifyValue] = useState('');
   const [notifyUnit, setNotifyUnit] = useState<'days' | 'months'>('days');
@@ -260,6 +264,25 @@ export default function PaymentForm() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* ─── Método de pago ──────────────────────────────────────────────── */}
+      <div>
+        <span className="block text-sm font-semibold text-stone-700 mb-1.5">
+          Método de pago habitual{' '}
+          <span className="ml-1 text-xs font-normal text-stone-400">(opcional)</span>
+        </span>
+        <p className="text-xs text-stone-400 mb-2">Cómo pagas normalmente esta cuenta. Solo guardamos los últimos 4 dígitos.</p>
+        <PaymentMethodPicker
+          method={form.paymentMethod ?? null}
+          bankName={form.bankName ?? ''}
+          accountLast4={form.accountLast4 ?? ''}
+          onMethodChange={(m) => setForm((f) => ({ ...f, paymentMethod: m }))}
+          onBankNameChange={(v) => setForm((f) => ({ ...f, bankName: v }))}
+          onAccountLast4Change={(v) => setForm((f) => ({ ...f, accountLast4: v }))}
+          idPrefix="new-method"
+          variant="light"
+        />
       </div>
 
       {/* ─── Notas / Comentarios ─────────────────────────────────────────── */}
