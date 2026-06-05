@@ -165,6 +165,7 @@ function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: Payment
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 1),
     isVariableAmount: Boolean(row.is_variable_amount),
+    isAutoPay: Boolean(row.is_auto_pay),
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),

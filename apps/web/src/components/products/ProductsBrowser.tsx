@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import type { Product, StockLevel } from '@foody/types';
@@ -214,9 +214,21 @@ export default function ProductsBrowser(props: Readonly<Props>) {
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('categories');
 
+  // Sync whenever the server sends fresh data (after router.refresh())
+  useEffect(() => {
+    setLocalProducts(initialProducts);
+  }, [initialProducts]);
+
   const handleDelete = (id: string) => {
     setLocalProducts((prev) => prev.filter((p) => p.id !== id));
   };
+
+  const handleLevelChange = useCallback((id: string, newLevel: StockLevel) => {
+    setLocalProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, stockLevel: newLevel } : p)),
+    );
+    onLevelChange?.(id, newLevel);
+  }, [onLevelChange]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -341,8 +353,8 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
       {/* Grid or Grouped */}
       {viewMode === 'categories' && !searchOnly
-        ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange, onDelete: handleDelete })
-        : renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange, onDelete: handleDelete })}
+        ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete })
+        : renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete })}
 
       {/* Pagination — only in grid mode */}
       {viewMode === 'grid' && totalPages > 1 && (

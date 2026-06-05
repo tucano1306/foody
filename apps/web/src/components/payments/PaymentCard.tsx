@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import type React from 'react';
 import type { MonthlyPayment } from '@foody/types';
 import Markdown from '@/components/ui/Markdown';
@@ -8,6 +8,7 @@ import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
 import MarkPaidModal from '@/components/payments/MarkPaidModal';
 interface Props {
   readonly payment: MonthlyPayment;
+  readonly autoOpen?: boolean;
   readonly onDeleted?: (id: string) => void;
   readonly onUpdated?: (p: MonthlyPayment) => void;
   readonly onPaidToggle?: (id: string, nowPaid: boolean) => void;
@@ -85,7 +86,7 @@ function getSnoozeBtnLabel(pending: boolean, error: boolean): string {
   return '⏰ Posponer 3d';
 }
 
-export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggle, onSnoozed }: Props) {
+export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, onPaidToggle, onSnoozed }: Props) {
   const [, startTransition] = useTransition();
   const [isSnoozePending, startSnoozeTransition] = useTransition();
   const [isPaid, setIsPaid] = useState(payment.isPaidThisMonth);
@@ -97,6 +98,16 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
   const [sheetOpen, setSheetOpen] = useState(false);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [snoozeError, setSnoozeError] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!autoOpen) return;
+    const timer = setTimeout(() => {
+      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setSheetOpen(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [autoOpen]);
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
@@ -157,7 +168,7 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
   }, [currentPayment.id, onDeleted]);
 
   return (
-    <>
+    <div ref={cardRef}>
       {/* Tappable card */}
       <button
         type="button"
@@ -254,6 +265,6 @@ export default function PaymentCard({ payment, onDeleted, onUpdated, onPaidToggl
         onClose={() => setMarkPaidOpen(false)}
         onConfirmed={handleMarkPaidConfirmed}
       />
-    </>
+    </div>
   );
 }

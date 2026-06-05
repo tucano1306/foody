@@ -52,6 +52,7 @@ function mapPayment(row: Record<string, unknown>) {
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     isVariableAmount: Boolean(row.is_variable_amount),
+    isAutoPay: Boolean(row.is_auto_pay),
     userId: String(row.user_id),
     createdAt: toISOStringSafe(row.created_at),
     updatedAt: toISOStringSafe(row.updated_at),
@@ -93,34 +94,39 @@ function parsePatchAmount(body: Record<string, unknown>): number | null {
   return null;
 }
 
+function validatePatchBody(body: Record<string, unknown>): { validated: Record<string, unknown> } | { error: string; status: number } {
+  let result = { ...body };
+  if (body.name !== undefined) {
+    const name = validatePatchName(body);
+    if (!name) return { error: 'name cannot be empty', status: 422 };
+    if (name.length > 255) return { error: 'name must be 255 characters or fewer', status: 422 };
+    result = { ...result, name };
+  }
+  if (body.amount !== undefined) {
+    const amount = parsePatchAmount(body);
+    if (amount === null || !Number.isFinite(amount) || amount <= 0) {
+      return { error: 'amount must be a positive number', status: 422 };
+    }
+    result = { ...result, amount };
+  }
+  return { validated: result };
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
 
-  let body: Record<string, unknown>;
+  let rawBody: Record<string, unknown>;
   try {
-    body = await request.json() as Record<string, unknown>;
+    rawBody = await request.json() as Record<string, unknown>;
   } catch {
     return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // Validate name if provided
-  if (body.name !== undefined) {
-    const name = validatePatchName(body);
-    if (!name) return NextResponse.json({ message: 'name cannot be empty' }, { status: 422 });
-    if (name.length > 255) return NextResponse.json({ message: 'name must be 255 characters or fewer' }, { status: 422 });
-    body = { ...body, name };
-  }
-
-  // Validate amount if provided
-  if (body.amount !== undefined) {
-    const amount = parsePatchAmount(body);
-    if (amount === null || !Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json({ message: 'amount must be a positive number' }, { status: 422 });
-    }
-    body = { ...body, amount };
-  }
+  const check = validatePatchBody(rawBody);
+  if ('error' in check) return NextResponse.json({ message: check.error }, { status: check.status });
+  const body = check.validated;
 
   try {
     const rows = await sql`
@@ -133,6 +139,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         category = COALESCE(${body.category as string ?? null}, category),
         notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
         is_variable_amount = COALESCE(${body.isVariableAmount === undefined ? null : Boolean(body.isVariableAmount)}, is_variable_amount),
+        is_auto_pay = COALESCE(${body.isAutoPay === undefined ? null : Boolean(body.isAutoPay)}, is_auto_pay),
         updated_at = NOW()
       WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
     `;

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
+import { sendWebPush } from '@/lib/web-push';
+import type { PushSubscription } from 'web-push';
 
 // PATCH /api/products/[id]/stock-level
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +42,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         VALUES (gen_random_uuid(), ${id}, ${user.userId}, NULL, NOW(), NOW())
         ON CONFLICT DO NOTHING
       `;
+    }
+
+    // Push notification when a product runs out
+    if (level === 'empty') {
+      const productName = String(rows[0].name ?? '');
+      const subRows = await sql`SELECT push_subscription FROM users WHERE id = ${user.userId} LIMIT 1`;
+      const sub = subRows[0]?.push_subscription as PushSubscription | null | undefined;
+      if (sub?.endpoint) {
+        await sendWebPush(sub, {
+          title: '⚠️ Producto agotado',
+          body: `${productName} se marcó como agotado y fue agregado a tu lista de compras.`,
+          url: `/products?product=${id}`,
+          data: { type: 'stock_empty', productId: id },
+        });
+      }
     }
 
     return NextResponse.json(rows[0]);

@@ -56,6 +56,7 @@ function buildEditState(payment: MonthlyPayment): {
       notificationDaysBefore: payment.notificationDaysBefore,
       description: payment.description ?? '',
       isVariableAmount: payment.isVariableAmount,
+      isAutoPay: payment.isAutoPay,
     },
     notifyValue: value,
     notifyUnit: unit,
@@ -313,6 +314,11 @@ export default function PaymentDetailSheet({
             {currentPayment.isVariableAmount && (
               <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 tracking-normal">
                 ⚡ Variable
+              </span>
+            )}
+            {currentPayment.isAutoPay && (
+              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 tracking-normal">
+                🤖 Auto
               </span>
             )}
           </p>
@@ -688,6 +694,32 @@ export default function PaymentDetailSheet({
               <p className="text-xs font-semibold text-white">⚡ Monto variable (por consumo)</p>
               <p className="text-[11px] text-gray-400 mt-0.5">
                 Al pagar te pediremos el valor exacto del recibo.
+              </p>
+            </div>
+          </button>
+
+          {/* Auto-pay toggle */}
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, isAutoPay: !f.isAutoPay }))}
+            aria-pressed={form.isAutoPay}
+            className={`mt-2 w-full flex items-start gap-2.5 p-3 rounded-xl border text-left transition ${
+              form.isAutoPay
+                ? 'bg-emerald-500/15 border-emerald-500/40'
+                : 'bg-white/5 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div
+              className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 transition ${
+                form.isAutoPay ? 'bg-emerald-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
+              }`}
+            >
+              ✓
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-white">🤖 Pago automatizado</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Se cobra automáticamente. La app lo marcará como pagado el día de vencimiento y te avisará.
               </p>
             </div>
           </button>

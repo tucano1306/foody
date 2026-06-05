@@ -193,6 +193,8 @@ export interface MonthlyPayment {
   isActive: boolean;
   notificationDaysBefore: number;
   isVariableAmount: boolean;
+  /** Payment is handled automatically (e.g. direct debit). App marks it paid on the due date. */
+  isAutoPay: boolean;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -216,6 +218,7 @@ export interface CreatePaymentDto {
   category?: string;
   notificationDaysBefore?: number;
   isVariableAmount?: boolean;
+  isAutoPay?: boolean;
 }
 
 export interface UpdatePaymentDto extends Partial<CreatePaymentDto> {

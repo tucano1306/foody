@@ -27,6 +27,7 @@ export default function PaymentForm() {
     category: 'other',
     description: '',
     isVariableAmount: false,
+    isAutoPay: false,
   });
   const [notifyValue, setNotifyValue] = useState('');
   const [notifyUnit, setNotifyUnit] = useState<'days' | 'months'>('days');
@@ -158,6 +159,34 @@ export default function PaymentForm() {
             </p>
             <p className="text-xs text-stone-500 mt-0.5">
               Ej: luz, agua, gas. El monto del recibo cambia cada mes; al pagar te pediremos el valor exacto.
+            </p>
+          </div>
+        </button>
+
+        {/* Auto-pay toggle */}
+        <button
+          type="button"
+          onClick={() => setForm((f) => ({ ...f, isAutoPay: !f.isAutoPay }))}
+          aria-pressed={form.isAutoPay}
+          className={`mt-2 w-full flex items-start gap-3 p-3 rounded-2xl border text-left transition ${
+            form.isAutoPay
+              ? 'bg-emerald-50 border-emerald-300'
+              : 'bg-white border-stone-200 hover:border-stone-300'
+          }`}
+        >
+          <div
+            className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold shrink-0 transition ${
+              form.isAutoPay ? 'bg-emerald-500 text-white' : 'bg-stone-100 text-transparent border border-stone-300'
+            }`}
+          >
+            ✓
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-stone-800 flex items-center gap-1.5">
+              🤖 Pago automatizado
+            </p>
+            <p className="text-xs text-stone-500 mt-0.5">
+              El pago se cobra automáticamente (domiciliación, débito). La app lo marcará como pagado el día de vencimiento y te avisará.
             </p>
           </div>
         </button>

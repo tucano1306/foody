@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensurePurchaseSchema } from '@/lib/ensure-schema';
+import { sendWebPush } from '@/lib/web-push';
+import type { PushSubscription } from 'web-push';
 
 interface CompletionBody {
   storeName?: string;
@@ -131,6 +133,19 @@ function mergeScannedPrices(
   return merged;
 }
 
+async function notifyShoppingComplete(userId: string, count: number, storeName: string | null): Promise<void> {
+  const subRows = await sql`SELECT push_subscription FROM users WHERE id = ${userId} LIMIT 1`;
+  const sub = subRows[0]?.push_subscription as PushSubscription | null | undefined;
+  if (!sub?.endpoint) return;
+  const storeText = storeName ? ` en ${storeName}` : '';
+  await sendWebPush(sub, {
+    title: '🛒 ¡Compra completada!',
+    body: `Repusiste ${count} producto${count === 1 ? '' : 's'}${storeText}. Todo actualizado en tu despensa.`,
+    url: '/products',
+    data: { type: 'shopping_complete', count },
+  });
+}
+
 // POST /api/shopping-list/complete
 export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
@@ -187,6 +202,8 @@ export async function POST(request: NextRequest) {
   `;
 
   await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND is_in_cart = true`;
+
+  await notifyShoppingComplete(user.userId, items.length, storeName).catch(() => undefined);
 
   return NextResponse.json({ completed: items.length, tripId, purchasesInserted, purchaseError });
 }

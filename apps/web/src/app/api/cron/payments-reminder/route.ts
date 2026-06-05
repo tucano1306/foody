@@ -43,7 +43,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const result = await sendWebPush(row.push_subscription, {
       title: '💳 Pago pendiente',
       body: `El recordatorio de "${row.name}" que pospusiste ya venció. ¡No olvides pagarlo!`,
-      url: '/payments',
+      url: `/payments?payment=${row.id}`,
     });
     if (result.ok) notified++;
     else if (result.gone) goneUserIds.push(row.user_id);

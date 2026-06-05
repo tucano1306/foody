@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { api } from '@/lib/api';
 import PaymentsList from '@/components/payments/PaymentsList';
 import ModernTitle from '@/components/layout/ModernTitle';
@@ -27,7 +28,9 @@ export default async function PaymentsPage() {
         }
       />
 
-      <PaymentsList initialPayments={payments} />
+      <Suspense>
+        <PaymentsList initialPayments={payments} />
+      </Suspense>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
+import { sendWebPush } from '@/lib/web-push';
+import type { PushSubscription } from 'web-push';
 
 const ALLOWED_METHODS = new Set(['transfer', 'debit_card', 'credit_card', 'cash', 'bank_account', 'other']);
 
@@ -96,6 +98,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       notes = EXCLUDED.notes
     RETURNING *
   `;
+
+  // Push notification: payment marked as paid
+  const subRows = await sql`SELECT push_subscription FROM users WHERE id = ${user.userId} LIMIT 1`;
+  const sub = subRows[0]?.push_subscription as PushSubscription | null | undefined;
+  if (sub?.endpoint) {
+    const name = String(payment.name ?? '');
+    const currency = String(payment.currency ?? 'MXN');
+    const displayAmount = finalAmount.toFixed(2);
+    await sendWebPush(sub, {
+      title: '✅ Pago registrado',
+      body: `${name} (${currency} ${displayAmount}) marcado como pagado.`,
+      url: `/payments?payment=${id}`,
+      data: { type: 'payment_paid', paymentId: id },
+    });
+  }
 
   return NextResponse.json({ ...rows[0], targetMonth: month, targetYear: year });
 }

@@ -49,7 +49,7 @@ async function processRow(
     const r = await sendWebPush(subscription, {
       title: '💳 Pago pendiente',
       body: `El recordatorio de "${row.name}" que pospusiste ya venció. ¡No olvides pagarlo!`,
-      url: '/payments',
+      url: `/payments?payment=${row.id}`,
     });
     return r.ok ? 'sent_expired' : 'skipped';
   }
@@ -63,7 +63,7 @@ async function processRow(
     const r = await sendWebPush(subscription, {
       title: '💳 Foody — Recordatorio de pago',
       body: buildBody(row.name, days, row.currency, row.amount),
-      url: '/payments',
+      url: `/payments?payment=${row.id}`,
       data: { type: 'payment_reminder', paymentId: row.id, daysUntilDue: days },
     });
     return r.ok ? 'sent' : 'skipped';

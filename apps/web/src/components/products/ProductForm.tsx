@@ -387,8 +387,8 @@ export default function ProductForm({ product, inHousehold }: Props) {
         throw new Error(data.message ?? 'Error al guardar');
       }
 
-      router.push('/products');
       router.refresh();
+      router.push('/products');
     } catch (err) {
       setError((err as Error).message);
     } finally {

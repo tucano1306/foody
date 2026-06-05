@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { MonthlyPayment } from '@foody/types';
 import { BanknotesIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/solid';
 import PaymentCard from '@/components/payments/PaymentCard';
-import NotificationsTestPanel from '@/components/payments/NotificationsTestPanel';
 
 interface Props {
   readonly initialPayments: MonthlyPayment[];
@@ -16,6 +16,8 @@ type Filter = 'all' | 'pending' | 'paid';
 export default function PaymentsList({ initialPayments }: Props) {
   const [payments, setPayments] = useState<MonthlyPayment[]>(initialPayments);
   const [filter, setFilter] = useState<Filter>('all');
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('payment');
 
   const toggleFilter = (f: Filter) => setFilter((prev) => (prev === f ? 'all' : f));
 
@@ -79,9 +81,7 @@ export default function PaymentsList({ initialPayments }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">      {/* ─── Notifications test panel (collapsible) ─────────────────── */}
-      <NotificationsTestPanel payments={payments} onSnoozed={handleSnoozed} />
-
+    <div className="space-y-6">
       {/* ─── Accumulated debt alert ──────────────────────────────────────── */}
       {totalAccumulated > 0 && (
         <div className="flex items-center gap-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl px-4 py-3">
@@ -191,6 +191,7 @@ export default function PaymentsList({ initialPayments }: Props) {
               <PaymentCard
                 key={payment.id}
                 payment={payment}
+                autoOpen={payment.id === highlightId}
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
                 onPaidToggle={handlePaidToggle}
@@ -212,6 +213,7 @@ export default function PaymentsList({ initialPayments }: Props) {
               <PaymentCard
                 key={payment.id}
                 payment={payment}
+                autoOpen={payment.id === highlightId}
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
                 onPaidToggle={handlePaidToggle}
@@ -233,6 +235,7 @@ export default function PaymentsList({ initialPayments }: Props) {
               <PaymentCard
                 key={payment.id}
                 payment={payment}
+                autoOpen={payment.id === highlightId}
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
                 onPaidToggle={handlePaidToggle}

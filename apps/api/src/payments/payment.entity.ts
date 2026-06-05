@@ -56,6 +56,9 @@ export class MonthlyPayment {
   @Column({ name: 'is_variable_amount', default: false })
   isVariableAmount: boolean;
 
+  @Column({ name: 'is_auto_pay', default: false })
+  isAutoPay: boolean;
+
   @Column({ name: 'user_id' })
   userId: string;
 
