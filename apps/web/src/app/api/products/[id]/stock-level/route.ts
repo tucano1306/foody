@@ -4,6 +4,45 @@ import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
 
+// Best-effort push notification when a product drops to low/empty stock.
+// Never throws: notifications must not affect the stock-update response
+// (otherwise the client would revert its optimistic UI update).
+async function notifyStockChange(
+  userId: string,
+  productId: string,
+  productName: string,
+  level: 'half' | 'empty',
+): Promise<void> {
+  try {
+    const subRows = await sql`SELECT push_subscription FROM users WHERE id = ${userId} LIMIT 1`;
+    const sub = subRows[0]?.push_subscription as PushSubscription | null | undefined;
+    if (!sub?.endpoint) return;
+
+    const payload = level === 'empty'
+      ? {
+          title: '🚨 Producto agotado',
+          body: `${productName} se marcó como agotado y se agregó a tu lista de compras.`,
+          url: `/products?product=${productId}`,
+          data: { type: 'stock_empty', productId },
+        }
+      : {
+          title: '⚠️ Queda poco',
+          body: `${productName} se está agotando y se agregó a tu lista de compras.`,
+          url: `/products?product=${productId}`,
+          data: { type: 'stock_low', productId },
+        };
+
+    const result = await sendWebPush(sub, payload);
+    // Endpoint expired / VAPID rotated → drop it so the client can resubscribe
+    // instead of silently failing on every future change.
+    if (result.gone) {
+      await sql`UPDATE users SET push_subscription = NULL, updated_at = NOW() WHERE id = ${userId}`;
+    }
+  } catch {
+    // Swallow — notifications are best-effort.
+  }
+}
+
 // PATCH /api/products/[id]/stock-level
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
@@ -27,10 +66,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     // Per-user isolation: only the owner of the product can change its stock.
+    // The CTE captures the level *before* the update so we only notify on a
+    // real transition (avoids duplicate pushes when re-tapping the same level).
     const rows = await sql`
+      WITH previous AS (
+        SELECT stock_level AS prev FROM products WHERE id = ${id} AND user_id = ${user.userId}
+      )
       UPDATE products SET stock_level = ${level}, is_running_low = ${isRunningLow}, needs_shopping = ${needsShopping}, updated_at = NOW()
       WHERE id = ${id} AND user_id = ${user.userId}
-      RETURNING *
+      RETURNING *, (SELECT prev FROM previous) AS previous_stock_level
     `;
     if (!rows.length) return notFound();
 
@@ -44,22 +88,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       `;
     }
 
-    // Push notification when a product runs out
-    if (level === 'empty') {
-      const productName = String(rows[0].name ?? '');
-      const subRows = await sql`SELECT push_subscription FROM users WHERE id = ${user.userId} LIMIT 1`;
-      const sub = subRows[0]?.push_subscription as PushSubscription | null | undefined;
-      if (sub?.endpoint) {
-        await sendWebPush(sub, {
-          title: '⚠️ Producto agotado',
-          body: `${productName} se marcó como agotado y fue agregado a tu lista de compras.`,
-          url: `/products?product=${id}`,
-          data: { type: 'stock_empty', productId: id },
-        });
-      }
+    const { previous_stock_level: previousLevel, ...product } = rows[0] as Record<string, unknown>;
+    const productName = typeof product.name === 'string' ? product.name : '';
+
+    // Notify when stock actually drops to low or empty.
+    if (level !== previousLevel && (level === 'half' || level === 'empty')) {
+      await notifyStockChange(user.userId, id, productName, level);
     }
 
-    return NextResponse.json(rows[0]);
+    return NextResponse.json(product);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Database error';
     return NextResponse.json({ message }, { status: 500 });

@@ -107,22 +107,29 @@ async function compressViaImageBitmap(file: Blob): Promise<string> {
   }
   const sizes = [MAX_OUTPUT_DIMENSION, 384, 256];
   let lastErr: unknown;
-  for (const size of sizes) {
-    try {
-      const { w, h } = computeFitDimensions(bitmap.width, bitmap.height, size);
+  try {
+    for (const size of sizes) {
       const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas no disponible');
-      ctx.drawImage(bitmap, 0, 0, w, h);
-      bitmap.close();
-      return await canvasToJpegDataUrl(canvas);
-    } catch (err) {
-      lastErr = err;
+      try {
+        const { w, h } = computeFitDimensions(bitmap.width, bitmap.height, size);
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas no disponible');
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        return await canvasToJpegDataUrl(canvas);
+      } catch (err) {
+        lastErr = err;
+      } finally {
+        // Free the canvas before the next (smaller) attempt — critical on
+        // low-memory mobile devices to avoid "falta de memoria" errors.
+        canvas.width = 0;
+        canvas.height = 0;
+      }
     }
+  } finally {
+    bitmap.close();
   }
-  bitmap.close();
   throw lastErr instanceof Error ? lastErr : new Error('No se pudo procesar la imagen');
 }
 
@@ -194,10 +201,17 @@ async function drawToJpegAtMax(img: HTMLImageElement, max: number): Promise<stri
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas no disponible');
-  ctx.drawImage(img, 0, 0, w, h);
-  return canvasToJpegDataUrl(canvas);
+  try {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas no disponible');
+    ctx.drawImage(img, 0, 0, w, h);
+    return await canvasToJpegDataUrl(canvas);
+  } finally {
+    // Release canvas pixels once the JPEG is encoded so a failed retry doesn't
+    // keep stacking large buffers in memory.
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 async function compressLoadedImage(img: HTMLImageElement): Promise<string> {
@@ -361,6 +375,14 @@ export default function ProductForm({ product, inHousehold }: Props) {
 
   async function handleSubmit(e: { preventDefault: () => void }) {
     e.preventDefault();
+
+    // The photo is still being compressed — submitting now would save the
+    // product without its image. Wait for it to finish.
+    if (uploading) {
+      setError('Espera a que termine de procesarse la foto.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 

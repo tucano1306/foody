@@ -1,6 +1,6 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue, web push */
 
-const VERSION = 'foody-v7';
+const VERSION = 'foody-v8';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;
@@ -87,11 +87,21 @@ function isNavigation(req) {
   return req.mode === 'navigate';
 }
 
+// Next.js sends RSC payloads for client-side navigations (router.push) and
+// router.refresh(). They must NEVER be served stale or the user keeps seeing
+// outdated data (missing products / photos) until a full page reload.
+function isRscRequest(req, url) {
+  return req.headers.get('RSC') === '1' || url.searchParams.has('_rsc');
+}
+
 function isImage(req) {
   return req.destination === 'image';
 }
 
+// Only real backend calls live under /api/. Restricting to that prefix keeps
+// page routes like /products (and their RSC payloads) out of the cache-first path.
 function isApiCall(url) {
+  if (!url.pathname.startsWith('/api/')) return false;
   return /\/(products|shopping-list|payments|users)(\/|$|\?)/.test(url.pathname);
 }
 
@@ -273,6 +283,15 @@ globalThis.addEventListener('fetch', (event) => {
     if (isMutableApiCall(url, globalThis.location.origin)) {
       event.respondWith(handleMutation(req));
     }
+    return;
+  }
+
+  // RSC navigation/prefetch payloads: always network-first, never cached as
+  // stale. Falls back to cache only when truly offline.
+  if (isRscRequest(req, url)) {
+    event.respondWith(
+      fetch(req).catch(async () => (await caches.match(req)) || Response.error()),
+    );
     return;
   }
 
