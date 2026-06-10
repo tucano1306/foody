@@ -10,14 +10,64 @@ interface Props {
 
 type ScanState = 'idle' | 'processing' | 'preview' | 'error';
 
+/** Otsu's method — optimal global B/W threshold from a 256-bin greyscale histogram. */
+function otsuThreshold(hist: readonly number[], total: number): number {
+  let sumAll = 0;
+  for (let i = 0; i < 256; i++) sumAll += i * hist[i];
+  let sumB = 0;
+  let weightB = 0;
+  let maxVariance = 0;
+  let threshold = 127;
+  for (let t = 0; t < 256; t++) {
+    weightB += hist[t];
+    if (weightB === 0) continue;
+    const weightF = total - weightB;
+    if (weightF === 0) break;
+    sumB += t * hist[t];
+    const meanB = sumB / weightB;
+    const meanF = (sumAll - sumB) / weightF;
+    const variance = weightB * weightF * (meanB - meanF) ** 2;
+    if (variance > maxVariance) {
+      maxVariance = variance;
+      threshold = t;
+    }
+  }
+  return threshold;
+}
+
+/** Greyscale + Otsu binarisation in place — gives Tesseract crisp black-on-white. */
+function binarize(imageData: ImageData): void {
+  const d = imageData.data;
+  const grey = new Uint8Array(d.length / 4);
+  const hist = new Array<number>(256).fill(0);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+    grey[p] = g;
+    hist[g]++;
+  }
+  const threshold = otsuThreshold(hist, grey.length);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const v = grey[p] >= threshold ? 255 : 0;
+    d[i] = v; d[i + 1] = v; d[i + 2] = v;
+  }
+}
+
+/** Target longest-side size: upscale tiny shots, cap huge ones (mobile WASM memory). */
+function ocrScale(longest: number): number {
+  const MAX_PX = 1600;
+  const MIN_PX = 1000;
+  if (longest > MAX_PX) return MAX_PX / longest;
+  if (longest < MIN_PX) return MIN_PX / longest;
+  return 1;
+}
+
 function compressForOcr(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const MAX_PX = 1200;
-      const scale = Math.min(1, MAX_PX / Math.max(img.width, img.height));
+      const scale = ocrScale(Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));
       const h = Math.max(1, Math.round(img.height * scale));
       const canvas = document.createElement('canvas');
@@ -27,12 +77,7 @@ function compressForOcr(file: File): Promise<Blob> {
       if (!ctx) { reject(new Error('Canvas no disponible')); return; }
       ctx.drawImage(img, 0, 0, w, h);
       const imageData = ctx.getImageData(0, 0, w, h);
-      const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const grey = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
-        const contrasted = Math.min(255, Math.max(0, Math.round(1.6 * (grey - 128) + 128)));
-        d[i] = contrasted; d[i + 1] = contrasted; d[i + 2] = contrasted;
-      }
+      binarize(imageData);
       ctx.putImageData(imageData, 0, 0);
       canvas.toBlob(
         (blob) => { blob ? resolve(blob) : reject(new Error('Error al comprimir')); },
@@ -42,6 +87,18 @@ function compressForOcr(file: File): Promise<Blob> {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagen inválida')); };
     img.src = url;
   });
+}
+
+interface OcrWorker {
+  setParameters(params: Record<string, unknown>): Promise<unknown>;
+  recognize(image: Blob): Promise<{ data: { text: string } }>;
+}
+
+/** Run one recognition pass with a specific page-segmentation mode. */
+async function recognize(worker: OcrWorker, blob: Blob, psm: string): Promise<string> {
+  await worker.setParameters({ tessedit_pageseg_mode: psm });
+  const { data } = await worker.recognize(blob);
+  return data.text;
 }
 
 type PriceQuality = 'strong' | 'weak' | 'none';
@@ -62,13 +119,38 @@ function isLikelyNonPrice(raw: string, context: string, index: number): boolean 
   return false;
 }
 
+type PushFn = (bucket: number[], raw: string) => void;
+
+/** Strong signals: explicit "$", a decimal separator, or split dollars/cents. */
+function collectStrongPrices(text: string, strong: number[], push: PushFn): void {
+  for (const m of text.matchAll(/\$\s*(\d{1,5}(?:[.,]\d{1,2})?)/g)) push(strong, m[1]);
+  for (const m of text.matchAll(/\b(\d{1,4}[.,]\d{2})\b/g)) push(strong, m[1]);
+  // Split dollars/cents on shelf tags, e.g. "$3 99" or "$ 12 49" → 3.99 / 12.49
+  for (const m of text.matchAll(/\$\s*(\d{1,3})\s+(\d{2})\b/g)) push(strong, `${m[1]}.${m[2]}`);
+}
+
+/** Weak signal: bare integers — only meaningful when no strong price was found. */
+function collectWeakPrices(text: string, weak: number[], push: PushFn): void {
+  for (const m of text.matchAll(/\b(\d{2,4})\b/g)) {
+    if (m.index === undefined) continue;
+    if (isLikelyNonPrice(m[1], text, m.index)) continue;
+    push(weak, m[1]);
+  }
+}
+
+function priceQuality(strong: number[], weak: number[]): PriceQuality {
+  if (strong.length > 0) return 'strong';
+  if (weak.length > 0) return 'weak';
+  return 'none';
+}
+
 function extractPrices(text: string): PriceExtraction {
   const strong: number[] = [];
   const weak: number[] = [];
   const seen = new Set<number>();
   const hasDigits = /\d/.test(text);
 
-  const push = (bucket: number[], raw: string) => {
+  const push: PushFn = (bucket, raw) => {
     const n = Number.parseFloat(raw.replaceAll(',', '.'));
     if (!Number.isNaN(n) && n > 0 && n < 10_000 && !seen.has(n)) {
       seen.add(n);
@@ -76,25 +158,10 @@ function extractPrices(text: string): PriceExtraction {
     }
   };
 
-  // Strong signals: explicit "$" or decimal point/comma
-  for (const m of text.matchAll(/\$\s*(\d{1,5}(?:[.,]\d{1,2})?)/g)) push(strong, m[1]);
-  for (const m of text.matchAll(/\b(\d{1,4}[.,]\d{2})\b/g)) push(strong, m[1]);
+  collectStrongPrices(text, strong, push);
+  if (strong.length === 0) collectWeakPrices(text, weak, push);
 
-  // Weak signal: bare integers — only useful when no strong matches
-  if (strong.length === 0) {
-    for (const m of text.matchAll(/\b(\d{2,4})\b/g)) {
-      if (m.index === undefined) continue;
-      if (isLikelyNonPrice(m[1], text, m.index)) continue;
-      push(weak, m[1]);
-    }
-  }
-
-  let quality: PriceQuality;
-  if (strong.length > 0) quality = 'strong';
-  else if (weak.length > 0) quality = 'weak';
-  else quality = 'none';
-
-  return { prices: strong.length > 0 ? strong : weak, quality, hasDigits };
+  return { prices: strong.length > 0 ? strong : weak, quality: priceQuality(strong, weak), hasDigits };
 }
 
 export default function PriceScannerModal({ productName, onPrice, onClose }: Props) {
@@ -122,7 +189,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
     try {
       const compressed = await compressForOcr(file);
       setPhase('Cargando lector OCR…');
-      const { createWorker } = await import('tesseract.js');
+      const { createWorker, PSM } = await import('tesseract.js');
       worker = await createWorker('eng', 1, {
         workerPath: '/tesseract-worker.min.js',
         corePath: '/tesseract-core',
@@ -131,8 +198,19 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
           if (status === 'recognizing text') setPhase('Leyendo precio…');
         },
       });
-      const { data: { text } } = await worker.recognize(compressed) as { data: { text: string } };
-      const result = extractPrices(text);
+      // Restrict recognition to price characters — drastically cuts the letter↔digit
+      // confusion (e.g. "S"→"5", "O"→"0", "l"→"1") that wrecks free-form OCR on tags.
+      await worker.setParameters({ tessedit_char_whitelist: '0123456789.,$ ' });
+
+      // Pass 1 — treat the shot as a single block (clean price stickers).
+      const block = await recognize(worker, compressed, PSM.SINGLE_BLOCK);
+      let result = extractPrices(block);
+      // Pass 2 — only when unsure: scan sparse text (shelf tags with scattered numbers)
+      // and merge both reads so the user gets every plausible candidate.
+      if (result.quality !== 'strong') {
+        const sparse = await recognize(worker, compressed, PSM.SPARSE_TEXT);
+        result = extractPrices(`${block}\n${sparse}`);
+      }
       setCandidates([...result.prices]);
       setQuality(result.quality);
       setHasDigits(result.hasDigits);

@@ -414,7 +414,15 @@
     "estimados",
     "nums",
     "ítem",
-    "ítems"
+    "ítems",
+    "Otsu",
+    "otsu",
+    "binarise",
+    "binarize",
+    "binarisation",
+    "greyscale",
+    "tessedit",
+    "pageseg"
   ],
   "ignorePaths": [
     "node_modules/**",
