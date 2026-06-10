@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS "monthly_payments" (
   "notification_days_before" SMALLINT      NOT NULL DEFAULT 1,
   "snoozed_until"            TIMESTAMPTZ,
   "is_variable_amount"       BOOLEAN       NOT NULL DEFAULT false,
+  "is_auto_pay"              BOOLEAN       NOT NULL DEFAULT false,
   "payment_method"           VARCHAR(20),
   "bank_name"                VARCHAR(100),
   "account_last4"            VARCHAR(4),
@@ -274,4 +275,5 @@ ALTER TABLE "monthly_payments" ALTER COLUMN "notification_days_before" SET DEFAU
 ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "payment_method" VARCHAR(20) NULL;
 ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "bank_name" VARCHAR(100) NULL;
 ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "account_last4" VARCHAR(4) NULL;
+ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "is_auto_pay" BOOLEAN NOT NULL DEFAULT false;
 
