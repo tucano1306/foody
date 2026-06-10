@@ -387,8 +387,11 @@ export default function ProductForm({ product, inHousehold }: Props) {
         throw new Error(data.message ?? 'Error al guardar');
       }
 
-      router.refresh();
+      // Navigate first, then refresh so the *destination* (/products) re-fetches
+      // fresh server data. Refreshing before the push only revalidates the form
+      // route and lands on a stale, cached product list.
       router.push('/products');
+      router.refresh();
     } catch (err) {
       setError((err as Error).message);
     } finally {
