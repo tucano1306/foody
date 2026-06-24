@@ -1,6 +1,17 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  binarize,
+  buildCandidates,
+  extractPrices,
+  flattenWords,
+  ocrScale,
+  summarize,
+  type OcrBlock,
+  type PriceQuality,
+  type ScanWord,
+} from '@/lib/price-scan';
 
 interface Props {
   readonly productName: string;
@@ -8,60 +19,43 @@ interface Props {
   readonly onClose: () => void;
 }
 
-type ScanState = 'idle' | 'processing' | 'preview' | 'error';
+type ScanState = 'idle' | 'camera' | 'processing' | 'preview' | 'error';
 
-/** Otsu's method — optimal global B/W threshold from a 256-bin greyscale histogram. */
-function otsuThreshold(hist: readonly number[], total: number): number {
-  let sumAll = 0;
-  for (let i = 0; i < 256; i++) sumAll += i * hist[i];
-  let sumB = 0;
-  let weightB = 0;
-  let maxVariance = 0;
-  let threshold = 127;
-  for (let t = 0; t < 256; t++) {
-    weightB += hist[t];
-    if (weightB === 0) continue;
-    const weightF = total - weightB;
-    if (weightF === 0) break;
-    sumB += t * hist[t];
-    const meanB = sumB / weightB;
-    const meanF = (sumAll - sumB) / weightF;
-    const variance = weightB * weightF * (meanB - meanF) ** 2;
-    if (variance > maxVariance) {
-      maxVariance = variance;
-      threshold = t;
-    }
-  }
-  return threshold;
+/** White margin added around the shot so binarised text never touches the edge. */
+const OCR_PADDING = 0.04;
+
+// Region-of-interest guide as fractions of the live preview box. A wide, short
+// band matches a price; cropping to it removes surrounding shelf noise so the
+// OCR only ever sees the number the user framed.
+const GUIDE_MX = 0.06; // left/right margin
+const GUIDE_MY = 0.34; // top/bottom margin (→ centred band ~32% tall)
+
+/**
+ * Crop the framed band out of the live video to a Blob, mapping the on-screen
+ * guide (object-cover display) back to the video's intrinsic pixels so what the
+ * user sees is exactly what gets read.
+ */
+function cropRoiToBlob(video: HTMLVideoElement, cw: number, ch: number): Promise<Blob | null> {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh || !cw || !ch) return Promise.resolve(null);
+  const scale = Math.max(cw / vw, ch / vh); // object-cover fill factor
+  const offX = (vw * scale - cw) / 2;
+  const offY = (vh * scale - ch) / 2;
+  const sx = (GUIDE_MX * cw + offX) / scale;
+  const sy = (GUIDE_MY * ch + offY) / scale;
+  const sw = ((1 - 2 * GUIDE_MX) * cw) / scale;
+  const sh = ((1 - 2 * GUIDE_MY) * ch) / scale;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(sw));
+  canvas.height = Math.max(1, Math.round(sh));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return Promise.resolve(null);
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95));
 }
 
-/** Greyscale + Otsu binarisation in place — gives Tesseract crisp black-on-white. */
-function binarize(imageData: ImageData): void {
-  const d = imageData.data;
-  const grey = new Uint8Array(d.length / 4);
-  const hist = new Array<number>(256).fill(0);
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const g = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
-    grey[p] = g;
-    hist[g]++;
-  }
-  const threshold = otsuThreshold(hist, grey.length);
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const v = grey[p] >= threshold ? 255 : 0;
-    d[i] = v; d[i + 1] = v; d[i + 2] = v;
-  }
-}
-
-/** Target longest-side size: upscale tiny shots, cap huge ones (mobile WASM memory). */
-function ocrScale(longest: number): number {
-  const MAX_PX = 1600;
-  const MIN_PX = 1000;
-  if (longest > MAX_PX) return MAX_PX / longest;
-  if (longest < MIN_PX) return MIN_PX / longest;
-  return 1;
-}
-
-function compressForOcr(file: File): Promise<Blob> {
+function compressForOcr(file: Blob): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -70,15 +64,19 @@ function compressForOcr(file: File): Promise<Blob> {
       const scale = ocrScale(Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));
       const h = Math.max(1, Math.round(img.height * scale));
+      const pad = Math.round(Math.max(w, h) * OCR_PADDING);
       const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = w + pad * 2;
+      canvas.height = h + pad * 2;
       const ctx = canvas.getContext('2d');
       if (!ctx) { reject(new Error('Canvas no disponible')); return; }
-      ctx.drawImage(img, 0, 0, w, h);
-      const imageData = ctx.getImageData(0, 0, w, h);
+      // Paint a white background + margin first, then the (binarised) photo.
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, pad, pad, w, h);
+      const imageData = ctx.getImageData(pad, pad, w, h);
       binarize(imageData);
-      ctx.putImageData(imageData, 0, 0);
+      ctx.putImageData(imageData, pad, pad);
       canvas.toBlob(
         (blob) => { blob ? resolve(blob) : reject(new Error('Error al comprimir')); },
         'image/png',
@@ -89,79 +87,25 @@ function compressForOcr(file: File): Promise<Blob> {
   });
 }
 
+interface OcrPage { text: string; blocks: OcrBlock[] | null }
 interface OcrWorker {
   setParameters(params: Record<string, unknown>): Promise<unknown>;
-  recognize(image: Blob): Promise<{ data: { text: string } }>;
+  recognize(
+    image: Blob,
+    options?: Record<string, unknown>,
+    output?: Record<string, unknown>,
+  ): Promise<{ data: OcrPage }>;
 }
 
-/** Run one recognition pass with a specific page-segmentation mode. */
-async function recognize(worker: OcrWorker, blob: Blob, psm: string): Promise<string> {
+/** One recognition pass → page text + flattened word geometry (bbox + confidence). */
+async function recognizePass(
+  worker: OcrWorker,
+  blob: Blob,
+  psm: string,
+): Promise<{ text: string; words: ScanWord[] }> {
   await worker.setParameters({ tessedit_pageseg_mode: psm });
-  const { data } = await worker.recognize(blob);
-  return data.text;
-}
-
-type PriceQuality = 'strong' | 'weak' | 'none';
-interface PriceExtraction {
-  readonly prices: readonly number[];
-  readonly quality: PriceQuality;
-  readonly hasDigits: boolean;
-}
-
-// Numbers that look like a price but almost never are:
-//  - 4-digit years (1900-2099) when there's no currency / decimal
-//  - numbers attached to %  (e.g. "100%")
-function isLikelyNonPrice(raw: string, context: string, index: number): boolean {
-  const n = Number.parseInt(raw, 10);
-  if (Number.isFinite(n) && n >= 1900 && n <= 2099 && raw.length === 4) return true;
-  const after = context.slice(index + raw.length, index + raw.length + 2);
-  if (after.trimStart().startsWith('%')) return true;
-  return false;
-}
-
-type PushFn = (bucket: number[], raw: string) => void;
-
-/** Strong signals: explicit "$", a decimal separator, or split dollars/cents. */
-function collectStrongPrices(text: string, strong: number[], push: PushFn): void {
-  for (const m of text.matchAll(/\$\s*(\d{1,5}(?:[.,]\d{1,2})?)/g)) push(strong, m[1]);
-  for (const m of text.matchAll(/\b(\d{1,4}[.,]\d{2})\b/g)) push(strong, m[1]);
-  // Split dollars/cents on shelf tags, e.g. "$3 99" or "$ 12 49" → 3.99 / 12.49
-  for (const m of text.matchAll(/\$\s*(\d{1,3})\s+(\d{2})\b/g)) push(strong, `${m[1]}.${m[2]}`);
-}
-
-/** Weak signal: bare integers — only meaningful when no strong price was found. */
-function collectWeakPrices(text: string, weak: number[], push: PushFn): void {
-  for (const m of text.matchAll(/\b(\d{2,4})\b/g)) {
-    if (m.index === undefined) continue;
-    if (isLikelyNonPrice(m[1], text, m.index)) continue;
-    push(weak, m[1]);
-  }
-}
-
-function priceQuality(strong: number[], weak: number[]): PriceQuality {
-  if (strong.length > 0) return 'strong';
-  if (weak.length > 0) return 'weak';
-  return 'none';
-}
-
-function extractPrices(text: string): PriceExtraction {
-  const strong: number[] = [];
-  const weak: number[] = [];
-  const seen = new Set<number>();
-  const hasDigits = /\d/.test(text);
-
-  const push: PushFn = (bucket, raw) => {
-    const n = Number.parseFloat(raw.replaceAll(',', '.'));
-    if (!Number.isNaN(n) && n > 0 && n < 10_000 && !seen.has(n)) {
-      seen.add(n);
-      bucket.push(n);
-    }
-  };
-
-  collectStrongPrices(text, strong, push);
-  if (strong.length === 0) collectWeakPrices(text, weak, push);
-
-  return { prices: strong.length > 0 ? strong : weak, quality: priceQuality(strong, weak), hasDigits };
+  const { data } = await worker.recognize(blob, undefined, { blocks: true, text: true });
+  return { text: data.text ?? '', words: flattenWords(data.blocks) };
 }
 
 export default function PriceScannerModal({ productName, onPrice, onClose }: Props) {
@@ -175,8 +119,11 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [phase, setPhase] = useState('');
   const abortRef = useRef(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const processImage = useCallback(async (file: File) => {
+  const processImage = useCallback(async (file: Blob) => {
     abortRef.current = false;
     setState('processing');
     setErrorMsg(null);
@@ -200,22 +147,41 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
       });
       // Restrict recognition to price characters — drastically cuts the letter↔digit
       // confusion (e.g. "S"→"5", "O"→"0", "l"→"1") that wrecks free-form OCR on tags.
-      await worker.setParameters({ tessedit_char_whitelist: '0123456789.,$ ' });
+      // The DPI hint stops Tesseract guessing scale and improves digit segmentation.
+      await worker.setParameters({
+        tessedit_char_whitelist: '0123456789.,$ ',
+        user_defined_dpi: '300',
+      });
 
       // Pass 1 — treat the shot as a single block (clean price stickers).
-      const block = await recognize(worker, compressed, PSM.SINGLE_BLOCK);
-      let result = extractPrices(block);
-      // Pass 2 — only when unsure: scan sparse text (shelf tags with scattered numbers)
-      // and merge both reads so the user gets every plausible candidate.
-      if (result.quality !== 'strong') {
-        const sparse = await recognize(worker, compressed, PSM.SPARSE_TEXT);
-        result = extractPrices(`${block}\n${sparse}`);
+      const pass1 = await recognizePass(worker, compressed, PSM.SINGLE_BLOCK);
+      let words = pass1.words;
+      let text = pass1.text;
+      let summary = summarize(buildCandidates(words));
+
+      // Pass 2 — only when unsure: sparse text (shelf tags with scattered numbers).
+      // Merge the geometry of both passes so the biggest digits still win.
+      if (summary.quality !== 'strong') {
+        const pass2 = await recognizePass(worker, compressed, PSM.SPARSE_TEXT);
+        words = [...words, ...pass2.words];
+        text = `${text}\n${pass2.text}`;
+        summary = summarize(buildCandidates(words));
       }
-      setCandidates([...result.prices]);
-      setQuality(result.quality);
-      setHasDigits(result.hasDigits);
-      // Only auto-select when we're confident; for weak matches force user to pick
-      setSelected(result.quality === 'strong' ? result.prices[0] ?? null : null);
+
+      if (summary.prices.length > 0) {
+        // Candidates ranked biggest/most-confident first; pre-select the winner.
+        setCandidates(summary.prices.slice(0, 8));
+        setQuality(summary.quality);
+        setHasDigits(true);
+        setSelected(summary.autoSelect);
+      } else {
+        // No geometry (older worker) or nothing numeric — fall back to text regex.
+        const fb = extractPrices(text);
+        setCandidates([...fb.prices]);
+        setQuality(fb.quality);
+        setHasDigits(fb.hasDigits);
+        setSelected(fb.quality === 'strong' ? fb.prices[0] ?? null : null);
+      }
       setState('preview');
     } catch (err) {
       URL.revokeObjectURL(objectUrl);
@@ -226,11 +192,13 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
     }
   }, []);
 
-  function openCamera() {
+  // Native file/camera input — used as a fallback when the live camera is
+  // unavailable, and for picking an existing photo from the gallery.
+  const openFile = useCallback((useCapture: boolean) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = 'environment';
+    if (useCapture) input.capture = 'environment';
     input.style.cssText = 'position:fixed;top:-200px;left:-200px;opacity:0;';
     document.body.appendChild(input);
     input.addEventListener('change', () => {
@@ -239,7 +207,50 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
       if (file) void processImage(file);
     });
     input.click();
-  }
+  }, [processImage]);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  // Live camera with an on-screen ROI guide. Falls back to the native input
+  // when getUserMedia is unsupported or the permission is denied.
+  const startCamera = useCallback(async () => {
+    setErrorMsg(null);
+    setSelected(null);
+    setManual('');
+    if (!navigator.mediaDevices?.getUserMedia) { openFile(true); return; }
+    setState('camera');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      const v = videoRef.current;
+      if (v) { v.srcObject = stream; await v.play().catch(() => undefined); }
+    } catch {
+      stopCamera();
+      setState('idle');
+      openFile(true);
+    }
+  }, [openFile, stopCamera]);
+
+  const capturePhoto = useCallback(async () => {
+    const v = videoRef.current;
+    const f = frameRef.current;
+    if (!v || !f) return;
+    const rect = f.getBoundingClientRect();
+    const blob = await cropRoiToBlob(v, rect.width, rect.height);
+    stopCamera();
+    if (blob) { void processImage(blob); }
+    else { setErrorMsg('No se pudo capturar la imagen.'); setState('error'); }
+  }, [processImage, stopCamera]);
+
+  // Release the camera when the modal unmounts.
+  useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
   function confirm() {
     const manualNum = manual.trim() ? Number.parseFloat(manual.replaceAll(',', '.')) : null;
@@ -253,6 +264,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
 
   function handleClose() {
     abortRef.current = true;
+    stopCamera();
     onClose();
   }
 
@@ -302,10 +314,17 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
             </p>
             <button
               type="button"
-              onClick={openCamera}
+              onClick={startCamera}
               className="w-full py-3.5 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-base transition active:scale-[0.97] shadow-md shadow-market-500/20"
             >
               📷 Abrir cámara
+            </button>
+            <button
+              type="button"
+              onClick={() => openFile(false)}
+              className="w-full py-2.5 rounded-2xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+            >
+              📁 Subir una foto
             </button>
             <div className="flex items-center gap-2">
               <hr className="flex-1 border-stone-100" />
@@ -337,6 +356,40 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
           </div>
         )}
 
+        {/* live camera with ROI guide */}
+        {state === 'camera' && (
+          <div className="space-y-3">
+            <div ref={frameRef} className="relative w-full h-72 bg-black rounded-2xl overflow-hidden">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              {/* ROI frame + darkened surround so only the price band is highlighted */}
+              <div
+                className="absolute rounded-xl border-2 border-white/90 pointer-events-none"
+                style={{ top: '34%', bottom: '34%', left: '6%', right: '6%', boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)' }}
+              />
+              <p className="absolute inset-x-0 top-3 text-center text-white text-xs font-medium drop-shadow">
+                Encuadra el precio dentro del recuadro
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { stopCamera(); setState('idle'); }}
+                className="py-3 px-4 rounded-2xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={capturePhoto}
+                className="flex-1 py-3 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-base transition active:scale-[0.97] shadow-md shadow-market-500/20"
+              >
+                📸 Capturar precio
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* processing */}
         {state === 'processing' && (
           <div className="text-center py-6 space-y-3">
@@ -352,7 +405,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
               <p className="text-red-700 text-sm">{errorMsg ?? 'No se pudo leer el precio.'}</p>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={openCamera} className="flex-1 py-2.5 rounded-xl bg-market-600 text-white font-semibold text-sm transition">
+              <button type="button" onClick={startCamera} className="flex-1 py-2.5 rounded-xl bg-market-600 text-white font-semibold text-sm transition">
                 📷 Reintentar
               </button>
               <button type="button" onClick={handleClose} className="flex-1 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-semibold text-sm transition">
@@ -451,7 +504,8 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={openCamera}
+                onClick={startCamera}
+                aria-label="Escanear de nuevo"
                 className="py-2.5 px-4 rounded-xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
               >
                 📷
