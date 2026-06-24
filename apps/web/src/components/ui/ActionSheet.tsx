@@ -7,6 +7,8 @@ interface Action {
   readonly emoji?: string;
   readonly onClick: () => void;
   readonly destructive?: boolean;
+  /** Marks the action as the product's current state (shows a check + "actual"). */
+  readonly current?: boolean;
 }
 
 interface Props {
@@ -50,7 +52,11 @@ export default function ActionSheet({ open, onClose, title, actions }: Props) {
             </p>
           )}
           <div className="flex flex-col gap-1 pt-2">
-            {actions.map((a) => (
+            {actions.map((a) => {
+              let btnCls = 'text-stone-700 hover:bg-stone-100';
+              if (a.current) btnCls = 'bg-stone-100 text-stone-500';
+              else if (a.destructive) btnCls = 'text-rose-600 hover:bg-rose-50';
+              return (
               <button
                 key={a.label}
                 type="button"
@@ -58,16 +64,16 @@ export default function ActionSheet({ open, onClose, title, actions }: Props) {
                   a.onClick();
                   onClose();
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium transition-colors ${
-                  a.destructive
-                    ? 'text-rose-600 hover:bg-rose-50'
-                    : 'text-stone-700 hover:bg-stone-100'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium transition-colors ${btnCls}`}
               >
                 {a.emoji && <span className="text-xl">{a.emoji}</span>}
-                {a.label}
+                <span className="flex-1">{a.label}</span>
+                {a.current && (
+                  <span className="text-xs font-semibold text-stone-400">✓ actual</span>
+                )}
               </button>
-            ))}
+              );
+            })}
           </div>
           <button
             type="button"

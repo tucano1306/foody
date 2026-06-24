@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayNotEmpty,
   IsArray,
   IsDateString,
   IsEnum,
@@ -86,10 +85,14 @@ export class CreateShoppingTripDto {
   @IsString()
   notes?: string;
 
-  @ApiProperty({ type: [ShoppingTripItemDto] })
+  @ApiPropertyOptional({
+    type: [ShoppingTripItemDto],
+    description:
+      'Productos comprados (opcional). Si se omite, se guarda solo el total de la compra.',
+  })
+  @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
   @ValidateNested({ each: true })
   @Type(() => ShoppingTripItemDto)
-  items: ShoppingTripItemDto[];
+  items?: ShoppingTripItemDto[];
 }

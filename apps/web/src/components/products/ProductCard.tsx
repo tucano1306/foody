@@ -277,8 +277,9 @@ export default function ProductCard({ product, showActions = false, compact = fa
           onClose={() => setSheetOpen(false)}
           title={current.name}
           actions={[
-            ...(level === 'empty' ? [] : [{ label: 'Se acabó', emoji: '🚨', onClick: () => setLevel('empty') }]),
-            { label: 'A la mitad', emoji: '⚠️', onClick: () => setLevel('half') },
+            { label: 'Tengo', emoji: '✅', current: level === 'full', onClick: () => setLevel('full') },
+            { label: 'A la mitad', emoji: '⚠️', current: level === 'half', onClick: () => setLevel('half') },
+            { label: 'Se acabó', emoji: '🚨', current: level === 'empty', onClick: () => setLevel('empty') },
           ]}
         />
         {lightboxOpen && current.photoUrl && (
@@ -369,9 +370,9 @@ export default function ProductCard({ product, showActions = false, compact = fa
         onClose={() => setSheetOpen(false)}
         title={current.name}
         actions={[
-          { label: 'Marcar como "Tengo"', emoji: '✅', onClick: () => setLevel('full') },
-          { label: 'Marcar como "A la mitad"', emoji: '⚠️', onClick: () => setLevel('half') },
-          ...(level === 'empty' ? [] : [{ label: 'Marcar como "Se acabó"', emoji: '🚨', onClick: () => setLevel('empty') }]),
+          { label: 'Marcar como "Tengo"', emoji: '✅', current: level === 'full', onClick: () => setLevel('full') },
+          { label: 'Marcar como "A la mitad"', emoji: '⚠️', current: level === 'half', onClick: () => setLevel('half') },
+          { label: 'Marcar como "Se acabó"', emoji: '🚨', current: level === 'empty', onClick: () => setLevel('empty') },
           ...(showActions ? [
             { label: 'Editar producto', emoji: '✏️', onClick: () => router.push(`/products/${current.id}`) },
             { label: 'Enviar a un amigo', emoji: '🎁', onClick: () => setGiftOpen(true) },

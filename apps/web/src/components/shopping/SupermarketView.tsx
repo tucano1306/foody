@@ -196,19 +196,36 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
   const progress = items.length === 0 ? 0 : (inCart.length / items.length) * 100;
 
+  // How many units the user is buying of a product. Defaults to the needed
+  // quantity (≥1), but the user can adjust it from the cart row.
+  function getQty(item: ShoppingListItem): number {
+    const q = quantities[item.product.id];
+    if (q !== undefined && q > 0) return q;
+    return item.quantityNeeded > 0 ? item.quantityNeeded : 1;
+  }
+
+  function setQty(productId: string, value: number) {
+    setQuantities((prev) => ({ ...prev, [productId]: Math.max(0, value) }));
+  }
+
   const runningTotal = useMemo(() =>
     inCart.reduce((sum, item) => {
       const price = scannedPrices[item.product.id] ?? item.product.lastPurchasePrice ?? null;
       if (price === null) return sum;
-      return sum + price * (item.quantityNeeded > 0 ? item.quantityNeeded : 1);
+      const q = quantities[item.product.id];
+      const qty = q !== undefined && q > 0 ? q : Math.max(1, item.quantityNeeded);
+      return sum + price * qty;
     }, 0),
-  [inCart, scannedPrices]);
+  [inCart, scannedPrices, quantities]);
   const scannedCount = inCart.filter((i) => scannedPrices[i.product.id] !== undefined).length;
   const estimatedCount = inCart.filter(
     (i) => scannedPrices[i.product.id] === undefined && i.product.lastPurchasePrice !== null,
   ).length;
   const priceCount = scannedCount + estimatedCount;
   const hasEstimated = estimatedCount > 0;
+  const totalMatchesCalculated =
+    runningTotal > 0 &&
+    Math.abs((Number.parseFloat(totalAmount) || 0) - runningTotal) < 0.01;
 
   function replaceItem(id: string, updated: ShoppingListItem) {
     setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
@@ -246,12 +263,16 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
   function openModal() {
     if (inCart.length === 0) return;
-    const initQty: Record<string, number> = {};
-    for (const item of inCart) {
-      initQty[item.product.id] = item.quantityNeeded > 0 ? item.quantityNeeded : 1;
-    }
-    setQuantities(initQty);
-    if (!totalAmount.trim() && runningTotal > 0) {
+    // Seed any quantity the user hasn't set yet, without overwriting their input.
+    setQuantities((prev) => {
+      const next = { ...prev };
+      for (const item of inCart) {
+        next[item.product.id] ??= Math.max(1, item.quantityNeeded);
+      }
+      return next;
+    });
+    // Auto-fill the total with the calculated amount so the user only confirms.
+    if (runningTotal > 0) {
       setTotalAmount(runningTotal.toFixed(2));
     }
     setShowModal(true);
@@ -573,6 +594,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               inCart
               scannedPrice={scannedPrices[item.product.id]}
               onScanPrice={() => setScanningProductId(item.product.id)}
+              quantity={getQty(item)}
+              onQtyChange={(v) => setQty(item.product.id, v)}
             />
           ))}
         </Section>
@@ -674,13 +697,14 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               htmlFor="modal-total-amount"
               className="block text-sm font-semibold text-stone-700 mb-1.5"
             >
-              ¿Cuánto gastaste en total? <span className="font-normal text-stone-400">(opcional)</span>
+              ¿Cuánto gastaste en total?
             </label>
-            <div className="relative mb-4">
+            <div className="relative mb-1.5">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
               <input
                 id="modal-total-amount"
                 type="number"
+                inputMode="decimal"
                 min="0"
                 step="0.01"
                 value={totalAmount}
@@ -689,6 +713,13 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
               />
             </div>
+            <p className="text-xs text-stone-400 mb-4">
+              {(() => {
+                if (!runningTotal) return 'Escanea los precios para sumar el total automáticamente, o escríbelo a mano.';
+                if (totalMatchesCalculated) return '✓ Sumado automáticamente. Si es correcto, confirma; si no, ajústalo arriba.';
+                return '✏️ Lo ajustaste manualmente. Toca «Usar» para volver al total calculado.';
+              })()}
+            </p>
 
             {/* Quantities + Prices */}
             <p className="text-sm font-semibold text-stone-700 mb-2">
@@ -829,6 +860,8 @@ function ShoppingItemRow({
   urgent = false,
   scannedPrice,
   onScanPrice,
+  quantity,
+  onQtyChange,
 }: {
   readonly item: ShoppingListItem;
   readonly onToggle: () => void;
@@ -837,13 +870,19 @@ function ShoppingItemRow({
   readonly urgent?: boolean;
   readonly scannedPrice?: number;
   readonly onScanPrice?: () => void;
+  readonly quantity?: number;
+  readonly onQtyChange?: (value: number) => void;
 }) {
   const product = item.product;
   const rowCls = getRowCls(inCart, urgent);
   const checkboxCls = getCheckboxCls(inCart, urgent);
+  const showCartControls = inCart && !!onScanPrice;
+  const qty = quantity && quantity > 0 ? quantity : Math.max(1, item.quantityNeeded);
+  const lineTotal = scannedPrice === undefined ? undefined : scannedPrice * qty;
 
   return (
-    <div className={`w-full flex items-center gap-2 p-3 rounded-2xl border transition-all ${rowCls}`}>
+    <div className={`w-full rounded-2xl border transition-all ${rowCls}`}>
+      <div className="flex items-center gap-2 p-3">
       {/* Toggle area */}
       <button
         onClick={onToggle}
@@ -912,21 +951,69 @@ function ShoppingItemRow({
           </span>
         )}
       </button>
+      </div>
 
-      {/* Camera / price button (in-cart + scan enabled) */}
-      {inCart && onScanPrice && (
-        <button
-          type="button"
-          onClick={onScanPrice}
-          className={`shrink-0 flex flex-col items-center justify-center px-2 py-1.5 rounded-xl text-[10px] font-bold border transition min-w-13 ${
-            scannedPrice === undefined
-              ? 'bg-stone-50 border-stone-200 text-stone-400 hover:border-market-300 hover:text-market-600'
-              : 'bg-market-50 border-market-300 text-market-700'
-          }`}
-        >
-          <span className="text-base leading-none mb-0.5">📷</span>
-          <span>{scannedPrice === undefined ? 'precio' : `$${scannedPrice.toFixed(2)}`}</span>
-        </button>
+      {/* Footer: quantity stepper + price (in-cart + scan enabled) */}
+      {showCartControls && (
+        <div className="flex items-center gap-2 px-3 pb-3 -mt-1">
+          {/* Quantity stepper — "¿cuántas piezas compraste?" */}
+          <div className="flex items-center gap-0.5 bg-white border border-stone-200 rounded-xl p-0.5">
+            <button
+              type="button"
+              aria-label="Quitar una unidad"
+              onClick={() => onQtyChange?.(Math.max(1, qty - 1))}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 active:scale-90 transition text-lg font-bold"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              aria-label={`Cantidad de ${product.name}`}
+              value={qty}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') { onQtyChange?.(0); return; }
+                const n = Number(raw);
+                if (Number.isFinite(n)) onQtyChange?.(n);
+              }}
+              className="w-9 text-center text-sm font-bold text-stone-800 bg-transparent focus:outline-none tabular-nums"
+            />
+            <button
+              type="button"
+              aria-label="Agregar una unidad"
+              onClick={() => onQtyChange?.(qty + 1)}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 active:scale-90 transition text-lg font-bold"
+            >
+              ＋
+            </button>
+            {product.unit && (
+              <span className="text-[10px] text-stone-400 pr-1.5">{product.unit}</span>
+            )}
+          </div>
+
+          {/* Line total once a price is captured */}
+          {lineTotal !== undefined && (
+            <span className="text-xs font-bold text-market-700 tabular-nums">
+              = ${lineTotal.toFixed(2)}
+            </span>
+          )}
+
+          {/* Camera / price button */}
+          <button
+            type="button"
+            onClick={onScanPrice}
+            className={`ml-auto shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition ${
+              scannedPrice === undefined
+                ? 'bg-stone-50 border-stone-200 text-stone-400 hover:border-market-300 hover:text-market-600'
+                : 'bg-market-50 border-market-300 text-market-700'
+            }`}
+          >
+            <span className="text-base leading-none">📷</span>
+            <span>{scannedPrice === undefined ? 'precio c/u' : `$${scannedPrice.toFixed(2)} c/u`}</span>
+          </button>
+        </div>
       )}
     </div>
   );

@@ -57,6 +57,12 @@ export default function PaymentForm() {
         return;
       }
 
+      if (!form.dueDay || form.dueDay < 1 || form.dueDay > 31) {
+        setError('El día de vencimiento debe estar entre 1 y 31');
+        setSaving(false);
+        return;
+      }
+
       const parsedNotify = notifyValue === '' ? 0 : Number.parseInt(notifyValue, 10);
       const safeNotify = Number.isNaN(parsedNotify) ? 0 : parsedNotify;
       const daysBeforeValue = notifyUnit === 'months' ? safeNotify * 30 : safeNotify;
@@ -207,10 +213,21 @@ export default function PaymentForm() {
               id="payment-due-day"
               required
               type="number"
+              inputMode="numeric"
               min={1}
               max={31}
-              value={form.dueDay}
-              onChange={(e) => setForm((f) => ({ ...f, dueDay: Number.parseInt(e.target.value, 10) || 1 }))}
+              value={form.dueDay === 0 ? '' : form.dueDay}
+              placeholder="Ej. 15"
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  setForm((f) => ({ ...f, dueDay: 0 }));
+                  return;
+                }
+                const n = Number.parseInt(raw, 10);
+                if (Number.isNaN(n)) return;
+                setForm((f) => ({ ...f, dueDay: Math.min(31, Math.max(0, n)) }));
+              }}
               className="w-full px-4 py-3 rounded-2xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 text-xs select-none">/ mes</span>

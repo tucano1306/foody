@@ -18,22 +18,48 @@ export class ShoppingListService {
   async getList(userId: string): Promise<ShoppingListItem[]> {
     const scope = await this.scopeService.resolve(userId);
     const base = this.scopeService.whereFragment(scope) as FindOptionsWhere<ShoppingListItem>;
-    return this.itemsRepo.find({
+    const items = await this.itemsRepo.find({
       where: { ...base, isPurchased: false },
       order: { isInCart: 'DESC', createdAt: 'ASC' },
     });
+
+    // Defensive de-duplication: never show the same product twice in the
+    // shopping list, even if older rows somehow created duplicates. Keep the
+    // first occurrence (in-cart rows are ordered first) and clean up the rest.
+    const seen = new Set<string>();
+    const unique: ShoppingListItem[] = [];
+    const duplicates: ShoppingListItem[] = [];
+    for (const item of items) {
+      if (seen.has(item.productId)) {
+        duplicates.push(item);
+      } else {
+        seen.add(item.productId);
+        unique.push(item);
+      }
+    }
+    if (duplicates.length > 0) {
+      await this.itemsRepo.remove(duplicates).catch(() => undefined);
+    }
+    return unique;
   }
 
   async addToList(userId: string, productId: string, quantityNeeded = 1): Promise<ShoppingListItem> {
     const scope = await this.scopeService.resolve(userId);
     const base = this.scopeService.whereFragment(scope) as FindOptionsWhere<ShoppingListItem>;
-    // Avoid duplicates (shared across household members)
-    const existing = await this.itemsRepo.findOne({
+    // Avoid duplicates (shared across household members). Fetch ALL active rows
+    // for this product so we can heal any pre-existing duplicates created by a
+    // race between two rapid stock-level changes.
+    const existing = await this.itemsRepo.find({
       where: { ...base, productId, isPurchased: false },
+      order: { createdAt: 'ASC' },
     });
 
-    if (existing) {
-      return existing;
+    if (existing.length > 0) {
+      // Keep the oldest row, drop accidental duplicates.
+      if (existing.length > 1) {
+        await this.itemsRepo.remove(existing.slice(1)).catch(() => undefined);
+      }
+      return existing[0];
     }
 
     const item = this.itemsRepo.create({

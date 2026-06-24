@@ -3,7 +3,6 @@ import { getSession } from '@/lib/session';
 import UpcomingPaymentsWidget from '@/components/home/UpcomingPaymentsWidget';
 import DashboardStats from '@/components/home/DashboardStats';
 import FrequentProducts from '@/components/home/FrequentProducts';
-import ExpensesByCategory from '@/components/home/ExpensesByCategory';
 import ExpensesByStore from '@/components/home/ExpensesByStore';
 import StoreVisitsWheel from '@/components/home/StoreVisitsWheel';
 import MonthlyFoodWheel from '@/components/home/MonthlyFoodWheel';
@@ -67,8 +66,6 @@ export default async function HomePage() {
         <StoreVisitsWheel />
         <MonthlyFoodWheel />
       </div>
-
-      <ExpensesByCategory />
 
       <ExpensesByStore />
 
