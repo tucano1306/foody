@@ -349,26 +349,33 @@ export const api = {
   shoppingList: {
     get: async () => {
       const { userId } = await getAuthContext();
+      // DISTINCT ON (product_id) collapses any duplicate rows for the same
+      // product (e.g. created by rapid stock-level changes) so the shopping
+      // list never shows the same product twice. We keep the row that is in
+      // the cart if any, otherwise the oldest one.
       const rows = await sql`
-        SELECT
-          sli.*,
-          p.name       as product_name,
-          p.description as product_description,
-          p.photo_url  as product_photo_url,
-          p.category   as product_category,
-          p.current_quantity as product_current_quantity,
-          p.min_quantity     as product_min_quantity,
-          p.unit             as product_unit,
-          p.stock_level      as product_stock_level,
-          p.is_running_low   as product_is_running_low,
-          p.needs_shopping   as product_needs_shopping,
-          p.user_id          as product_user_id,
-          p.created_at       as product_created_at,
-          p.updated_at       as product_updated_at
-        FROM shopping_list_items sli
-        LEFT JOIN products p ON sli.product_id = p.id
-        WHERE sli.user_id = ${userId}
-        ORDER BY sli.created_at DESC
+        SELECT * FROM (
+          SELECT DISTINCT ON (sli.product_id)
+            sli.*,
+            p.name       as product_name,
+            p.description as product_description,
+            p.photo_url  as product_photo_url,
+            p.category   as product_category,
+            p.current_quantity as product_current_quantity,
+            p.min_quantity     as product_min_quantity,
+            p.unit             as product_unit,
+            p.stock_level      as product_stock_level,
+            p.is_running_low   as product_is_running_low,
+            p.needs_shopping   as product_needs_shopping,
+            p.user_id          as product_user_id,
+            p.created_at       as product_created_at,
+            p.updated_at       as product_updated_at
+          FROM shopping_list_items sli
+          LEFT JOIN products p ON sli.product_id = p.id
+          WHERE sli.user_id = ${userId} AND sli.is_purchased = false
+          ORDER BY sli.product_id, sli.is_in_cart DESC, sli.created_at ASC
+        ) t
+        ORDER BY t.created_at DESC
       `;
       return rows.map((row) => mapShoppingListItem(row as Record<string, unknown>));
     },
