@@ -6,6 +6,7 @@ import type { MonthlyPayment } from '@foody/types';
 import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
 import MarkPaidModal from '@/components/payments/MarkPaidModal';
+import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 interface Props {
   readonly payment: MonthlyPayment;
   readonly autoOpen?: boolean;
@@ -15,7 +16,7 @@ interface Props {
   readonly onSnoozed?: (id: string, snoozedUntil: string) => void;
 }
 
-type Urgency = 'today' | 'urgent' | 'upcoming' | 'normal';
+type Urgency = 'overdue' | 'today' | 'urgent' | 'upcoming' | 'normal';
 
 const CATEGORY_ICONS: Record<string, string> = {
   utilities: '💡',
@@ -28,8 +29,21 @@ const CATEGORY_ICONS: Record<string, string> = {
   other: '💰',
 };
 
+function dayLabel(days: number): string {
+  return `${days} día${days === 1 ? '' : 's'}`;
+}
+
+/** Short human date for the next due day, e.g. "15 may". */
+function formatNextDue(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' }).format(d);
+}
+
 function getUrgency(isPaid: boolean, daysUntilDue: number): Urgency {
   if (isPaid) return 'normal';
+  if (daysUntilDue < 0) return 'overdue';
   if (daysUntilDue === 0) return 'today';
   if (daysUntilDue <= 3) return 'urgent';
   if (daysUntilDue <= 7) return 'upcoming';
@@ -38,6 +52,7 @@ function getUrgency(isPaid: boolean, daysUntilDue: number): Urgency {
 
 function getCircleColor(urgency: Urgency, isPaid: boolean): string {
   if (isPaid) return '#10B981';
+  if (urgency === 'overdue') return '#DC2626';
   if (urgency === 'today') return '#EF4444';
   if (urgency === 'urgent') return '#F59E0B';
   if (urgency === 'upcoming') return '#3B82F6';
@@ -45,13 +60,13 @@ function getCircleColor(urgency: Urgency, isPaid: boolean): string {
 }
 
 function getUrgencyBadge(urgency: Urgency, daysUntilDue: number): string {
+  if (urgency === 'overdue') return `⚠️ Venció hace ${dayLabel(Math.abs(daysUntilDue))}`;
   if (urgency === 'today') return '⚡ Vence hoy';
-  if (urgency === 'urgent') return `⏰ En ${daysUntilDue} día${daysUntilDue === 1 ? '' : 's'}`;
-  if (urgency === 'upcoming') return `⏰ En ${daysUntilDue} día${daysUntilDue === 1 ? '' : 's'}`;
-  return `⏰ En ${daysUntilDue} día${daysUntilDue === 1 ? '' : 's'}`;
+  return `⏰ En ${dayLabel(daysUntilDue)}`;
 }
 
 function getUrgencyBadgeCls(urgency: Urgency): string {
+  if (urgency === 'overdue') return 'bg-red-100 dark:bg-red-500/25 text-red-700 dark:text-red-300';
   if (urgency === 'today') return 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300';
   if (urgency === 'urgent') return 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300';
   if (urgency === 'upcoming') return 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300';
@@ -113,6 +128,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
   const circleColor = getCircleColor(urgency, isPaid);
   const showQuickActions = !isPaid && !isSnoozed;
+  const nextDueLabel = formatNextDue(currentPayment.nextDueDate);
 
   const togglePaid = useCallback(() => {
     if (!isPaid) {
@@ -127,6 +143,13 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
       });
       if (res.ok) {
         setIsPaid(false);
+        // Unpaid again: countdown points back at this month's due day.
+        setCurrentPayment((prev) => ({
+          ...prev,
+          isPaidThisMonth: false,
+          daysUntilDue: daysUntilNextDue(prev.dueDay, false),
+          nextDueDate: nextDueDate(prev.dueDay, false).toISOString(),
+        }));
         onPaidToggle?.(currentPayment.id, false);
       }
     });
@@ -135,6 +158,13 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
   const handleMarkPaidConfirmed = useCallback(() => {
     setIsPaid(true);
     setMissedMonths((prev) => Math.max(0, prev - 1));
+    // Paid: the cycle restarts — countdown now targets next month's due day.
+    setCurrentPayment((prev) => ({
+      ...prev,
+      isPaidThisMonth: true,
+      daysUntilDue: daysUntilNextDue(prev.dueDay, true),
+      nextDueDate: nextDueDate(prev.dueDay, true).toISOString(),
+    }));
     onPaidToggle?.(currentPayment.id, true);
   }, [currentPayment.id, onPaidToggle]);
 
@@ -221,6 +251,22 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
             </div>
             <span className="text-sm font-extrabold text-red-700 dark:text-red-300">
               {currentPayment.currency} {(missedMonths * currentPayment.amount).toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {/* Next-payment banner — the cycle restarts after paying */}
+        {isPaid && currentPayment.daysUntilDue > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-2 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base">🔄</span>
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                Próximo pago
+              </span>
+            </div>
+            <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+              en {dayLabel(currentPayment.daysUntilDue)}
+              {nextDueLabel && <span className="font-medium opacity-80"> · {nextDueLabel}</span>}
             </span>
           </div>
         )}

@@ -90,6 +90,25 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
+/** Short human date for the next due day, e.g. "15 may". */
+function formatShortDate(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short' }).format(d);
+}
+
+/** Pending-status pill label + classes, handling overdue / due-today / upcoming. */
+function pendingStatus(days: number): { label: string; cls: string } {
+  if (days < 0) {
+    return { label: `⏰ Pendiente · Venció hace ${plural(Math.abs(days), 'día')}`, cls: 'bg-red-500/20 text-red-300' };
+  }
+  if (days === 0) {
+    return { label: '⚡ Pendiente · Vence hoy', cls: 'bg-red-500/20 text-red-300' };
+  }
+  return { label: `⏰ Pendiente · En ${plural(days, 'día')}`, cls: 'bg-amber-500/20 text-amber-300' };
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Mode = 'view' | 'edit' | 'confirm-delete';
@@ -514,15 +533,25 @@ export default function PaymentDetailSheet({
         )}
 
         {/* Status badge */}
-        <div className="mb-5">
+        <div className="mb-5 flex flex-col items-start gap-2">
           {isPaid ? (
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300">
-              <CheckCircleIcon className="w-4 h-4" />
-              Pagado este mes
-            </span>
+            <>
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300">
+                <CheckCircleIcon className="w-4 h-4" />
+                Pagado este mes
+              </span>
+              {currentPayment.daysUntilDue > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-white/5 text-gray-300">
+                  🔄 Próximo pago en {plural(currentPayment.daysUntilDue, 'día')}
+                  {formatShortDate(currentPayment.nextDueDate) && (
+                    <span className="text-gray-500"> · {formatShortDate(currentPayment.nextDueDate)}</span>
+                  )}
+                </span>
+              )}
+            </>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300">
-              ⏰ Pendiente · En {plural(currentPayment.daysUntilDue, 'día')}
+            <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${pendingStatus(currentPayment.daysUntilDue).cls}`}>
+              {pendingStatus(currentPayment.daysUntilDue).label}
             </span>
           )}
         </div>

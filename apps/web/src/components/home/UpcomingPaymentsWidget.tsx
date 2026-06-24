@@ -20,6 +20,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 function getUrgencyDot(daysUntilDue: number): string {
+  if (daysUntilDue < 0) return 'bg-red-600';
   if (daysUntilDue === 0) return 'bg-red-500';
   if (daysUntilDue <= 3) return 'bg-amber-400';
   if (daysUntilDue <= 7) return 'bg-blue-400';
@@ -27,13 +28,14 @@ function getUrgencyDot(daysUntilDue: number): string {
 }
 
 function getDaysLabel(daysUntilDue: number): string {
+  if (daysUntilDue < 0) return 'Vencido';
   if (daysUntilDue === 0) return 'Hoy';
   if (daysUntilDue === 1) return 'Mañana';
   return `${daysUntilDue}d`;
 }
 
 function getDaysLabelColor(daysUntilDue: number): string {
-  if (daysUntilDue === 0) return 'text-red-500 dark:text-red-400 font-bold';
+  if (daysUntilDue <= 0) return 'text-red-500 dark:text-red-400 font-bold';
   if (daysUntilDue <= 3) return 'text-amber-500 dark:text-amber-400 font-semibold';
   if (daysUntilDue <= 7) return 'text-blue-500 dark:text-blue-400';
   return 'text-stone-400 dark:text-stone-500';

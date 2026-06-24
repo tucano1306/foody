@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { methodNeedsBank, normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
+import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -32,15 +33,7 @@ function toISOStringSafe(value: unknown): string {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-function daysUntilDue(dueDay: number): number {
-  const now = new Date();
-  const today = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  if (dueDay >= today) return dueDay - today;
-  return daysInMonth - today + dueDay;
-}
-
-function mapPayment(row: Record<string, unknown>) {
+function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
   const dueDay = asInteger(row.due_day, 1);
   return {
     id: String(row.id),
@@ -60,8 +53,10 @@ function mapPayment(row: Record<string, unknown>) {
     userId: String(row.user_id),
     createdAt: toISOStringSafe(row.created_at),
     updatedAt: toISOStringSafe(row.updated_at),
-    isPaidThisMonth: false,
-    daysUntilDue: daysUntilDue(dueDay),
+    isPaidThisMonth,
+    // Cycle-aware: once paid this month, the countdown targets next month's due day.
+    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth),
+    nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
   };
 }
 
@@ -81,8 +76,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const records = await sql`SELECT status FROM payment_records WHERE payment_id = ${id} AND user_id = ${user.userId} AND month = ${month} AND year = ${year} LIMIT 1`;
   const isPaidThisMonth = records[0]?.status === 'paid';
 
-  const payment = mapPayment(rows[0] as Record<string, unknown>);
-  return NextResponse.json({ ...payment, isPaidThisMonth });
+  return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>, isPaidThisMonth));
 }
 
 function validatePatchName(body: Record<string, unknown>): string | null {
@@ -165,7 +159,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
     `;
     if (!rows.length) return notFound();
-    return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>));
+    const { month, year } = getCurrentMonthYear();
+    const records = await sql`SELECT status FROM payment_records WHERE payment_id = ${id} AND user_id = ${user.userId} AND month = ${month} AND year = ${year} LIMIT 1`;
+    const isPaidThisMonth = records[0]?.status === 'paid';
+    return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>, isPaidThisMonth));
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Database error';
     return NextResponse.json({ message }, { status: 500 });

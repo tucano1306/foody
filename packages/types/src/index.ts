@@ -206,7 +206,13 @@ export interface MonthlyPayment {
   updatedAt: string;
   // Computed fields returned by the API
   isPaidThisMonth: boolean;
+  /**
+   * Whole days until the next due date. Cycle-aware: once the current month is
+   * paid this counts down to NEXT month's due day. Negative when overdue.
+   */
   daysUntilDue: number;
+  /** ISO date of the next due day (next month when the current cycle is paid). */
+  nextDueDate?: string;
   currentRecord?: PaymentRecord;
   snoozedUntil: string | null;
   /** How many past months the due date passed without a paid record */

@@ -1,5 +1,6 @@
 import { getSession } from './session';
 import { sql } from './db';
+import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { randomUUID } from 'node:crypto';
 
 interface PushSubscriptionJSON {
@@ -125,15 +126,6 @@ function getCurrentMonthYear() {
   return { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
-function daysUntilDue(dueDay: number): number {
-  const now = new Date();
-  const today = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-
-  if (dueDay >= today) return dueDay - today;
-  return daysInMonth - today + dueDay;
-}
-
 function mapPaymentRecord(row: Record<string, unknown>): PaymentRecord {
   return {
     id: String(row.id),
@@ -154,6 +146,7 @@ function mapPaymentRecord(row: Record<string, unknown>): PaymentRecord {
 
 function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: PaymentRecord): MonthlyPayment {
   const dueDay = asInteger(row.due_day, 1);
+  const isPaidThisMonth = currentRecord?.status === 'paid';
   return {
     id: String(row.id),
     name: asText(row.name),
@@ -172,8 +165,10 @@ function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: Payment
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
-    isPaidThisMonth: currentRecord?.status === 'paid',
-    daysUntilDue: daysUntilDue(dueDay),
+    isPaidThisMonth,
+    // Cycle-aware: once paid this month, the countdown restarts toward next month's due day.
+    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth),
+    nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
     currentRecord,
     snoozedUntil: row.snoozed_until === null || row.snoozed_until === undefined ? null : new Date(row.snoozed_until as string | number | Date).toISOString(),
     missedMonths: asInteger(row.missed_months, 0),

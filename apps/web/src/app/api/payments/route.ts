@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
+import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { randomUUID } from 'node:crypto';
 
 function asNumber(value: unknown, fallback = 0): number {
@@ -31,14 +32,6 @@ function toISOStringSafe(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
   const d = new Date(value as string);
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-}
-
-function daysUntilDue(dueDay: number): number {
-  const now = new Date();
-  const today = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  if (dueDay >= today) return dueDay - today;
-  return daysInMonth - today + dueDay;
 }
 
 function getCurrentMonthYear() {
@@ -97,7 +90,9 @@ function mapPayment(
     createdAt: toISOStringSafe(row.created_at),
     updatedAt: toISOStringSafe(row.updated_at),
     isPaidThisMonth,
-    daysUntilDue: daysUntilDue(dueDay),
+    // Cycle-aware: once paid this month, the countdown restarts toward next month's due day.
+    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth),
+    nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
     snoozedUntil: row.snoozed_until == null ? null : new Date(row.snoozed_until as string).toISOString(),
     missedMonths,
     accumulatedDebt: missedMonths * amount,
