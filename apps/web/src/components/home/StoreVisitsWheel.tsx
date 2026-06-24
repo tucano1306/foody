@@ -16,10 +16,10 @@ export default async function StoreVisitsWheel() {
     <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
       <div className="mb-4">
         <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
-          🏪 Súper más visitado
+          🏪 Supermercados más visitados
         </h2>
         <p className="text-xs text-stone-500 mt-0.5">
-          Visitas a cada tienda según tus tickets
+          Dónde compras con más frecuencia
         </p>
       </div>
       {hasData ? (

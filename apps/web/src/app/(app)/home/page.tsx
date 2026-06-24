@@ -62,10 +62,9 @@ export default async function HomePage() {
 
       <MonthlyExpenseSummary />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StoreVisitsWheel />
-        <MonthlyFoodWheel />
-      </div>
+      <MonthlyFoodWheel />
+
+      <StoreVisitsWheel />
 
       <ExpensesByStore />
 

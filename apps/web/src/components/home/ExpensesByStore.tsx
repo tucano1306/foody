@@ -17,10 +17,10 @@ export default async function ExpensesByStore() {
     <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
       <div className="mb-4">
         <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
-          🏪 Gastos por supermercado
+          💸 Gastos por supermercado
         </h2>
         <p className="text-xs text-stone-500 mt-0.5">
-          Total gastado en cada tienda según tus tickets
+          Cuánto llevas gastado en cada tienda
         </p>
       </div>
 

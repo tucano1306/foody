@@ -1,36 +1,11 @@
-'use client';
-
-import { getStoreLogo } from '@/lib/store-logo';
-import StatsWheel from './StatsWheel';
-
-interface Slice {
-  readonly storeName: string;
-  readonly total: number;
-  readonly count: number;
-}
+import StoreRankList, { type StoreDatum } from './StoreRankList';
 
 interface Props {
-  readonly data: readonly Slice[];
+  readonly data: readonly StoreDatum[];
 }
 
 export default function StoreVisitsChart({ data }: Readonly<Props>) {
   const totalVisits = data.reduce((sum, d) => sum + d.count, 0);
   if (totalVisits === 0) return null;
-
-  const sorted = [...data].sort((a, b) => b.count - a.count);
-  const wheelData = sorted.map((d) => ({
-    label: d.storeName,
-    value: d.count,
-    sublabel: `${d.count} ${d.count === 1 ? 'visita' : 'visitas'}`,
-    logo: getStoreLogo(d.storeName),
-  }));
-
-  return (
-    <StatsWheel
-      data={wheelData}
-      totalLabel="Visitas"
-      totalValue={String(totalVisits)}
-      formatValue={(v) => `${v} ${v === 1 ? 'vez' : 'veces'}`}
-    />
-  );
+  return <StoreRankList data={data} metric="visits" />;
 }
