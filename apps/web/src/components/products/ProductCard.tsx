@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
@@ -239,13 +240,14 @@ export default function ProductCard({ product, showActions = false, compact = fa
       )}
       {showActions && (
         <div className="mt-2 pb-1 flex gap-1.5">
-          <a
+          <Link
             href={`/products/${current.id}`}
+            onClick={(e) => e.stopPropagation()}
             className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
           >
             <span className="text-base leading-none">✏️</span>
             <span className="text-[11px] font-semibold">Editar</span>
-          </a>
+          </Link>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); handleDelete(); }}

@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
+import { useToast } from '@/components/ui/Toast';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 
@@ -154,6 +156,7 @@ function groupByCategory(items: ShoppingListItem[]): CategoryGroup[] {
 
 export default function SupermarketView({ initialItems, pastStoreNames }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [items, setItems] = useState(initialItems);
   const [isPending, startTransition] = useTransition();
   const [completing, setCompleting] = useState(false);
@@ -304,7 +307,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       if (res.ok) {
         const data = await res.json();
         if (data.purchaseError) {
-          alert('Compra guardada, pero algunos registros de precio no se pudieron guardar.');
+          toast.show('Compra guardada, pero algunos precios no se pudieron guardar.', 'info');
+        } else {
+          toast.show('¡Compra registrada! ✓', 'success');
         }
         setShowModal(false);
         setStoreName('');
@@ -315,25 +320,28 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         setItems((prev) => prev.filter((i) => !i.isInCart));
         router.refresh();
       } else {
-        alert('No se pudo completar la compra. Intenta de nuevo.');
+        toast.show('No se pudo completar la compra. Intenta de nuevo.', 'error');
       }
     } catch {
-      alert('Sin conexión. Verifica tu red e intenta de nuevo.');
+      toast.show('Sin conexión. Verifica tu red e inténtalo de nuevo.', 'error');
     } finally {
       setCompleting(false);
     }
   }
 
-  function applyFilter(list: ShoppingListItem[]) {
+  // Filtered + category-grouped list. Memoised so it isn't re-sorted/re-grouped
+  // on unrelated re-renders (cart quantity edits, modal input, price scans).
+  const visibleGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return list.filter((i) => {
+    const filtered = notInCart.filter((i) => {
       if (q && !i.product.name.toLowerCase().includes(q)) return false;
       if (filter === 'urgent' && i.product.stockLevel !== 'empty') return false;
       if (filter === 'low' && i.product.stockLevel !== 'half') return false;
       if (categoryFilter && (i.product.category ?? 'Sin categoría') !== categoryFilter) return false;
       return true;
     });
-  }
+    return groupByCategory(filtered);
+  }, [notInCart, search, filter, categoryFilter]);
 
   // Categories present in the "not in cart" list for the category filter row
   const availableCategories = useMemo(() => {
@@ -358,9 +366,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         <p className="text-stone-400">
           No tienes productos marcados para comprar.
         </p>
-        <a href="/home" className="mt-4 inline-block text-brand-500 hover:underline">
+        <Link href="/home" className="mt-4 inline-block text-brand-500 hover:underline">
           Volver a casa
-        </a>
+        </Link>
       </div>
     );
   }
@@ -547,7 +555,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       </div>
 
       {/* ─── Category groups ────────────────────────────────────────────────── */}
-      {groupByCategory(applyFilter(notInCart)).map(({ category, emoji, items: catItems, urgentCount }) => (
+      {visibleGroups.map(({ category, emoji, items: catItems, urgentCount }) => (
         <Section
           key={category}
           title={`${emoji} ${category}`}
@@ -631,7 +639,6 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       )}
 
-      {/* ─── Completion modal ───────────────────────────────────────────────── */}
       {/* ─── Price scanner modal ─────────────────────────────────────────────── */}
       {scanningProductId && (
         <PriceScannerModal

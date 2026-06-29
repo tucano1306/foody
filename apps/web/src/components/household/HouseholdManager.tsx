@@ -49,6 +49,7 @@ export default function HouseholdManager() {
   const [joinCode, setJoinCode] = useState('');
   const [newName, setNewName] = useState('');
   const [working, setWorking] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const isOwner = state?.isOwner ?? false;
 
@@ -145,6 +146,8 @@ export default function HouseholdManager() {
     if (!inviteCode) return;
     await navigator.clipboard.writeText(inviteCode);
     haptic(10);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   if (loading) {
@@ -295,9 +298,10 @@ export default function HouseholdManager() {
             <button
               type="button"
               onClick={copyCode}
-              className="btn-primary px-4 py-3 rounded-xl"
+              aria-label={copied ? 'Código copiado' : 'Copiar código'}
+              className="btn-primary px-4 py-3 rounded-xl whitespace-nowrap"
             >
-              📋
+              {copied ? '✓ Copiado' : '📋'}
             </button>
           </div>
         ) : (

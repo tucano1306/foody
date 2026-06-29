@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { api } from '@/lib/api';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
 import ModernTitle from '@/components/layout/ModernTitle';
@@ -51,7 +52,9 @@ export default async function ProductsPage() {
           </Link>
         </div>
       ) : (
-        <ProductsBrowser products={products} showActions showStockFilter pageSize={12} lastPurchaseMap={lastPurchaseMap} />
+        <Suspense>
+          <ProductsBrowser products={products} showActions showStockFilter pageSize={12} lastPurchaseMap={lastPurchaseMap} />
+        </Suspense>
       )}
     </div>
   );

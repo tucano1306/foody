@@ -1,10 +1,10 @@
-import { api } from '@/lib/api';
+import { getStoresAggregate } from '@/lib/home-queries';
 import StoreExpensesChart from './StoreExpensesChart';
 
 export default async function ExpensesByStore() {
-  let data: Awaited<ReturnType<typeof api.shoppingTrips.byStore>> = [];
+  let data: Awaited<ReturnType<typeof getStoresAggregate>> = [];
   try {
-    data = await api.shoppingTrips.byStore();
+    data = await getStoresAggregate();
   } catch {
     // Silently ignore
   }
