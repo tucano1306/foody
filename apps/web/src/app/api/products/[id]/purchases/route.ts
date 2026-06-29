@@ -50,7 +50,7 @@ export async function POST(
       : round2(Number(body.totalPrice));
 
   const currency =
-    typeof body.currency === 'string' ? body.currency : ((product as Record<string, unknown>).currency as string | null) ?? 'MXN';
+    typeof body.currency === 'string' ? body.currency : ((product as Record<string, unknown>).currency as string | null) ?? 'USD';
   const purchasedAt =
     typeof body.purchasedAt === 'string' && !Number.isNaN(Date.parse(body.purchasedAt))
       ? body.purchasedAt

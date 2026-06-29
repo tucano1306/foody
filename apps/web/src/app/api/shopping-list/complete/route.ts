@@ -18,7 +18,7 @@ async function insertTrip(storeName: string | null, userId: string, now: string)
   try {
     const rows = await sql`
       INSERT INTO shopping_trips (store_name, purchased_at, total_amount, currency, user_id, created_at, updated_at)
-      VALUES (${storeName}, ${now}, 0, 'MXN', ${userId}, ${now}, ${now})
+      VALUES (${storeName}, ${now}, 0, 'USD', ${userId}, ${now}, ${now})
       RETURNING id
     `;
     return (rows[0] as { id: string }).id;
@@ -28,7 +28,7 @@ async function insertTrip(storeName: string | null, userId: string, now: string)
   try {
     const rows = await sql`
       INSERT INTO shopping_trips (store_name, purchased_at, total_amount, currency, user_id, created_at)
-      VALUES (${storeName}, ${now}, 0, 'MXN', ${userId}, ${now})
+      VALUES (${storeName}, ${now}, 0, 'USD', ${userId}, ${now})
       RETURNING id
     `;
     return (rows[0] as { id: string }).id;
@@ -71,7 +71,7 @@ async function insertPurchases(
         INSERT INTO product_purchases
           (product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
         VALUES
-          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'MXN', ${now}, ${storeName}, ${tripId}, ${userId}, ${now})
+          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'USD', ${now}, ${storeName}, ${tripId}, ${userId}, ${now})
       `;
       inserted++;
     }

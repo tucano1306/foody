@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
   const id = randomUUID();
   const strategy: AllocationStrategy = body.allocationStrategy ?? 'manual_partial';
-  const currency = body.currency ?? 'MXN';
+  const currency = body.currency ?? 'USD';
   const totalAmount = round2(body.totalAmount ?? 0);
   const purchasedAt = body.purchasedAt ?? new Date().toISOString();
   const storeName = body.storeName ?? null;
@@ -173,6 +173,22 @@ export async function POST(request: NextRequest) {
       VALUES
         (${item.productId}, ${id}, ${item.quantity}, ${alloc.unitPrice}, ${alloc.totalPrice}, ${alloc.priceSource}, ${currency}, ${purchasedAt}, ${storeName}, ${user.userId}, ${now})
     `;
+
+    // Refresh the product's last-known price/date so predictions (the "prefill
+    // last price" suggestion, price displays) reflect this trip. Only advance
+    // it when this purchase is at least as recent as the stored one, so a
+    // back-dated trip never clobbers a newer price.
+    if (alloc.unitPrice != null && alloc.unitPrice > 0) {
+      await sql`
+        UPDATE products
+        SET last_purchase_price = ${alloc.unitPrice},
+            last_purchase_date = ${purchasedAt},
+            updated_at = NOW()
+        WHERE id = ${item.productId}
+          AND user_id = ${user.userId}
+          AND (last_purchase_date IS NULL OR last_purchase_date <= ${purchasedAt})
+      `;
+    }
   }
 
   // Mark purchased products as full (they were just bought)

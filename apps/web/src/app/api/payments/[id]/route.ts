@@ -40,7 +40,7 @@ function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
     name: asText(row.name),
     description: (row.description as string | null | undefined) ?? null,
     amount: asNumber(row.amount),
-    currency: asText(row.currency, 'MXN'),
+    currency: asText(row.currency, 'USD'),
     dueDay,
     category: asText(row.category, 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),

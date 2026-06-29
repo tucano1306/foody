@@ -14,7 +14,7 @@ interface Props {
 
 function formatCurrency(value: number, currency: string): string {
   try {
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,
@@ -36,7 +36,7 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currency = product.currency ?? 'MXN';
+  const currency = product.currency ?? 'USD';
 
   // open/close sync
   useEffect(() => {

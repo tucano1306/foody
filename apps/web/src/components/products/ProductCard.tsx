@@ -83,7 +83,7 @@ function getBorderCls(level: StockLevel): string {
 
 function formatMoney(value: number, currency: string): string {
   try {
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,
@@ -213,13 +213,13 @@ export default function ProductCard({ product, showActions = false, compact = fa
       )}
       {current.lastPurchasePrice != null && (
         <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
-          {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
+          {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
         </p>
       )}
       {current.totalSpent > 0 && (
         <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
           <span className="text-stone-400">Total gastado</span>
-          <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
+          <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
         </div>
       )}
       {(lastPurchase || current.lastPurchaseDate) && (
@@ -339,13 +339,13 @@ export default function ProductCard({ product, showActions = false, compact = fa
         )}
         {current.lastPurchasePrice != null && (
           <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
-            {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
+            {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
           </p>
         )}
         {current.totalSpent > 0 && (
           <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
             <span className="text-stone-400">Total gastado</span>
-            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
+            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
           </div>
         )}
         {(lastPurchase || current.lastPurchaseDate) && (

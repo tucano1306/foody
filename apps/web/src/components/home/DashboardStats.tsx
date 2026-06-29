@@ -52,7 +52,7 @@ export default function DashboardStats({
     },
     {
       label: 'Gasto del mes',
-      value: new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(totalMonthlyExpenses),
+      value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(totalMonthlyExpenses),
       sublabel: 'en pagos recurrentes',
       icon: '💰',
       color: '#003b71',

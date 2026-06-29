@@ -14,7 +14,7 @@ async function getBudgetData(userId: string) {
       id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id       UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
       monthly_limit DECIMAL(10,2) NOT NULL DEFAULT 0,
-      currency      VARCHAR(10)   NOT NULL DEFAULT 'MXN',
+      currency      VARCHAR(10)   NOT NULL DEFAULT 'USD',
       updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
       UNIQUE (user_id)
     )
@@ -69,7 +69,7 @@ async function getBudgetData(userId: string) {
     trips: Number.parseInt(r.trips, 10),
   }));
 
-  return { monthlyLimit, spentThisMonth, remaining, percentUsed, avgMonthly, currency: 'MXN', history };
+  return { monthlyLimit, spentThisMonth, remaining, percentUsed, avgMonthly, currency: 'USD', history };
 }
 
 export default async function BudgetPage() {

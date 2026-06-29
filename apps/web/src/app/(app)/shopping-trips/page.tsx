@@ -5,7 +5,7 @@ import type { ShoppingTrip } from '@foody/types';
 
 function formatCurrency(value: number, currency: string): string {
   try {
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,

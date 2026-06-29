@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       avgPrice: null,
       totalSpent: 0,
       totalPurchasedQty: 0,
-      currency: asStr(p.currency, 'MXN'),
+      currency: asStr(p.currency, 'USD'),
     },
     quantityNeeded: Number(item.quantity_needed ?? 1),
     isInCart: Boolean(item.is_in_cart),

@@ -28,15 +28,22 @@ export interface ReceiptParseResult {
 
 // ─── Patterns ─────────────────────────────────────────────────────────────────
 
-/** Matches a monetary amount anywhere in a line, e.g. 3.99 / 129.00 / -10.00 */
-const PRICE_RE = /[-−]?\d{1,6}[.,]\d{2}(?:\s*[A-Z])?/g;
+/**
+ * Matches a monetary amount anywhere in a line, e.g. 3.99 / 129.00 / 1,299.00 /
+ * 1.299,00 / -10.00. The first alternative captures amounts with thousands
+ * separators ("1,299.00"); the second handles plain two-decimal amounts.
+ */
+const PRICE_RE = /[-−]?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}(?:\s*[A-Z])?|[-−]?\d{1,6}[.,]\d{2}(?:\s*[A-Z])?/g;
 
-/** Lines that are definitely not product lines — split into groups to keep complexity ≤ 20 */
-const SKIP_STORE = /^(phone|tel[.:]?|fax|store|manager|cashier|operator|server|clerk|associate|employee|thank)/i;
-const SKIP_FISCAL = /^(tax|sales\s*tax|subtotal|change|cash|savings|balance|amount\s+due|total\s+due)/i;
-const SKIP_DOC = /^(receipt|invoice|address|approved|authorized|declined|pin|account|member|reward|point)/i;
-const SKIP_IDENT = /^(date|time|transaction|trans[.]?|ref[.]?|auth[.]?|chip|swipe)/i;
-const SKIP_MISC = /^(barcode|www[.]|http|visa|mastercard|amex|discover|debit|credit|card|ebt)/i;
+/**
+ * Lines that are definitely not product lines — split into groups to keep
+ * complexity ≤ 20. Covers US (English) and MX (Spanish) receipt vocabulary.
+ */
+const SKIP_STORE = /^(phone|tel[.:]?|fax|store|sucursal|manager|gerente|cashier|cajer[oa]|caja|operator|server|clerk|associate|employee|thank|gracias|vuelva)/i;
+const SKIP_FISCAL = /^(tax|iva|i\.v\.a|sales\s*tax|subtotal|sub-total|change|cambio|cash|efectivo|savings|ahorro|balance|amount\s+due|total\s+due|propina|tip|redondeo)/i;
+const SKIP_DOC = /^(receipt|invoice|factura|folio|ticket|address|domicilio|rfc|approved|aprobad[oa]|authorized|autorizad[oa]|declined|pin|account|cuenta|member|socio|reward|puntos|point)/i;
+const SKIP_IDENT = /^(date|fecha|time|hora|transaction|transacci|trans[.]?|ref[.]?|auth[.]?|chip|swipe|terminal)/i;
+const SKIP_MISC = /^(barcode|www[.]|http|visa|mastercard|amex|discover|debit|d[ée]bito|credit|cr[ée]dito|card|tarjeta|ebt)/i;
 
 function shouldSkipLine(line: string): boolean {
   return (
@@ -48,15 +55,23 @@ function shouldSkipLine(line: string): boolean {
   );
 }
 
-/**
- * Lines that look like a TOTAL.
- * Matches both "TOTAL 47.82" and "YOUR TOTAL 47.82" and "PURCHASE TOTAL: 47.82".
- * The price is extracted separately via extractPrices().
- */
-const TOTAL_RE = /\btotal\b|amount\s*due|balance\s*due/i;
+/** Lines that must NOT count as the grand total even though they say 'total' */
+const TOTAL_SKIP_RE = /subtotal|sub-total|sub\s+total|total\s+savings|total\s+discount|total\s+ahorro|points\s+total|tax\s+total|total\s+tax|total\s+iva|total\s+art[íi]culos|total\s+items|total\s+piezas|total\s+qty/i;
 
-/** Lines that must NOT trigger total detection even though they contain the word 'total' */
-const TOTAL_SKIP_RE = /subtotal|total\s+savings|total\s+discount|points\s+total|tax\s+total/i;
+/**
+ * The total label must sit at the START of the line (optionally after one known
+ * qualifier like GRAND/ORDER), so a *product* whose name merely contains the
+ * word "total" (e.g. "COLGATE TOTAL", "TOTAL cereal") is not mistaken for the
+ * receipt total. The amount is extracted separately via extractPrices().
+ */
+const TOTAL_LABEL_RE = /^(grand|order|purchase|your|net|final|invoice)?\s*total\b|^(amount|balance|total)\s+due\b|^importe(\s+total)?\b|^total\s+a\s+pagar\b/i;
+
+/** True when this line is the receipt's grand-total line. */
+function isTotalLine(line: string): boolean {
+  if (TOTAL_SKIP_RE.test(line)) return false;
+  const text = line.replaceAll(PRICE_RE, ' ').replaceAll(/\s{2,}/g, ' ').trim();
+  return TOTAL_LABEL_RE.test(text);
+}
 
 /**
  * Known supermarket / store chains.
@@ -115,8 +130,22 @@ function fixOcrDigits(s: string): string {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseMoney(raw: string): number | null {
-  const fixed = fixOcrDigits(raw);
-  const cleaned = fixed.replaceAll(/[^0-9.,-]/g, '').replace(',', '.');
+  // Drop a trailing tax-flag letter (Walmart "O"/"N"/"X", Aldi "A"/"B", CVS "T"/"F")
+  // BEFORE OCR digit-correction — otherwise fixOcrDigits turns "0.44 B" into
+  // "0.44 8" → 0.448. PRICE_RE only ever appends a single such letter.
+  const noFlag = raw.replace(/\s*[A-Za-z]\s*$/, '');
+  const fixed = fixOcrDigits(noFlag);
+  const stripped = fixed.replaceAll(/[^0-9.,-]/g, '');
+  // The rightmost '.' or ',' is the decimal separator; everything before it is
+  // the integer part (any other separators are thousands groupings).
+  // Handles 1,299.00 / 1.299,00 / 234.56 / 12,99 alike.
+  const decPos = Math.max(stripped.lastIndexOf('.'), stripped.lastIndexOf(','));
+  let cleaned = stripped;
+  if (decPos >= 0) {
+    const intPart = stripped.slice(0, decPos).replaceAll(/[.,]/g, '');
+    const fracPart = stripped.slice(decPos + 1).replaceAll(/[.,]/g, '');
+    cleaned = `${intPart}.${fracPart}`;
+  }
   const n = Number.parseFloat(cleaned);
   return Number.isFinite(n) ? Math.abs(n) : null;
 }
@@ -129,9 +158,14 @@ function extractPrices(line: string): number[] {
 function cleanProductName(raw: string): string {
   return raw
     // remove leading item codes like "1234 " or "* "
-    .replaceAll(/^\*?\s*\d{1,6}\s+/gm, '')
+    .replaceAll(/^\*?\s*\d{1,6}\s+/g, '')
+    // remove embedded UPC / PLU codes (runs of 5+ digits anywhere), e.g. Walmart
+    // "GV WHL MILK 007874201234 F" → "GV WHL MILK F"
+    .replaceAll(/\b\d{5,}\b/g, ' ')
+    // remove a trailing lone tax-flag letter ("... MILK F")
+    .replaceAll(/\s+[A-Za-z]\s*$/g, ' ')
     // remove trailing codes / quantity annotations
-    .replaceAll(/\s+\d{1,6}\s*$/gm, '')
+    .replaceAll(/\s+\d{1,6}\s*$/g, '')
     // normalise whitespace
     .replaceAll(/\s{2,}/g, ' ')
     .trim()
@@ -176,7 +210,10 @@ function parseQtyXPrice(line: string): RawLineItem | null {
   const quantity = Number.parseFloat(m[1].replace(',', '.')) || 1;
   const unitPrice = parseMoney(m[2]);
   const totalPrice = unitPrice === null ? null : Math.round(unitPrice * quantity * 100) / 100;
-  const namePart = line.slice(0, line.indexOf(m[0]));
+  // The name is whatever text remains once the "qty × price" expression is
+  // removed — works whether the name precedes it ("MILK 2 @ 3.00") or follows
+  // it ("2 @ 3.00 ORANGE JUICE", common on Publix receipts).
+  const namePart = line.replace(m[0], ' ');
   return { quantity, unitPrice, totalPrice, namePart };
 }
 
@@ -238,8 +275,8 @@ function processLine(
     if (prices.length > 0) { ctx.total = Math.max(...prices); return; }
   }
 
-  // TOTAL detection — relaxed: any line containing 'total'/'amount due'/'balance due'
-  if (TOTAL_RE.test(line) && !TOTAL_SKIP_RE.test(line)) {
+  // TOTAL detection — only when the line *starts* with a total label.
+  if (isTotalLine(line)) {
     const prices = extractPrices(line);
     if (prices.length > 0) {
       ctx.total = Math.max(...prices);
@@ -280,16 +317,15 @@ export function parseReceiptText(rawText: string): ReceiptParseResult {
     processLine(line, ctx, items);
   }
 
-  // Fallback: if no total found via normal detection, pick the largest price
-  // from any line that contains "total" but wasn't skipped (e.g. OCR oddly spaced)
+  // Fallback: if no total was found, take the largest price across any
+  // total-labelled line (covers OCR that split the label and amount oddly).
   if (ctx.total === null) {
     for (const line of lines) {
-      if (/total/i.test(line) && !TOTAL_SKIP_RE.test(line)) {
-        const prices = extractPrices(line);
-        if (prices.length > 0) {
-          const candidate = Math.max(...prices);
-          if (ctx.total === null || candidate > ctx.total) ctx.total = candidate;
-        }
+      if (!isTotalLine(line)) continue;
+      const prices = extractPrices(line);
+      if (prices.length > 0) {
+        const candidate = Math.max(...prices);
+        if (ctx.total === null || candidate > ctx.total) ctx.total = candidate;
       }
     }
   }

@@ -4,9 +4,9 @@ import ModernTitle from '@/components/layout/ModernTitle';
 
 function formatMoney(value: number): string {
   try {
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'MXN',
+      currency: 'USD',
       maximumFractionDigits: 2,
     }).format(value);
   } catch {
