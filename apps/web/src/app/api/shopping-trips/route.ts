@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY purchased_at DESC`;
+  const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY date DESC`;
   return NextResponse.json(rows);
 }
 
@@ -153,14 +153,14 @@ export async function POST(request: NextRequest) {
           priceSource: it.manualUnitPrice === null ? 'unknown' : 'manual',
         }));
 
-  // Create trip. Columns must match the canonical schema (purchased_at /
-  // total_amount) used by the entity, ensure-schema, the BFF and the Super
-  // checkout flow — NOT date/total_spent, which do not exist.
+  // Create trip. The live shopping_trips table uses `date` / `total_spent`
+  // (verified against the Neon schema) — not purchased_at/total_amount, and it
+  // has no allocation_strategy column.
   await sql`
     INSERT INTO shopping_trips
-      (id, store_id, store_name, purchased_at, total_amount, currency, allocation_strategy, notes, user_id, created_at, updated_at)
+      (id, store_id, store_name, date, total_spent, currency, notes, user_id, created_at, updated_at)
     VALUES
-      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${strategy}, ${body.notes ?? null}, ${user.userId}, ${now}, ${now})
+      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${user.userId}, ${now}, ${now})
   `;
 
   // Create product purchases

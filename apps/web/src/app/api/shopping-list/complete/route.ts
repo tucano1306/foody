@@ -17,7 +17,7 @@ type CartItem = { product_id: string; quantity_needed: string };
 async function insertTrip(storeName: string | null, userId: string, now: string): Promise<string | null> {
   try {
     const rows = await sql`
-      INSERT INTO shopping_trips (store_name, purchased_at, total_amount, currency, user_id, created_at, updated_at)
+      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at, updated_at)
       VALUES (${storeName}, ${now}, 0, 'USD', ${userId}, ${now}, ${now})
       RETURNING id
     `;
@@ -27,7 +27,7 @@ async function insertTrip(storeName: string | null, userId: string, now: string)
   }
   try {
     const rows = await sql`
-      INSERT INTO shopping_trips (store_name, purchased_at, total_amount, currency, user_id, created_at)
+      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at)
       VALUES (${storeName}, ${now}, 0, 'USD', ${userId}, ${now})
       RETURNING id
     `;
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
   if (tripId) {
     const finalTotal = userTotalAmount ?? (totalSpent > 0 ? totalSpent : null);
     if (finalTotal != null) {
-      await sql`UPDATE shopping_trips SET total_amount = ${finalTotal} WHERE id = ${tripId}`.catch(() => undefined);
+      await sql`UPDATE shopping_trips SET total_spent = ${finalTotal} WHERE id = ${tripId}`.catch(() => undefined);
     }
   }
 
