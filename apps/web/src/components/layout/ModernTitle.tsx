@@ -15,8 +15,8 @@ export default function ModernTitle({
   onDark = false,
   action,
 }: Readonly<Props>) {
-  const titleCls = onDark ? 'text-white' : 'text-stone-900';
-  const subtitleCls = onDark ? 'text-brand-100' : 'text-stone-500';
+  const titleCls = onDark ? 'text-white' : 'text-stone-900 dark:text-stone-100';
+  const subtitleCls = onDark ? 'text-brand-100' : 'text-stone-500 dark:text-stone-400';
   const alignCls = align === 'center' ? 'items-center text-center' : 'items-start text-left';
   const barAlignCls = align === 'center' ? 'mx-auto' : '';
 

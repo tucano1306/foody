@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { haptic } from '@/lib/haptic';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface Member {
   id: string;
@@ -50,6 +51,7 @@ export default function HouseholdManager() {
   const [newName, setNewName] = useState('');
   const [working, setWorking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   const isOwner = state?.isOwner ?? false;
 
@@ -110,10 +112,7 @@ export default function HouseholdManager() {
   }
 
   async function handleLeave() {
-    const warningMsg = isOwner
-      ? '¿Seguro? Eres el propietario. Al salir se disolverá el hogar y todos los miembros serán eliminados.'
-      : '¿Seguro que quieres salir del hogar?';
-    if (!globalThis.confirm(warningMsg)) return;
+    setConfirmLeave(false);
     setWorking(true);
     try {
       await fetchJson('/households/leave', { method: 'DELETE' });
@@ -244,7 +243,7 @@ export default function HouseholdManager() {
           </div>
           <button
             type="button"
-            onClick={handleLeave}
+            onClick={() => setConfirmLeave(true)}
             disabled={working}
             className={`text-sm px-3 py-1.5 rounded-lg transition ${isOwner ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 font-semibold' : 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30'}`}
           >
@@ -315,6 +314,19 @@ export default function HouseholdManager() {
           </button>
         )}
       </section>
+
+      <ConfirmDialog
+        open={confirmLeave}
+        title={isOwner ? '¿Disolver el hogar?' : '¿Salir del hogar?'}
+        message={isOwner
+          ? 'Eres el propietario. Al salir se disolverá el hogar y todos los miembros serán eliminados.'
+          : 'Dejarás de compartir despensa, lista y pagos con este hogar.'}
+        confirmLabel={isOwner ? 'Disolver' : 'Salir'}
+        destructive
+        busy={working}
+        onConfirm={handleLeave}
+        onCancel={() => setConfirmLeave(false)}
+      />
     </div>
   );
 }

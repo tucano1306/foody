@@ -10,6 +10,7 @@ import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { useToast } from '@/components/ui/Toast';
+import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 
@@ -34,65 +35,6 @@ function getCheckboxCls(inCart: boolean, urgent: boolean): string {
   if (inCart) return 'border-market-500 bg-market-500 scale-105';
   if (urgent) return 'border-rose-300';
   return 'border-stone-300';
-}
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  'frutas y verduras': '🥦',
-  'frutas': '🍎',
-  'verduras': '🥦',
-  'lácteos': '🥛', 'lacteos': '🥛',
-  'carnicería': '🥩', 'carniceria': '🥩',
-  'carnes': '🥩',
-  'pescadería': '🐟', 'pescaderia': '🐟',
-  'panadería y tortillería': '🍞', 'panaderia y tortilleria': '🍞',
-  'panadería': '🍞', 'panaderia': '🍞',
-  'granos y legumbres': '🌾',
-  'cereales y desayunos': '🥣',
-  'cereales': '🌾',
-  'enlatados': '🥫',
-  'congelados': '🧊',
-  'snacks y dulces': '🍬',
-  'snacks': '🍿',
-  'condimentos y salsas': '🧂',
-  'bebidas': '🥤',
-  'limpieza': '🧹',
-  'higiene y cuidado': '🧴',
-  'higiene': '🧴',
-  'mascotas': '🐾',
-  'abarrotes': '🛒',
-  'otro': '📦',
-};
-
-const CATEGORY_ORDER: Record<string, number> = {
-  'frutas y verduras': 1,
-  'frutas': 2,
-  'verduras': 3,
-  'lácteos': 4, 'lacteos': 4,
-  'carnicería': 5, 'carniceria': 5,
-  'carnes': 6,
-  'pescadería': 7, 'pescaderia': 7,
-  'panadería y tortillería': 8, 'panaderia y tortilleria': 8,
-  'panadería': 9, 'panaderia': 9,
-  'granos y legumbres': 10,
-  'cereales y desayunos': 11,
-  'cereales': 12,
-  'enlatados': 13,
-  'congelados': 14,
-  'snacks y dulces': 15,
-  'snacks': 16,
-  'condimentos y salsas': 17,
-  'bebidas': 18,
-  'limpieza': 19,
-  'higiene y cuidado': 20,
-  'higiene': 21,
-  'mascotas': 22,
-  'abarrotes': 23,
-  'otro': 98,
-};
-
-function getCategoryEmoji(category: string | null): string {
-  if (!category) return '📦';
-  return CATEGORY_EMOJI[category.toLowerCase()] ?? '🏷️';
 }
 
 function getCalculatorLabel(hasEstimated: boolean, total: number): string {
@@ -139,7 +81,7 @@ function groupByCategory(items: ShoppingListItem[]): CategoryGroup[] {
     });
     groups.push({
       category: cat,
-      emoji: getCategoryEmoji(cat === 'Sin categoría' ? null : cat),
+      emoji: categoryEmoji(cat === 'Sin categoría' ? null : cat),
       items: sorted,
       urgentCount: sorted.filter((i) => i.product.stockLevel === 'empty').length,
     });
@@ -547,7 +489,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 20 }}
               >
-                {getCategoryEmoji(cat)} {cat}
+                {categoryEmoji(cat)} {cat}
               </motion.button>
             ))}
           </div>

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
+import { categoryEmoji, categoryOrder } from '@/lib/categories';
 
 type StockFilter = 'all' | 'low' | StockLevel;
 type ViewMode = 'grid' | 'categories';
@@ -28,48 +29,6 @@ const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
   { key: 'empty', label: 'Sin stock' },
   { key: 'full', label: 'OK' },
 ];
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  'frutas y verduras': '🥦', 'frutas': '🍎', 'verduras': '🥦',
-  'lácteos': '🥛', 'lacteos': '🥛',
-  'carnicería': '🥩', 'carniceria': '🥩', 'carnes': '🥩',
-  'pescadería': '🐟', 'pescaderia': '🐟',
-  'panadería y tortillería': '🍞', 'panaderia y tortilleria': '🍞',
-  'panadería': '🍞', 'panaderia': '🍞',
-  'granos y legumbres': '🌾',
-  'cereales y desayunos': '🥣', 'cereales': '🌾',
-  'enlatados': '🥫', 'congelados': '🧊',
-  'snacks y dulces': '🍬', 'snacks': '🍿',
-  'condimentos y salsas': '🧂',
-  'bebidas': '🥤', 'limpieza': '🧹',
-  'higiene y cuidado': '🧴', 'higiene': '🧴',
-  'mascotas': '🐾', 'otro': '📦',
-};
-
-const CATEGORY_ORDER: Record<string, number> = {
-  'frutas y verduras': 1, 'frutas': 2, 'verduras': 3,
-  'lácteos': 4, 'lacteos': 4,
-  'carnicería': 5, 'carniceria': 5, 'carnes': 6,
-  'pescadería': 7, 'pescaderia': 7,
-  'panadería y tortillería': 8, 'panaderia y tortilleria': 8,
-  'panadería': 9, 'panaderia': 9,
-  'granos y legumbres': 10,
-  'cereales y desayunos': 11, 'cereales': 12,
-  'enlatados': 13, 'congelados': 14,
-  'snacks y dulces': 15, 'snacks': 16,
-  'condimentos y salsas': 17,
-  'bebidas': 18, 'limpieza': 19,
-  'higiene y cuidado': 20, 'higiene': 20,
-  'mascotas': 21, 'otro': 99,
-};
-
-function getCategoryEmoji(cat: string): string {
-  return CATEGORY_EMOJI[cat.toLowerCase()] ?? '📦';
-}
-
-function getCategoryOrder(cat: string): number {
-  return CATEGORY_ORDER[cat.toLowerCase()] ?? 98;
-}
 
 interface GridOptions {
   searchOnly: boolean;
@@ -167,14 +126,14 @@ function renderGrouped({
   }
 
   const sortedCategories = [...categoryMap.keys()].sort(
-    (a, b) => getCategoryOrder(a) - getCategoryOrder(b) || a.localeCompare(b),
+    (a, b) => categoryOrder(a) - categoryOrder(b) || a.localeCompare(b),
   );
 
   return (
     <div className="space-y-6">
       {sortedCategories.map((cat) => {
         const items = categoryMap.get(cat)!;
-        const emoji = getCategoryEmoji(cat);
+        const emoji = categoryEmoji(cat);
         return (
           <section key={cat}>
             <div className="flex items-center gap-2 mb-3">
