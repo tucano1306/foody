@@ -181,8 +181,8 @@ function mapShoppingTrip(row: Record<string, unknown>): ShoppingTrip {
     id: String(row.id),
     storeId: (row.store_id as string | null | undefined) ?? null,
     storeName: (row.store_name as string | null | undefined) ?? null,
-    purchasedAt: asIsoString(row.purchased_at),
-    totalAmount: asNumber(row.total_amount),
+    purchasedAt: asIsoString(row.date),
+    totalAmount: asNumber(row.total_spent),
     currency: asText(row.currency, 'USD'),
     allocationStrategy: (row.allocation_strategy as AllocationStrategy | undefined) ?? 'manual_partial',
     receiptPhotoUrl: (row.receipt_photo_url as string | null | undefined) ?? null,
@@ -634,7 +634,7 @@ export const api = {
   shoppingTrips: {
     list: async () => {
       const { userId } = await getAuthContext();
-      const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${userId} ORDER BY purchased_at DESC`;
+      const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${userId} ORDER BY date DESC`;
       return rows.map((row) => mapShoppingTrip(row as Record<string, unknown>));
     },
     byStore: async () => {
@@ -677,8 +677,8 @@ export const api = {
       const { userId, householdId } = await getAuthContext();
       const id = randomUUID();
       const rows = await sql`
-        INSERT INTO shopping_trips (id, store_id, store_name, purchased_at, total_amount, currency, allocation_strategy, receipt_photo_url, notes, user_id, household_id, created_at, updated_at)
-        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'USD'}, ${data.allocationStrategy ?? 'manual_partial'}, ${data.receiptPhotoUrl ?? null}, ${data.notes ?? null}, ${userId}, ${householdId}, NOW(), NOW())
+        INSERT INTO shopping_trips (id, store_id, store_name, date, total_spent, currency, notes, user_id, household_id, created_at, updated_at)
+        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'USD'}, ${data.notes ?? null}, ${userId}, ${householdId}, NOW(), NOW())
         RETURNING *
       `;
       return {
@@ -688,7 +688,7 @@ export const api = {
     },
     update: async (id: string, data: Partial<CreateShoppingTripDto>) => {
       const rows = await sql`
-        UPDATE shopping_trips SET store_name = COALESCE(${data.storeName ?? null}, store_name), total_amount = COALESCE(${data.totalAmount ?? null}, total_amount), notes = COALESCE(${data.notes ?? null}, notes), updated_at = NOW()
+        UPDATE shopping_trips SET store_name = COALESCE(${data.storeName ?? null}, store_name), total_spent = COALESCE(${data.totalAmount ?? null}, total_spent), notes = COALESCE(${data.notes ?? null}, notes), updated_at = NOW()
         WHERE id = ${id} RETURNING *
       `;
       return mapShoppingTrip(rows[0] as Record<string, unknown>);

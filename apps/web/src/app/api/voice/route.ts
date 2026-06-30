@@ -111,13 +111,13 @@ async function handleStockQuery(userId: string): Promise<IntentResult> {
 async function handleSpendingQuery(userId: string): Promise<IntentResult> {
   const rows = await sql`
     SELECT
-      TO_CHAR(purchased_at, 'Month YYYY') AS month_label,
-      SUM(total_amount) AS total,
+      TO_CHAR(date, 'Month YYYY') AS month_label,
+      SUM(total_spent) AS total,
       COUNT(*) AS trips
     FROM shopping_trips
     WHERE user_id = ${userId}
-      AND purchased_at >= DATE_TRUNC('month', NOW())
-    GROUP BY TO_CHAR(purchased_at, 'Month YYYY')
+      AND date >= DATE_TRUNC('month', NOW())
+    GROUP BY TO_CHAR(date, 'Month YYYY')
   `;
 
   if (rows.length === 0) {
