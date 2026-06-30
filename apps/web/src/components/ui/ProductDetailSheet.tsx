@@ -19,7 +19,7 @@ interface Props {
 
 function formatMoney(value: number, currency: string): string {
   try {
-    return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value);
   } catch {
     return `${currency} ${value.toFixed(2)}`;
   }
@@ -130,7 +130,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                 )}
                 {product.lastPurchasePrice != null && (
                   <p className="mt-1 text-2xl font-extrabold text-stone-900">
-                    {formatMoney(product.lastPurchasePrice, product.currency ?? 'MXN')}
+                    {formatMoney(product.lastPurchasePrice, product.currency ?? 'USD')}
                   </p>
                 )}
               </div>
@@ -141,7 +141,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                   {product.totalSpent > 0 && (
                     <div className="flex-1 rounded-xl bg-stone-50 p-3">
                       <p className="text-[10px] text-stone-400 uppercase tracking-wide">Total gastado</p>
-                      <p className="text-sm font-bold text-brand-700 mt-0.5">{formatMoney(product.totalSpent, product.currency ?? 'MXN')}</p>
+                      <p className="text-sm font-bold text-brand-700 mt-0.5">{formatMoney(product.totalSpent, product.currency ?? 'USD')}</p>
                     </div>
                   )}
                   {(lastPurchase || product.lastPurchaseDate) && (

@@ -27,7 +27,7 @@ interface Props {
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) =>
-  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 
 function monthLabel(yyyymm: string): string {
   const [year, month] = yyyymm.split('-');

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { api } from '@/lib/api';
 import { getSession } from '@/lib/session';
 import UpcomingPaymentsWidget from '@/components/home/UpcomingPaymentsWidget';
@@ -15,6 +16,20 @@ import type { Metadata } from 'next';
 import type { Product, MonthlyPayment } from '@foody/types';
 
 export const metadata: Metadata = { title: 'Inicio — Modo Casa' };
+
+/** Placeholder shown while the analytics widgets stream in. */
+function ChartsSkeleton() {
+  return (
+    <div className="space-y-8" aria-hidden="true">
+      {[0, 1].map((i) => (
+        <div key={i} className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+          <div className="h-4 w-48 bg-stone-100 rounded animate-pulse" />
+          <div className="mt-4 h-40 bg-stone-50 rounded-xl animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default async function HomePage() {
   const session = await getSession();
@@ -50,7 +65,13 @@ export default async function HomePage() {
         />
       </div>
 
-      {/* ─── Stats ─────────────────────────────────────────────────────────── */}
+      {/* ─── Despensa (lo más accionable: agotados → poco → todos) ──────────── */}
+      <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} />
+
+      {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
+      <UpcomingPaymentsWidget payments={upcomingPayments} />
+
+      {/* ─── Stats y gráficas (resumen, debajo de lo accionable) ────────────── */}
       <DashboardStats
         totalProducts={products.length}
         runningLowCount={runningLow.length}
@@ -58,20 +79,19 @@ export default async function HomePage() {
         totalMonthlyExpenses={totalExpenses}
       />
 
-      <FrequentProducts />
+      {/* Charts each hit the DB; stream them in so the actionable content above
+          paints immediately instead of waiting on analytics queries. */}
+      <Suspense fallback={<ChartsSkeleton />}>
+        <FrequentProducts />
 
-      <MonthlyExpenseSummary />
+        <MonthlyExpenseSummary />
 
-      <MonthlyFoodWheel />
+        <MonthlyFoodWheel />
 
-      <StoreVisitsWheel />
+        <StoreVisitsWheel />
 
-      <ExpensesByStore />
-
-      <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} />
-
-      {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
-      <UpcomingPaymentsWidget payments={upcomingPayments} />
+        <ExpensesByStore />
+      </Suspense>
     </div>
   );
 }

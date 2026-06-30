@@ -3,11 +3,13 @@
 import { useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 // Loaded only when user taps a product photo or the gift button
 const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
@@ -83,7 +85,7 @@ function getBorderCls(level: StockLevel): string {
 
 function formatMoney(value: number, currency: string): string {
   try {
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,
@@ -121,6 +123,8 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxOrigin, setLightboxOrigin] = useState<DOMRect | undefined>();
   const [giftOpen, setGiftOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const photoRef = useRef<HTMLButtonElement>(null);
 
   function openLightbox() {
@@ -172,13 +176,15 @@ export default function ProductCard({ product, showActions = false, compact = fa
     compact ? {} : { onSwipeLeft: () => setLevel('empty'), onSwipeRight: () => setLevel('full') },
   );
 
-  async function handleDelete() {
-    if (!globalThis.window.confirm(`¿Eliminar "${current.name}"?`)) return;
+  async function performDelete() {
+    setDeleting(true);
     onDelete?.(current.id);
     await fetch(`/api/proxy/products/${current.id}`, {
       method: 'DELETE',
       credentials: 'include',
     });
+    setConfirmDelete(false);
+    setDeleting(false);
     router.refresh();
   }
 
@@ -213,13 +219,13 @@ export default function ProductCard({ product, showActions = false, compact = fa
       )}
       {current.lastPurchasePrice != null && (
         <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
-          {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
+          {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
         </p>
       )}
       {current.totalSpent > 0 && (
         <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
           <span className="text-stone-400">Total gastado</span>
-          <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
+          <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
         </div>
       )}
       {(lastPurchase || current.lastPurchaseDate) && (
@@ -239,16 +245,17 @@ export default function ProductCard({ product, showActions = false, compact = fa
       )}
       {showActions && (
         <div className="mt-2 pb-1 flex gap-1.5">
-          <a
+          <Link
             href={`/products/${current.id}`}
+            onClick={(e) => e.stopPropagation()}
             className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
           >
             <span className="text-base leading-none">✏️</span>
             <span className="text-[11px] font-semibold">Editar</span>
-          </a>
+          </Link>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
             className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 transition"
           >
             <span className="text-base leading-none">🗑️</span>
@@ -339,13 +346,13 @@ export default function ProductCard({ product, showActions = false, compact = fa
         )}
         {current.lastPurchasePrice != null && (
           <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
-            {formatMoney(current.lastPurchasePrice, current.currency ?? 'MXN')}
+            {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
           </p>
         )}
         {current.totalSpent > 0 && (
           <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
             <span className="text-stone-400">Total gastado</span>
-            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'MXN')}</span>
+            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
           </div>
         )}
         {(lastPurchase || current.lastPurchaseDate) && (
@@ -376,7 +383,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           ...(showActions ? [
             { label: 'Editar producto', emoji: '✏️', onClick: () => router.push(`/products/${current.id}`) },
             { label: 'Enviar a un amigo', emoji: '🎁', onClick: () => setGiftOpen(true) },
-            { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: handleDelete },
+            { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: () => setConfirmDelete(true) },
           ] : []),
         ]}
       />
@@ -396,6 +403,17 @@ export default function ProductCard({ product, showActions = false, compact = fa
           onClose={() => setGiftOpen(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`¿Eliminar "${current.name}"?`}
+        message="Se quitará de tu despensa. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        destructive
+        busy={deleting}
+        onConfirm={performDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }

@@ -15,9 +15,9 @@ interface Props {
 }
 
 function formatMoney(value: number): string {
-  return new Intl.NumberFormat('es-MX', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'MXN',
+    currency: 'USD',
     maximumFractionDigits: 0,
   }).format(value);
 }

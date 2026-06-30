@@ -28,7 +28,7 @@ interface Props {
 }
 
 function formatMoney(value: number): string {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 }
 
 export default function ExpensesChart({ data }: Readonly<Props>) {

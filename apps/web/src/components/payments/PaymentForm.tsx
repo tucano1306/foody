@@ -24,7 +24,7 @@ export default function PaymentForm() {
     name: '',
     amount: 0,
     dueDay: 1,
-    currency: 'MXN',
+    currency: 'USD',
     category: 'other',
     description: '',
     isVariableAmount: false,

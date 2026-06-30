@@ -99,11 +99,11 @@ function formatDate(iso: string): string {
   }).format(new Date(iso));
 }
 
-function formatCurrency(n: string | number | null, currency = 'MXN'): string {
+function formatCurrency(n: string | number | null, currency = 'USD'): string {
   if (n == null) return '—';
   const num = typeof n === 'string' ? Number.parseFloat(n) : n;
   if (!Number.isFinite(num)) return '—';
-  return new Intl.NumberFormat('es-MX', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
     maximumFractionDigits: 2,

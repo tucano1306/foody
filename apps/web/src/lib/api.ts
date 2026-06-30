@@ -98,7 +98,7 @@ function mapProduct(row: Record<string, unknown>): Product {
     avgPrice: row.avg_price == null ? null : asNumber(row.avg_price),
     totalSpent: asNumber(row.total_spent),
     totalPurchasedQty: asNumber(row.total_purchased_qty),
-    currency: asText(row.currency, 'MXN'),
+    currency: asText(row.currency, 'USD'),
   };
 }
 
@@ -111,7 +111,7 @@ function mapProductPurchase(row: Record<string, unknown>): ProductPurchase {
     unitPrice: row.unit_price == null ? null : asNumber(row.unit_price),
     totalPrice: row.total_price == null ? null : asNumber(row.total_price),
     priceSource: (row.price_source as ProductPurchase['priceSource'] | undefined) ?? 'unknown',
-    currency: asText(row.currency, 'MXN'),
+    currency: asText(row.currency, 'USD'),
     purchasedAt: asIsoString(row.purchased_at),
     storeId: (row.store_id as string | null | undefined) ?? null,
     storeName: (row.store_name as string | null | undefined) ?? null,
@@ -183,7 +183,7 @@ function mapShoppingTrip(row: Record<string, unknown>): ShoppingTrip {
     storeName: (row.store_name as string | null | undefined) ?? null,
     purchasedAt: asIsoString(row.purchased_at),
     totalAmount: asNumber(row.total_amount),
-    currency: asText(row.currency, 'MXN'),
+    currency: asText(row.currency, 'USD'),
     allocationStrategy: (row.allocation_strategy as AllocationStrategy | undefined) ?? 'manual_partial',
     receiptPhotoUrl: (row.receipt_photo_url as string | null | undefined) ?? null,
     notes: (row.notes as string | null | undefined) ?? null,
@@ -218,7 +218,7 @@ function mapShoppingListItem(row: Record<string, unknown>): ShoppingListItem {
       avgPrice: row.product_avg_price == null ? null : asNumber(row.product_avg_price),
       totalSpent: asNumber(row.product_total_spent),
       totalPurchasedQty: asNumber(row.product_total_purchased_qty),
-      currency: asText(row.product_currency, 'MXN'),
+      currency: asText(row.product_currency, 'USD'),
     },
     quantityNeeded: asNumber(row.quantity_needed, 1),
     isInCart: Boolean(row.is_in_cart),
@@ -235,7 +235,7 @@ function mapStore(row: Record<string, unknown>): Store {
     name: asText(row.name),
     chain: (row.chain as string | null | undefined) ?? null,
     location: (row.location as string | null | undefined) ?? null,
-    currency: asText(row.currency, 'MXN'),
+    currency: asText(row.currency, 'USD'),
     color: (row.color as string | null | undefined) ?? null,
     icon: (row.icon as string | null | undefined) ?? null,
     userId: String(row.user_id),
@@ -326,7 +326,7 @@ export const api = {
       const totalPrice = data.totalPrice ?? (unitPrice * data.quantity);
       const purchaseRows = await sql`
         INSERT INTO product_purchases (id, product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, user_id, household_id, created_at)
-        VALUES (${purchaseId}, ${id}, ${data.quantity}, ${unitPrice}, ${totalPrice}, 'manual', ${data.currency ?? 'MXN'}, ${data.purchasedAt ?? new Date().toISOString()}, ${userId}, ${householdId}, NOW())
+        VALUES (${purchaseId}, ${id}, ${data.quantity}, ${unitPrice}, ${totalPrice}, 'manual', ${data.currency ?? 'USD'}, ${data.purchasedAt ?? new Date().toISOString()}, ${userId}, ${householdId}, NOW())
         RETURNING *
       `;
       const rows = await sql`UPDATE products SET current_quantity=current_quantity+${data.quantity}, stock_level='full', is_running_low=false, needs_shopping=false, last_purchase_price=${unitPrice}, last_purchase_date=NOW(), updated_at=NOW() WHERE id=${id} RETURNING *`;
@@ -608,7 +608,7 @@ export const api = {
       const id = randomUUID();
       const rows = await sql`
         INSERT INTO stores (id, name, chain, location, currency, color, icon, user_id, household_id, created_at, updated_at)
-        VALUES (${id}, ${data.name}, ${data.chain ?? null}, ${data.location ?? null}, ${data.currency ?? 'MXN'}, ${data.color ?? null}, ${data.icon ?? null}, ${userId}, ${householdId}, NOW(), NOW())
+        VALUES (${id}, ${data.name}, ${data.chain ?? null}, ${data.location ?? null}, ${data.currency ?? 'USD'}, ${data.color ?? null}, ${data.icon ?? null}, ${userId}, ${householdId}, NOW(), NOW())
         RETURNING *
       `;
       return mapStore(rows[0] as Record<string, unknown>);
@@ -678,7 +678,7 @@ export const api = {
       const id = randomUUID();
       const rows = await sql`
         INSERT INTO shopping_trips (id, store_id, store_name, purchased_at, total_amount, currency, allocation_strategy, receipt_photo_url, notes, user_id, household_id, created_at, updated_at)
-        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'MXN'}, ${data.allocationStrategy ?? 'manual_partial'}, ${data.receiptPhotoUrl ?? null}, ${data.notes ?? null}, ${userId}, ${householdId}, NOW(), NOW())
+        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'USD'}, ${data.allocationStrategy ?? 'manual_partial'}, ${data.receiptPhotoUrl ?? null}, ${data.notes ?? null}, ${userId}, ${householdId}, NOW(), NOW())
         RETURNING *
       `;
       return {

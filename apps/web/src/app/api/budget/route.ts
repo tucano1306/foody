@@ -11,7 +11,7 @@ async function ensureBudgetSchema(): Promise<void> {
       id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id     UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
       monthly_limit DECIMAL(10,2) NOT NULL DEFAULT 0,
-      currency    VARCHAR(10)   NOT NULL DEFAULT 'MXN',
+      currency    VARCHAR(10)   NOT NULL DEFAULT 'USD',
       updated_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
       UNIQUE (user_id)
     )
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
     remaining,
     percentUsed,
     avgMonthly: Math.round(avgMonthly),
-    currency: 'MXN',
+    currency: 'USD',
     history,
   });
 }
@@ -107,7 +107,7 @@ export async function PATCH(request: NextRequest) {
 
   await sql`
     INSERT INTO budget_settings (user_id, monthly_limit, currency, updated_at)
-    VALUES (${user.userId}, ${monthlyLimit}, 'MXN', NOW())
+    VALUES (${user.userId}, ${monthlyLimit}, 'USD', NOW())
     ON CONFLICT (user_id) DO UPDATE
       SET monthly_limit = EXCLUDED.monthly_limit,
           updated_at    = NOW()

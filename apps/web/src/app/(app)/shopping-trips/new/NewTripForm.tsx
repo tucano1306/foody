@@ -9,6 +9,7 @@ import type {
   Product,
 } from '@foody/types';
 import { haptic } from '@/lib/haptic';
+import { matchReceiptItem } from '@/lib/receipt-match';
 import type { ReceiptParseResult } from '@/components/shopping/ReceiptScanner';
 
 const ReceiptScanner = dynamic(
@@ -36,7 +37,7 @@ function round2(n: number): number {
 
 function formatCurrency(value: number, currency: string): string {
   try {
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
       maximumFractionDigits: 2,
@@ -55,7 +56,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     new Date().toISOString().slice(0, 10),
   );
   const [totalAmount, setTotalAmount] = useState<string>('');
-  const [currency] = useState<string>('MXN');
+  const [currency] = useState<string>('USD');
   const [items, setItems] = useState<LineItem[]>([]);
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -110,6 +111,71 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     if (data.receiptDate !== null) {
       setPurchasedAt(data.receiptDate);
     }
+
+    // ── Turn scanned line items into trip items ───────────────────────────────
+    // This is what makes a scan feed statistics & predictions: each item that
+    // links to a catalog product becomes a product_purchase on save. Items we
+    // can auto-match are pre-linked; the rest stay "unlinked" for the user to
+    // confirm. Receipt unit prices are carried over so per-product price data is
+    // accurate (not just an even split of the total).
+    if (data.items.length === 0) {
+      toast.show(
+        'No detecté productos en el recibo. Revisa el total y agrégalos a mano.',
+        'info',
+      );
+      return;
+    }
+
+    const used = new Set(items.map((it) => it.productId).filter((id) => id !== ''));
+    const additions: LineItem[] = [];
+    let matched = 0;
+    let unmatched = 0;
+
+    for (const ri of data.items) {
+      const hit = matchReceiptItem(ri.name, products);
+      const qty = ri.quantity > 0 ? String(ri.quantity) : '1';
+      const price = ri.unitPrice != null ? ri.unitPrice.toFixed(2) : '';
+
+      if (hit && !used.has(hit.product.id)) {
+        used.add(hit.product.id);
+        matched += 1;
+        additions.push({
+          id: crypto.randomUUID(),
+          productId: hit.product.id,
+          name: hit.product.name,
+          unit: hit.product.unit,
+          quantity: qty,
+          price,
+        });
+      } else if (!hit) {
+        // No catalog match — keep the receipt name so the user can link it.
+        unmatched += 1;
+        additions.push({
+          id: crypto.randomUUID(),
+          productId: '',
+          name: ri.name,
+          unit: 'units',
+          quantity: qty,
+          price,
+        });
+      }
+      // hit but already added → skip the duplicate line entirely.
+    }
+
+    if (additions.length > 0) {
+      setItems((prev) => [...prev, ...additions]);
+      haptic([15, 40, 20]);
+    }
+
+    const summary: string[] = [];
+    if (matched > 0) summary.push(`${matched} vinculado${matched === 1 ? '' : 's'} ✨`);
+    if (unmatched > 0) summary.push(`${unmatched} por vincular`);
+    toast.show(
+      summary.length > 0
+        ? `Recibo leído: ${summary.join(' · ')}`
+        : 'Recibo leído',
+      matched > 0 ? 'success' : 'info',
+    );
   }
 
   function addProduct(p: Product) {

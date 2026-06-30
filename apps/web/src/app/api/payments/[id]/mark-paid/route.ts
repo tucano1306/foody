@@ -104,7 +104,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const sub = subRows[0]?.push_subscription as PushSubscription | null | undefined;
   if (sub?.endpoint) {
     const name = String(payment.name ?? '');
-    const currency = String(payment.currency ?? 'MXN');
+    const currency = String(payment.currency ?? 'USD');
     const displayAmount = finalAmount.toFixed(2);
     await sendWebPush(sub, {
       title: '✅ Pago registrado',

@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY date DESC`;
+  const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY purchased_at DESC`;
   return NextResponse.json(rows);
 }
 
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
   const id = randomUUID();
   const strategy: AllocationStrategy = body.allocationStrategy ?? 'manual_partial';
-  const currency = body.currency ?? 'MXN';
+  const currency = body.currency ?? 'USD';
   const totalAmount = round2(body.totalAmount ?? 0);
   const purchasedAt = body.purchasedAt ?? new Date().toISOString();
   const storeName = body.storeName ?? null;
@@ -153,12 +153,14 @@ export async function POST(request: NextRequest) {
           priceSource: it.manualUnitPrice === null ? 'unknown' : 'manual',
         }));
 
-  // Create trip
+  // Create trip. Columns must match the canonical schema (purchased_at /
+  // total_amount) used by the entity, ensure-schema, the BFF and the Super
+  // checkout flow — NOT date/total_spent, which do not exist.
   await sql`
     INSERT INTO shopping_trips
-      (id, store_id, store_name, date, total_spent, currency, notes, user_id, created_at, updated_at)
+      (id, store_id, store_name, purchased_at, total_amount, currency, allocation_strategy, notes, user_id, created_at, updated_at)
     VALUES
-      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${user.userId}, ${now}, ${now})
+      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${strategy}, ${body.notes ?? null}, ${user.userId}, ${now}, ${now})
   `;
 
   // Create product purchases
@@ -173,6 +175,22 @@ export async function POST(request: NextRequest) {
       VALUES
         (${item.productId}, ${id}, ${item.quantity}, ${alloc.unitPrice}, ${alloc.totalPrice}, ${alloc.priceSource}, ${currency}, ${purchasedAt}, ${storeName}, ${user.userId}, ${now})
     `;
+
+    // Refresh the product's last-known price/date so predictions (the "prefill
+    // last price" suggestion, price displays) reflect this trip. Only advance
+    // it when this purchase is at least as recent as the stored one, so a
+    // back-dated trip never clobbers a newer price.
+    if (alloc.unitPrice != null && alloc.unitPrice > 0) {
+      await sql`
+        UPDATE products
+        SET last_purchase_price = ${alloc.unitPrice},
+            last_purchase_date = ${purchasedAt},
+            updated_at = NOW()
+        WHERE id = ${item.productId}
+          AND user_id = ${user.userId}
+          AND (last_purchase_date IS NULL OR last_purchase_date <= ${purchasedAt})
+      `;
+    }
   }
 
   // Mark purchased products as full (they were just bought)

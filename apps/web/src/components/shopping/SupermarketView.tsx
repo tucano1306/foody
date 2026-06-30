@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
+import { useToast } from '@/components/ui/Toast';
+import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 
@@ -32,65 +35,6 @@ function getCheckboxCls(inCart: boolean, urgent: boolean): string {
   if (inCart) return 'border-market-500 bg-market-500 scale-105';
   if (urgent) return 'border-rose-300';
   return 'border-stone-300';
-}
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  'frutas y verduras': '🥦',
-  'frutas': '🍎',
-  'verduras': '🥦',
-  'lácteos': '🥛', 'lacteos': '🥛',
-  'carnicería': '🥩', 'carniceria': '🥩',
-  'carnes': '🥩',
-  'pescadería': '🐟', 'pescaderia': '🐟',
-  'panadería y tortillería': '🍞', 'panaderia y tortilleria': '🍞',
-  'panadería': '🍞', 'panaderia': '🍞',
-  'granos y legumbres': '🌾',
-  'cereales y desayunos': '🥣',
-  'cereales': '🌾',
-  'enlatados': '🥫',
-  'congelados': '🧊',
-  'snacks y dulces': '🍬',
-  'snacks': '🍿',
-  'condimentos y salsas': '🧂',
-  'bebidas': '🥤',
-  'limpieza': '🧹',
-  'higiene y cuidado': '🧴',
-  'higiene': '🧴',
-  'mascotas': '🐾',
-  'abarrotes': '🛒',
-  'otro': '📦',
-};
-
-const CATEGORY_ORDER: Record<string, number> = {
-  'frutas y verduras': 1,
-  'frutas': 2,
-  'verduras': 3,
-  'lácteos': 4, 'lacteos': 4,
-  'carnicería': 5, 'carniceria': 5,
-  'carnes': 6,
-  'pescadería': 7, 'pescaderia': 7,
-  'panadería y tortillería': 8, 'panaderia y tortilleria': 8,
-  'panadería': 9, 'panaderia': 9,
-  'granos y legumbres': 10,
-  'cereales y desayunos': 11,
-  'cereales': 12,
-  'enlatados': 13,
-  'congelados': 14,
-  'snacks y dulces': 15,
-  'snacks': 16,
-  'condimentos y salsas': 17,
-  'bebidas': 18,
-  'limpieza': 19,
-  'higiene y cuidado': 20,
-  'higiene': 21,
-  'mascotas': 22,
-  'abarrotes': 23,
-  'otro': 98,
-};
-
-function getCategoryEmoji(category: string | null): string {
-  if (!category) return '📦';
-  return CATEGORY_EMOJI[category.toLowerCase()] ?? '🏷️';
 }
 
 function getCalculatorLabel(hasEstimated: boolean, total: number): string {
@@ -137,7 +81,7 @@ function groupByCategory(items: ShoppingListItem[]): CategoryGroup[] {
     });
     groups.push({
       category: cat,
-      emoji: getCategoryEmoji(cat === 'Sin categoría' ? null : cat),
+      emoji: categoryEmoji(cat === 'Sin categoría' ? null : cat),
       items: sorted,
       urgentCount: sorted.filter((i) => i.product.stockLevel === 'empty').length,
     });
@@ -154,6 +98,7 @@ function groupByCategory(items: ShoppingListItem[]): CategoryGroup[] {
 
 export default function SupermarketView({ initialItems, pastStoreNames }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [items, setItems] = useState(initialItems);
   const [isPending, startTransition] = useTransition();
   const [completing, setCompleting] = useState(false);
@@ -304,7 +249,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       if (res.ok) {
         const data = await res.json();
         if (data.purchaseError) {
-          alert('Compra guardada, pero algunos registros de precio no se pudieron guardar.');
+          toast.show('Compra guardada, pero algunos precios no se pudieron guardar.', 'info');
+        } else {
+          toast.show('¡Compra registrada! ✓', 'success');
         }
         setShowModal(false);
         setStoreName('');
@@ -315,25 +262,28 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         setItems((prev) => prev.filter((i) => !i.isInCart));
         router.refresh();
       } else {
-        alert('No se pudo completar la compra. Intenta de nuevo.');
+        toast.show('No se pudo completar la compra. Intenta de nuevo.', 'error');
       }
     } catch {
-      alert('Sin conexión. Verifica tu red e intenta de nuevo.');
+      toast.show('Sin conexión. Verifica tu red e inténtalo de nuevo.', 'error');
     } finally {
       setCompleting(false);
     }
   }
 
-  function applyFilter(list: ShoppingListItem[]) {
+  // Filtered + category-grouped list. Memoised so it isn't re-sorted/re-grouped
+  // on unrelated re-renders (cart quantity edits, modal input, price scans).
+  const visibleGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return list.filter((i) => {
+    const filtered = notInCart.filter((i) => {
       if (q && !i.product.name.toLowerCase().includes(q)) return false;
       if (filter === 'urgent' && i.product.stockLevel !== 'empty') return false;
       if (filter === 'low' && i.product.stockLevel !== 'half') return false;
       if (categoryFilter && (i.product.category ?? 'Sin categoría') !== categoryFilter) return false;
       return true;
     });
-  }
+    return groupByCategory(filtered);
+  }, [notInCart, search, filter, categoryFilter]);
 
   // Categories present in the "not in cart" list for the category filter row
   const availableCategories = useMemo(() => {
@@ -358,9 +308,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         <p className="text-stone-400">
           No tienes productos marcados para comprar.
         </p>
-        <a href="/home" className="mt-4 inline-block text-brand-500 hover:underline">
+        <Link href="/home" className="mt-4 inline-block text-brand-500 hover:underline">
           Volver a casa
-        </a>
+        </Link>
       </div>
     );
   }
@@ -539,7 +489,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 20 }}
               >
-                {getCategoryEmoji(cat)} {cat}
+                {categoryEmoji(cat)} {cat}
               </motion.button>
             ))}
           </div>
@@ -547,7 +497,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       </div>
 
       {/* ─── Category groups ────────────────────────────────────────────────── */}
-      {groupByCategory(applyFilter(notInCart)).map(({ category, emoji, items: catItems, urgentCount }) => (
+      {visibleGroups.map(({ category, emoji, items: catItems, urgentCount }) => (
         <Section
           key={category}
           title={`${emoji} ${category}`}
@@ -631,7 +581,6 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       )}
 
-      {/* ─── Completion modal ───────────────────────────────────────────────── */}
       {/* ─── Price scanner modal ─────────────────────────────────────────────── */}
       {scanningProductId && (
         <PriceScannerModal

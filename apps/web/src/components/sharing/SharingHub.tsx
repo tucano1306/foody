@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -220,12 +221,12 @@ function PantryCard({
 
       {/* Received accepted → view pantry link */}
       {direction === 'received' && share.status === 'accepted' && (
-        <a
+        <Link
           href={`/sharing/pantry/${share.id}`}
           className="block text-center py-2 text-sm font-semibold rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition"
         >
           👀 Ver despensa
-        </a>
+        </Link>
       )}
 
       {/* Sent pending/accepted → revoke */}

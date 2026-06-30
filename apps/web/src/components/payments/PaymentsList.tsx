@@ -62,13 +62,13 @@ export default function PaymentsList({ initialPayments }: Props) {
   const currencies = payments.map((p) => p.currency);
   const dominantCurrency = currencies.length > 0
     ? [...currencies].sort((a, b) => currencies.filter((c) => c === b).length - currencies.filter((c) => c === a).length)[0]
-    : 'MXN';
+    : 'USD';
   const mixedCurrencies = new Set(currencies).size > 1;
 
   function formatTotal(value: number): string {
     if (mixedCurrencies) return value.toFixed(2);
     try {
-      return new Intl.NumberFormat('es-MX', {
+      return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: dominantCurrency,
         maximumFractionDigits: 2,
