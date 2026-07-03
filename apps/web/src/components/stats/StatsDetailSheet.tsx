@@ -15,6 +15,10 @@ interface Props {
   readonly open: boolean;
   readonly detail: ActiveDetail | null;
   readonly onClose: () => void;
+  /** Store names offered as suggestions when re-assigning "Sin tienda" purchases. */
+  readonly knownStores?: readonly string[];
+  /** Called after a mutation (e.g. store re-assignment) so the page can refresh. */
+  readonly onDataChanged?: () => void;
 }
 
 // ─── Row shapes ──────────────────────────────────────────────────────────────
@@ -112,11 +116,38 @@ function formatCurrency(n: string | number | null, currency = 'USD'): string {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function StatsDetailSheet({ open, detail, onClose }: Props) {
+export default function StatsDetailSheet({ open, detail, onClose, knownStores, onDataChanged }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [rows, setRows] = useState<StockRow[] | StoreRow[] | ProductRow[] | MonthRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assignStore, setAssignStore] = useState('');
+  const [assignSaving, setAssignSaving] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const isUnassignedStore = detail?.type === 'store' && detail.value === 'Sin tienda';
+
+  async function handleAssignStore() {
+    const store = assignStore.trim();
+    if (!store) return;
+    setAssignSaving(true);
+    setAssignError(null);
+    try {
+      const res = await fetch('/api/product-purchases/assign-store', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store }),
+      });
+      if (!res.ok) throw new Error('assign failed');
+      onDataChanged?.();
+      onClose();
+    } catch {
+      setAssignError('No se pudo guardar. Intenta de nuevo.');
+    } finally {
+      setAssignSaving(false);
+    }
+  }
 
   // Fetch detail data when opened
   useEffect(() => {
@@ -124,6 +155,8 @@ export default function StatsDetailSheet({ open, detail, onClose }: Props) {
     setLoading(true);
     setError(null);
     setRows([]);
+    setAssignStore('');
+    setAssignError(null);
 
     const { type, value } = detail;
     let param: string;
@@ -313,6 +346,42 @@ export default function StatsDetailSheet({ open, detail, onClose }: Props) {
             {!loading && !error && rows.length === 0 && (
               <p className="py-8 text-center text-stone-400 text-sm">Sin datos</p>
             )}
+
+            {/* Assign a real store to the "Sin tienda" bucket */}
+            {isUnassignedStore && !loading && !error && rows.length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl p-3 my-2">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-2">
+                  Estas compras no tienen tienda asignada. ¿Dónde las hiciste?
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    list="assign-store-suggestions"
+                    value={assignStore}
+                    onChange={(e) => setAssignStore(e.target.value)}
+                    placeholder="Ej. Publix, Walmart…"
+                    aria-label="Nombre de la tienda"
+                    className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAssignStore()}
+                    disabled={!assignStore.trim() || assignSaving}
+                    className="shrink-0 px-3.5 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {assignSaving ? 'Guardando…' : 'Asignar'}
+                  </button>
+                </div>
+                {knownStores && knownStores.length > 0 && (
+                  <datalist id="assign-store-suggestions">
+                    {knownStores.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
+                )}
+                {assignError && <p className="text-xs text-rose-500 mt-1.5">{assignError}</p>}
+              </div>
+            )}
+
             {!loading && !error && renderRows()}
           </div>
         </section>
