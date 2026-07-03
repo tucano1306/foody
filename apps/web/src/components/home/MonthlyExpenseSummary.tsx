@@ -16,16 +16,18 @@ export default async function MonthlyExpenseSummary() {
   ]);
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Rolling 30-day window: a calendar-month cutoff shows $0 during the first
+  // days of each month even with recent purchases, which reads as a bug.
+  const windowStart = new Date(now);
+  windowStart.setDate(windowStart.getDate() - 30);
 
   const recurringTotal = payments.reduce((sum, p) => sum + p.amount, 0);
   const paidRecurringTotal = payments.filter((p) => p.isPaidThisMonth).reduce((sum, p) => sum + p.amount, 0);
-  const supermarketTotal = trips
-    .filter((t) => new Date(t.purchasedAt) >= monthStart)
-    .reduce((sum, t) => sum + t.totalAmount, 0);
+  const recentTrips = trips.filter((t) => new Date(t.purchasedAt) >= windowStart);
+  const supermarketTotal = recentTrips.reduce((sum, t) => sum + t.totalAmount, 0);
   const grandTotal = recurringTotal + supermarketTotal;
 
-  const tripsThisMonth = trips.filter((t) => new Date(t.purchasedAt) >= monthStart).length;
+  const tripCount = recentTrips.length;
 
   return (
     <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
@@ -66,7 +68,7 @@ export default async function MonthlyExpenseSummary() {
             <div>
               <p className="text-stone-700 dark:text-stone-200 text-sm font-semibold">Supermercado</p>
               <p className="text-stone-400 dark:text-stone-500 text-xs">
-                {tripsThisMonth} {tripsThisMonth === 1 ? 'visita' : 'visitas'} este mes
+                {tripCount} {tripCount === 1 ? 'visita' : 'visitas'} · últimos 30 días
               </p>
             </div>
           </div>

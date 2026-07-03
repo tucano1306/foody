@@ -101,7 +101,6 @@ export default async function ShoppingTripsPage() {
                     <p className="font-bold text-brand-700">
                       {formatCurrency(trip.totalAmount, trip.currency)}
                     </p>
-                    <p className="text-[11px] text-stone-400">Ver ticket →</p>
                   </div>
                 </div>
               </Link>
