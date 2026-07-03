@@ -26,23 +26,42 @@ async function getStats(userId: string): Promise<StatsData> {
   const productScope = sql`user_id = ${userId}`;
   const ppScope = sql`pp.user_id = ${userId}`;
 
+  // Spending/visit queries combine two sources without double counting:
+  // formal trips (their total_spent is what was actually paid, tax included)
+  // plus loose purchases with no trip (legacy scans), grouped into one
+  // "visit" per shared batch timestamp. Counting raw product_purchases rows
+  // would report line items as visits and re-count itemized trip contents.
   const [stockRows, storeRows, monthRows, totalRows, topProductRows, categoryRows] = await Promise.all([
     sql`SELECT stock_level, COUNT(*) AS count FROM products WHERE ${productScope} GROUP BY stock_level`,
     sql`
-      SELECT COALESCE(pp.store_name, 'Sin tienda') AS name,
-        COUNT(*) AS trips,
-        SUM(COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0)) AS total_spent
-      FROM product_purchases pp
-      WHERE ${ppScope}
-      GROUP BY COALESCE(pp.store_name, 'Sin tienda') ORDER BY trips DESC LIMIT 5
+      SELECT name, COUNT(*) AS trips, SUM(total) AS total_spent
+      FROM (
+        SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
+        FROM shopping_trips WHERE user_id = ${userId}
+        UNION ALL
+        SELECT COALESCE(store_name, 'Sin tienda') AS name,
+          SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
+        FROM product_purchases
+        WHERE user_id = ${userId} AND trip_id IS NULL
+        GROUP BY COALESCE(store_name, 'Sin tienda'), purchased_at
+      ) visits
+      GROUP BY name ORDER BY trips DESC LIMIT 5
     `,
     sql`
-      SELECT TO_CHAR(pp.purchased_at, 'YYYY-MM') AS month,
-        SUM(COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0)) AS total,
-        COUNT(*) AS trips
-      FROM product_purchases pp
-      WHERE ${ppScope} AND pp.purchased_at >= NOW() - INTERVAL '6 months'
-      GROUP BY TO_CHAR(pp.purchased_at, 'YYYY-MM') ORDER BY month ASC
+      SELECT month, SUM(total) AS total, COUNT(*) AS trips
+      FROM (
+        SELECT TO_CHAR(date, 'YYYY-MM') AS month, COALESCE(total_spent, 0) AS total
+        FROM shopping_trips
+        WHERE user_id = ${userId} AND date >= NOW() - INTERVAL '6 months'
+        UNION ALL
+        SELECT TO_CHAR(purchased_at, 'YYYY-MM') AS month,
+          SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
+        FROM product_purchases
+        WHERE user_id = ${userId} AND trip_id IS NULL
+          AND purchased_at >= NOW() - INTERVAL '6 months'
+        GROUP BY TO_CHAR(purchased_at, 'YYYY-MM'), purchased_at
+      ) sessions
+      GROUP BY month ORDER BY month ASC
     `,
     sql`SELECT COUNT(*) AS count FROM products WHERE ${productScope}`,
     sql`

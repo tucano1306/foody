@@ -11,6 +11,7 @@ import HomeProductsShell from '@/components/home/HomeProductsShell';
 import MonthlyExpenseSummary from '@/components/home/MonthlyExpenseSummary';
 import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
+import SectionHeader from '@/components/layout/SectionHeader';
 import GreetingToast from '@/components/home/GreetingToast';
 import type { Metadata } from 'next';
 import type { Product, MonthlyPayment } from '@foody/types';
@@ -34,18 +35,6 @@ function ChartsSkeleton() {
   );
 }
 
-/** Labeled divider that separates the major zones of the dashboard. */
-function SectionHeader({ emoji, title }: { readonly emoji: string; readonly title: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span aria-hidden="true" className="text-base leading-none">{emoji}</span>
-      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400 whitespace-nowrap">
-        {title}
-      </h2>
-      <div className="flex-1 h-px bg-linear-to-r from-stone-200 dark:from-stone-800 to-transparent" aria-hidden="true" />
-    </div>
-  );
-}
 
 export default async function HomePage() {
   const session = await getSession();

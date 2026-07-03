@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useCallback, useState } from 'react';
 import StatsDetailSheet, { type ActiveDetail, type DetailType } from './StatsDetailSheet';
+import SectionHeader from '@/components/layout/SectionHeader';
 import { getStoreLogo } from '@/lib/store-logo';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -52,6 +53,37 @@ function formatMonth(ym: string) {
   );
 }
 
+/** Card header: color-accented icon chip + title + optional subtitle. */
+function CardHeader({
+  emoji,
+  chipClass,
+  title,
+  subtitle,
+  trailing,
+}: {
+  readonly emoji: string;
+  readonly chipClass: string;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly trailing?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <span
+        className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 ${chipClass}`}
+        aria-hidden="true"
+      >
+        {emoji}
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-base sm:text-lg font-bold text-stone-800 dark:text-stone-100">{title}</h3>
+        {subtitle && <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{subtitle}</p>}
+      </div>
+      {trailing}
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function StatsContent({
@@ -82,11 +114,15 @@ export default function StatsContent({
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-10">
+        {/* ─── Zona: compras y gasto ─────────────────────────────────────────── */}
+        <div className="space-y-5">
+        <SectionHeader emoji="💰" title="Compras y gasto" />
+
         {/* ─── Insights ────────────────────────────────────────────────────── */}
         {insights.length > 0 && (
           <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-            <h2 className="text-stone-800 dark:text-stone-100 font-bold mb-3">✨ Insights del mes</h2>
+            <CardHeader emoji="✨" chipClass="bg-amber-50 dark:bg-amber-950/40" title="Insights del mes" />
             <div className="space-y-2">
               {insights.map((insight) => (
                 <div
@@ -102,19 +138,19 @@ export default function StatsContent({
 
         {/* ─── Monthly spending ─────────────────────────────────────────────── */}
         <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-stone-800 dark:text-stone-100 font-bold">💰 Gasto mensual</h2>
-            {totalThisMonth > 0 && (
-              <span className="text-stone-500 dark:text-stone-400 text-sm">
-                {formatCurrency(totalThisMonth)} este mes
-              </span>
-            )}
-          </div>
-          {monthlySpending.length > 0 && (
-            <p className="text-stone-500 dark:text-stone-400 text-xs mb-4">
-              Toca un mes para ver el detalle
-            </p>
-          )}
+          <CardHeader
+            emoji="💵"
+            chipClass="bg-emerald-50 dark:bg-emerald-950/40"
+            title="Gasto mensual"
+            subtitle={monthlySpending.length > 0 ? 'Toca un mes para ver el detalle' : undefined}
+            trailing={
+              totalThisMonth > 0 ? (
+                <span className="text-stone-500 dark:text-stone-400 text-sm shrink-0">
+                  {formatCurrency(totalThisMonth)} este mes
+                </span>
+              ) : undefined
+            }
+          />
 
           {monthlySpending.length === 0 ? (
             <p className="text-stone-500 dark:text-stone-400 text-sm text-center py-4">
@@ -165,12 +201,12 @@ export default function StatsContent({
         {/* ─── Top products ─────────────────────────────────────────────────── */}
         {topProducts.length > 0 && (
           <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-            <h2 className="text-stone-800 dark:text-stone-100 font-bold mb-1">
-              🏆 Productos más comprados
-            </h2>
-            <p className="text-stone-500 dark:text-stone-400 text-xs mb-4">
-              Toca un producto para ver su historial
-            </p>
+            <CardHeader
+              emoji="🏆"
+              chipClass="bg-sky-50 dark:bg-sky-950/40"
+              title="Productos más comprados"
+              subtitle="Toca un producto para ver su historial"
+            />
             <div className="space-y-3">
               {topProducts.map((p, i) => {
                 const maxPurchases = topProducts[0].purchases;
@@ -210,12 +246,12 @@ export default function StatsContent({
         {/* ─── Category spend comparison ────────────────────────────────────── */}
         {categorySpend.length > 0 && (
           <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-            <h2 className="text-stone-800 dark:text-stone-100 font-bold mb-1">
-              📂 Gasto por categoría
-            </h2>
-            <p className="text-stone-500 dark:text-stone-400 text-xs mb-4">
-              Este mes vs mes anterior
-            </p>
+            <CardHeader
+              emoji="📂"
+              chipClass="bg-violet-50 dark:bg-violet-950/40"
+              title="Gasto por categoría"
+              subtitle="Este mes vs mes anterior"
+            />
             <div className="space-y-3">
               {categorySpend.map((cat) => {
                 const diff =
@@ -237,8 +273,8 @@ export default function StatsContent({
                       (() => {
                         let cls =
                           'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400';
-                        if (diff < 0) cls = 'bg-emerald-500/20 text-emerald-300';
-                        else if (diff > 0) cls = 'bg-red-500/20 text-red-300';
+                        if (diff < 0) cls = 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300';
+                        else if (diff > 0) cls = 'bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-300';
                         return (
                           <span
                             className={`text-xs font-bold shrink-0 px-2 py-0.5 rounded-full ${cls}`}
@@ -255,14 +291,20 @@ export default function StatsContent({
           </section>
         )}
 
+        </div>
+
+        {/* ─── Zona: despensa y supermercados ──────────────────────────────── */}
+        <div className="space-y-5">
+        <SectionHeader emoji="🏠" title="Despensa y supermercados" />
+
         {/* ─── Stock overview ──────────────────────────────────────────────── */}
         <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-          <h2 className="text-stone-800 dark:text-stone-100 font-bold mb-1">
-            🏠 Estado de tu despensa
-          </h2>
-          <p className="text-stone-500 dark:text-stone-400 text-xs mb-4">
-            {totalProducts} productos · toca una barra para ver cuáles
-          </p>
+          <CardHeader
+            emoji="🥫"
+            chipClass="bg-brand-50 dark:bg-brand-900/30"
+            title="Estado de tu despensa"
+            subtitle={`${totalProducts} productos · toca una barra para ver cuáles`}
+          />
           <div className="space-y-3">
             {/* Lleno */}
             <button
@@ -272,7 +314,7 @@ export default function StatsContent({
               className="w-full text-left group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-emerald-400 font-medium group-hover:text-emerald-500 transition">
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition">
                   ✅ Lleno
                 </span>
                 <span className="text-stone-500 dark:text-stone-400">
@@ -337,12 +379,12 @@ export default function StatsContent({
 
         {/* ─── Top supermarkets ────────────────────────────────────────────── */}
         <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-          <h2 className="text-stone-800 dark:text-stone-100 font-bold mb-1">
-            🛒 Supermercados más usados
-          </h2>
-          <p className="text-stone-500 dark:text-stone-400 text-xs mb-4">
-            {topStores.length > 0 ? 'Toca una tienda para ver las compras' : 'Basado en tus compras registradas'}
-          </p>
+          <CardHeader
+            emoji="🛒"
+            chipClass="bg-indigo-50 dark:bg-indigo-950/40"
+            title="Supermercados más usados"
+            subtitle={topStores.length > 0 ? 'Toca una tienda para ver las compras' : 'Basado en tus compras registradas'}
+          />
           {topStores.length === 0 ? (
             <p className="text-stone-500 dark:text-stone-400 text-sm text-center py-4">
               Aún no tienes compras registradas.
@@ -392,6 +434,7 @@ export default function StatsContent({
             </div>
           )}
         </section>
+        </div>
       </div>
 
       <StatsDetailSheet open={activeDetail !== null} detail={activeDetail} onClose={closeDetail} />

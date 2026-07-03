@@ -52,11 +52,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       userId: asStr(p.user_id, String(item.user_id)),
       createdAt: asStr(p.created_at, String(item.created_at)),
       updatedAt: asStr(p.updated_at, String(item.updated_at)),
-      lastPurchasePrice: null,
-      lastPurchaseDate: null,
-      avgPrice: null,
-      totalSpent: 0,
-      totalPurchasedQty: 0,
+      // Real price data — returning nulls here wipes the client's price
+      // estimate the moment an item is checked into the cart.
+      lastPurchasePrice: p.last_purchase_price == null ? null : Number(p.last_purchase_price),
+      lastPurchaseDate: p.last_purchase_date == null ? null : String(p.last_purchase_date),
+      avgPrice: p.avg_price == null ? null : Number(p.avg_price),
+      totalSpent: Number(p.total_spent ?? 0),
+      totalPurchasedQty: Number(p.total_purchased_qty ?? 0),
       currency: asStr(p.currency, 'USD'),
     },
     quantityNeeded: Number(item.quantity_needed ?? 1),
