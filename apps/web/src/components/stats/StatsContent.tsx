@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import StatsDetailSheet, { type ActiveDetail, type DetailType } from './StatsDetailSheet';
 import SectionHeader from '@/components/layout/SectionHeader';
 import { getStoreLogo } from '@/lib/store-logo';
@@ -101,6 +102,7 @@ export default function StatsContent({
   maxTrips,
   maxSpend,
 }: StatsContentProps) {
+  const router = useRouter();
   const [activeDetail, setActiveDetail] = useState<ActiveDetail | null>(null);
 
   const openDetail = useCallback((type: DetailType, value: string, label: string) => {
@@ -108,6 +110,9 @@ export default function StatsContent({
   }, []);
 
   const closeDetail = useCallback(() => setActiveDetail(null), []);
+
+  const knownStores = topStores.map((s) => s.name).filter((n) => n !== 'Sin tienda');
+  const refreshData = useCallback(() => router.refresh(), [router]);
 
   const now = new Date();
   const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -437,7 +442,13 @@ export default function StatsContent({
         </div>
       </div>
 
-      <StatsDetailSheet open={activeDetail !== null} detail={activeDetail} onClose={closeDetail} />
+      <StatsDetailSheet
+        open={activeDetail !== null}
+        detail={activeDetail}
+        onClose={closeDetail}
+        knownStores={knownStores}
+        onDataChanged={refreshData}
+      />
     </>
   );
 }
