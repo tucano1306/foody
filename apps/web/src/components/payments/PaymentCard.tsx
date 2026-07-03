@@ -234,10 +234,9 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
           </div>
         </div>
 
-        {/* Bottom row: status badge + quick actions */}
-        <div className="mt-4 flex items-center justify-between gap-2">
+        {/* Bottom row: status badge */}
+        <div className="mt-4 flex items-center gap-2">
           {renderStatusBadge(isPaid, isSnoozed, urgency, currentPayment.daysUntilDue)}
-          <span className="text-stone-400 dark:text-stone-500 text-xs">Toca para ver más →</span>
         </div>
 
         {/* Accumulated debt banner */}
