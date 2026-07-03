@@ -43,13 +43,27 @@ function ProductGrid({
   );
 }
 
+/** Tinted card treatment per urgency level so each pantry block reads as its own zone. */
+const SECTION_TONES = {
+  rose: {
+    card: 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/40',
+    toggle: 'border-rose-200 text-rose-500 hover:bg-rose-100/60 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/40',
+  },
+  amber: {
+    card: 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40',
+    toggle: 'border-amber-200 text-amber-600 hover:bg-amber-100/60 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/40',
+  },
+} as const;
+
 function CollapsibleSection({
   title,
+  tone,
   items,
   onLevelChange,
   lastPurchaseMap,
 }: {
   readonly title: React.ReactNode;
+  readonly tone: keyof typeof SECTION_TONES;
   readonly items: readonly Product[];
   readonly onLevelChange: (id: string, level: StockLevel) => void;
   readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
@@ -62,14 +76,14 @@ function CollapsibleSection({
   const toggleLabel = expanded ? '▲ Mostrar menos' : `▼ Ver ${hidden} producto${plural} más`;
 
   return (
-    <section>
-      <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">{title}</h2>
+    <section className={`rounded-2xl border p-4 sm:p-5 shadow-sm ${SECTION_TONES[tone].card}`}>
+      <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center gap-2">{title}</h2>
       <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} />
       {hidden > 0 && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-3 w-full py-2 rounded-xl border border-dashed border-stone-300 text-stone-500 text-sm hover:bg-stone-50 transition"
+          className={`mt-3 w-full py-2 rounded-xl border border-dashed text-sm transition ${SECTION_TONES[tone].toggle}`}
         >
           {toggleLabel}
         </button>
@@ -107,7 +121,8 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
     <>
       {empty.length > 0 && (
         <CollapsibleSection
-          title={<><span className="text-rose-700">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-rose-400">({empty.length})</span></>}
+          title={<><span className="text-rose-700 dark:text-rose-400">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-rose-400">({empty.length})</span></>}
+          tone="rose"
           items={empty}
           onLevelChange={handleLevelChange}
           lastPurchaseMap={lastPurchaseMap}
@@ -116,7 +131,8 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
       {low.length > 0 && (
         <CollapsibleSection
-          title={<><span className="text-amber-700">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-amber-400">({low.length})</span></>}
+          title={<><span className="text-amber-700 dark:text-amber-400">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-amber-400">({low.length})</span></>}
+          tone="amber"
           items={low}
           onLevelChange={handleLevelChange}
           lastPurchaseMap={lastPurchaseMap}
@@ -124,9 +140,9 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
       )}
 
       {/* ─── Todos los productos ─────────────────────────────────────────── */}
-      <section>
+      <section className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 p-4 sm:p-5 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
-          <h2 className="flex-1 text-base sm:text-xl font-semibold text-stone-700 truncate">
+          <h2 className="flex-1 text-base sm:text-lg font-bold text-stone-700 dark:text-stone-200 truncate">
             🛒 Todos los productos ({products.length})
           </h2>
           <Link
