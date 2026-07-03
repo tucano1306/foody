@@ -52,8 +52,11 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
   return (
     <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
       {/* ── Header ────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-1">
-        <h2 className="text-base font-bold text-stone-800 dark:text-stone-100 flex-1">💳 Pagos próximos</h2>
+      <div className="flex items-center gap-3 mb-1">
+        <span className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+          💳
+        </span>
+        <h2 className="text-base sm:text-lg font-bold text-stone-800 dark:text-stone-100 flex-1">Pagos próximos</h2>
 
         {/* Reveal toggle — privacy feature */}
         <button
