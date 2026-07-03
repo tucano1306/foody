@@ -99,8 +99,29 @@ function loadImageFromBlob(file: Blob): Promise<LoadedImage> {
   });
 }
 
+const LARGE_PHOTO_BYTES = 1_000_000;
+// Pre-scale to 2× the output size: keeps quality for the final downscale
+// while bounding the decoded buffer to a few MB.
+const PRESCALE_DIMENSION = MAX_OUTPUT_DIMENSION * 2;
+
+/**
+ * Decode the image, downscaling inside the decoder when the file is large.
+ * A 12 MP camera photo decoded at full size needs ~50 MB of pixel buffer —
+ * the main "no hay suficiente memoria" source on mobile.
+ */
+async function decodeBitmap(file: Blob): Promise<ImageBitmap> {
+  if (file.size > LARGE_PHOTO_BYTES) {
+    try {
+      return await createImageBitmap(file, { resizeWidth: PRESCALE_DIMENSION, resizeQuality: 'medium' });
+    } catch {
+      // Older browsers without resize support — decode at full size below
+    }
+  }
+  return createImageBitmap(file);
+}
+
 async function compressViaImageBitmap(file: Blob): Promise<string> {
-  const bitmap = await createImageBitmap(file);
+  const bitmap = await decodeBitmap(file);
   if (bitmap.width === 0 || bitmap.height === 0) {
     bitmap.close();
     throw new Error('No se pudo procesar la imagen');
@@ -316,6 +337,7 @@ function compressImage(file: File): Promise<string> {
 export default function ProductForm({ product, inHousehold }: Props) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [isPrivate, setIsPrivate] = useState(false);
 
   const [form, setForm] = useState<CreateProductDto>({
@@ -393,9 +415,11 @@ export default function ProductForm({ product, inHousehold }: Props) {
     }
 
     try {
+      // Direct route — the /api/proxy indirection costs an extra serverless
+      // invocation + internal HTTP hop per save.
       const url = product
-        ? `/api/proxy/products/${product.id}`
-        : `/api/proxy/products`;
+        ? `/api/products/${product.id}`
+        : `/api/products`;
 
       const res = await fetch(url, {
         method: product ? 'PATCH' : 'POST',
@@ -455,7 +479,12 @@ export default function ProductForm({ product, inHousehold }: Props) {
           Foto del producto
         </span>
         <div className="border-2 border-dashed border-stone-200 rounded-2xl p-4">
-          {photoPreview ? (
+          {uploading ? (
+            <div className="py-6 text-center" aria-live="polite">
+              <div className="w-8 h-8 mx-auto rounded-full border-4 border-brand-200 border-t-brand-500 animate-spin" />
+              <p className="text-sm text-stone-400 mt-3">Optimizando foto…</p>
+            </div>
+          ) : photoPreview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={photoPreview}
@@ -465,27 +494,41 @@ export default function ProductForm({ product, inHousehold }: Props) {
           ) : (
             <div className="py-6 text-center">
               <span className="text-3xl">📷</span>
-              <p className="text-sm text-stone-400 mt-2">
-                {uploading ? 'Subiendo...' : 'Agrega una foto'}
-              </p>
+              <p className="text-sm text-stone-400 mt-2">Agrega una foto</p>
             </div>
           )}
 
-          <div className="mt-3">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => cameraRef.current?.click()}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition"
+              disabled={uploading}
+              className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               📸 Cámara
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-brand-300 text-brand-600 hover:bg-brand-50 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              🖼️ Galería
             </button>
           </div>
 
           <input
             ref={cameraRef}
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif"
             capture="environment"
+            className="hidden"
+            onChange={handlePhotoChange}
+          />
+          <input
+            ref={galleryRef}
+            type="file"
+            accept="image/*,.heic,.heif"
             className="hidden"
             onChange={handlePhotoChange}
           />

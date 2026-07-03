@@ -113,8 +113,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // API v2 with a fields whitelist: the full product document can exceed
+    // 500 KB; this trims the payload to ~1 KB and cuts lookup latency.
+    const fields = 'product_name,product_name_es,product_name_en,generic_name,categories_tags,image_front_thumb_url,image_front_small_url';
     const offRes = await fetch(
-      `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`,
+      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${fields}`,
       {
         headers: { 'User-Agent': 'Foody/1.0 (contact@foody-app.com)' },
         next: { revalidate: 86_400 }, // cache product data for 24 h
