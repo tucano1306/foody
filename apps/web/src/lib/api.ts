@@ -229,12 +229,15 @@ function mapShoppingListItem(row: Record<string, unknown>): ShoppingListItem {
   };
 }
 
+// Real stores columns: id, name, address, latitude, longitude, user_id,
+// household_id, created_at, updated_at. chain/currency/color/icon are not
+// persisted, so they fall back to defaults here.
 function mapStore(row: Record<string, unknown>): Store {
   return {
     id: String(row.id),
     name: asText(row.name),
     chain: (row.chain as string | null | undefined) ?? null,
-    location: (row.location as string | null | undefined) ?? null,
+    location: (row.address as string | null | undefined) ?? null,
     currency: asText(row.currency, 'USD'),
     color: (row.color as string | null | undefined) ?? null,
     icon: (row.icon as string | null | undefined) ?? null,
@@ -607,8 +610,8 @@ export const api = {
       const { userId, householdId } = await getAuthContext();
       const id = randomUUID();
       const rows = await sql`
-        INSERT INTO stores (id, name, chain, location, currency, color, icon, user_id, household_id, created_at, updated_at)
-        VALUES (${id}, ${data.name}, ${data.chain ?? null}, ${data.location ?? null}, ${data.currency ?? 'USD'}, ${data.color ?? null}, ${data.icon ?? null}, ${userId}, ${householdId}, NOW(), NOW())
+        INSERT INTO stores (id, name, address, user_id, household_id, created_at, updated_at)
+        VALUES (${id}, ${data.name}, ${data.location ?? null}, ${userId}, ${householdId}, NOW(), NOW())
         RETURNING *
       `;
       return mapStore(rows[0] as Record<string, unknown>);
@@ -617,11 +620,7 @@ export const api = {
       const rows = await sql`
         UPDATE stores SET
           name = COALESCE(${data.name ?? null}, name),
-          chain = COALESCE(${data.chain ?? null}, chain),
-          location = COALESCE(${data.location ?? null}, location),
-          currency = COALESCE(${data.currency ?? null}, currency),
-          color = COALESCE(${data.color ?? null}, color),
-          icon = COALESCE(${data.icon ?? null}, icon),
+          address = COALESCE(${data.location ?? null}, address),
           updated_at = NOW()
         WHERE id = ${id} RETURNING *
       `;
