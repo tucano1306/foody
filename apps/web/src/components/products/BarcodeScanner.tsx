@@ -15,6 +15,118 @@ interface Props {
 
 type ScanState = 'starting' | 'scanning' | 'detecting' | 'not-found' | 'error';
 
+interface ScanControls {
+  stop: () => void;
+}
+
+// Cap the camera feed: default constraints can open 4K streams on modern
+// phones, and every frame gets copied for decoding — a common OOM source.
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    facingMode: 'environment',
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+};
+
+// Only 1D product formats — skipping QR/PDF417/Aztec/DataMatrix cuts the
+// per-frame decode work to a fraction.
+const NATIVE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+const NATIVE_SCAN_INTERVAL_MS = 150;
+
+interface DetectedBarcode {
+  rawValue: string;
+}
+interface BarcodeDetectorLike {
+  detect(source: HTMLVideoElement): Promise<DetectedBarcode[]>;
+}
+interface BarcodeDetectorCtor {
+  new (options?: { formats?: string[] }): BarcodeDetectorLike;
+  getSupportedFormats?: () => Promise<string[]>;
+}
+
+/**
+ * Hardware-accelerated scanning via the native BarcodeDetector API
+ * (Chrome/Android). Returns null when unavailable so the caller can fall
+ * back to ZXing; camera errors propagate to the caller.
+ */
+async function startNativeDetector(
+  video: HTMLVideoElement,
+  onCode: (code: string) => void,
+): Promise<ScanControls | null> {
+  const Detector = (globalThis as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
+  if (!Detector) return null;
+
+  let detector: BarcodeDetectorLike;
+  try {
+    const supported = (await Detector.getSupportedFormats?.()) ?? [];
+    const formats = NATIVE_FORMATS.filter((f) => supported.includes(f));
+    if (formats.length === 0) return null;
+    detector = new Detector({ formats });
+  } catch {
+    return null;
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
+  video.srcObject = stream;
+  await video.play().catch(() => undefined);
+
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    stream.getTracks().forEach((t) => t.stop());
+    video.srcObject = null;
+  };
+
+  void (async () => {
+    while (!stopped) {
+      if (video.readyState >= 2) {
+        try {
+          const codes = await detector.detect(video);
+          if (!stopped && codes.length > 0 && codes[0].rawValue) {
+            onCode(codes[0].rawValue);
+            return;
+          }
+        } catch {
+          // Frame not decodable yet — keep polling
+        }
+      }
+      await new Promise((r) => setTimeout(r, NATIVE_SCAN_INTERVAL_MS));
+    }
+  })();
+
+  return { stop };
+}
+
+/** ZXing fallback, restricted to 1D product formats via decode hints. */
+async function startZxingScanner(
+  video: HTMLVideoElement,
+  onCode: (code: string) => void,
+): Promise<ScanControls> {
+  const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
+    import('@zxing/browser'),
+    import('@zxing/library'),
+  ]);
+
+  const hints = new Map();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8,
+    BarcodeFormat.UPC_A,
+    BarcodeFormat.UPC_E,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.ITF,
+  ]);
+
+  const codeReader = new BrowserMultiFormatReader(hints);
+  const controls = await codeReader.decodeFromConstraints(CAMERA_CONSTRAINTS, video, (result) => {
+    if (result) onCode(result.getText());
+  });
+  return { stop: () => controls.stop() };
+}
+
 export default function BarcodeScanner({ onResult, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
@@ -64,38 +176,37 @@ export default function BarcodeScanner({ onResult, onClose }: Props) {
 
     async function start() {
       try {
-        const { BrowserMultiFormatReader, BrowserCodeReader } = await import('@zxing/browser');
-
         if (!mounted || !videoRef.current) return;
 
-        const devices = await BrowserCodeReader.listVideoInputDevices();
-        // Prefer back/rear/environment camera on mobile devices
-        const backCamera = devices.find((d) => /back|rear|environment/i.test(d.label));
-        const deviceId = backCamera?.deviceId ?? undefined;
+        const onCode = (code: string) => {
+          if (detectedRef.current) return;
+          detectedRef.current = true;
+          controlsRef.current?.stop();
+          void handleBarcode(code);
+        };
 
-        const codeReader = new BrowserMultiFormatReader();
-        const controls = await codeReader.decodeFromVideoDevice(
-          deviceId ?? undefined,
-          videoRef.current,
-          (result) => {
-            if (!result || detectedRef.current) return;
-            detectedRef.current = true;
-            controlsRef.current?.stop();
-            void handleBarcode(result.getText());
-          },
-        );
+        // Native BarcodeDetector when available (much faster and lighter);
+        // ZXing with 1D-format hints elsewhere.
+        const controls =
+          (await startNativeDetector(videoRef.current, onCode)) ??
+          (await startZxingScanner(videoRef.current, onCode));
 
+        controlsRef.current = controls;
         if (mounted) {
-          controlsRef.current = controls;
           setScanState('scanning');
         } else {
           controls.stop();
+          controlsRef.current = null;
         }
       } catch (err) {
         if (!mounted) return;
+        const name = err instanceof DOMException ? err.name.toLowerCase() : '';
         const msg = err instanceof Error ? err.message.toLowerCase() : '';
+        const denied = [name, msg].some(
+          (s) => s.includes('permission') || s.includes('denied') || s.includes('notallowed'),
+        );
         setErrorMsg(
-          msg.includes('permission') || msg.includes('denied') || msg.includes('notallowed')
+          denied
             ? 'Permite el acceso a la cámara en tu navegador'
             : 'No se pudo iniciar la cámara',
         );
