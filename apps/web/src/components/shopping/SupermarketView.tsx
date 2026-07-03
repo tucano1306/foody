@@ -26,9 +26,9 @@ function pluralize(count: number, singular: string, plural: string): string {
 }
 
 function getRowCls(inCart: boolean, urgent: boolean): string {
-  if (inCart) return 'bg-market-50/60 border-market-200';
-  if (urgent) return 'bg-white border-rose-200 hover:border-rose-300 hover:bg-rose-50/40';
-  return 'bg-white border-stone-100 hover:border-market-300 hover:bg-market-50/40';
+  if (inCart) return 'bg-market-50/60 border-market-200 dark:bg-market-900/20 dark:border-market-800';
+  if (urgent) return 'bg-white border-rose-200 hover:border-rose-300 hover:bg-rose-50/40 dark:bg-stone-900 dark:border-rose-900/50 dark:hover:bg-rose-950/30';
+  return 'bg-white border-stone-100 hover:border-market-300 hover:bg-market-50/40 dark:bg-stone-900 dark:border-stone-800 dark:hover:bg-stone-800/60';
 }
 
 function getCheckboxCls(inCart: boolean, urgent: boolean): string {
@@ -131,11 +131,21 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     try { sessionStorage.setItem('foody-mkt-quantities', JSON.stringify(quantities)); } catch { /* ignore */ }
   }, [quantities]);
 
+  // Lock body scroll while the completion modal is open (mobile bottom sheet)
+  useEffect(() => {
+    if (!showModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [showModal]);
+
   const { inCart, notInCart, urgent, low } = useMemo(() => {
     const inCart = items.filter((i) => i.isInCart);
     const notInCart = items.filter((i) => !i.isInCart);
     const urgent = notInCart.filter((i) => i.product.stockLevel === 'empty');
-    const low = notInCart.filter((i) => i.product.stockLevel !== 'empty');
+    // Must mirror the 'low' filter (=== 'half') or the chip count disagrees
+    // with what the filter actually shows.
+    const low = notInCart.filter((i) => i.product.stockLevel === 'half');
     return { inCart, notInCart, urgent, low };
   }, [items]);
 
@@ -216,6 +226,11 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       }
       return next;
     });
+    // Prefill with the most-visited store — leaving it blank files the trip
+    // under "Sin tienda". The user can still clear or change it.
+    if (!storeName && pastStoreNames && pastStoreNames.length > 0) {
+      setStoreName(pastStoreNames[0]);
+    }
     // Auto-fill the total with the calculated amount so the user only confirms.
     if (runningTotal > 0) {
       setTotalAmount(runningTotal.toFixed(2));
@@ -318,16 +333,16 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   return (
     <div className="space-y-5 pb-32">
       {/* ─── Progress ───────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl p-4 border border-stone-100 shadow-sm">
+      <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 border border-stone-100 dark:border-stone-800 shadow-sm">
         <div className="flex justify-between items-baseline mb-2">
-          <span className="text-sm font-semibold text-stone-700">
-            {inCart.length} / {items.length} en el carrito
+          <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">
+            {progress === 100 ? '🎉 ¡Carrito completo!' : `${inCart.length} / ${items.length} en el carrito`}
           </span>
-          <span className="text-xs text-stone-400">
+          <span className={`text-xs ${progress === 100 ? 'font-bold text-market-600' : 'text-stone-400'}`}>
             {Math.round(progress)}%
           </span>
         </div>
-        <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden">
+        <div className="h-2.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-linear-to-r from-market-400 to-market-600 rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
@@ -392,7 +407,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         <span className="text-base shrink-0">⚡</span>
         <p className="text-xs text-indigo-200 leading-snug">
           <span className="font-bold text-white">Modo compra rápida</span>
-          {' '}· Marca cada producto y el inventario se actualiza solo
+          {' '}· Marca lo que compras y al finalizar tu despensa se actualiza sola
         </p>
       </div>
 
@@ -421,7 +436,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             onBlur={() => setSearchFocused(false)}
             placeholder=""
             aria-label="Buscar producto"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
           />
           {!search && !searchFocused && (
             <motion.span
@@ -447,7 +462,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                 filter === k
                   ? 'bg-market-600 text-white shadow-sm'
-                  : 'bg-white border border-stone-200 text-stone-600 hover:border-market-300'
+                  : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-market-300'
               }`}
               whileHover={{ scale: 1.07 }}
               whileTap={{ scale: 0.9 }}
@@ -467,7 +482,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                 categoryFilter === null
                   ? 'bg-stone-700 text-white shadow-sm'
-                  : 'bg-white border border-stone-200 text-stone-600 hover:border-stone-400'
+                  : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400'
               }`}
               whileHover={{ scale: 1.07 }}
               whileTap={{ scale: 0.9 }}
@@ -483,7 +498,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                   categoryFilter === cat
                     ? 'bg-stone-700 text-white shadow-sm'
-                    : 'bg-white border border-stone-200 text-stone-600 hover:border-stone-400'
+                    : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400'
                 }`}
                 whileHover={{ scale: 1.07 }}
                 whileTap={{ scale: 0.9 }}
@@ -495,6 +510,32 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           </div>
         )}
       </div>
+
+      {/* ─── Empty results (filters/search) or everything already in cart ──── */}
+      {visibleGroups.length === 0 && notInCart.length > 0 && (
+        <div className="text-center py-8 bg-white dark:bg-stone-900 rounded-2xl border border-dashed border-stone-200 dark:border-stone-700">
+          <p className="text-3xl mb-2">🔍</p>
+          <p className="text-sm text-stone-500 dark:text-stone-400">No hay productos que coincidan</p>
+          <button
+            type="button"
+            onClick={() => { setSearch(''); setFilter('all'); setCategoryFilter(null); }}
+            className="mt-3 px-4 py-1.5 rounded-full text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+      )}
+      {notInCart.length === 0 && inCart.length > 0 && (
+        <div className="text-center py-8 bg-market-50/60 dark:bg-market-900/20 rounded-2xl border border-market-200 dark:border-market-800">
+          <p className="text-3xl mb-2">🎉</p>
+          <p className="text-sm font-semibold text-market-700 dark:text-market-300">
+            ¡Todo está en el carrito!
+          </p>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+            Toca «Finalizar compra» abajo para registrarla
+          </p>
+        </div>
+      )}
 
       {/* ─── Category groups ────────────────────────────────────────────────── */}
       {visibleGroups.map(({ category, emoji, items: catItems, urgentCount }) => (
@@ -522,7 +563,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           title="✔️ Comprados"
           subtitle={
             runningTotal > 0
-              ? `${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · $${runningTotal.toFixed(2)} escaneado`
+              ? `${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · ${hasEstimated ? '≈' : ''}$${runningTotal.toFixed(2)}`
               : `${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · toca 📷 para registrar precios`
           }
           badgeCls="bg-green-100 text-green-700"
@@ -606,13 +647,13 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           />
 
           {/* Card */}
-          <div className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
+          <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-stone-800">🛒 Finalizar compra</h2>
+              <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">🛒 Finalizar compra</h2>
               <button
                 onClick={closeModal}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 transition"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500 transition"
               >
                 ✕
               </button>
@@ -621,7 +662,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             {/* Store name */}
             <label
               htmlFor="modal-store-name"
-              className="block text-sm font-semibold text-stone-700 mb-1.5"
+              className="block text-sm font-semibold text-stone-700 dark:text-stone-200 mb-1.5"
             >
               ¿En qué supermercado compraste?
             </label>
@@ -631,7 +672,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
               placeholder="Ej. Walmart, Soriana, HEB…"
-              className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition mb-4"
+              className="w-full px-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition mb-4"
             />
             {pastStoreNames && pastStoreNames.length > 0 && (
               <datalist id="store-suggestions">
@@ -644,7 +685,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             {/* Total amount */}
             <label
               htmlFor="modal-total-amount"
-              className="block text-sm font-semibold text-stone-700 mb-1.5"
+              className="block text-sm font-semibold text-stone-700 dark:text-stone-200 mb-1.5"
             >
               ¿Cuánto gastaste en total?
             </label>
@@ -659,7 +700,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 value={totalAmount}
                 onChange={(e) => setTotalAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
               />
             </div>
             <p className="text-xs text-stone-400 mb-4">
@@ -671,7 +712,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             </p>
 
             {/* Quantities + Prices */}
-            <p className="text-sm font-semibold text-stone-700 mb-2">
+            <p className="text-sm font-semibold text-stone-700 dark:text-stone-200 mb-2">
               Cantidad y precio por producto
             </p>
 
@@ -702,10 +743,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 return (
                   <div
                     key={item.id}
-                    className="bg-stone-50 rounded-xl px-3 py-2.5 border border-stone-100"
+                    className="bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5 border border-stone-100 dark:border-stone-700"
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-sm font-medium text-stone-700 truncate min-w-0">
+                      <span className="text-sm font-medium text-stone-700 dark:text-stone-200 truncate min-w-0">
                         {item.product.name}
                       </span>
                       {lineTotal !== null && (
@@ -755,7 +796,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               <button
                 type="button"
                 onClick={closeModal}
-                className="flex-1 py-3 rounded-2xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+                className="flex-1 py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition"
               >
                 Cancelar
               </button>
@@ -789,7 +830,7 @@ function Section({
   return (
     <section>
       <div className="flex items-center justify-between mb-2 px-1">
-        <h2 className="text-sm font-bold text-stone-700 uppercase tracking-wide">
+        <h2 className="text-sm font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wide">
           {title}
         </h2>
         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${badgeCls}`}>
@@ -872,7 +913,7 @@ function ShoppingItemRow({
           <div className="flex items-center gap-1.5">
             <p
               className={`font-semibold text-sm truncate ${
-                inCart ? 'line-through text-stone-400' : 'text-stone-800'
+                inCart ? 'line-through text-stone-400' : 'text-stone-800 dark:text-stone-100'
               }`}
             >
               {product.name}

@@ -639,15 +639,23 @@ export const api = {
     },
     byStore: async () => {
       const { userId } = await getAuthContext();
-      // Query product_purchases so individual purchases (not just full trips) are included.
+      // Real visits without double counting: formal trips (authoritative
+      // total_spent) plus loose trip-less purchases grouped into one session
+      // per shared batch timestamp. Counting product_purchases rows directly
+      // reports line items as visits and re-counts itemized trip contents.
       const rows = await sql`
-        SELECT
-          COALESCE(store_name, 'Sin tienda') AS "storeName",
-          SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total,
-          COUNT(*) AS count
-        FROM product_purchases
-        WHERE user_id = ${userId}
-        GROUP BY store_name
+        SELECT name AS "storeName", SUM(total) AS total, COUNT(*) AS count
+        FROM (
+          SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
+          FROM shopping_trips WHERE user_id = ${userId}
+          UNION ALL
+          SELECT COALESCE(store_name, 'Sin tienda') AS name,
+            SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
+          FROM product_purchases
+          WHERE user_id = ${userId} AND trip_id IS NULL
+          GROUP BY COALESCE(store_name, 'Sin tienda'), purchased_at
+        ) visits
+        GROUP BY name
         ORDER BY count DESC
       `;
       return rows.map((row) => ({
