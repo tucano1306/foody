@@ -53,7 +53,7 @@ export default async function ProductsPage() {
         </div>
       ) : (
         <Suspense>
-          <ProductsBrowser products={products} showActions showStockFilter pageSize={12} lastPurchaseMap={lastPurchaseMap} />
+          <ProductsBrowser products={products} showActions showStockFilter showHealthMeter pageSize={12} lastPurchaseMap={lastPurchaseMap} />
         </Suspense>
       )}
     </div>

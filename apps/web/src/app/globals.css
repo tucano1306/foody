@@ -410,9 +410,10 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #166534, transparent
 
 /* ─── Fun mode: game-style progress bar (supermarket cart) ───────────────── */
 .progress-fun {
+  /* --progress-from/--progress-to let each meter pick its own color scheme */
   background-image:
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.28) 0 10px, transparent 10px 20px),
-    linear-gradient(90deg, var(--color-market-400), var(--color-market-600));
+    linear-gradient(90deg, var(--progress-from, var(--color-market-400)), var(--progress-to, var(--color-market-600)));
   animation: foody-stripes 1s linear infinite;
 }
 @keyframes foody-stripes {

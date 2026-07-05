@@ -35,6 +35,19 @@ export default async function ShoppingTripsPage() {
     trips = [];
   }
 
+  const totalSpent = trips.reduce((sum, t) => sum + t.totalAmount, 0);
+  const avgSpent = trips.length > 0 ? totalSpent / trips.length : 0;
+  const currency = trips[0]?.currency ?? 'USD';
+
+  // Playful medals: cheapest and priciest trips (only meaningful with 2+ trips)
+  const withAmount = trips.filter((t) => t.totalAmount > 0);
+  const cheapestId = trips.length >= 2 && withAmount.length >= 2
+    ? withAmount.reduce((a, b) => (a.totalAmount <= b.totalAmount ? a : b)).id
+    : null;
+  const priciestId = trips.length >= 2 && withAmount.length >= 2
+    ? withAmount.reduce((a, b) => (a.totalAmount >= b.totalAmount ? a : b)).id
+    : null;
+
   return (
     <div className="space-y-4">
       <ModernTitle
@@ -51,6 +64,24 @@ export default async function ShoppingTripsPage() {
           </Link>
         }
       />
+
+      {/* Fun stats strip */}
+      {trips.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 card-stagger">
+          <div className="stat-card" data-accent="brand">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500">🧾 Compras</p>
+            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-stone-900">{trips.length}</p>
+          </div>
+          <div className="stat-card" data-accent="energy">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500">💰 Total</p>
+            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-stone-900 break-all">{formatCurrency(totalSpent, currency)}</p>
+          </div>
+          <div className="stat-card" data-accent="warn">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500">📊 Promedio</p>
+            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-stone-900 break-all">{formatCurrency(avgSpent, currency)}</p>
+          </div>
+        </div>
+      )}
 
       {/* Compare prices shortcut */}
       <Link
@@ -80,15 +111,15 @@ export default async function ShoppingTripsPage() {
           </Link>
         </div>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2 card-stagger">
           {trips.map((trip) => (
             <li key={trip.id}>
               <Link
                 href={`/shopping-trips/${trip.id}`}
-                className="block rounded-2xl bg-white border border-stone-100 px-4 py-3 shadow-sm hover:border-brand-200 hover:shadow-md transition"
+                className="group block rounded-2xl bg-white border border-stone-100 px-4 py-3 shadow-sm hover:border-brand-200 hover:shadow-md hover:-translate-y-0.5 transition"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl shrink-0">🏪</span>
+                  <span className="text-2xl shrink-0 transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12">🏪</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-stone-800 truncate">
                       {trip.storeName ?? 'Sin tienda'}
@@ -101,6 +132,16 @@ export default async function ShoppingTripsPage() {
                     <p className="font-bold text-brand-700">
                       {formatCurrency(trip.totalAmount, trip.currency)}
                     </p>
+                    {trip.id === cheapestId && (
+                      <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                        🏆 Más ahorradora
+                      </span>
+                    )}
+                    {trip.id === priciestId && (
+                      <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600">
+                        💸 La más cara
+                      </span>
+                    )}
                   </div>
                 </div>
               </Link>
