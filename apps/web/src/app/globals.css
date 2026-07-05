@@ -408,6 +408,27 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #166534, transparent
 .card-stagger > *:nth-child(12) { animation-delay: 0.57s; }
 .card-stagger > *:nth-child(n+13) { animation-delay: 0.62s; }
 
+/* ─── Fun mode: game-style progress bar (supermarket cart) ───────────────── */
+.progress-fun {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.28) 0 10px, transparent 10px 20px),
+    linear-gradient(90deg, var(--color-market-400), var(--color-market-600));
+  animation: foody-stripes 1s linear infinite;
+}
+@keyframes foody-stripes {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 28.28px 0, 0 0; }
+}
+
+/* Pulsing glow for the "everything's in the cart" CTA */
+@keyframes foody-glow {
+  0%, 100% { box-shadow: 0 10px 25px -5px rgba(34, 197, 94, 0.45); }
+  50%      { box-shadow: 0 10px 40px 2px rgba(34, 197, 94, 0.75); }
+}
+.animate-glow {
+  animation: foody-glow 1.6s ease-in-out infinite;
+}
+
 /* ─── Fun mode: shake (product just ran out) ─────────────────────────────── */
 @keyframes foody-shake {
   10%, 90% { transform: translateX(-1px); }

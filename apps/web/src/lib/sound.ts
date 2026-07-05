@@ -4,7 +4,7 @@
  * The 🔊 toggle in the navbar mutes everything; the choice persists per device.
  */
 
-export type SoundName = 'pop' | 'low' | 'empty' | 'purchase' | 'payment';
+export type SoundName = 'pop' | 'low' | 'empty' | 'purchase' | 'payment' | 'levelup';
 
 const STORAGE_KEY = 'foody-sounds';
 
@@ -95,6 +95,13 @@ const SOUNDS: Record<SoundName, readonly Note[]> = {
     { freq: 988, at: 0, dur: 0.08, type: 'square', vol: 0.035 },
     { freq: 1319, at: 0.08, dur: 0.28, type: 'square', vol: 0.035 },
     { freq: 2637, at: 0.08, dur: 0.28, type: 'sine', vol: 0.02 },
+  ],
+  // Quick rising arpeggio + sparkle — cart 100% complete
+  levelup: [
+    { freq: 523, at: 0, dur: 0.08, type: 'triangle', vol: 0.06 },
+    { freq: 659, at: 0.07, dur: 0.08, type: 'triangle', vol: 0.06 },
+    { freq: 784, at: 0.14, dur: 0.08, type: 'triangle', vol: 0.06 },
+    { freq: 1568, at: 0.21, dur: 0.25, type: 'sine', vol: 0.05 },
   ],
   // Little victory fanfare — payment confirmed
   payment: [
