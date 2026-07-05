@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -152,6 +152,18 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   }, [items]);
 
   const progress = items.length === 0 ? 0 : (inCart.length / items.length) * 100;
+
+  // Level-up moment: celebrate the first time the cart hits 100%
+  const progressRef = useRef<HTMLDivElement>(null);
+  const prevProgressRef = useRef(0);
+  useEffect(() => {
+    if (items.length > 0 && progress === 100 && prevProgressRef.current < 100) {
+      playSound('levelup');
+      haptic([20, 40, 20]);
+      burstFromElement(progressRef.current, ['🎉', '🛒', '⭐']);
+    }
+    prevProgressRef.current = progress;
+  }, [progress, items.length]);
 
   // How many units the user is buying of a product. Defaults to the needed
   // quantity (≥1), but the user can adjust it from the cart row.
@@ -326,7 +338,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   if (items.length === 0) {
     return (
       <div className="text-center py-20">
-        <p className="text-6xl mb-4">🎉</p>
+        <p className="text-6xl mb-4"><span className="inline-block animate-bounce">🎉</span></p>
         <h2 className="text-xl font-semibold text-stone-600 mb-2">¡Lista vacía!</h2>
         <p className="text-stone-400">
           No tienes productos marcados para comprar.
@@ -339,22 +351,34 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   }
 
   return (
+    <LayoutGroup>
     <div className="space-y-5 pb-32">
-      {/* ─── Progress ───────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 border border-stone-100 dark:border-stone-800 shadow-sm">
+      {/* ─── Progress (game-style: striped bar + cart riding the tip) ───────── */}
+      <div ref={progressRef} className="bg-white dark:bg-stone-900 rounded-2xl p-4 border border-stone-100 dark:border-stone-800 shadow-sm">
         <div className="flex justify-between items-baseline mb-2">
           <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">
-            {progress === 100 ? '🎉 ¡Carrito completo!' : `${inCart.length} / ${items.length} en el carrito`}
+            {progress === 100 ? (
+              <span className="inline-block animate-pop">🎉 ¡Carrito completo!</span>
+            ) : (
+              `${inCart.length} / ${items.length} en el carrito`
+            )}
           </span>
           <span className={`text-xs ${progress === 100 ? 'font-bold text-market-600' : 'text-stone-400'}`}>
             {Math.round(progress)}%
           </span>
         </div>
-        <div className="h-2.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+        <div className="relative h-3 bg-stone-100 dark:bg-stone-800 rounded-full">
           <div
-            className="h-full bg-linear-to-r from-market-400 to-market-600 rounded-full transition-all duration-500 ease-out"
+            className="progress-fun h-full rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
+          <span
+            aria-hidden="true"
+            className="absolute top-1/2 -translate-y-1/2 text-base leading-none drop-shadow-sm transition-all duration-500 ease-out"
+            style={{ left: `calc(${Math.min(Math.max(progress, 1), 97)}% - 8px)` }}
+          >
+            🛒
+          </span>
         </div>
       </div>
 
@@ -606,7 +630,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           <motion.button
             onClick={openModal}
             disabled={completing}
-            className="w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2"
+            className={`w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2${notInCart.length === 0 ? ' animate-glow' : ''}`}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 400, damping: 18 }}
@@ -821,6 +845,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       )}
     </div>
+    </LayoutGroup>
   );
 }
 
@@ -879,7 +904,14 @@ function ShoppingItemRow({
   const lineTotal = scannedPrice === undefined ? undefined : scannedPrice * qty;
 
   return (
-    <div className={`w-full rounded-2xl border transition-all ${rowCls}`}>
+    <motion.div
+      layout
+      layoutId={item.id}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+      className={`w-full rounded-2xl border transition-colors ${rowCls}`}
+    >
       <div className="flex items-center gap-2 p-3">
       {/* Toggle area */}
       <button
@@ -891,7 +923,16 @@ function ShoppingItemRow({
         <div
           className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${checkboxCls}`}
         >
-          {inCart && <span className="text-white text-xs font-bold">✓</span>}
+          {inCart && (
+            <motion.span
+              initial={{ scale: 0, rotate: -30 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 520, damping: 15 }}
+              className="text-white text-xs font-bold"
+            >
+              ✓
+            </motion.span>
+          )}
         </div>
 
         {/* Photo */}
@@ -1013,6 +1054,6 @@ function ShoppingItemRow({
           </button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
