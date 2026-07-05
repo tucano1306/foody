@@ -334,6 +334,91 @@ html.dark .neo-inset {
     inset -5px -5px 12px rgba(68, 64, 60, 0.3);
 }
 
+/* ─── Fun mode: floating food background ─────────────────────────────────── */
+.fun-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.fun-blob {
+  position: absolute;
+  width: 45vw;
+  height: 45vw;
+  min-width: 320px;
+  min-height: 320px;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.35;
+  animation: foody-blob-drift 26s ease-in-out infinite alternate;
+}
+.fun-blob-1 { top: -12%; left: -10%; background: radial-gradient(circle, #d0e89a, transparent 65%); }
+.fun-blob-2 { top: 30%; right: -15%; background: radial-gradient(circle, #a7bcd9, transparent 65%); animation-delay: -9s; animation-duration: 32s; }
+.fun-blob-3 { bottom: -18%; left: 20%; background: radial-gradient(circle, #bbf7d0, transparent 65%); animation-delay: -18s; animation-duration: 38s; }
+
+html.dark .fun-blob { opacity: 0.16; }
+html.dark .fun-blob-1 { background: radial-gradient(circle, #577628, transparent 65%); }
+html.dark .fun-blob-2 { background: radial-gradient(circle, #1f3a68, transparent 65%); }
+html.dark .fun-blob-3 { background: radial-gradient(circle, #166534, transparent 65%); }
+
+@keyframes foody-blob-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(6vw, -5vh) scale(1.15); }
+}
+
+.fun-emoji {
+  position: absolute;
+  bottom: -8vh;
+  opacity: 0;
+  animation: foody-float-up linear infinite;
+  will-change: transform;
+  filter: saturate(0.9);
+}
+
+@keyframes foody-float-up {
+  0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.4; }
+  25%  { transform: translateY(-30vh) translateX(2vw) rotate(10deg); }
+  50%  { transform: translateY(-60vh) translateX(-2vw) rotate(-8deg); }
+  75%  { transform: translateY(-90vh) translateX(2vw) rotate(12deg); opacity: 0.4; }
+  100% { transform: translateY(-120vh) translateX(0) rotate(0deg); opacity: 0; }
+}
+
+/* ─── Fun mode: staggered card entrance ──────────────────────────────────── */
+@keyframes foody-card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.card-stagger > * {
+  animation: foody-card-in 0.45s var(--ease-smooth) both;
+}
+.card-stagger > *:nth-child(1)  { animation-delay: 0.02s; }
+.card-stagger > *:nth-child(2)  { animation-delay: 0.07s; }
+.card-stagger > *:nth-child(3)  { animation-delay: 0.12s; }
+.card-stagger > *:nth-child(4)  { animation-delay: 0.17s; }
+.card-stagger > *:nth-child(5)  { animation-delay: 0.22s; }
+.card-stagger > *:nth-child(6)  { animation-delay: 0.27s; }
+.card-stagger > *:nth-child(7)  { animation-delay: 0.32s; }
+.card-stagger > *:nth-child(8)  { animation-delay: 0.37s; }
+.card-stagger > *:nth-child(9)  { animation-delay: 0.42s; }
+.card-stagger > *:nth-child(10) { animation-delay: 0.47s; }
+.card-stagger > *:nth-child(11) { animation-delay: 0.52s; }
+.card-stagger > *:nth-child(12) { animation-delay: 0.57s; }
+.card-stagger > *:nth-child(n+13) { animation-delay: 0.62s; }
+
+/* ─── Fun mode: shake (product just ran out) ─────────────────────────────── */
+@keyframes foody-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: foody-shake 0.5s ease both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

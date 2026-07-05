@@ -9,6 +9,7 @@ import PwaInstaller from '@/components/pwa/PwaInstaller';
 import OfflineSync from '@/components/pwa/OfflineSync';
 import FocusRefresh from '@/components/pwa/FocusRefresh';
 import PushNotifications from '@/components/pwa/PushNotifications';
+import FunBackground from '@/components/fx/FunBackground';
 import type { Product } from '@foody/types';
 
 export default async function AppLayout({ children }: { readonly children: React.ReactNode }) {
@@ -24,9 +25,11 @@ export default async function AppLayout({ children }: { readonly children: React
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-stone-50 dark:bg-stone-950">
+      <FunBackground />
       <PullToRefresh />
       <Navbar user={{ name: session.name, avatarUrl: session.avatarUrl, email: session.email }} />
-      <main className="flex-1 min-w-0 px-3 sm:px-4 lg:px-8 py-4 sm:py-6 max-w-5xl mx-auto w-full pb-6">
+      {/* relative z-10 keeps content above the decorative fixed background */}
+      <main className="relative z-10 flex-1 min-w-0 px-3 sm:px-4 lg:px-8 py-4 sm:py-6 max-w-5xl mx-auto w-full pb-6">
         {children}
       </main>
       <CommandPalette products={products} />

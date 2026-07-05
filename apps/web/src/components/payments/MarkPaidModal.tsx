@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import type { MonthlyPayment, PaymentMethod } from '@foody/types';
 import { PAYMENT_METHODS, isCardMethod, methodNeedsBank } from '@/lib/payment-methods';
+import { playSound } from '@/lib/sound';
+import { confettiRain } from '@/lib/fx';
 
 interface Props {
   readonly payment: MonthlyPayment;
@@ -104,6 +106,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? 'No se pudo registrar el pago');
       }
+      playSound('payment');
+      confettiRain(['💸', '🎉', '✨']);
       onConfirmed();
       onClose();
     } catch (err) {

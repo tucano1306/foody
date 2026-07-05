@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
+import { playSound } from '@/lib/sound';
+import { burstFromElement, confettiRain } from '@/lib/fx';
 import { useToast } from '@/components/ui/Toast';
 import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
 
@@ -206,10 +208,14 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     }
   }
 
-  function toggleItem(id: string) {
+  function toggleItem(id: string, el?: Element | null) {
     haptic(12);
     const original = items.find((i) => i.id === id);
     if (!original) return;
+    if (!original.isInCart) {
+      playSound('pop');
+      burstFromElement(el, ['🛒', '✨', '🥳']);
+    }
     optimisticToggle(id);
     startTransition(() => {
       void fetchToggle(id, original);
@@ -263,6 +269,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
       if (res.ok) {
         const data = await res.json();
+        playSound('purchase');
+        confettiRain(['🛒', '🎉', '🥳']);
         if (data.purchaseError) {
           toast.show('Compra guardada, pero algunos precios no se pudieron guardar.', 'info');
         } else {
@@ -549,7 +557,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             <ShoppingItemRow
               key={item.id}
               item={item}
-              onToggle={() => toggleItem(item.id)}
+              onToggle={(el) => toggleItem(item.id, el)}
               disabled={isPending}
               urgent={item.product.stockLevel === 'empty'}
             />
@@ -580,7 +588,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             <ShoppingItemRow
               key={item.id}
               item={item}
-              onToggle={() => toggleItem(item.id)}
+              onToggle={(el) => toggleItem(item.id, el)}
               disabled={isPending}
               inCart
               scannedPrice={scannedPrices[item.product.id]}
@@ -854,7 +862,7 @@ function ShoppingItemRow({
   onQtyChange,
 }: {
   readonly item: ShoppingListItem;
-  readonly onToggle: () => void;
+  readonly onToggle: (el?: Element | null) => void;
   readonly disabled: boolean;
   readonly inCart?: boolean;
   readonly urgent?: boolean;
@@ -875,7 +883,7 @@ function ShoppingItemRow({
       <div className="flex items-center gap-2 p-3">
       {/* Toggle area */}
       <button
-        onClick={onToggle}
+        onClick={(e) => onToggle(e.currentTarget)}
         disabled={disabled}
         className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-[0.98] disabled:opacity-60"
       >

@@ -52,7 +52,7 @@ function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelC
   readonly onDelete?: (id: string) => void;
 }) {
   return (
-    <div className={`grid gap-2 sm:gap-3 ${showActions ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'}`}>
+    <div className={`grid gap-2 sm:gap-3 card-stagger ${showActions ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'}`}>
       {products.map((product) => (
         <ProductCard
           key={product.id}

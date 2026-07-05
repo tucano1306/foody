@@ -97,7 +97,7 @@ export default function UpcomingPaymentsWidget({ payments }: Props) {
         <p className="text-stone-400 dark:text-stone-500 text-sm py-2">No hay pagos pendientes este mes 🎉</p>
       ) : (
         <>
-          <ul className="divide-y divide-stone-100 dark:divide-stone-800">
+          <ul className="divide-y divide-stone-100 dark:divide-stone-800 card-stagger">
             {displayed.map((p) => {
               const icon = CATEGORY_ICONS[p.category ?? 'other'] ?? '💰';
               const dotColor = getUrgencyDot(p.daysUntilDue);

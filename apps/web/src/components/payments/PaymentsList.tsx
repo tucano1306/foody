@@ -186,7 +186,7 @@ export default function PaymentsList({ initialPayments }: Props) {
           <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
             ⏰ Pendientes ({pending.length})
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
             {pending.map((payment) => (
               <PaymentCard
                 key={payment.id}
@@ -208,7 +208,7 @@ export default function PaymentsList({ initialPayments }: Props) {
           <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
             ⏸ Pospuestos ({snoozed.length})
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
             {snoozed.map((payment) => (
               <PaymentCard
                 key={payment.id}
@@ -230,7 +230,7 @@ export default function PaymentsList({ initialPayments }: Props) {
           <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
             ✅ Pagados este mes ({paid.length})
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
             {paid.map((payment) => (
               <PaymentCard
                 key={payment.id}
