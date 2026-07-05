@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { haptic } from '@/lib/haptic';
+import { playSound } from '@/lib/sound';
+import { burstAt } from '@/lib/fx';
 
 interface MonthEntry {
   month: string;
@@ -40,6 +42,14 @@ function getBudgetStatus(pct: number | null): { label: string; color: string; bg
   if (pct >= 100) return { label: '¡Excedido!', color: 'text-red-600', bg: 'bg-red-50', arc: '#ef4444' };
   if (pct >= 80) return { label: 'Atención', color: 'text-amber-600', bg: 'bg-amber-50', arc: '#f59e0b' };
   return { label: 'Bajo control', color: 'text-market-700', bg: 'bg-market-50', arc: '#16a34a' };
+}
+
+/** Game-face for the gauge: relaxed → nervous → on fire. */
+function getGaugeEmoji(pct: number): string {
+  if (pct >= 100) return '🔥';
+  if (pct >= 80) return '😬';
+  if (pct >= 50) return '🙂';
+  return '😎';
 }
 
 // SVG arc for the radial progress
@@ -245,6 +255,9 @@ export default function BudgetView({ initialData }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ monthlyLimit: limit }),
     });
+    // Setting a goal deserves a mini celebration
+    playSound('levelup');
+    burstAt(window.innerWidth / 2, window.innerHeight / 3, ['🎯', '💰', '✨']);
     setEditing(false);
     await refresh();
   }
@@ -296,6 +309,18 @@ export default function BudgetView({ initialData }: Props) {
               <RadialArc pct={data.percentUsed} color={status.arc} />
             )}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
+              {data.percentUsed !== null && (
+                <motion.span
+                  key={getGaugeEmoji(data.percentUsed)}
+                  initial={{ scale: 0, rotate: -30 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 14 }}
+                  className="text-lg leading-none mb-0.5"
+                  aria-hidden="true"
+                >
+                  {getGaugeEmoji(data.percentUsed)}
+                </motion.span>
+              )}
               <motion.span
                 key={Math.round(data.spentThisMonth)}
                 initial={{ opacity: 0, scale: 0.85 }}
@@ -316,7 +341,7 @@ export default function BudgetView({ initialData }: Props) {
 
           {/* Stats column */}
           <div className="flex-1 space-y-3">
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${status.bg} ${status.color}`}>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${status.bg} ${status.color}${data.percentUsed !== null && data.percentUsed >= 100 ? ' animate-shake' : ''}`}>
               {data.percentUsed !== null && data.percentUsed >= 100 && '🚨 '}
               {data.percentUsed !== null && data.percentUsed >= 80 && data.percentUsed < 100 && '⚠️ '}
               {(data.percentUsed === null || data.percentUsed < 80) && '✅ '}
@@ -353,17 +378,27 @@ export default function BudgetView({ initialData }: Props) {
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar — game meter with money riding the tip (fire when over) */}
         {data.percentUsed !== null && (
           <div className="mt-4">
-            <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden">
+            <div className="relative h-3 bg-stone-100 rounded-full">
               <motion.div
-                className="h-full rounded-full"
-                style={{ backgroundColor: status.arc }}
+                className="progress-fun h-full rounded-full"
+                style={{
+                  ['--progress-from' as string]: status.arc,
+                  ['--progress-to' as string]: status.arc,
+                }}
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(data.percentUsed, 100)}%` }}
                 transition={{ duration: 1, ease: [0.22, 0.61, 0.36, 1] }}
               />
+              <span
+                aria-hidden="true"
+                className="absolute top-1/2 -translate-y-1/2 text-sm leading-none drop-shadow-sm transition-all duration-1000 ease-out"
+                style={{ left: `calc(${Math.min(Math.max(data.percentUsed, 1), 97)}% - 7px)` }}
+              >
+                {data.percentUsed >= 100 ? '🔥' : '💰'}
+              </span>
             </div>
             <div className="flex justify-between mt-1">
               <span className="text-[11px] text-stone-400">$0</span>

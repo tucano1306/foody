@@ -20,6 +20,7 @@ interface Props {
   readonly searchOnly?: boolean;
   readonly lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
+  readonly showHealthMeter?: boolean;
 }
 
 const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
@@ -29,6 +30,55 @@ const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
   { key: 'empty', label: 'Sin stock' },
   { key: 'full', label: 'OK' },
 ];
+
+function healthConfig(pct: number): { emoji: string; label: string; from: string; to: string } {
+  if (pct >= 80) return { emoji: '😄', label: '¡Despensa saludable!', from: '#4ade80', to: '#16a34a' };
+  if (pct >= 50) return { emoji: '🙂', label: 'Vas bien, ojo con lo que falta', from: '#a7ce39', to: '#739931' };
+  if (pct >= 25) return { emoji: '😟', label: 'Varios productos por reponer', from: '#fbbf24', to: '#d97706' };
+  return { emoji: '😱', label: '¡Tu despensa pide auxilio!', from: '#f87171', to: '#dc2626' };
+}
+
+/** Game-style meter: % of the pantry that's fully stocked. */
+function PantryHealthMeter({ products }: { readonly products: readonly Product[] }) {
+  const total = products.length;
+  const fullCount = products.filter((p) => (p.stockLevel ?? 'full') === 'full').length;
+  const emptyCount = products.filter((p) => p.stockLevel === 'empty').length;
+  const pct = Math.round((fullCount / total) * 100);
+  const cfg = healthConfig(pct);
+  return (
+    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+      <div className="flex justify-between items-baseline mb-2">
+        <span className="text-sm font-semibold text-stone-700">
+          <motion.span
+            key={cfg.emoji}
+            initial={{ scale: 0.3, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 12 }}
+            className="inline-block mr-1.5 text-base"
+          >
+            {cfg.emoji}
+          </motion.span>
+          Salud de tu despensa
+        </span>
+        <span className="text-xs font-bold tabular-nums" style={{ color: cfg.to }}>{pct}%</span>
+      </div>
+      <div className="relative h-3 bg-stone-100 rounded-full">
+        <div
+          className="progress-fun h-full rounded-full transition-all duration-700 ease-out"
+          style={{
+            width: `${Math.max(pct, 3)}%`,
+            ['--progress-from' as string]: cfg.from,
+            ['--progress-to' as string]: cfg.to,
+          }}
+        />
+      </div>
+      <p className="text-[11px] text-stone-400 mt-1.5">
+        {cfg.label}
+        {emptyCount > 0 && ` · ${emptyCount} agotado${emptyCount === 1 ? '' : 's'}`}
+      </p>
+    </div>
+  );
+}
 
 interface GridOptions {
   searchOnly: boolean;
@@ -162,6 +212,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     searchOnly = false,
     lastPurchaseMap,
     onLevelChange,
+    showHealthMeter = false,
   } = props;
 
   const searchParams = useSearchParams();
@@ -217,6 +268,11 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
   return (
     <div className="space-y-4">
+      {/* Pantry health meter (game-style) */}
+      {showHealthMeter && localProducts.length > 0 && (
+        <PantryHealthMeter products={localProducts} />
+      )}
+
       {/* Search + view toggle */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
@@ -284,10 +340,13 @@ export default function ProductsBrowser(props: Readonly<Props>) {
           {FILTERS.map((f) => {
             const active = stockFilter === f.key;
             return (
-              <button
+              <motion.button
                 key={f.key}
                 type="button"
                 onClick={() => onFilterChange(f.key)}
+                whileHover={{ scale: 1.07 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 20 }}
                 className={`px-3 py-1 rounded-full text-sm border transition ${
                   active
                     ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
@@ -295,7 +354,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
                 }`}
               >
                 {f.label}
-              </button>
+              </motion.button>
             );
           })}
         </div>
