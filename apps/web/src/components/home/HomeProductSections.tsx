@@ -20,7 +20,7 @@ function ProductGrid({ items, onLevelChange }: { readonly items: Product[]; read
     );
   }
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 card-stagger">
       {items.map((p) => (
         <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} />
       ))}

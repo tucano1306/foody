@@ -113,6 +113,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
   const [sheetOpen, setSheetOpen] = useState(false);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [snoozeError, setSnoozeError] = useState(false);
+  const [justPaid, setJustPaid] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -157,6 +158,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
   const handleMarkPaidConfirmed = useCallback(() => {
     setIsPaid(true);
+    setJustPaid(true);
     setMissedMonths((prev) => Math.max(0, prev - 1));
     // Paid: the cycle restarts — countdown now targets next month's due day.
     setCurrentPayment((prev) => ({
@@ -203,7 +205,8 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
-        className="w-full text-left flex flex-col bg-stone-50 dark:bg-stone-800/80 border border-stone-100 dark:border-stone-700 rounded-2xl p-5 shadow-sm hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        onAnimationEnd={(e) => { if (e.animationName === 'foody-pop') setJustPaid(false); }}
+        className={`w-full text-left flex flex-col bg-stone-50 dark:bg-stone-800/80 border border-stone-100 dark:border-stone-700 rounded-2xl p-5 shadow-sm hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500${justPaid ? ' animate-pop' : ''}`}
       >
         {/* Top row: icon + name + amount */}
         <div className="flex items-center gap-4">

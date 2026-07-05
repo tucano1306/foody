@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
+import { playSound } from '@/lib/sound';
+import { burstFromElement } from '@/lib/fx';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -125,7 +127,9 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const [giftOpen, setGiftOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [shaking, setShaking] = useState(false);
   const photoRef = useRef<HTMLButtonElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   function openLightbox() {
     if (!current.photoUrl) return;
@@ -141,6 +145,17 @@ export default function ProductCard({ product, showActions = false, compact = fa
     if (next === level || isPending) return;
 
     haptic(next === 'empty' ? [15, 40, 20] : 10);
+
+    if (next === 'empty') {
+      playSound('empty');
+      setShaking(true);
+      burstFromElement(rootRef.current, ['💨']);
+    } else if (next === 'full') {
+      playSound('pop');
+      burstFromElement(rootRef.current, ['✨', '🎉', '⭐']);
+    } else {
+      playSound('low');
+    }
 
     // Optimistic update — notify parent immediately so the section list updates at once
     const previous = current;
@@ -188,7 +203,12 @@ export default function ProductCard({ product, showActions = false, compact = fa
     router.refresh();
   }
 
-  const sharedCls = `group relative bg-white rounded-2xl border shadow-md transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}`;
+  const sharedCls = `group relative bg-white rounded-2xl border shadow-md transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}${shaking ? ' animate-shake' : ''}`;
+
+  // Clears the shake once its keyframes finish (other child animations bubble here too)
+  function handleAnimationEnd(e: React.AnimationEvent) {
+    if (e.animationName === 'foody-shake') setShaking(false);
+  }
 
   const photoSection = (
     <div className="aspect-4/3 bg-stone-50 relative overflow-hidden rounded-t-2xl">
@@ -269,7 +289,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   if (compact) {
     return (
       <>
-        <div className={`${sharedCls} flex flex-col`}>
+        <div ref={rootRef} onAnimationEnd={handleAnimationEnd} className={`${sharedCls} flex flex-col`}>
           {/* Photo → opens lightbox directly */}
           <button ref={photoRef} type="button" onClick={openLightbox} className="w-full text-left focus:outline-none">
             {photoSection}
@@ -302,7 +322,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   }
 
   return (
-    <div {...swipe} className={sharedCls}>
+    <div {...swipe} ref={rootRef} onAnimationEnd={handleAnimationEnd} className={sharedCls}>
       {/* ─── Photo ────────────────────────────────────────────────────── */}
       <div className="aspect-4/3 bg-stone-50 relative overflow-hidden rounded-t-2xl">
         {current.photoUrl ? (

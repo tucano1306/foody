@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Product } from '@foody/types';
 import { haptic } from '@/lib/haptic';
+import { playSound } from '@/lib/sound';
+import { confettiRain } from '@/lib/fx';
 
 interface Props {
   readonly open: boolean;
@@ -114,6 +116,8 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
       }
       const body = (await res.json()) as { product: Product };
       haptic([15, 40, 20]);
+      playSound('purchase');
+      confettiRain(['🛒', '🎉']);
       onSaved?.(body.product);
       router.refresh();
       onClose();
