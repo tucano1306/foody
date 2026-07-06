@@ -128,7 +128,7 @@ export default function StatsContent({
         {insights.length > 0 && (
           <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
             <CardHeader emoji="✨" chipClass="bg-amber-50 dark:bg-amber-950/40" title="Insights del mes" />
-            <div className="space-y-2">
+            <div className="space-y-2 card-stagger">
               {insights.map((insight) => (
                 <div
                   key={insight}
@@ -163,7 +163,7 @@ export default function StatsContent({
             </p>
           ) : (
             <div className="flex items-end gap-2 h-36">
-              {monthlySpending.map((m) => {
+              {monthlySpending.map((m, i) => {
                 const isCurrent = m.month === thisMonthKey;
                 const heightPct = Math.max(8, Math.round((m.total / maxSpend) * 100));
                 return (
@@ -184,12 +184,12 @@ export default function StatsContent({
                     </span>
                     <div className="w-full flex items-end" style={{ height: '80px' }}>
                       <div
-                        className={`w-full rounded-t-lg transition-all duration-700 ${
+                        className={`w-full rounded-t-lg grow-bar-y transition-colors duration-300 ${
                           isCurrent
                             ? 'bg-brand-400 group-hover:bg-brand-500'
                             : 'bg-stone-200 dark:bg-white/20 group-hover:bg-stone-300 dark:group-hover:bg-white/30'
                         }`}
-                        style={{ height: `${heightPct}%` }}
+                        style={{ height: `${heightPct}%`, animationDelay: `${i * 70}ms` }}
                         title={`${m.trips} compras`}
                       />
                     </div>
@@ -228,7 +228,7 @@ export default function StatsContent({
                   >
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-stone-800 dark:text-stone-100 font-medium flex items-center gap-1.5 group-hover:text-brand-500 dark:group-hover:text-brand-400 transition">
-                        <span>{medals[i] ?? `${i + 1}.`}</span>
+                        <span className="inline-block transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12">{medals[i] ?? `${i + 1}.`}</span>
                         {p.name}
                       </span>
                       <span className="text-stone-500 dark:text-stone-400 text-xs">
@@ -237,8 +237,8 @@ export default function StatsContent({
                     </div>
                     <div className="h-2 bg-stone-100 dark:bg-white/10 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-brand-400 group-hover:bg-brand-500 rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%` }}
+                        className="h-full bg-brand-400 group-hover:bg-brand-500 rounded-full grow-bar transition-colors duration-300"
+                        style={{ width: `${pct}%`, animationDelay: `${i * 80}ms` }}
                       />
                     </div>
                   </button>
@@ -328,7 +328,7 @@ export default function StatsContent({
               </div>
               <div className="h-3 bg-stone-100 dark:bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-emerald-400 group-hover:bg-emerald-500 rounded-full transition-all duration-700"
+                  className="h-full bg-emerald-400 group-hover:bg-emerald-500 rounded-full grow-bar transition-colors duration-300"
                   style={{ width: `${fullPct}%` }}
                 />
               </div>
@@ -351,8 +351,8 @@ export default function StatsContent({
               </div>
               <div className="h-3 bg-stone-100 dark:bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-amber-400 group-hover:bg-amber-500 rounded-full transition-all duration-700"
-                  style={{ width: `${halfPct}%` }}
+                  className="h-full bg-amber-400 group-hover:bg-amber-500 rounded-full grow-bar transition-colors duration-300"
+                  style={{ width: `${halfPct}%`, animationDelay: '120ms' }}
                 />
               </div>
             </button>
@@ -374,8 +374,8 @@ export default function StatsContent({
               </div>
               <div className="h-3 bg-stone-100 dark:bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-rose-500 group-hover:bg-rose-600 rounded-full transition-all duration-700"
-                  style={{ width: `${emptyPct}%` }}
+                  className="h-full bg-rose-500 group-hover:bg-rose-600 rounded-full grow-bar transition-colors duration-300"
+                  style={{ width: `${emptyPct}%`, animationDelay: '240ms' }}
                 />
               </div>
             </button>
@@ -417,7 +417,7 @@ export default function StatsContent({
                               <Image src={logo} alt={store.name} width={20} height={20} className="object-contain w-full h-full" />
                             </span>
                           ) : (
-                            <span>{medals[i] ?? `${i + 1}.`}</span>
+                            <span className="inline-block transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12">{medals[i] ?? `${i + 1}.`}</span>
                           );
                         })()}
                         {store.name}
@@ -429,8 +429,8 @@ export default function StatsContent({
                     </div>
                     <div className="h-2.5 bg-stone-100 dark:bg-white/10 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-brand-400 group-hover:bg-brand-500 rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%` }}
+                        className="h-full bg-brand-400 group-hover:bg-brand-500 rounded-full grow-bar transition-colors duration-300"
+                        style={{ width: `${pct}%`, animationDelay: `${i * 80}ms` }}
                       />
                     </div>
                   </button>

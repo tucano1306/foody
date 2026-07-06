@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { playSound } from '@/lib/sound';
+import { burstAt, burstFromElement, confettiRain } from '@/lib/fx';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +90,8 @@ function PantryInviteForm({ onSuccess }: { readonly onSuccess: () => void }) {
   function handleSubmit(e: React.BaseSyntheticEvent) {
     e.preventDefault();
     setError(null);
+    // currentTarget is only valid during dispatch — capture before the await
+    const formEl = e.currentTarget as Element;
     start(async () => {
       const res = await fetch('/api/sharing/pantry', {
         method: 'POST',
@@ -96,6 +100,8 @@ function PantryInviteForm({ onSuccess }: { readonly onSuccess: () => void }) {
         body: JSON.stringify({ email: email.trim(), message: message.trim() || undefined }),
       });
       if (res.ok) {
+        playSound('pop');
+        burstFromElement(formEl, ['💌', '✨']);
         setEmail(''); setMessage('');
         onSuccess();
       } else {
@@ -169,7 +175,13 @@ function PantryCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      if (res.ok) { onAction(); }
+      if (res.ok) {
+        if (action === 'accept') {
+          playSound('pop');
+          burstAt(window.innerWidth / 2, window.innerHeight / 3, ['🤝', '🏠', '✨']);
+        }
+        onAction();
+      }
       else {
         const json = await res.json() as { message?: string };
         setError(json.message ?? 'Error');
@@ -271,7 +283,14 @@ function GiftCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      if (res.ok) { onAction(); }
+      if (res.ok) {
+        if (action === 'accept') {
+          // Unwrapping a gift is a big win — full celebration
+          playSound('levelup');
+          confettiRain(['🎁', '🎉', '💝']);
+        }
+        onAction();
+      }
       else {
         const json = await res.json() as { message?: string };
         setError(json.message ?? 'Error');
@@ -357,7 +376,7 @@ function GiftCard({
 function EmptyState({ icon, text }: { readonly icon: string; readonly text: string }) {
   return (
     <div className="text-center py-10 text-gray-400">
-      <div className="text-4xl mb-2">{icon}</div>
+      <div className="text-4xl mb-2"><span className="inline-block animate-bounce">{icon}</span></div>
       <p className="text-sm">{text}</p>
     </div>
   );
@@ -410,7 +429,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
         >
           🏠 Despensa
           {pendingPantry > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full">{pendingPantry}</span>
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
           )}
         </button>
         <button
@@ -420,7 +439,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
         >
           🎁 Productos
           {pendingGifts > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full">{pendingGifts}</span>
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
           )}
         </button>
       </div>
@@ -440,14 +459,14 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
               >
                 {s === 'received' ? 'Recibidas' : 'Enviadas'}
                 {s === 'received' && pendingPantry > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full">{pendingPantry}</span>
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
                 )}
               </button>
             ))}
           </div>
 
           {subTab === 'received' && (
-            <div className="space-y-3">
+            <div className="space-y-3 card-stagger">
               {pantryReceived.length === 0
                 ? <EmptyState icon="📭" text="Nadie te ha compartido su despensa todavía" />
                 : pantryReceived.map((share) => (
@@ -457,7 +476,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
           )}
 
           {subTab === 'sent' && (
-            <div className="space-y-3">
+            <div className="space-y-3 card-stagger">
               {pantrySent.length === 0
                 ? <EmptyState icon="📤" text="Aún no has compartido tu despensa con nadie" />
                 : pantrySent.map((share) => (
@@ -489,14 +508,14 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
               >
                 {s === 'received' ? 'Recibidos' : 'Enviados'}
                 {s === 'received' && pendingGifts > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full">{pendingGifts}</span>
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
                 )}
               </button>
             ))}
           </div>
 
           {subTab === 'received' && (
-            <div className="space-y-3">
+            <div className="space-y-3 card-stagger">
               {giftsReceived.length === 0
                 ? <EmptyState icon="🎁" text="No has recibido ningún producto todavía" />
                 : giftsReceived.map((gift) => (
@@ -506,7 +525,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
           )}
 
           {subTab === 'sent' && (
-            <div className="space-y-3">
+            <div className="space-y-3 card-stagger">
               {giftsSent.length === 0
                 ? <EmptyState icon="📦" text="Aún no has enviado ningún producto" />
                 : giftsSent.map((gift) => (

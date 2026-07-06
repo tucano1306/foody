@@ -430,6 +430,24 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #166534, transparent
   animation: foody-glow 1.6s ease-in-out infinite;
 }
 
+/* ─── Fun mode: chart bars that grow in (stats) ──────────────────────────── */
+@keyframes foody-grow-x {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes foody-grow-y {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.grow-bar {
+  transform-origin: left;
+  animation: foody-grow-x 0.8s var(--ease-smooth) both;
+}
+.grow-bar-y {
+  transform-origin: bottom;
+  animation: foody-grow-y 0.8s var(--ease-smooth) both;
+}
+
 /* ─── Fun mode: shake (product just ran out) ─────────────────────────────── */
 @keyframes foody-shake {
   10%, 90% { transform: translateX(-1px); }
