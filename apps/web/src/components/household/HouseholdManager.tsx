@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { haptic } from '@/lib/haptic';
+import { playSound } from '@/lib/sound';
+import { burstFromElement, confettiRain } from '@/lib/fx';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface Member {
@@ -72,7 +74,7 @@ export default function HouseholdManager() {
   }
 
   async function handleCreate() {
-    if (newName.trim().length < 2) return;
+    if (working || newName.trim().length < 2) return;
     setWorking(true);
     setError(null);
     try {
@@ -81,6 +83,9 @@ export default function HouseholdManager() {
         body: JSON.stringify({ name: newName.trim() }),
       });
       haptic([20, 30, 20]);
+      // Founding a home is a big moment — full celebration
+      playSound('levelup');
+      confettiRain(['🏡', '🎉', '✨']);
       setNewName('');
       await refresh();
       router.refresh();
@@ -92,7 +97,7 @@ export default function HouseholdManager() {
   }
 
   async function handleJoin() {
-    if (joinCode.trim().length < 4) return;
+    if (working || joinCode.trim().length < 4) return;
     setWorking(true);
     setError(null);
     try {
@@ -101,6 +106,8 @@ export default function HouseholdManager() {
         body: JSON.stringify({ code: joinCode.trim().toUpperCase() }),
       });
       haptic([20, 30, 20]);
+      playSound('levelup');
+      confettiRain(['🏡', '🤝', '🎉']);
       setJoinCode('');
       await refresh();
       router.refresh();
@@ -114,9 +121,11 @@ export default function HouseholdManager() {
   async function handleLeave() {
     setConfirmLeave(false);
     setWorking(true);
+    setError(null);
     try {
       await fetchJson('/households/leave', { method: 'DELETE' });
       haptic(30);
+      playSound('low');
       await refresh();
       router.refresh();
     } catch (e) {
@@ -126,16 +135,20 @@ export default function HouseholdManager() {
     }
   }
 
-  async function handleGenerateInvite() {
+  async function handleGenerateInvite(e?: React.MouseEvent) {
+    const btn = e?.currentTarget as Element | undefined;
     setWorking(true);
+    setError(null);
     try {
       const res = await fetchJson<{ code: string }>('/households/invites', {
         method: 'POST',
       });
       setInviteCode(res.code);
       haptic(15);
-    } catch (e) {
-      setError((e as Error).message);
+      playSound('pop');
+      burstFromElement(btn, ['🎟️', '✨']);
+    } catch (e2) {
+      setError((e2 as Error).message);
     } finally {
       setWorking(false);
     }
@@ -143,14 +156,37 @@ export default function HouseholdManager() {
 
   async function copyCode() {
     if (!inviteCode) return;
-    await navigator.clipboard.writeText(inviteCode);
-    haptic(10);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      haptic(10);
+      playSound('pop');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('No se pudo copiar. Copia el código manualmente.');
+    }
+  }
+
+  async function shareCode() {
+    if (!inviteCode || !state?.household) return;
+    try {
+      await navigator.share({
+        title: 'Únete a mi hogar en Foody',
+        text: `Únete a mi hogar «${state.household.name}» en Foody con el código: ${inviteCode}`,
+      });
+      playSound('pop');
+    } catch {
+      /* user cancelled the share sheet */
+    }
   }
 
   if (loading) {
-    return <p className="text-center text-stone-400 py-8">Cargando...</p>;
+    return (
+      <div className="space-y-6" aria-busy="true" aria-label="Cargando hogar">
+        <div className="skeleton h-44" />
+        <div className="skeleton h-32" />
+      </div>
+    );
   }
 
   const inputCls =
@@ -162,12 +198,20 @@ export default function HouseholdManager() {
   // ─── No household ──────────────────────────────────────────────────────
   if (!state?.household) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5 card-stagger">
         {error && (
           <p className="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-sm px-4 py-2.5 rounded-xl border border-rose-100 dark:border-rose-800">
             {error}
           </p>
         )}
+
+        {/* Hero */}
+        <div className="text-center pt-2">
+          <span className="text-6xl inline-block animate-bounce" aria-hidden="true">🏡</span>
+          <p className="text-sm text-stone-500 dark:text-stone-400 mt-2">
+            Aún no formas parte de un hogar compartido
+          </p>
+        </div>
 
         {/* Create */}
         <section className={cardCls}>
@@ -179,6 +223,7 @@ export default function HouseholdManager() {
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleCreate(); }}
               placeholder="Ej: Familia García"
               className={inputCls}
             />
@@ -188,10 +233,17 @@ export default function HouseholdManager() {
               onClick={handleCreate}
               className="btn-energy px-4 py-2.5 rounded-xl disabled:opacity-50"
             >
-              Crear
+              {working ? 'Creando…' : 'Crear'}
             </button>
           </div>
         </section>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 text-stone-300 dark:text-stone-600 text-xs font-semibold" aria-hidden="true">
+          <span className="flex-1 border-t border-stone-200 dark:border-stone-700" />
+          o
+          <span className="flex-1 border-t border-stone-200 dark:border-stone-700" />
+        </div>
 
         {/* Join */}
         <section className={cardCls}>
@@ -203,6 +255,7 @@ export default function HouseholdManager() {
             <input
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleJoin(); }}
               placeholder="ABC123"
               maxLength={10}
               className={`${inputCls} uppercase tracking-widest text-center font-mono`}
@@ -213,7 +266,7 @@ export default function HouseholdManager() {
               onClick={handleJoin}
               className="bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 transition"
             >
-              Unirme
+              {working ? 'Uniendo…' : 'Unirme'}
             </button>
           </div>
         </section>
@@ -225,7 +278,7 @@ export default function HouseholdManager() {
   const { household, members } = state;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 card-stagger">
       {error && (
         <p className="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-sm px-4 py-2.5 rounded-xl border border-rose-100 dark:border-rose-800">
           {error}
@@ -251,19 +304,19 @@ export default function HouseholdManager() {
           </button>
         </div>
 
-        <ul className="space-y-2 divide-y divide-stone-100 dark:divide-stone-800">
+        <ul className="space-y-2 divide-y divide-stone-100 dark:divide-stone-800 card-stagger">
           {members.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 py-2">
+            <li key={m.id} className="group flex items-center gap-3 py-2">
               {m.avatarUrl ? (
                 <Image
                   src={m.avatarUrl}
                   alt={m.name ?? m.email}
                   width={36}
                   height={36}
-                  className="rounded-full"
+                  className="rounded-full transition-transform duration-300 group-hover:scale-110"
                 />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-bold flex items-center justify-center text-sm">
+                <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-bold flex items-center justify-center text-sm transition-transform duration-300 group-hover:scale-110">
                   {(m.name ?? m.email)[0].toUpperCase()}
                 </div>
               )}
@@ -271,8 +324,8 @@ export default function HouseholdManager() {
                 <p className="font-medium text-stone-800 dark:text-stone-100 text-sm truncate">
                   {m.name ?? m.email}
                   {m.id === household.ownerId && (
-                    <span className="ml-2 text-[10px] bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400 px-1.5 py-0.5 rounded font-bold">
-                      OWNER
+                    <span className="ml-2 text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold">
+                      👑 Dueño
                     </span>
                   )}
                 </p>
@@ -290,18 +343,42 @@ export default function HouseholdManager() {
         </p>
 
         {inviteCode ? (
-          <div className="flex items-center gap-2">
-            <div className="flex-1 px-4 py-3 rounded-xl bg-stone-50 dark:bg-stone-800 border-2 border-dashed border-brand-300 dark:border-brand-600 font-mono text-center text-2xl font-bold tracking-[0.3em] text-brand-600 dark:text-brand-400">
-              {inviteCode}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div
+                key={inviteCode}
+                className="animate-pop flex-1 px-4 py-3 rounded-xl bg-stone-50 dark:bg-stone-800 border-2 border-dashed border-brand-300 dark:border-brand-600 font-mono text-center text-2xl font-bold tracking-[0.3em] text-brand-600 dark:text-brand-400 select-all"
+              >
+                {inviteCode}
+              </div>
+              <button
+                type="button"
+                onClick={copyCode}
+                aria-label={copied ? 'Código copiado' : 'Copiar código'}
+                className="btn-primary px-4 py-3 rounded-xl whitespace-nowrap"
+              >
+                {copied ? '✓ Copiado' : '📋'}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={copyCode}
-              aria-label={copied ? 'Código copiado' : 'Copiar código'}
-              className="btn-primary px-4 py-3 rounded-xl whitespace-nowrap"
-            >
-              {copied ? '✓ Copiado' : '📋'}
-            </button>
+            <div className="flex items-center justify-between gap-2">
+              {typeof navigator !== 'undefined' && 'share' in navigator ? (
+                <button
+                  type="button"
+                  onClick={shareCode}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition"
+                >
+                  📤 Compartir código
+                </button>
+              ) : <span />}
+              <button
+                type="button"
+                onClick={handleGenerateInvite}
+                disabled={working}
+                className="text-xs text-stone-500 dark:text-stone-400 hover:text-brand-600 dark:hover:text-brand-400 underline underline-offset-2 px-2 py-2 transition disabled:opacity-50"
+              >
+                Generar otro
+              </button>
+            </div>
           </div>
         ) : (
           <button
@@ -310,7 +387,7 @@ export default function HouseholdManager() {
             disabled={working}
             className="btn-energy w-full py-3 rounded-xl disabled:opacity-50"
           >
-            Generar código
+            {working ? 'Generando…' : '🎟️ Generar código'}
           </button>
         )}
       </section>
