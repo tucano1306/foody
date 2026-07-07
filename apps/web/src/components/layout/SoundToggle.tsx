@@ -21,7 +21,7 @@ export default function SoundToggle() {
       onClick={toggle}
       aria-label={on ? 'Silenciar sonidos' : 'Activar sonidos'}
       title={on ? 'Silenciar sonidos' : 'Activar sonidos'}
-      className="w-9 h-9 flex items-center justify-center rounded-full text-lg bg-white/10 text-white hover:bg-white/20 transition"
+      className="w-9 h-9 flex items-center justify-center rounded-full text-lg bg-white/70 dark:bg-white/10 shadow-sm hover:bg-white dark:hover:bg-white/20 transition"
     >
       {on ? '🔊' : '🔇'}
     </button>

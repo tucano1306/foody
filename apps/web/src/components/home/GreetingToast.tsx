@@ -42,7 +42,7 @@ export default function GreetingToast({ firstName }: Props) {
           transition={{ duration: 0.35, ease: 'easeOut' }}
           className="absolute top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
         >
-          <div className="flex items-center gap-2.5 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-sm font-semibold px-4 py-2 rounded-2xl shadow-lg whitespace-nowrap">
+          <div className="flex items-center gap-2.5 bg-brand-600/95 backdrop-blur-sm border border-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-2xl shadow-lg whitespace-nowrap">
             {text}
           </div>
         </motion.div>
