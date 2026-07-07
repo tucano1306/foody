@@ -74,7 +74,8 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #fafaf9;
+  /* Soft blue-tinted white — harmonizes with the pastel-blue sidebar */
+  background-color: #f0f6fd;
   color: #1c1917;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
@@ -87,7 +88,7 @@ html {
 
 /* ─── Dark theme ──────────────────────────────────────────────────────────── */
 html.dark body {
-  background-color: #0c0a09;
+  background-color: #050e1d;
   color: #e7e5e4;
 }
 
@@ -354,14 +355,14 @@ html.dark .neo-inset {
   opacity: 0.35;
   animation: foody-blob-drift 26s ease-in-out infinite alternate;
 }
-.fun-blob-1 { top: -12%; left: -10%; background: radial-gradient(circle, #d0e89a, transparent 65%); }
-.fun-blob-2 { top: 30%; right: -15%; background: radial-gradient(circle, #a7bcd9, transparent 65%); animation-delay: -9s; animation-duration: 32s; }
-.fun-blob-3 { bottom: -18%; left: 20%; background: radial-gradient(circle, #bbf7d0, transparent 65%); animation-delay: -18s; animation-duration: 38s; }
+.fun-blob-1 { top: -12%; left: -10%; background: radial-gradient(circle, #bae6fd, transparent 65%); }
+.fun-blob-2 { top: 30%; right: -15%; background: radial-gradient(circle, #c7d2fe, transparent 65%); animation-delay: -9s; animation-duration: 32s; }
+.fun-blob-3 { bottom: -18%; left: 20%; background: radial-gradient(circle, #ddd6fe, transparent 65%); animation-delay: -18s; animation-duration: 38s; }
 
 html.dark .fun-blob { opacity: 0.16; }
-html.dark .fun-blob-1 { background: radial-gradient(circle, #577628, transparent 65%); }
-html.dark .fun-blob-2 { background: radial-gradient(circle, #1f3a68, transparent 65%); }
-html.dark .fun-blob-3 { background: radial-gradient(circle, #166534, transparent 65%); }
+html.dark .fun-blob-1 { background: radial-gradient(circle, #1f3a68, transparent 65%); }
+html.dark .fun-blob-2 { background: radial-gradient(circle, #312e81, transparent 65%); }
+html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent 65%); }
 
 @keyframes foody-blob-drift {
   from { transform: translate(0, 0) scale(1); }
