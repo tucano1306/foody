@@ -59,14 +59,13 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-10">
-      {/* ─── Header + Mode Toggle ───────────────────────────────────────────── */}
-      <div className="relative bg-brand-700 text-white rounded-2xl p-5 sm:p-6 shadow-lg">
+      {/* ─── Header + Mode Toggle (plain title, consistent with other pages) ── */}
+      <div className="relative">
         <GreetingToast firstName={firstName} />
         <ModernTitle
           title="🏠 Modo Casa"
           subtitle="Gestiona tu despensa y pagos"
-          onDark
-          action={<ModeToggle currentMode="home" onDark />}
+          action={<ModeToggle currentMode="home" />}
         />
       </div>
 

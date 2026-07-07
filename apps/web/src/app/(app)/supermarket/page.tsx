@@ -33,15 +33,12 @@ export default async function SupermarketPage() {
 
   return (
     <div className="space-y-6">
-      {/* ─── Header ────────────────────────────────────────────────────────── */}
-      <div className="bg-brand-700 text-white rounded-2xl p-5 sm:p-6 shadow-lg">
-        <ModernTitle
-          title="🛒 Modo Supermercado"
-          subtitle={`${items.length} producto${items.length === 1 ? '' : 's'} para comprar`}
-          onDark
-          action={<ModeToggle currentMode="supermarket" onDark />}
-        />
-      </div>
+      {/* ─── Header (plain title, consistent with other pages) ──────────────── */}
+      <ModernTitle
+        title="🛒 Modo Supermercado"
+        subtitle={`${items.length} producto${items.length === 1 ? '' : 's'} para comprar`}
+        action={<ModeToggle currentMode="supermarket" />}
+      />
 
       {/* ─── Quick stats ────────────────────────────────────────────────────── */}
       {topStore && (
