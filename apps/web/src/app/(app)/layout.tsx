@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { readonly children: React
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-linear-to-br from-sky-50 via-blue-50/60 to-indigo-100/70 dark:from-navy-900 dark:via-stone-950 dark:to-navy-900">
       <FunBackground />
       <PullToRefresh />
       <Navbar user={{ name: session.name, avatarUrl: session.avatarUrl, email: session.email }} />
