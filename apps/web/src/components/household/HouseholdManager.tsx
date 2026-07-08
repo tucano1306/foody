@@ -231,7 +231,7 @@ export default function HouseholdManager() {
               type="button"
               disabled={working || newName.trim().length < 2}
               onClick={handleCreate}
-              className="btn-energy px-4 py-2.5 rounded-xl disabled:opacity-50"
+              className="btn-primary px-4 py-2.5 rounded-xl disabled:opacity-50"
             >
               {working ? 'Creando…' : 'Crear'}
             </button>
@@ -385,7 +385,7 @@ export default function HouseholdManager() {
             type="button"
             onClick={handleGenerateInvite}
             disabled={working}
-            className="btn-energy w-full py-3 rounded-xl disabled:opacity-50"
+            className="btn-primary w-full py-3 rounded-xl disabled:opacity-50"
           >
             {working ? 'Generando…' : '🎟️ Generar código'}
           </button>
