@@ -55,7 +55,7 @@ function Avatar({ src, name }: { readonly src?: string | null; readonly name?: s
     return <Image src={src} alt={name ?? ''} width={36} height={36} className="w-9 h-9 rounded-full object-cover shrink-0" />;
   }
   return (
-    <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+    <div className="w-9 h-9 rounded-full bg-brand-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
       {initial}
     </div>
   );
@@ -65,13 +65,13 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   pending:  { label: 'Pendiente', cls: 'bg-amber-100 text-amber-700' },
   accepted: { label: 'Aceptado',  cls: 'bg-emerald-100 text-emerald-700' },
   rejected: { label: 'Rechazado', cls: 'bg-rose-100 text-rose-700' },
-  revoked:  { label: 'Revocado',  cls: 'bg-gray-100 text-gray-600' },
+  revoked:  { label: 'Revocado',  cls: 'bg-stone-100 text-stone-600' },
   declined: { label: 'Rechazado', cls: 'bg-rose-100 text-rose-700' },
-  cancelled: { label: 'Cancelado', cls: 'bg-gray-100 text-gray-600' },
+  cancelled: { label: 'Cancelado', cls: 'bg-stone-100 text-stone-600' },
 };
 
 function StatusBadge({ status }: { readonly status: string }) {
-  const cfg = STATUS_LABEL[status] ?? { label: status, cls: 'bg-gray-100 text-gray-600' };
+  const cfg = STATUS_LABEL[status] ?? { label: status, cls: 'bg-stone-100 text-stone-600' };
   return <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>;
 }
 
@@ -112,10 +112,10 @@ function PantryInviteForm({ onSuccess }: { readonly onSuccess: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-3">
-      <p className="text-sm font-semibold text-indigo-800">Invitar a ver mi despensa</p>
+    <form onSubmit={handleSubmit} className="bg-brand-50 border border-brand-100 rounded-2xl p-4 space-y-3">
+      <p className="text-sm font-semibold text-brand-800">Invitar a ver mi despensa</p>
       <div className="space-y-2">
-        <label htmlFor="pantry-email" className="block text-xs text-gray-600 font-medium">Email del usuario</label>
+        <label htmlFor="pantry-email" className="block text-xs text-stone-600 font-medium">Email del usuario</label>
         <input
           id="pantry-email"
           type="email"
@@ -123,25 +123,25 @@ function PantryInviteForm({ onSuccess }: { readonly onSuccess: () => void }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="amigo@email.com"
-          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
       </div>
       <div className="space-y-2">
-        <label htmlFor="pantry-msg" className="block text-xs text-gray-600 font-medium">Mensaje (opcional)</label>
+        <label htmlFor="pantry-msg" className="block text-xs text-stone-600 font-medium">Mensaje (opcional)</label>
         <textarea
           id="pantry-msg"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={2}
           placeholder="Ej: ¡Hola! Te comparto mi despensa."
-          className="w-full px-3 py-2 text-sm rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+          className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none"
         />
       </div>
       {error && <p className="text-xs text-rose-600 font-medium">{error}</p>}
       <button
         type="submit"
         disabled={isPending || !email}
-        className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold transition"
+        className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold transition"
       >
         {isPending ? 'Enviando…' : 'Enviar invitación'}
       </button>
@@ -190,17 +190,17 @@ function PantryCard({
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
+    <div className="bg-white border border-stone-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
       <div className="flex items-start gap-3">
         <Avatar src={avatar} name={String(name)} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold text-gray-800 truncate">{name}</p>
+            <p className="text-sm font-semibold text-stone-800 truncate">{name}</p>
             <StatusBadge status={share.status} />
           </div>
-          <p className="text-xs text-gray-400 mt-0.5">{formatDate(share.created_at)}</p>
+          <p className="text-xs text-stone-400 mt-0.5">{formatDate(share.created_at)}</p>
           {share.message && (
-            <p className="mt-1 text-xs text-gray-600 italic bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+            <p className="mt-1 text-xs text-stone-600 italic bg-stone-50 rounded-lg px-3 py-2 border border-stone-100">
               "{share.message}"
             </p>
           )}
@@ -224,7 +224,7 @@ function PantryCard({
             type="button"
             disabled={isPending}
             onClick={() => doAction('reject')}
-            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50 transition"
+            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-50 transition"
           >
             Rechazar
           </button>
@@ -235,7 +235,7 @@ function PantryCard({
       {direction === 'received' && share.status === 'accepted' && (
         <Link
           href={`/sharing/pantry/${share.id}`}
-          className="block text-center py-2 text-sm font-semibold rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition"
+          className="block text-center py-2 text-sm font-semibold rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-700 transition"
         >
           👀 Ver despensa
         </Link>
@@ -299,7 +299,7 @@ function GiftCard({
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
+    <div className="bg-white border border-stone-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
       <div className="flex items-start gap-3">
         {gift.product_photo ? (
           <Image
@@ -314,18 +314,18 @@ function GiftCard({
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold text-gray-800 truncate">{gift.product_name}</p>
+            <p className="text-sm font-semibold text-stone-800 truncate">{gift.product_name}</p>
             <StatusBadge status={direction === 'sent' && gift.status === 'declined' ? 'cancelled' : gift.status} />
           </div>
           {gift.product_category && (
-            <p className="text-[10px] uppercase tracking-wide text-gray-400">{gift.product_category}</p>
+            <p className="text-[10px] uppercase tracking-wide text-stone-400">{gift.product_category}</p>
           )}
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-stone-500 mt-0.5">
             {direction === 'sent' ? `Para: ${person}` : `De: ${person}`}
           </p>
-          <p className="text-xs text-gray-400">{formatDate(gift.created_at)}</p>
+          <p className="text-xs text-stone-400">{formatDate(gift.created_at)}</p>
           {gift.message && (
-            <p className="mt-1 text-xs text-gray-600 italic bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+            <p className="mt-1 text-xs text-stone-600 italic bg-stone-50 rounded-lg px-3 py-2 border border-stone-100">
               "{gift.message}"
             </p>
           )}
@@ -349,7 +349,7 @@ function GiftCard({
             type="button"
             disabled={isPending}
             onClick={() => doAction('decline')}
-            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-50 transition"
+            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-50 transition"
           >
             Rechazar
           </button>
@@ -375,7 +375,7 @@ function GiftCard({
 
 function EmptyState({ icon, text }: { readonly icon: string; readonly text: string }) {
   return (
-    <div className="text-center py-10 text-gray-400">
+    <div className="text-center py-10 text-stone-400">
       <div className="text-4xl mb-2"><span className="inline-block animate-bounce">{icon}</span></div>
       <p className="text-sm">{text}</p>
     </div>
@@ -421,11 +421,11 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
   return (
     <div className="space-y-5">
       {/* ─ Main tabs ─ */}
-      <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
+      <div className="flex gap-2 bg-stone-100 p-1 rounded-2xl">
         <button
           type="button"
           onClick={() => setTab('pantry')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'pantry' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'pantry' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-700'}`}
         >
           🏠 Despensa
           {pendingPantry > 0 && (
@@ -435,7 +435,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
         <button
           type="button"
           onClick={() => setTab('gifts')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'gifts' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'gifts' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-700'}`}
         >
           🎁 Productos
           {pendingGifts > 0 && (
@@ -449,13 +449,13 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
         <div className="space-y-4">
           <PantryInviteForm onSuccess={refresh} />
 
-          <div className="flex gap-2 border-b border-gray-200">
+          <div className="flex gap-2 border-b border-stone-200">
             {(['received', 'sent'] as SubTab[]).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSubTab(s)}
-                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-brand-500 text-brand-600' : 'border-transparent text-stone-500 hover:text-stone-700'}`}
               >
                 {s === 'received' ? 'Recibidas' : 'Enviadas'}
                 {s === 'received' && pendingPantry > 0 && (
@@ -498,13 +498,13 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
             </p>
           </div>
 
-          <div className="flex gap-2 border-b border-gray-200">
+          <div className="flex gap-2 border-b border-stone-200">
             {(['received', 'sent'] as SubTab[]).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSubTab(s)}
-                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-brand-500 text-brand-600' : 'border-transparent text-stone-500 hover:text-stone-700'}`}
               >
                 {s === 'received' ? 'Recibidos' : 'Enviados'}
                 {s === 'received' && pendingGifts > 0 && (
