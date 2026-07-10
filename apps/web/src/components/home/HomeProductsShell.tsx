@@ -77,7 +77,7 @@ function CollapsibleSection({
 
   return (
     <section className={`rounded-2xl border p-4 sm:p-5 shadow-sm ${SECTION_TONES[tone].card}`}>
-      <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center gap-2">{title}</h2>
+      <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center justify-center gap-2 text-center">{title}</h2>
       <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} />
       {hidden > 0 && (
         <button
@@ -141,14 +141,15 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
       {/* ─── Todos los productos ─────────────────────────────────────────── */}
       <section className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 p-4 sm:p-5 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <h2 className="flex-1 text-base sm:text-lg font-bold text-stone-700 dark:text-stone-200 truncate">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-4">
+          <span aria-hidden="true" />
+          <h2 className="text-base sm:text-lg font-bold text-stone-700 dark:text-stone-200 truncate text-center">
             🛒 Todos los productos ({products.length})
           </h2>
           <Link
             href="/products/new"
             aria-label="Agregar producto"
-            className="shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
+            className="justify-self-end shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
           >
             + Agregar
           </Link>
