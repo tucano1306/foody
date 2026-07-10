@@ -6,7 +6,8 @@ import { XMarkIcon, PencilSquareIcon, TrashIcon, ArrowLeftIcon } from '@heroicon
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import { PAYMENT_METHOD_LABELS, maskLast4, methodNeedsBank } from '@/lib/payment-methods';
-import { formatMonthShort } from '@/lib/payment-aggregates';
+import { formatMonthLong, formatMonthShort } from '@/lib/payment-aggregates';
+import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -184,6 +185,17 @@ export default function PaymentDetailSheet({
   const [history, setHistory] = useState<HistoryRecord[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Inline record editor + add-record form (history section)
+  const [expandedRecId, setExpandedRecId] = useState<string | null>(null);
+  const [recAmount, setRecAmount] = useState('');
+  const [recNotes, setRecNotes] = useState('');
+  const [recDeleteArmed, setRecDeleteArmed] = useState(false);
+  const [recBusy, setRecBusy] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addMonthKey, setAddMonthKey] = useState('');
+  const [addAmount, setAddAmount] = useState('');
+
   // Sync form when payment prop changes
   useEffect(() => {
     const { form: f, notifyValue: nv, notifyUnit: nu } = buildEditState(payment);
@@ -192,6 +204,9 @@ export default function PaymentDetailSheet({
     setNotifyUnit(nu);
     setInlineField(null);
     setEditingMethod(false);
+    setExpandedRecId(null);
+    setAddOpen(false);
+    setRecError(null);
   }, [payment]);
 
   // Open / close the native dialog
@@ -207,14 +222,19 @@ export default function PaymentDetailSheet({
     if (!open && el.open) el.close();
   }, [open]);
 
-  // Lazy-load history when opened in view mode
+  // Lazy-load history when opened in view mode. Skips applying the response
+  // right after a local record mutation: the serverless driver can serve a
+  // stale read-after-write, which would clobber the locally-correct list.
+  const lastRecordMutation = useRef(0);
   useEffect(() => {
     if (!open || mode !== 'view') return;
     setHistoryLoading(true);
-    fetch(`/api/payments/${currentPayment.id}/records`, { credentials: 'include' })
+    fetch(`/api/payments/${currentPayment.id}/records`, { credentials: 'include', cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: HistoryRecord[]) => setHistory(data))
-      .catch(() => setHistory([]))
+      .then((data: HistoryRecord[]) => {
+        if (Date.now() - lastRecordMutation.current > 3000) setHistory(data);
+      })
+      .catch(() => undefined)
       .finally(() => setHistoryLoading(false));
   }, [open, mode, currentPayment.id, isPaid]);
 
@@ -352,6 +372,189 @@ export default function PaymentDetailSheet({
     },
     [currentPayment.id, currentPayment.isAutoPay, modeSaving, onUpdated],
   );
+
+  /**
+   * Apply a record mutation locally (no re-fetch: an immediate read-after-write
+   * can return stale data on the serverless driver). Deltas are exact, so the
+   * UI matches what the server will return on the next full load.
+   */
+  const paidOf = (r: HistoryRecord) => r.actualAmount ?? r.amount;
+
+  function isCurrentMonth(month: number, year: number): boolean {
+    const now = new Date();
+    return month === now.getMonth() + 1 && year === now.getFullYear();
+  }
+
+  /** The month owes debt once its due date passed, starting from the payment's creation month. */
+  function countsAsUnpaid(month: number, year: number): boolean {
+    const created = new Date(currentPayment.createdAt);
+    const createdKey = created.getFullYear() * 12 + created.getMonth() + 1;
+    const recordKey = year * 12 + month;
+    if (recordKey < createdKey) return false;
+    if (isCurrentMonth(month, year)) return daysUntilNextDue(currentPayment.dueDay, false) < 0;
+    const now = new Date();
+    return recordKey < now.getFullYear() * 12 + now.getMonth() + 1;
+  }
+
+  function publishPayment(next: MonthlyPayment) {
+    lastRecordMutation.current = Date.now();
+    setCurrentPayment(next);
+    onUpdated(next);
+  }
+
+  function applyRecordUpsert(record: HistoryRecord) {
+    const prevList = history ?? [];
+    const existing = prevList.find((r) => r.month === record.month && r.year === record.year);
+    const nextList = [record, ...prevList.filter((r) => !(r.month === record.month && r.year === record.year))]
+      .sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month));
+    setHistory(nextList);
+
+    const paidDelta = paidOf(record) - (existing ? paidOf(existing) : 0);
+    const nowPaid = currentPayment.isPaidThisMonth || isCurrentMonth(record.month, record.year);
+    const unpaid = (currentPayment.unpaidMonths ?? []).filter(
+      (u) => !(u.month === record.month && u.year === record.year),
+    );
+    publishPayment({
+      ...currentPayment,
+      isPaidThisMonth: nowPaid,
+      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid),
+      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid).toISOString(),
+      unpaidMonths: unpaid,
+      missedMonths: unpaid.length,
+      accumulatedDebt: unpaid.length * currentPayment.amount,
+      totalPaidAllTime: Math.max(0, (currentPayment.totalPaidAllTime ?? 0) + paidDelta),
+      paidCountAllTime: (currentPayment.paidCountAllTime ?? 0) + (existing ? 0 : 1),
+      lastPaidAt: record.paidAt ?? currentPayment.lastPaidAt ?? null,
+    });
+  }
+
+  function applyRecordDelete(record: HistoryRecord) {
+    setHistory((prev) => (prev ?? []).filter((r) => r.id !== record.id));
+
+    const wasCurrentMonth = isCurrentMonth(record.month, record.year);
+    const nowPaid = wasCurrentMonth ? false : currentPayment.isPaidThisMonth;
+    const unpaid = [...(currentPayment.unpaidMonths ?? [])];
+    if (countsAsUnpaid(record.month, record.year) && !unpaid.some((u) => u.month === record.month && u.year === record.year)) {
+      unpaid.push({ month: record.month, year: record.year });
+      unpaid.sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month));
+    }
+    publishPayment({
+      ...currentPayment,
+      isPaidThisMonth: nowPaid,
+      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid),
+      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid).toISOString(),
+      unpaidMonths: unpaid,
+      missedMonths: unpaid.length,
+      accumulatedDebt: unpaid.length * currentPayment.amount,
+      totalPaidAllTime: Math.max(0, (currentPayment.totalPaidAllTime ?? 0) - paidOf(record)),
+      paidCountAllTime: Math.max(0, (currentPayment.paidCountAllTime ?? 0) - 1),
+    });
+  }
+
+  function openRecordEditor(rec: HistoryRecord) {
+    if (expandedRecId === rec.id) { setExpandedRecId(null); return; }
+    setExpandedRecId(rec.id);
+    setRecAmount((rec.actualAmount ?? rec.amount).toFixed(2));
+    setRecNotes(rec.notes ?? '');
+    setRecDeleteArmed(false);
+    setRecError(null);
+    setAddOpen(false);
+  }
+
+  async function saveRecord(rec: HistoryRecord) {
+    const parsed = Number.parseFloat(recAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) { setRecError('Ingresa un monto válido'); return; }
+    setRecBusy(true);
+    setRecError(null);
+    try {
+      const res = await fetch(`/api/payments/${currentPayment.id}/records/${rec.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ amount: parsed, notes: recNotes }),
+      });
+      if (!res.ok) throw new Error('No se pudo guardar el cambio');
+      applyRecordUpsert(await res.json() as HistoryRecord);
+      setExpandedRecId(null);
+    } catch (err) {
+      setRecError((err as Error).message);
+    } finally {
+      setRecBusy(false);
+    }
+  }
+
+  async function deleteRecord(rec: HistoryRecord) {
+    // Two-tap confirm: the first tap arms the button, the second deletes.
+    if (!recDeleteArmed) { setRecDeleteArmed(true); return; }
+    setRecBusy(true);
+    setRecError(null);
+    try {
+      const res = await fetch(`/api/payments/${currentPayment.id}/records/${rec.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('No se pudo eliminar el registro');
+      applyRecordDelete(rec);
+      setExpandedRecId(null);
+    } catch (err) {
+      setRecError((err as Error).message);
+    } finally {
+      setRecBusy(false);
+    }
+  }
+
+  function openAddForm() {
+    const now = new Date();
+    const oldest = currentPayment.unpaidMonths?.[0] ?? { month: now.getMonth() + 1, year: now.getFullYear() };
+    setAddMonthKey(`${oldest.year}-${oldest.month}`);
+    setAddAmount(currentPayment.amount.toFixed(2));
+    setRecError(null);
+    setExpandedRecId(null);
+    setAddOpen(true);
+  }
+
+  async function addRecord() {
+    const [yearStr, monthStr] = addMonthKey.split('-');
+    const year = Number.parseInt(yearStr, 10);
+    const month = Number.parseInt(monthStr, 10);
+    const parsed = Number.parseFloat(addAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) { setRecError('Ingresa un monto válido'); return; }
+    setRecBusy(true);
+    setRecError(null);
+    try {
+      const res = await fetch(`/api/payments/${currentPayment.id}/records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ month, year, amount: parsed }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? 'No se pudo registrar el pago');
+      }
+      applyRecordUpsert(await res.json() as HistoryRecord);
+      setAddOpen(false);
+    } catch (err) {
+      setRecError((err as Error).message);
+    } finally {
+      setRecBusy(false);
+    }
+  }
+
+  /** Last 24 months for the add-record select, newest first. */
+  function buildMonthOptions(): Array<{ key: string; label: string; taken: boolean }> {
+    const taken = new Set((history ?? []).map((r) => `${r.year}-${r.month}`));
+    const out: Array<{ key: string; label: string; taken: boolean }> = [];
+    const cursor = new Date();
+    for (let i = 0; i < 24; i++) {
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth() + 1;
+      const key = `${y}-${m}`;
+      out.push({ key, label: formatMonthLong(m, y), taken: taken.has(key) });
+      cursor.setMonth(cursor.getMonth() - 1);
+    }
+    return out;
+  }
 
   const openMethodEditor = useCallback(() => {
     setMethodDraft(currentPayment.paymentMethod);
@@ -786,7 +989,151 @@ export default function PaymentDetailSheet({
     );
   }
 
-  // ── History (recent payment records) ────────────────────────────────────
+  // ── History (recent payment records — touchable: edit / delete / add) ───
+  function renderRecordEditor(rec: HistoryRecord) {
+    return (
+      <div className="px-3 pb-3 flex flex-col gap-2">
+        {recError && (
+          <p className="text-rose-300 text-xs bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
+        )}
+        <div>
+          <label htmlFor="rec-edit-amount" className="block text-[11px] font-semibold text-gray-400 mb-1">
+            Monto pagado
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs select-none">
+              {currentPayment.currency}
+            </span>
+            <input
+              id="rec-edit-amount"
+              type="number"
+              min={0.01}
+              step="0.01"
+              value={recAmount}
+              onChange={(e) => setRecAmount(e.target.value)}
+              className="w-full pl-12 pr-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="rec-edit-notes" className="block text-[11px] font-semibold text-gray-400 mb-1">
+            Nota <span className="text-gray-600 font-normal">(opcional)</span>
+          </label>
+          <input
+            id="rec-edit-notes"
+            type="text"
+            value={recNotes}
+            maxLength={500}
+            onChange={(e) => setRecNotes(e.target.value)}
+            placeholder="Ej: Folio 123456"
+            className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+        <div className="flex gap-2 mt-0.5">
+          <button
+            type="button"
+            disabled={recBusy}
+            onClick={() => saveRecord(rec)}
+            className="flex-1 py-2.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition disabled:opacity-50"
+          >
+            {recBusy ? 'Guardando…' : '💾 Guardar'}
+          </button>
+          <button
+            type="button"
+            disabled={recBusy}
+            onClick={() => deleteRecord(rec)}
+            className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${
+              recDeleteArmed
+                ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300'
+            }`}
+          >
+            {recDeleteArmed ? '¿Seguro? Sí, eliminar' : '🗑 Eliminar'}
+          </button>
+        </div>
+        {recDeleteArmed && (
+          <p className="text-[10px] text-rose-400/80">
+            Al eliminarlo, ese mes volverá a contar como pendiente y se restará del total pagado.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  function renderAddRecord() {
+    if (!addOpen) {
+      return (
+        <button
+          type="button"
+          onClick={openAddForm}
+          className="mt-2 w-full py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 text-xs font-semibold hover:border-brand-500/50 hover:text-brand-300 active:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          ＋ Registrar pago de otro mes
+        </button>
+      );
+    }
+    return (
+      <div className="mt-2 bg-brand-500/10 border border-brand-500/30 rounded-xl p-3 flex flex-col gap-2">
+        <p className="text-brand-300 text-xs font-semibold">Registrar pago de un mes</p>
+        {recError && (
+          <p className="text-rose-300 text-xs bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
+        )}
+        <div>
+          <label htmlFor="add-record-month" className="block text-[11px] font-semibold text-gray-400 mb-1">Mes</label>
+          <select
+            id="add-record-month"
+            value={addMonthKey}
+            onChange={(e) => setAddMonthKey(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            {buildMonthOptions().map((o) => (
+              <option key={o.key} value={o.key} className="bg-gray-900">
+                {o.label}{o.taken ? ' · ya registrado' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="add-record-amount" className="block text-[11px] font-semibold text-gray-400 mb-1">Monto</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs select-none">
+              {currentPayment.currency}
+            </span>
+            <input
+              id="add-record-amount"
+              type="number"
+              min={0.01}
+              step="0.01"
+              value={addAmount}
+              onChange={(e) => setAddAmount(e.target.value)}
+              className="w-full pl-12 pr-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-0.5">
+          <button
+            type="button"
+            onClick={() => { setAddOpen(false); setRecError(null); }}
+            className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-xs font-semibold transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={recBusy}
+            onClick={addRecord}
+            className="flex-1 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition disabled:opacity-50"
+          >
+            {recBusy ? 'Guardando…' : '✓ Registrar'}
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-500">
+          Si eliges un mes ya registrado, se actualizará ese registro.
+        </p>
+      </div>
+    );
+  }
+
   function renderHistory() {
     if (historyLoading && !history) {
       return (
@@ -795,15 +1142,8 @@ export default function PaymentDetailSheet({
         </div>
       );
     }
-    if (!history || history.length === 0) {
-      return (
-        <div className="mt-6 pt-5 border-t border-white/10">
-          <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-2">Historial</p>
-          <p className="text-gray-500 text-xs">Aún no hay pagos registrados.</p>
-        </div>
-      );
-    }
 
+    const records = history ?? [];
     const totalPaid = currentPayment.totalPaidAllTime ?? 0;
     const paidCount = currentPayment.paidCountAllTime ?? 0;
     return (
@@ -822,45 +1162,62 @@ export default function PaymentDetailSheet({
             </p>
           )}
         </div>
-        <ul className="flex flex-col gap-2">
-          {history.slice(0, 6).map((rec) => {
-            const methodInfo = rec.paymentMethod ? PAYMENT_METHOD_LABELS[rec.paymentMethod] : null;
-            const monthLabel = `${MONTH_NAMES[rec.month - 1]} ${rec.year}`;
-            return (
-              <li
-                key={rec.id}
-                className="bg-white/5 rounded-xl p-3 flex items-start gap-3"
-              >
-                <div className="w-9 h-9 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-base shrink-0">
-                  {methodInfo?.icon ?? '✓'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-white text-sm font-semibold">{monthLabel}</p>
-                    <p className="text-white text-sm font-bold">
-                      {currentPayment.currency} {(rec.actualAmount ?? rec.amount).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-400 flex-wrap">
-                    {methodInfo && <span>{methodInfo.label}</span>}
-                    {rec.bankAccount && (
-                      <>
-                        {methodInfo && <span className="text-gray-600">·</span>}
-                        <span className="truncate">{rec.bankAccount}</span>
-                      </>
-                    )}
-                    {!methodInfo && !rec.bankAccount && (
-                      <span className="text-gray-500">Sin detalles de método</span>
-                    )}
-                  </div>
-                  {rec.notes && (
-                    <p className="text-[11px] text-gray-500 mt-1 italic line-clamp-2">{rec.notes}</p>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        {records.length === 0 ? (
+          <p className="text-gray-500 text-xs">Aún no hay pagos registrados.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {records.slice(0, 6).map((rec) => {
+              const methodInfo = rec.paymentMethod ? PAYMENT_METHOD_LABELS[rec.paymentMethod] : null;
+              const monthLabel = `${MONTH_NAMES[rec.month - 1]} ${rec.year}`;
+              const isExpanded = expandedRecId === rec.id;
+              return (
+                <li
+                  key={rec.id}
+                  className={`rounded-xl overflow-hidden transition ${
+                    isExpanded ? 'bg-white/10 ring-1 ring-brand-500/40' : 'bg-white/5'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => openRecordEditor(rec)}
+                    aria-expanded={isExpanded}
+                    className="w-full p-3 flex items-start gap-3 text-left hover:bg-white/5 active:bg-white/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 group"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-base shrink-0">
+                      {methodInfo?.icon ?? '✓'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-white text-sm font-semibold">{monthLabel}</p>
+                        <p className="text-white text-sm font-bold flex items-center gap-1.5">
+                          {currentPayment.currency} {(rec.actualAmount ?? rec.amount).toFixed(2)}
+                          <PencilSquareIcon className={`w-3.5 h-3.5 transition ${isExpanded ? 'text-brand-400' : 'text-gray-600 group-hover:text-gray-400'}`} />
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-400 flex-wrap">
+                        {methodInfo && <span>{methodInfo.label}</span>}
+                        {rec.bankAccount && (
+                          <>
+                            {methodInfo && <span className="text-gray-600">·</span>}
+                            <span className="truncate">{rec.bankAccount}</span>
+                          </>
+                        )}
+                        {!methodInfo && !rec.bankAccount && (
+                          <span className="text-gray-500">Toca para editar o eliminar</span>
+                        )}
+                      </div>
+                      {rec.notes && !isExpanded && (
+                        <p className="text-[11px] text-gray-500 mt-1 italic line-clamp-2">{rec.notes}</p>
+                      )}
+                    </div>
+                  </button>
+                  {isExpanded && renderRecordEditor(rec)}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {renderAddRecord()}
       </div>
     );
   }
