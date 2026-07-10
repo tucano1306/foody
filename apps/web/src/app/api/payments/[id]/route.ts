@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { methodNeedsBank, normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
+import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaymentAggregates } from '@/lib/payment-aggregates';
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -33,8 +34,9 @@ function toISOStringSafe(value: unknown): string {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
+function mapPayment(row: Record<string, unknown>, aggregates: PaymentAggregates = EMPTY_AGGREGATES) {
   const dueDay = asInteger(row.due_day, 1);
+  const isPaidThisMonth = aggregates.isPaidThisMonth;
   return {
     id: String(row.id),
     name: asText(row.name),
@@ -57,12 +59,35 @@ function mapPayment(row: Record<string, unknown>, isPaidThisMonth = false) {
     // Cycle-aware: once paid this month, the countdown targets next month's due day.
     daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth),
     nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
+    snoozedUntil: row.snoozed_until == null ? null : new Date(row.snoozed_until as string).toISOString(),
+    missedMonths: aggregates.missedMonths,
+    accumulatedDebt: aggregates.accumulatedDebt,
+    unpaidMonths: aggregates.unpaidMonths,
+    totalPaidAllTime: aggregates.totalPaidAllTime,
+    paidCountAllTime: aggregates.paidCountAllTime,
+    lastPaidAt: aggregates.lastPaidAt,
   };
 }
 
-function getCurrentMonthYear(): { month: number; year: number } {
-  const now = new Date();
-  return { month: now.getMonth() + 1, year: now.getFullYear() };
+/** Aggregates (debt + all-time totals) for a single payment. */
+async function loadAggregates(row: Record<string, unknown>, userId: string): Promise<PaymentAggregates> {
+  const paidRows = await sql`
+    SELECT month, year, amount, actual_amount, paid_at
+    FROM payment_records
+    WHERE payment_id = ${String(row.id)} AND user_id = ${userId} AND status = 'paid'
+  `;
+  return buildPaymentAggregates({
+    createdAt: new Date(row.created_at as string),
+    dueDay: asInteger(row.due_day, 1),
+    amount: asNumber(row.amount),
+    paidRecords: paidRows.map((r) => ({
+      month: asInteger(r.month),
+      year: asInteger(r.year),
+      amount: asNumber(r.amount),
+      actualAmount: r.actual_amount == null ? null : asNumber(r.actual_amount),
+      paidAt: r.paid_at == null ? null : toISOStringSafe(r.paid_at),
+    })),
+  });
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -72,11 +97,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const rows = await sql`SELECT * FROM monthly_payments WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;
   if (!rows.length) return notFound();
 
-  const { month, year } = getCurrentMonthYear();
-  const records = await sql`SELECT status FROM payment_records WHERE payment_id = ${id} AND user_id = ${user.userId} AND month = ${month} AND year = ${year} LIMIT 1`;
-  const isPaidThisMonth = records[0]?.status === 'paid';
-
-  return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>, isPaidThisMonth));
+  const row = rows[0] as Record<string, unknown>;
+  return NextResponse.json(mapPayment(row, await loadAggregates(row, user.userId)));
 }
 
 function validatePatchName(body: Record<string, unknown>): string | null {
@@ -159,10 +181,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
     `;
     if (!rows.length) return notFound();
-    const { month, year } = getCurrentMonthYear();
-    const records = await sql`SELECT status FROM payment_records WHERE payment_id = ${id} AND user_id = ${user.userId} AND month = ${month} AND year = ${year} LIMIT 1`;
-    const isPaidThisMonth = records[0]?.status === 'paid';
-    return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>, isPaidThisMonth));
+    const row = rows[0] as Record<string, unknown>;
+    return NextResponse.json(mapPayment(row, await loadAggregates(row, user.userId)));
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Database error';
     return NextResponse.json({ message }, { status: 500 });

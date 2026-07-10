@@ -5,14 +5,14 @@ import type React from 'react';
 import type { MonthlyPayment } from '@foody/types';
 import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
-import MarkPaidModal from '@/components/payments/MarkPaidModal';
+import MarkPaidModal, { type AppliedPayment } from '@/components/payments/MarkPaidModal';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
+import { formatMonthShort } from '@/lib/payment-aggregates';
 interface Props {
   readonly payment: MonthlyPayment;
   readonly autoOpen?: boolean;
   readonly onDeleted?: (id: string) => void;
   readonly onUpdated?: (p: MonthlyPayment) => void;
-  readonly onPaidToggle?: (id: string, nowPaid: boolean) => void;
   readonly onSnoozed?: (id: string, snoozedUntil: string) => void;
 }
 
@@ -101,7 +101,7 @@ function getSnoozeBtnLabel(pending: boolean, error: boolean): string {
   return '⏰ Posponer 3d';
 }
 
-export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, onPaidToggle, onSnoozed }: Props) {
+export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, onSnoozed }: Props) {
   const [, startTransition] = useTransition();
   const [isSnoozePending, startSnoozeTransition] = useTransition();
   const [isPaid, setIsPaid] = useState(payment.isPaidThisMonth);
@@ -109,7 +109,6 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
     payment.snoozedUntil != null && new Date(payment.snoozedUntil) > new Date(),
   );
   const [currentPayment, setCurrentPayment] = useState<MonthlyPayment>(payment);
-  const [missedMonths, setMissedMonths] = useState(payment.missedMonths ?? 0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [snoozeError, setSnoozeError] = useState(false);
@@ -130,6 +129,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
   const circleColor = getCircleColor(urgency, isPaid);
   const showQuickActions = !isPaid && !isSnoozed;
   const nextDueLabel = formatNextDue(currentPayment.nextDueDate);
+  const unpaidMonths = currentPayment.unpaidMonths ?? [];
 
   const togglePaid = useCallback(() => {
     if (!isPaid) {
@@ -143,32 +143,65 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
         credentials: 'include',
       });
       if (res.ok) {
-        setIsPaid(false);
-        // Unpaid again: countdown points back at this month's due day.
-        setCurrentPayment((prev) => ({
-          ...prev,
+        const body = await res.json().catch(() => ({})) as { removed?: boolean; amount?: number };
+        const removedAmount = body.removed && typeof body.amount === 'number' ? body.amount : 0;
+        const removedCount = body.removed ? 1 : 0;
+        const now = new Date();
+        const curMonth = now.getMonth() + 1;
+        const curYear = now.getFullYear();
+        const stillUnpaid = [...(currentPayment.unpaidMonths ?? [])];
+        // Unpaid again: if this month's due day already passed it re-enters the debt.
+        if (
+          daysUntilNextDue(currentPayment.dueDay, false) < 0 &&
+          !stillUnpaid.some((u) => u.month === curMonth && u.year === curYear)
+        ) {
+          stillUnpaid.push({ month: curMonth, year: curYear });
+        }
+        const next: MonthlyPayment = {
+          ...currentPayment,
           isPaidThisMonth: false,
-          daysUntilDue: daysUntilNextDue(prev.dueDay, false),
-          nextDueDate: nextDueDate(prev.dueDay, false).toISOString(),
-        }));
-        onPaidToggle?.(currentPayment.id, false);
+          daysUntilDue: daysUntilNextDue(currentPayment.dueDay, false),
+          nextDueDate: nextDueDate(currentPayment.dueDay, false).toISOString(),
+          unpaidMonths: stillUnpaid,
+          missedMonths: stillUnpaid.length,
+          accumulatedDebt: stillUnpaid.length * currentPayment.amount,
+          totalPaidAllTime: Math.max(0, (currentPayment.totalPaidAllTime ?? 0) - removedAmount),
+          paidCountAllTime: Math.max(0, (currentPayment.paidCountAllTime ?? 0) - removedCount),
+        };
+        setIsPaid(false);
+        setCurrentPayment(next);
+        onUpdated?.(next);
       }
     });
-  }, [currentPayment.id, isPaid, onPaidToggle]);
+  }, [currentPayment, isPaid, onUpdated]);
 
-  const handleMarkPaidConfirmed = useCallback(() => {
-    setIsPaid(true);
+  const handleMarkPaidConfirmed = useCallback((applied: AppliedPayment) => {
+    const now = new Date();
+    // A payment with accumulated debt settles the OLDEST month, so the current
+    // cycle only flips to "paid" when the settled month is the current one.
+    const settledCurrentMonth =
+      applied.month === now.getMonth() + 1 && applied.year === now.getFullYear();
+    const nowPaid = settledCurrentMonth || currentPayment.isPaidThisMonth;
+    const stillUnpaid = (currentPayment.unpaidMonths ?? []).filter(
+      (u) => !(u.month === applied.month && u.year === applied.year),
+    );
+    const next: MonthlyPayment = {
+      ...currentPayment,
+      isPaidThisMonth: nowPaid,
+      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid),
+      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid).toISOString(),
+      unpaidMonths: stillUnpaid,
+      missedMonths: stillUnpaid.length,
+      accumulatedDebt: stillUnpaid.length * currentPayment.amount,
+      totalPaidAllTime: (currentPayment.totalPaidAllTime ?? 0) + applied.amount,
+      paidCountAllTime: (currentPayment.paidCountAllTime ?? 0) + 1,
+      lastPaidAt: now.toISOString(),
+    };
+    setCurrentPayment(next);
+    setIsPaid(nowPaid);
     setJustPaid(true);
-    setMissedMonths((prev) => Math.max(0, prev - 1));
-    // Paid: the cycle restarts — countdown now targets next month's due day.
-    setCurrentPayment((prev) => ({
-      ...prev,
-      isPaidThisMonth: true,
-      daysUntilDue: daysUntilNextDue(prev.dueDay, true),
-      nextDueDate: nextDueDate(prev.dueDay, true).toISOString(),
-    }));
-    onPaidToggle?.(currentPayment.id, true);
-  }, [currentPayment.id, onPaidToggle]);
+    onUpdated?.(next);
+  }, [currentPayment, onUpdated]);
 
   const snooze = useCallback(() => {
     setSnoozeError(false);
@@ -237,23 +270,37 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
           </div>
         </div>
 
-        {/* Bottom row: status badge */}
-        <div className="mt-4 flex items-center gap-2">
+        {/* Bottom row: status badge + payment mode */}
+        <div className="mt-4 flex items-center gap-2 flex-wrap">
           {renderStatusBadge(isPaid, isSnoozed, urgency, currentPayment.daysUntilDue)}
+          <span
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+              currentPayment.isAutoPay
+                ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                : 'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400'
+            }`}
+          >
+            {currentPayment.isAutoPay ? '🤖 Automático' : '✋ Manual'}
+          </span>
         </div>
 
         {/* Accumulated debt banner */}
-        {missedMonths > 0 && !isPaid && (
-          <div className="mt-3 flex items-center justify-between gap-2 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl px-3 py-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-base">🚨</span>
-              <span className="text-xs font-semibold text-red-700 dark:text-red-300">
-                {missedMonths} {missedMonths === 1 ? 'mes sin pagar' : 'meses sin pagar'}
+        {unpaidMonths.length > 0 && !isPaid && (
+          <div className="mt-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-red-700 dark:text-red-300">
+                🚨 Ya llevas acumulado
+              </span>
+              <span className="text-sm font-extrabold text-red-700 dark:text-red-300 shrink-0">
+                {currentPayment.currency} {(unpaidMonths.length * currentPayment.amount).toFixed(2)}
               </span>
             </div>
-            <span className="text-sm font-extrabold text-red-700 dark:text-red-300">
-              {currentPayment.currency} {(missedMonths * currentPayment.amount).toFixed(2)}
-            </span>
+            <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">
+              {unpaidMonths.length === 1 ? '1 mes sin pagar' : `${unpaidMonths.length} meses sin pagar`}
+              {': '}
+              {unpaidMonths.slice(0, 3).map((u) => formatMonthShort(u)).join(' · ')}
+              {unpaidMonths.length > 3 && ` +${unpaidMonths.length - 3}`}
+            </p>
           </div>
         )}
 

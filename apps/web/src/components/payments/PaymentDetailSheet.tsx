@@ -6,6 +6,7 @@ import { XMarkIcon, PencilSquareIcon, TrashIcon, ArrowLeftIcon } from '@heroicon
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import { PAYMENT_METHOD_LABELS, maskLast4, methodNeedsBank } from '@/lib/payment-methods';
+import { formatMonthShort } from '@/lib/payment-aggregates';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -176,6 +177,9 @@ export default function PaymentDetailSheet({
   const [last4Draft, setLast4Draft] = useState(payment.accountLast4 ?? '');
   const [methodSaving, setMethodSaving] = useState(false);
 
+  // Auto/manual mode toggle (view mode)
+  const [modeSaving, setModeSaving] = useState(false);
+
   // History
   const [history, setHistory] = useState<HistoryRecord[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -326,6 +330,29 @@ export default function PaymentDetailSheet({
     [inlineDueDay, inlineNotifyValue, inlineNotifyUnit, currentPayment.id, onUpdated],
   );
 
+  const saveAutoPay = useCallback(
+    async (isAutoPay: boolean) => {
+      if (isAutoPay === currentPayment.isAutoPay || modeSaving) return;
+      setModeSaving(true);
+      try {
+        const res = await fetch(`/api/payments/${currentPayment.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ isAutoPay }),
+        });
+        if (res.ok) {
+          const updated = (await res.json()) as MonthlyPayment;
+          setCurrentPayment(updated);
+          onUpdated(updated);
+        }
+      } finally {
+        setModeSaving(false);
+      }
+    },
+    [currentPayment.id, currentPayment.isAutoPay, modeSaving, onUpdated],
+  );
+
   const openMethodEditor = useCallback(() => {
     setMethodDraft(currentPayment.paymentMethod);
     setBankDraft(currentPayment.bankName ?? '');
@@ -411,6 +438,31 @@ export default function PaymentDetailSheet({
             </p>
           )}
         </div>
+
+        {/* Accumulated debt */}
+        {!isPaid && (currentPayment.unpaidMonths?.length ?? 0) > 0 && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-red-300 text-xs font-semibold uppercase tracking-wide">🚨 Acumulado</p>
+              <p className="text-red-300 text-lg font-extrabold">
+                {currentPayment.currency} {((currentPayment.unpaidMonths?.length ?? 0) * currentPayment.amount).toFixed(2)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {(currentPayment.unpaidMonths ?? []).map((u) => (
+                <span
+                  key={`${u.year}-${u.month}`}
+                  className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-500/20 text-red-200"
+                >
+                  {formatMonthShort(u)}
+                </span>
+              ))}
+            </div>
+            <p className="text-red-400/80 text-[11px] mt-2">
+              Cada pago que registres abona al mes más antiguo pendiente.
+            </p>
+          </div>
+        )}
 
         {/* Info grid — tappable cells */}
         <div className="grid grid-cols-2 gap-3 mb-4">
@@ -519,6 +571,44 @@ export default function PaymentDetailSheet({
               </p>
             </button>
           )}
+        </div>
+
+        {/* Payment mode: automatic vs manual */}
+        <div className="bg-white/5 rounded-2xl p-3.5 mb-4">
+          <p className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Modo de pago</p>
+          <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-xl p-1" role="group" aria-label="Modo de pago">
+            <button
+              type="button"
+              disabled={modeSaving}
+              onClick={() => saveAutoPay(true)}
+              aria-pressed={currentPayment.isAutoPay}
+              className={`py-2.5 rounded-lg text-xs font-bold transition disabled:opacity-60 ${
+                currentPayment.isAutoPay
+                  ? 'bg-emerald-500 text-white shadow-md'
+                  : 'text-gray-400 hover:bg-white/10 active:bg-white/15'
+              }`}
+            >
+              🤖 Automático
+            </button>
+            <button
+              type="button"
+              disabled={modeSaving}
+              onClick={() => saveAutoPay(false)}
+              aria-pressed={!currentPayment.isAutoPay}
+              className={`py-2.5 rounded-lg text-xs font-bold transition disabled:opacity-60 ${
+                currentPayment.isAutoPay
+                  ? 'text-gray-400 hover:bg-white/10 active:bg-white/15'
+                  : 'bg-brand-500 text-white shadow-md'
+              }`}
+            >
+              ✋ Manual
+            </button>
+          </div>
+          <p className="text-gray-500 text-[11px] mt-2 leading-relaxed">
+            {currentPayment.isAutoPay
+              ? `Se cobra solo: la app lo marcará como pagado el día ${currentPayment.dueDay} y te avisará.`
+              : 'Tú registras el pago cada mes con el botón "Marcar como pagado".'}
+          </p>
         </div>
 
         {/* Payment method */}
@@ -714,11 +804,24 @@ export default function PaymentDetailSheet({
       );
     }
 
+    const totalPaid = currentPayment.totalPaidAllTime ?? 0;
+    const paidCount = currentPayment.paidCountAllTime ?? 0;
     return (
       <div className="mt-6 pt-5 border-t border-white/10">
-        <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-3">
-          Historial reciente
-        </p>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide">
+            Historial reciente
+          </p>
+          {paidCount > 0 && (
+            <p className="text-[11px] text-gray-400 text-right">
+              Pagado a la fecha:{' '}
+              <span className="text-emerald-300 font-bold">
+                {currentPayment.currency} {totalPaid.toFixed(2)}
+              </span>
+              <span className="text-gray-500"> · {paidCount} {paidCount === 1 ? 'pago' : 'pagos'}</span>
+            </p>
+          )}
+        </div>
         <ul className="flex flex-col gap-2">
           {history.slice(0, 6).map((rec) => {
             const methodInfo = rec.paymentMethod ? PAYMENT_METHOD_LABELS[rec.paymentMethod] : null;
