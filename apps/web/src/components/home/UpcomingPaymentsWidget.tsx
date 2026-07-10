@@ -74,18 +74,18 @@ export default function UpcomingPaymentsWidget({ payments: initialPayments }: Pr
       className="block bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-md active:scale-[0.99] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       aria-label="Ver todos los pagos"
     >
-      {/* ── Header ────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
+      {/* ── Header (centered title, chevron pinned right) ── */}
+      <div className="relative flex items-center justify-center gap-3">
         <span className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           💳
         </span>
-        <h2 className="text-base sm:text-lg font-bold text-stone-800 dark:text-stone-100 flex-1">Pagos próximos</h2>
-        <ChevronRightIcon className="w-4 h-4 text-stone-300 dark:text-stone-600 shrink-0" aria-hidden="true" />
+        <h2 className="text-base sm:text-lg font-bold text-stone-800 dark:text-stone-100">Pagos próximos</h2>
+        <ChevronRightIcon className="w-4 h-4 text-stone-300 dark:text-stone-600 shrink-0 absolute right-0 top-1/2 -translate-y-1/2" aria-hidden="true" />
       </div>
 
       {/* ── Empty state ───────────────────────────────── */}
       {payments.length === 0 ? (
-        <p className="text-stone-400 dark:text-stone-500 text-sm pt-3">No hay pagos pendientes este mes 🎉</p>
+        <p className="text-stone-400 dark:text-stone-500 text-sm pt-3 text-center">No hay pagos pendientes este mes 🎉</p>
       ) : (
         <ul className="divide-y divide-stone-100 dark:divide-stone-800 card-stagger mt-2">
           {displayed.map((p) => {

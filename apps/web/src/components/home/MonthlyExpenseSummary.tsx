@@ -32,7 +32,7 @@ export default async function MonthlyExpenseSummary() {
   return (
     <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="bg-linear-to-r from-brand-700 to-brand-500 px-5 py-4">
+      <div className="bg-linear-to-r from-brand-700 to-brand-500 px-5 py-4 text-center">
         <p className="text-white font-bold text-base">💸 Resumen del mes</p>
         <p className="text-white/70 text-xs mt-0.5">
           {now.toLocaleString('es-MX', { month: 'long', year: 'numeric' })}

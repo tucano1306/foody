@@ -14,11 +14,11 @@ export default async function StoreVisitsWheel() {
 
   return (
     <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center justify-center gap-3 mb-4">
         <span className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           🏪
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 text-center">
           <h2 className="text-base sm:text-lg font-bold text-stone-800 dark:text-stone-100">
             Supermercados más visitados
           </h2>

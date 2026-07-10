@@ -71,19 +71,19 @@ export default async function HomePage() {
 
       {/* ─── Despensa (lo más accionable: agotados → poco → todos) ──────────── */}
       <section className="space-y-5">
-        <SectionHeader emoji="🥑" title="Mi despensa" />
+        <SectionHeader emoji="🥑" title="Mi despensa" centered />
         <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} />
       </section>
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
       <section className="space-y-5">
-        <SectionHeader emoji="💰" title="Finanzas" />
+        <SectionHeader emoji="💰" title="Finanzas" centered />
         <UpcomingPaymentsWidget payments={upcomingPayments} />
       </section>
 
       {/* ─── Stats y gráficas (resumen, debajo de lo accionable) ────────────── */}
       <section className="space-y-5">
-        <SectionHeader emoji="📊" title="Resumen y estadísticas" />
+        <SectionHeader emoji="📊" title="Resumen y estadísticas" centered />
         <DashboardStats
           totalProducts={products.length}
           runningLowCount={runningLow.length}
