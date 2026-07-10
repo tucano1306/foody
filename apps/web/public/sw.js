@@ -1,6 +1,6 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue, web push */
 
-const VERSION = 'foody-v8';
+const VERSION = 'foody-v9';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;
@@ -100,9 +100,11 @@ function isImage(req) {
 
 // Only real backend calls live under /api/. Restricting to that prefix keeps
 // page routes like /products (and their RSC payloads) out of the cache-first path.
+// Payments are deliberately excluded: money data must never be served stale
+// (it falls to the default network-first handler, still usable offline).
 function isApiCall(url) {
   if (!url.pathname.startsWith('/api/')) return false;
-  return /\/(products|shopping-list|payments|users)(\/|$|\?)/.test(url.pathname);
+  return /\/(products|shopping-list|users)(\/|$|\?)/.test(url.pathname);
 }
 
 /**
