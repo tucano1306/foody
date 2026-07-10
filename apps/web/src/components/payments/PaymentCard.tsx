@@ -225,6 +225,8 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
   const handleUpdated = useCallback((updated: MonthlyPayment) => {
     setCurrentPayment(updated);
+    // Editing history records can flip the current month between paid/unpaid.
+    setIsPaid(updated.isPaidThisMonth);
     onUpdated?.(updated);
   }, [onUpdated]);
 
