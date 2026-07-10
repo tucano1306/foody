@@ -1,6 +1,7 @@
 import { getSession } from './session';
 import { sql } from './db';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
+import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
 import { randomUUID } from 'node:crypto';
 
 interface PushSubscriptionJSON {
@@ -144,9 +145,14 @@ function mapPaymentRecord(row: Record<string, unknown>): PaymentRecord {
   };
 }
 
-function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: PaymentRecord): MonthlyPayment {
+function mapMonthlyPayment(
+  row: Record<string, unknown>,
+  currentRecord?: PaymentRecord,
+  aggregates?: PaymentAggregates,
+): MonthlyPayment {
   const dueDay = asInteger(row.due_day, 1);
-  const isPaidThisMonth = currentRecord?.status === 'paid';
+  const aggr = aggregates ?? { ...EMPTY_AGGREGATES, isPaidThisMonth: currentRecord?.status === 'paid' };
+  const isPaidThisMonth = aggr.isPaidThisMonth;
   return {
     id: String(row.id),
     name: asText(row.name),
@@ -171,8 +177,12 @@ function mapMonthlyPayment(row: Record<string, unknown>, currentRecord?: Payment
     nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
     currentRecord,
     snoozedUntil: row.snoozed_until === null || row.snoozed_until === undefined ? null : new Date(row.snoozed_until as string | number | Date).toISOString(),
-    missedMonths: asInteger(row.missed_months, 0),
-    accumulatedDebt: asNumber(row.accumulated_debt ?? 0),
+    missedMonths: aggr.missedMonths,
+    accumulatedDebt: aggr.accumulatedDebt,
+    unpaidMonths: aggr.unpaidMonths,
+    totalPaidAllTime: aggr.totalPaidAllTime,
+    paidCountAllTime: aggr.paidCountAllTime,
+    lastPaidAt: aggr.lastPaidAt,
   };
 }
 
@@ -441,20 +451,42 @@ export const api = {
   payments: {
     list: async (): Promise<MonthlyPayment[]> => {
       const { userId } = await getAuthContext();
-      const payments = await sql`SELECT * FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`;
       const { month, year } = getCurrentMonthYear();
-      const records = await sql`SELECT * FROM payment_records WHERE user_id = ${userId} AND month = ${month} AND year = ${year}`;
+      const [payments, records, paidRows] = await Promise.all([
+        sql`SELECT * FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`,
+        sql`SELECT * FROM payment_records WHERE user_id = ${userId} AND month = ${month} AND year = ${year}`,
+        sql`SELECT payment_id, month, year, amount, actual_amount, paid_at FROM payment_records WHERE user_id = ${userId} AND status = 'paid'`,
+      ]);
       const recordMap = new Map(
         records.map((row) => {
           const record = mapPaymentRecord(row as Record<string, unknown>);
           return [record.paymentId, record] as const;
         }),
       );
+      const paidByPayment = new Map<string, PaidRecordInput[]>();
+      for (const row of paidRows) {
+        const pid = String(row.payment_id);
+        const list = paidByPayment.get(pid) ?? [];
+        list.push({
+          month: asInteger(row.month),
+          year: asInteger(row.year),
+          amount: asNumber(row.amount),
+          actualAmount: row.actual_amount == null ? null : asNumber(row.actual_amount),
+          paidAt: row.paid_at == null ? null : asIsoString(row.paid_at),
+        });
+        paidByPayment.set(pid, list);
+      }
 
       return payments.map((row) => {
         const paymentRow = row as Record<string, unknown>;
         const paymentId = String(paymentRow.id);
-        return mapMonthlyPayment(paymentRow, recordMap.get(paymentId));
+        const aggregates = buildPaymentAggregates({
+          createdAt: new Date(paymentRow.created_at as string),
+          dueDay: asInteger(paymentRow.due_day, 1),
+          amount: asNumber(paymentRow.amount),
+          paidRecords: paidByPayment.get(paymentId) ?? [],
+        });
+        return mapMonthlyPayment(paymentRow, recordMap.get(paymentId), aggregates);
       });
     },
     byCategory: async () => {

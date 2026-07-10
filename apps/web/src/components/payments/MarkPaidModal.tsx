@@ -4,14 +4,22 @@ import { useEffect, useRef, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import type { MonthlyPayment, PaymentMethod } from '@foody/types';
 import { PAYMENT_METHODS, isCardMethod, methodNeedsBank } from '@/lib/payment-methods';
+import { formatMonthLong } from '@/lib/payment-aggregates';
 import { playSound } from '@/lib/sound';
 import { confettiRain } from '@/lib/fx';
+
+/** Month/year the payment settled plus the amount actually paid. */
+export interface AppliedPayment {
+  month: number;
+  year: number;
+  amount: number;
+}
 
 interface Props {
   readonly payment: MonthlyPayment;
   readonly open: boolean;
   readonly onClose: () => void;
-  readonly onConfirmed: () => void;
+  readonly onConfirmed: (applied: AppliedPayment) => void;
   /** Recently used bank accounts for quick-pick suggestions */
   readonly recentBankAccounts?: readonly string[];
 }
@@ -106,9 +114,14 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? 'No se pudo registrar el pago');
       }
+      const data = (await res.json().catch(() => ({}))) as { targetMonth?: number; targetYear?: number };
       playSound('payment');
       confettiRain(['💸', '🎉', '✨']);
-      onConfirmed();
+      onConfirmed({
+        month: data.targetMonth ?? targetMonth.month,
+        year: data.targetYear ?? targetMonth.year,
+        amount: parsedAmount,
+      });
       onClose();
     } catch (err) {
       setError((err as Error).message);
@@ -116,6 +129,15 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
       setSaving(false);
     }
   }
+
+  // Which month this payment settles: oldest overdue month first, else the current one.
+  const now = new Date();
+  const unpaidMonths = payment.unpaidMonths ?? [];
+  const targetMonth = unpaidMonths[0] ?? { month: now.getMonth() + 1, year: now.getFullYear() };
+  const isSettlingOldMonth =
+    targetMonth.month !== now.getMonth() + 1 || targetMonth.year !== now.getFullYear();
+  const monthsLeftAfter = Math.max(0, unpaidMonths.length - 1);
+  const debtLeftAfter = monthsLeftAfter * payment.amount;
 
   const needsBank = methodNeedsBank(method);
   const isCard = isCardMethod(method);
@@ -157,6 +179,29 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Which month this payment settles */}
+            {isSettlingOldMonth ? (
+              <div className="px-3.5 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                  📅 Se abonará al mes más antiguo pendiente:{' '}
+                  <span className="font-extrabold">{formatMonthLong(targetMonth.month, targetMonth.year)}</span>
+                </p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                  {monthsLeftAfter > 0
+                    ? `Después de este pago seguirás debiendo ${payment.currency} ${debtLeftAfter.toFixed(2)} (${monthsLeftAfter} ${monthsLeftAfter === 1 ? 'mes' : 'meses'}).`
+                    : 'Con este pago quedas al día en los meses vencidos 🎉'}
+                </p>
+              </div>
+            ) : (
+              <div className="px-3.5 py-2.5 bg-stone-50 dark:bg-white/5 border border-stone-200 dark:border-white/10 rounded-2xl flex items-center gap-2">
+                <span aria-hidden="true">📅</span>
+                <p className="text-xs font-semibold text-stone-600 dark:text-gray-300">
+                  Se registrará para{' '}
+                  <span className="text-stone-900 dark:text-white">{formatMonthLong(targetMonth.month, targetMonth.year)}</span>
+                </p>
+              </div>
+            )}
 
             {error && (
               <div className="px-3 py-2 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 rounded-xl text-rose-700 dark:text-rose-300 text-sm">

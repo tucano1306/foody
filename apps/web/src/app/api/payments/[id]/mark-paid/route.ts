@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
+import { listUnpaidMonths, monthKey } from '@/lib/payment-aggregates';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
 
@@ -23,8 +24,8 @@ function parseString(value: unknown, max = 100): string | null {
 }
 
 /**
- * Find the oldest month+year where the due date has already passed but there
- * is no paid record. Falls back to the current month if no debt is found.
+ * The month a new payment settles: the oldest unpaid month whose due date
+ * already passed, falling back to the current month when there is no debt.
  */
 function findTargetMonth(
   createdAt: Date,
@@ -32,17 +33,8 @@ function findTargetMonth(
   paidKeys: Set<string>,
   now: Date,
 ): { month: number; year: number } {
-  const cursor = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
-  while (true) {
-    const y = cursor.getFullYear();
-    const m = cursor.getMonth() + 1;
-    const dim = new Date(y, m, 0).getDate();
-    const due = new Date(y, m - 1, Math.min(dueDay, dim), 23, 59, 59, 999);
-    if (due >= now) break;
-    if (!paidKeys.has(`${y}-${m}`)) return { month: m, year: y };
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-  return { month: now.getMonth() + 1, year: now.getFullYear() };
+  const unpaid = listUnpaidMonths(createdAt, dueDay, paidKeys, now);
+  return unpaid[0] ?? { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -72,7 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const notes = parseString(body.notes, 500);
 
   // Determine which month to record: oldest unpaid first
-  const paidKeys = new Set(allRecords.map((r) => `${r.year}-${r.month}`));
+  const paidKeys = new Set(allRecords.map((r) => monthKey(Number(r.year), Number(r.month))));
   const createdAt = new Date(payment.created_at as string);
   const { month, year } = findTargetMonth(createdAt, Number(payment.due_day), paidKeys, now);
 
@@ -114,7 +106,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   }
 
-  return NextResponse.json({ ...rows[0], targetMonth: month, targetYear: year });
+  return NextResponse.json({ ...rows[0], targetMonth: month, targetYear: year, paidAmount: finalAmount });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -125,6 +117,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const now = new Date();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
-  await sql`DELETE FROM payment_records WHERE payment_id = ${id} AND user_id = ${user.userId} AND month = ${month} AND year = ${year}`;
-  return new NextResponse(null, { status: 204 });
+  const removed = await sql`
+    DELETE FROM payment_records
+    WHERE payment_id = ${id} AND user_id = ${user.userId} AND month = ${month} AND year = ${year}
+    RETURNING amount, actual_amount
+  `;
+  const rec = removed[0] as { amount: unknown; actual_amount: unknown } | undefined;
+  const amount = rec
+    ? Number.parseFloat(String(rec.actual_amount ?? rec.amount)) || 0
+    : 0;
+  return NextResponse.json({ removed: removed.length > 0, amount });
 }

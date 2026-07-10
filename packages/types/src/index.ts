@@ -219,6 +219,14 @@ export interface MonthlyPayment {
   missedMonths: number;
   /** missedMonths × amount (estimated accumulated debt) */
   accumulatedDebt: number;
+  /** Months (due date already passed) still unpaid — oldest first */
+  unpaidMonths?: Array<{ month: number; year: number }>;
+  /** All-time sum actually paid across records (actualAmount ?? amount) */
+  totalPaidAllTime?: number;
+  /** All-time count of paid records */
+  paidCountAllTime?: number;
+  /** ISO timestamp of the most recent paid record */
+  lastPaidAt?: string | null;
 }
 
 export interface CreatePaymentDto {

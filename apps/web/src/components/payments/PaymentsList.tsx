@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { MonthlyPayment } from '@foody/types';
-import { BanknotesIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { BanknotesIcon, CheckCircleIcon, ChevronDownIcon, ClockIcon } from '@heroicons/react/24/solid';
 import PaymentCard from '@/components/payments/PaymentCard';
 
 interface Props {
@@ -13,9 +13,21 @@ interface Props {
 
 type Filter = 'all' | 'pending' | 'paid';
 
+const CATEGORY_ICONS: Record<string, string> = {
+  utilities: '💡',
+  subscriptions: '📱',
+  rent: '🏠',
+  insurance: '🛡️',
+  internet: '🌐',
+  phone: '📞',
+  streaming: '🎬',
+  other: '💰',
+};
+
 export default function PaymentsList({ initialPayments }: Props) {
   const [payments, setPayments] = useState<MonthlyPayment[]>(initialPayments);
   const [filter, setFilter] = useState<Filter>('all');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('payment');
 
@@ -29,12 +41,6 @@ export default function PaymentsList({ initialPayments }: Props) {
 
   const handleUpdated = useCallback((updated: MonthlyPayment) => {
     setPayments((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-  }, []);
-
-  const handlePaidToggle = useCallback((id: string, nowPaid: boolean) => {
-    setPayments((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isPaidThisMonth: nowPaid } : p)),
-    );
   }, []);
 
   const handleSnoozed = useCallback((id: string, snoozedUntil: string) => {
@@ -57,6 +63,12 @@ export default function PaymentsList({ initialPayments }: Props) {
   const totalSnoozed = snoozed.reduce((sum, p) => sum + p.amount, 0);
   // Total accumulated debt across ALL payments with missed months
   const totalAccumulated = payments.reduce((sum, p) => sum + (p.accumulatedDebt ?? 0), 0);
+  // All-time paid totals (running history across every payment)
+  const totalPaidAllTime = payments.reduce((sum, p) => sum + (p.totalPaidAllTime ?? 0), 0);
+  const paidCountAllTime = payments.reduce((sum, p) => sum + (p.paidCountAllTime ?? 0), 0);
+  const paidBreakdown = payments
+    .filter((p) => (p.totalPaidAllTime ?? 0) > 0)
+    .sort((a, b) => (b.totalPaidAllTime ?? 0) - (a.totalPaidAllTime ?? 0));
 
   // Use the most common currency, fallback to MXN
   const currencies = payments.map((p) => p.currency);
@@ -88,15 +100,12 @@ export default function PaymentsList({ initialPayments }: Props) {
           <span className="text-2xl shrink-0">🚨</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-red-700 dark:text-red-300">
-              Pagos atrasados de meses anteriores
+              Ya llevas {formatTotal(totalAccumulated)} acumulado
             </p>
             <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-              Marca cada pago como pagado para ir liquidando el acumulado mes a mes.
+              Meses vencidos sin pagar — cada pago que registres abona al mes más antiguo.
             </p>
           </div>
-          <span className="text-lg font-extrabold text-red-700 dark:text-red-300 shrink-0">
-            {formatTotal(totalAccumulated)}
-          </span>
         </div>
       )}
 
@@ -180,6 +189,60 @@ export default function PaymentsList({ initialPayments }: Props) {
         </button>
       </div>
 
+      {/* ─── All-time paid history ────────────────────────────────────────── */}
+      {payments.length > 0 && (
+        <section className="rounded-2xl overflow-hidden shadow-sm bg-linear-to-br from-[#4F46E5] to-[#7C3AED]">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-expanded={historyOpen}
+            className="w-full flex items-center gap-3 px-4 py-4 sm:px-5 text-left active:scale-[0.99] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          >
+            <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center text-xl shrink-0" aria-hidden="true">
+              💰
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-sm sm:text-base leading-tight">Pagado a la fecha</p>
+              <p className="text-white/70 text-[11px] sm:text-xs mt-0.5">
+                {paidCountAllTime === 0
+                  ? 'Aún sin pagos registrados'
+                  : `${paidCountAllTime} ${paidCountAllTime === 1 ? 'pago registrado' : 'pagos registrados'} en total`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <p className="text-white text-lg sm:text-2xl font-extrabold">
+                {formatTotal(totalPaidAllTime)}{mixedCurrencies && <span className="text-xs text-white/60 ml-1">*</span>}
+              </p>
+              <ChevronDownIcon className={`w-4 h-4 text-white/80 transition-transform duration-200 ${historyOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+          {historyOpen && (
+            <div className="px-4 pb-4 sm:px-5 flex flex-col gap-1.5 animate-fade-up">
+              {paidBreakdown.length === 0 ? (
+                <p className="text-white/80 text-xs bg-white/10 rounded-xl px-3 py-2.5">
+                  Cuando marques pagos como pagados, aquí verás cuánto llevas abonado a cada uno.
+                </p>
+              ) : (
+                paidBreakdown.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-2 bg-white/10 rounded-xl px-3 py-2.5">
+                    <span className="text-white/90 text-xs font-semibold truncate">
+                      <span aria-hidden="true" className="mr-1.5">{CATEGORY_ICONS[p.category ?? 'other'] ?? '💰'}</span>
+                      {p.name}
+                    </span>
+                    <span className="text-white text-xs font-bold shrink-0">
+                      {p.currency} {(p.totalPaidAllTime ?? 0).toFixed(2)}
+                      <span className="text-white/60 font-medium">
+                        {' '}· {p.paidCountAllTime ?? 0} {(p.paidCountAllTime ?? 0) === 1 ? 'pago' : 'pagos'}
+                      </span>
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ─── Pending payments ─────────────────────────────────────────────── */}
       {pending.length > 0 && filter !== 'paid' && (
         <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
@@ -194,7 +257,6 @@ export default function PaymentsList({ initialPayments }: Props) {
                 autoOpen={payment.id === highlightId}
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
-                onPaidToggle={handlePaidToggle}
                 onSnoozed={handleSnoozed}
               />
             ))}
@@ -216,7 +278,6 @@ export default function PaymentsList({ initialPayments }: Props) {
                 autoOpen={payment.id === highlightId}
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
-                onPaidToggle={handlePaidToggle}
                 onSnoozed={handleSnoozed}
               />
             ))}
@@ -238,7 +299,6 @@ export default function PaymentsList({ initialPayments }: Props) {
                 autoOpen={payment.id === highlightId}
                 onDeleted={handleDeleted}
                 onUpdated={handleUpdated}
-                onPaidToggle={handlePaidToggle}
                 onSnoozed={handleSnoozed}
               />
             ))}
