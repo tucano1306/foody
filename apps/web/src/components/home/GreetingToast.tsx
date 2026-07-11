@@ -19,31 +19,107 @@ function getGreetingEmoji(h: number): string {
   return '🌙';
 }
 
+/** One playful phrase per day — feels alive without being random on every visit. */
+const DAILY_PHRASES = [
+  '🔥 ¡A darle al día!',
+  '🥑 Tu despensa te espera',
+  '⭐ Hoy todo bajo control',
+  '🛒 ¿Listo para el súper?',
+  '💪 ¡Vamos con todo hoy!',
+  '🏆 Cada pago al día suma',
+  '✨ Pequeños hábitos, gran hogar',
+] as const;
+
+function dayOfYear(d: Date): number {
+  return Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86_400_000);
+}
+
+const SPARKLES = [
+  { emoji: '✨', x: -14, y: -10, delay: 0.35 },
+  { emoji: '⭐', x: 105, y: -14, delay: 0.55 },
+  { emoji: '✨', x: 112, y: 60, delay: 0.75 },
+  { emoji: '💫', x: -18, y: 55, delay: 0.95 },
+] as const;
+
 export default function GreetingToast({ firstName }: Props) {
+  // Render only after mount: all the content depends on the client clock.
+  const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(false), 4000);
+    setMounted(true);
+    const timer = setTimeout(() => setVisible(false), 5000);
     return () => clearTimeout(timer);
   }, []);
 
-  const hour = new Date().getHours();
+  if (!mounted) return null;
+
+  const now = new Date();
+  const hour = now.getHours();
   const greeting = getGreeting(hour);
   const emoji = getGreetingEmoji(hour);
-  const text = firstName ? `${greeting}, ${firstName}! ${emoji}` : `${greeting}! ${emoji}`;
+  const phrase = DAILY_PHRASES[dayOfYear(now) % DAILY_PHRASES.length];
 
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ opacity: 0, y: -16, scale: 0.95 }}
+          initial={{ opacity: 0, y: -28, scale: 0.8 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -12, scale: 0.95 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
+          exit={{ opacity: 0, y: -16, scale: 0.9 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 20 }}
           className="absolute top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
         >
-          <div className="flex items-center gap-2.5 bg-brand-600/95 backdrop-blur-sm border border-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-2xl shadow-lg whitespace-nowrap">
-            {text}
+          <div className="relative">
+            {/* Sparkles popping around the card */}
+            {SPARKLES.map((s) => (
+              <motion.span
+                key={`${s.x}-${s.y}`}
+                aria-hidden="true"
+                className="absolute text-sm"
+                style={{ left: `${s.x}%`, top: `${s.y}%` }}
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: [0, 1, 0], scale: [0, 1.3, 0], rotate: [0, 40] }}
+                transition={{ duration: 1.1, delay: s.delay, ease: 'easeOut' }}
+              >
+                {s.emoji}
+              </motion.span>
+            ))}
+
+            {/* Animated gradient card */}
+            <motion.div
+              className="flex items-center gap-3 text-white px-5 py-3 rounded-2xl shadow-xl whitespace-nowrap border border-white/20"
+              style={{
+                backgroundImage: 'linear-gradient(115deg, #4338ca, #7c3aed, #0e7490, #4338ca)',
+                backgroundSize: '300% 300%',
+              }}
+              animate={{ backgroundPosition: ['0% 50%', '100% 50%'] }}
+              transition={{ duration: 4, ease: 'linear' }}
+            >
+              {/* Waving hand */}
+              <motion.span
+                aria-hidden="true"
+                className="text-2xl origin-[70%_80%]"
+                animate={{ rotate: [0, 22, -12, 22, -8, 0] }}
+                transition={{ duration: 1.4, delay: 0.3, ease: 'easeInOut' }}
+              >
+                👋
+              </motion.span>
+
+              <div className="leading-tight">
+                <p className="text-sm font-extrabold">
+                  {greeting}{firstName ? `, ${firstName}` : ''}! {emoji}
+                </p>
+                <motion.p
+                  className="text-[11px] text-white/85 font-medium"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6, duration: 0.4 }}
+                >
+                  {phrase}
+                </motion.p>
+              </div>
+            </motion.div>
           </div>
         </motion.div>
       )}
