@@ -913,8 +913,11 @@ function ShoppingItemRow({
 
   return (
     <motion.div
+      // `layout` only: it animates position with transforms when siblings
+      // shift. A `layoutId` here made re-mounts (item hopping between
+      // sections) run a shared-layout CROSSFADE that flashes opacity and
+      // ignores `initial` — the toggle flicker.
       layout
-      layoutId={item.id}
       initial={entrance ? { opacity: 0, y: 10 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 380, damping: 26 }}
