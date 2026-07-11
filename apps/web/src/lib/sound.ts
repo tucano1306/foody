@@ -4,7 +4,7 @@
  * The 🔊 toggle in the navbar mutes everything; the choice persists per device.
  */
 
-export type SoundName = 'pop' | 'low' | 'empty' | 'purchase' | 'payment' | 'levelup';
+export type SoundName = 'pop' | 'cart' | 'uncart' | 'low' | 'empty' | 'purchase' | 'payment' | 'levelup';
 
 const STORAGE_KEY = 'foody-sounds';
 
@@ -79,6 +79,17 @@ const SOUNDS: Record<SoundName, readonly Note[]> = {
   pop: [
     { freq: 440, endFreq: 880, at: 0, dur: 0.09, type: 'sine', vol: 0.08 },
     { freq: 1320, at: 0.06, dur: 0.07, type: 'triangle', vol: 0.04 },
+  ],
+  // Bright "di-DING!" — item checked into the cart (louder: must cut through
+  // supermarket noise on a phone speaker)
+  cart: [
+    { freq: 587, endFreq: 1175, at: 0, dur: 0.1, type: 'triangle', vol: 0.22 },
+    { freq: 1568, at: 0.08, dur: 0.16, type: 'sine', vol: 0.2 },
+    { freq: 3136, at: 0.08, dur: 0.12, type: 'sine', vol: 0.08 },
+  ],
+  // Short descending blip — item taken back out of the cart
+  uncart: [
+    { freq: 784, endFreq: 392, at: 0, dur: 0.12, type: 'triangle', vol: 0.14 },
   ],
   // Gentle "uh-oh" — running low
   low: [
