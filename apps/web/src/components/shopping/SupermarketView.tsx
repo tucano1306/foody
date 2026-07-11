@@ -925,9 +925,11 @@ function ShoppingItemRow({
     >
       <div className="flex items-center gap-2 p-3">
       {/* Toggle area */}
+      {/* No active:scale here: shrinking the whole row on tap reads as a
+          flicker on phones. The checkbox pop + sound are the tap feedback. */}
       <button
         onClick={(e) => onToggle(e.currentTarget)}
-        className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-[0.98]"
+        className="flex items-center gap-3 flex-1 min-w-0 text-left"
       >
         {/* Checkbox */}
         <div

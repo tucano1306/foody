@@ -3,6 +3,14 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@layer base {
+  /* Kill the mobile browsers' gray tap-flash overlay: the app gives its own
+     feedback (sounds, haptics, check pops) and the flash reads as flicker. */
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
 @theme {
   /* ─── Brand colors (FPL-inspired: deep navy primary) ──────────────────── */
   --color-brand-50:  #e6f0f9;
