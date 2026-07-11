@@ -70,7 +70,7 @@ export default function PaymentsList({ initialPayments }: Props) {
     .filter((p) => (p.totalPaidAllTime ?? 0) > 0)
     .sort((a, b) => (b.totalPaidAllTime ?? 0) - (a.totalPaidAllTime ?? 0));
 
-  // Use the most common currency, fallback to MXN
+  // Use the most common currency, fallback to USD
   const currencies = payments.map((p) => p.currency);
   const dominantCurrency = currencies.length > 0
     ? [...currencies].sort((a, b) => currencies.filter((c) => c === b).length - currencies.filter((c) => c === a).length)[0]
@@ -245,10 +245,16 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Pending payments ─────────────────────────────────────────────── */}
       {pending.length > 0 && filter !== 'paid' && (
-        <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
-            ⏰ Pendientes ({pending.length})
-          </h2>
+        <section className="bg-amber-50/70 dark:bg-amber-500/[0.06] rounded-2xl p-5 border-2 border-amber-200/80 dark:border-amber-500/25 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+              ⏰
+            </span>
+            <h2 className="text-lg font-bold text-amber-900 dark:text-amber-200">Pendientes</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-200/80 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">
+              {pending.length}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
             {pending.map((payment) => (
               <PaymentCard
@@ -266,10 +272,16 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Snoozed payments ─────────────────────────────────────────────── */}
       {snoozed.length > 0 && filter !== 'paid' && (
-        <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
-            ⏸ Pospuestos ({snoozed.length})
-          </h2>
+        <section className="bg-stone-50/80 dark:bg-white/[0.03] rounded-2xl p-5 border-2 border-stone-200/80 dark:border-stone-700/60 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className="w-9 h-9 rounded-xl bg-stone-200/70 dark:bg-white/10 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+              ⏸
+            </span>
+            <h2 className="text-lg font-bold text-stone-700 dark:text-stone-300">Pospuestos</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-stone-200/80 dark:bg-white/10 text-stone-600 dark:text-stone-400">
+              {snoozed.length}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
             {snoozed.map((payment) => (
               <PaymentCard
@@ -287,10 +299,16 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Paid this month ──────────────────────────────────────────────── */}
       {paid.length > 0 && filter !== 'pending' && (
-        <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
-          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4">
-            ✅ Pagados este mes ({paid.length})
-          </h2>
+        <section className="bg-emerald-50/70 dark:bg-emerald-500/[0.06] rounded-2xl p-5 border-2 border-emerald-200/80 dark:border-emerald-500/25 shadow-sm">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+              ✅
+            </span>
+            <h2 className="text-lg font-bold text-emerald-900 dark:text-emerald-200">Pagados este mes</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-200/80 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+              {paid.length}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
             {paid.map((payment) => (
               <PaymentCard
