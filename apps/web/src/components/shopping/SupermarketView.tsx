@@ -102,7 +102,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const router = useRouter();
   const toast = useToast();
   const [items, setItems] = useState(initialItems);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  // True only during the very first render pass: rows mounted later (e.g. an
+  // item hopping between "por comprar" and "comprados") must NOT replay the
+  // entrance fade — that reads as a flicker on every toggle.
+  const hasMountedRef = useRef(false);
+  useEffect(() => { hasMountedRef.current = true; }, []);
   const [completing, setCompleting] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
@@ -224,8 +229,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     haptic(12);
     const original = items.find((i) => i.id === id);
     if (!original) return;
-    if (!original.isInCart) {
-      playSound('pop');
+    if (original.isInCart) {
+      playSound('uncart');
+    } else {
+      playSound('cart');
       burstFromElement(el, ['🛒', '✨', '🥳']);
     }
     optimisticToggle(id);
@@ -582,7 +589,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               key={item.id}
               item={item}
               onToggle={(el) => toggleItem(item.id, el)}
-              disabled={isPending}
+              entrance={!hasMountedRef.current}
               urgent={item.product.stockLevel === 'empty'}
             />
           ))}
@@ -613,7 +620,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               key={item.id}
               item={item}
               onToggle={(el) => toggleItem(item.id, el)}
-              disabled={isPending}
+              entrance={!hasMountedRef.current}
               inCart
               scannedPrice={scannedPrices[item.product.id]}
               onScanPrice={() => setScanningProductId(item.product.id)}
@@ -878,7 +885,7 @@ function Section({
 function ShoppingItemRow({
   item,
   onToggle,
-  disabled,
+  entrance = false,
   inCart = false,
   urgent = false,
   scannedPrice,
@@ -888,7 +895,8 @@ function ShoppingItemRow({
 }: {
   readonly item: ShoppingListItem;
   readonly onToggle: (el?: Element | null) => void;
-  readonly disabled: boolean;
+  /** Play the entrance fade only on the list's first paint, never on re-mounts. */
+  readonly entrance?: boolean;
   readonly inCart?: boolean;
   readonly urgent?: boolean;
   readonly scannedPrice?: number;
@@ -907,7 +915,7 @@ function ShoppingItemRow({
     <motion.div
       layout
       layoutId={item.id}
-      initial={{ opacity: 0, y: 10 }}
+      initial={entrance ? { opacity: 0, y: 10 } : false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 380, damping: 26 }}
       className={`w-full rounded-2xl border transition-colors ${rowCls}`}
@@ -916,8 +924,7 @@ function ShoppingItemRow({
       {/* Toggle area */}
       <button
         onClick={(e) => onToggle(e.currentTarget)}
-        disabled={disabled}
-        className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-[0.98] disabled:opacity-60"
+        className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-[0.98]"
       >
         {/* Checkbox */}
         <div
