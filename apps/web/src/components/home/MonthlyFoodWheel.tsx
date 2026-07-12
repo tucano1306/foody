@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import MonthlyFoodChart from './MonthlyFoodChart';
+import ChartZoom from './ChartZoom';
 
 function getMonthName(offsetMonths: number): string {
   const d = new Date();
@@ -48,7 +49,7 @@ export default async function MonthlyFoodWheel() {
   const prevMonthName = getMonthName(-1);
 
   return (
-    <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+    <section className="relative bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
       <div className="flex items-center justify-center gap-3 mb-4">
         <span className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           📊
@@ -63,12 +64,14 @@ export default async function MonthlyFoodWheel() {
         </div>
       </div>
       {hasSpending ? (
-        <MonthlyFoodChart
-          currentTotal={data.currentTotal}
-          previousTotal={data.previousTotal}
-          currentMonthName={currentMonthName}
-          prevMonthName={prevMonthName}
-        />
+        <ChartZoom title="Gasto en comida">
+          <MonthlyFoodChart
+            currentTotal={data.currentTotal}
+            previousTotal={data.previousTotal}
+            currentMonthName={currentMonthName}
+            prevMonthName={prevMonthName}
+          />
+        </ChartZoom>
       ) : (
         <EmptyState purchaseCount={data.purchaseCount} />
       )}
