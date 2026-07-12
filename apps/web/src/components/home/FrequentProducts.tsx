@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import FrequentChart from './FrequentChart';
+import ChartZoom from './ChartZoom';
 
 export default async function FrequentProducts() {
   let items: Awaited<ReturnType<typeof api.shoppingList.frequent>> = [];
@@ -14,7 +15,7 @@ export default async function FrequentProducts() {
   const top = items.slice(0, 5);
 
   return (
-    <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+    <section className="relative bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
       <div className="flex items-center justify-center gap-3 mb-4">
         <span className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           📈
@@ -29,7 +30,9 @@ export default async function FrequentProducts() {
         </div>
       </div>
 
-      <FrequentChart items={top} />
+      <ChartZoom title="Más comprados">
+        <FrequentChart items={top} />
+      </ChartZoom>
     </section>
   );
 }

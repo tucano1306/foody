@@ -1,5 +1,6 @@
 import { getStoresAggregate } from '@/lib/home-queries';
 import StoreVisitsChart from './StoreVisitsChart';
+import ChartZoom from './ChartZoom';
 
 export default async function StoreVisitsWheel() {
   let data: Awaited<ReturnType<typeof getStoresAggregate>> = [];
@@ -13,7 +14,7 @@ export default async function StoreVisitsWheel() {
   const hasData = data.length > 0 && totalVisits > 0;
 
   return (
-    <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+    <section className="relative bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
       <div className="flex items-center justify-center gap-3 mb-4">
         <span className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           🏪
@@ -28,7 +29,9 @@ export default async function StoreVisitsWheel() {
         </div>
       </div>
       {hasData ? (
-        <StoreVisitsChart data={data} />
+        <ChartZoom title="Supermercados más visitados">
+          <StoreVisitsChart data={data} />
+        </ChartZoom>
       ) : (
         <div className="flex flex-col items-center justify-center py-10 text-stone-300">
           <span className="text-5xl mb-3">🛒</span>

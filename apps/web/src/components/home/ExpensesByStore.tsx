@@ -1,5 +1,6 @@
 import { getStoresAggregate } from '@/lib/home-queries';
 import StoreExpensesChart from './StoreExpensesChart';
+import ChartZoom from './ChartZoom';
 
 export default async function ExpensesByStore() {
   let data: Awaited<ReturnType<typeof getStoresAggregate>> = [];
@@ -14,7 +15,7 @@ export default async function ExpensesByStore() {
   if (total === 0) return null;
 
   return (
-    <section className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+    <section className="relative bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
       <div className="flex items-center justify-center gap-3 mb-4">
         <span className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           💸
@@ -29,7 +30,9 @@ export default async function ExpensesByStore() {
         </div>
       </div>
 
-      <StoreExpensesChart data={data} />
+      <ChartZoom title="Gastos por supermercado">
+        <StoreExpensesChart data={data} />
+      </ChartZoom>
     </section>
   );
 }
