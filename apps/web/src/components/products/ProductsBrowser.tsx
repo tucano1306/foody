@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
 import { categoryEmoji, categoryOrder } from '@/lib/categories';
+
+const ProductScanSearch = dynamic(() => import('./ProductScanSearch'), { ssr: false });
 
 type StockFilter = 'all' | 'low' | StockLevel;
 type ViewMode = 'grid' | 'categories';
@@ -223,6 +226,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
   const [stockFilter, setStockFilter] = useState<StockFilter>(initialFilter);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('categories');
+  const [scanOpen, setScanOpen] = useState(false);
 
   // Sync whenever the server sends fresh data (after router.refresh())
   useEffect(() => {
@@ -266,8 +270,25 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     setPage(1);
   };
 
+  // Camera search found a product: clear filters that could hide it and let
+  // the existing name filter surface its card.
+  const onScanSelect = (product: Product) => {
+    setScanOpen(false);
+    setStockFilter('all');
+    setQuery(product.name);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-4">
+      {scanOpen && (
+        <ProductScanSearch
+          products={localProducts}
+          onSelect={onScanSelect}
+          onClose={() => setScanOpen(false)}
+        />
+      )}
+
       {/* Pantry health meter (game-style) */}
       {showHealthMeter && localProducts.length > 0 && (
         <PantryHealthMeter products={localProducts} />
@@ -310,6 +331,17 @@ export default function ProductsBrowser(props: Readonly<Props>) {
             </button>
           )}
         </div>
+
+        {/* Camera search: scan a barcode or photograph the label */}
+        <button
+          type="button"
+          onClick={() => setScanOpen(true)}
+          aria-label="Buscar producto con la cámara"
+          title="Buscar producto con la cámara"
+          className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-base text-stone-500 hover:bg-stone-50 shrink-0 transition"
+        >
+          📷
+        </button>
 
         {/* View mode toggle */}
         {!searchOnly && (
