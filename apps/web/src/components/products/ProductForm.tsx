@@ -1,12 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import type { Product, CreateProductDto } from '@foody/types';
-import type { BarcodeScanResult } from './BarcodeScanner';
-
-const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false });
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
@@ -354,19 +350,6 @@ export default function ProductForm({ product, inHousehold }: Props) {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scannerOpen, setScannerOpen] = useState(false);
-
-  function handleBarcodeResult(data: BarcodeScanResult) {
-    setForm((f) => ({
-      ...f,
-      name: data.name || f.name,
-      category: data.category || f.category,
-      ...(data.photoUrl ? { photoUrl: data.photoUrl } : {}),
-    }));
-    if (data.photoUrl) setPhotoPreview(data.photoUrl);
-    setScannerOpen(false);
-  }
-
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -446,31 +429,11 @@ export default function ProductForm({ product, inHousehold }: Props) {
   }
 
   return (
-    <>
-      {scannerOpen && (
-        <BarcodeScanner
-          onResult={handleBarcodeResult}
-          onClose={() => setScannerOpen(false)}
-        />
-      )}
-
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
         <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
           {error}
         </div>
-      )}
-
-      {/* ─── Barcode scan (only when creating a new product) ──────────── */}
-      {!product && (
-        <button
-          type="button"
-          onClick={() => setScannerOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-brand-300 hover:border-brand-500 hover:bg-brand-50 text-brand-600 font-semibold text-sm transition"
-        >
-          <span className="text-lg leading-none" aria-hidden="true">📷</span>{' '}
-          Escanear código de barras
-        </button>
       )}
 
       {/* ─── Photo upload ──────────────────────────────────────────────────── */}
@@ -635,7 +598,6 @@ export default function ProductForm({ product, inHousehold }: Props) {
         {getSubmitLabel(saving, Boolean(product))}
       </button>
     </form>
-    </>
   );
 }
 

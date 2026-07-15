@@ -2,12 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Product, StockLevel } from '@foody/types';
-import {
-  startNativeDetector,
-  startPlainCamera,
-  startZxingScanner,
-  type ScanControls,
-} from '@/lib/barcode-camera';
+interface ScanControls { stop: () => void; }
+
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  audio: false,
+  video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+};
+
+async function startPlainCamera(video: HTMLVideoElement): Promise<ScanControls> {
+  const stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
+  video.srcObject = stream;
+  await video.play().catch(() => undefined);
+  return {
+    stop: () => {
+      stream.getTracks().forEach((t) => t.stop());
+      video.srcObject = null;
+    },
+  };
+}
 import { rankProductsByScanText, type ScanCandidate } from '@/lib/scan-product-search';
 import { ocrScale } from '@/lib/price-scan';
 import { categoryEmoji } from '@/lib/categories';
@@ -124,7 +136,6 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
 
   const [scanState, setScanState] = useState<ScanState>('starting');
   const [scanKey, setScanKey] = useState(0);
-  const [barcodeEnabled, setBarcodeEnabled] = useState(true);
   const [phase, setPhase] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [results, setResults] = useState<ScanResults | null>(null);
@@ -140,43 +151,6 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
     controlsRef.current?.stop();
     controlsRef.current = null;
   }, []);
-
-  /** Barcode detected → resolve a name via Open Food Facts → rank the pantry. */
-  const handleBarcode = useCallback(async (code: string) => {
-    setScanState('processing');
-    setPhase('Buscando código…');
-    try {
-      const res = await fetch(`/api/barcode/lookup?code=${encodeURIComponent(code)}`, {
-        credentials: 'include',
-      });
-      const data = (await res.json()) as { found: boolean; name?: string };
-      if (!mountedRef.current) return;
-
-      const name = data.found ? (data.name ?? '').trim() : '';
-      if (name) {
-        setResults({
-          candidates: rankProductsByScanText(name, products),
-          detectedLabel: `Código: ${name}`,
-          emptyHint: `El código corresponde a «${name}», pero no encontramos ese producto en tu despensa.`,
-        });
-      } else {
-        setResults({
-          candidates: [],
-          detectedLabel: null,
-          emptyHint: 'Código no reconocido. Prueba tomar una foto del nombre del producto.',
-        });
-      }
-      setScanState('results');
-    } catch {
-      if (!mountedRef.current) return;
-      setResults({
-        candidates: [],
-        detectedLabel: null,
-        emptyHint: 'Sin conexión para consultar el código. Prueba tomar una foto del nombre.',
-      });
-      setScanState('results');
-    }
-  }, [products]);
 
   /** Photo (capture or gallery) → OCR → rank the pantry. */
   const processImage = useCallback(async (blob: Blob) => {
@@ -205,7 +179,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
   const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
-    detectedRef.current = true; // silence the barcode loop while we capture
+    detectedRef.current = true;
     const blob = await captureFrameBlob(video);
     stopCamera();
     if (blob) {
@@ -238,8 +212,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
     input.click();
   }, [processImage, stopCamera]);
 
-  // Start camera + barcode detection; falls back to a plain preview so the
-  // photo path still works when no barcode engine is available.
+  // Start plain camera preview so the user can photograph the product.
   useEffect(() => {
     let cancelled = false;
     detectedRef.current = false;
@@ -250,33 +223,13 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
       const video = videoRef.current;
       if (cancelled || !video) return;
 
-      const onCode = (code: string) => {
-        if (detectedRef.current) return;
-        detectedRef.current = true;
-        stopCamera();
-        void handleBarcode(code);
-      };
-
       try {
-        let controls = await startNativeDetector(video, onCode);
-        let withBarcode = controls !== null;
-        if (!controls) {
-          try {
-            controls = await startZxingScanner(video, onCode);
-            withBarcode = true;
-          } catch (err) {
-            // Re-throw camera/permission failures; only swallow engine load issues.
-            if (err instanceof DOMException) throw err;
-            controls = await startPlainCamera(video);
-            withBarcode = false;
-          }
-        }
+        const controls = await startPlainCamera(video);
         if (cancelled) {
           controls.stop();
           return;
         }
         controlsRef.current = controls;
-        setBarcodeEnabled(withBarcode);
         setScanState('scanning');
       } catch (err) {
         if (cancelled) return;
@@ -300,7 +253,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
       cancelled = true;
       stopCamera();
     };
-  }, [scanKey, handleBarcode, stopCamera]);
+  }, [scanKey, stopCamera]);
 
   // Release resources when the modal unmounts.
   useEffect(() => {
@@ -354,9 +307,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
                 <span className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-brand-400 rounded-br" />
               </div>
               <p className="mt-4 px-6 text-white/80 text-xs font-medium tracking-wide text-center">
-                {barcodeEnabled
-                  ? 'Apunta al código de barras o toma una foto del nombre'
-                  : 'Toma una foto del nombre del producto'}
+                Toma una foto del nombre del producto
               </p>
             </div>
 
