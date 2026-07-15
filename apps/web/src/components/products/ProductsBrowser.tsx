@@ -332,7 +332,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
           )}
         </div>
 
-        {/* Camera search: scan a barcode or photograph the label */}
+        {/* Camera search: photograph the product to find it in the pantry */}
         <button
           type="button"
           onClick={() => setScanOpen(true)}

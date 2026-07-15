@@ -24,6 +24,65 @@ import { rankProductsByScanText, type ScanCandidate } from '@/lib/scan-product-s
 import { ocrScale } from '@/lib/price-scan';
 import { categoryEmoji } from '@/lib/categories';
 
+/** Confidence reported by the AI recognizer, mapped onto candidate scores. */
+const AI_CONFIDENCE_SCORE: Readonly<Record<string, number>> = {
+  alta: 0.95,
+  media: 0.7,
+  baja: 0.5,
+};
+
+interface AiRecognition {
+  readonly candidates: ScanCandidate<Product>[];
+  readonly detected: string | null;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      resolve(dataUrl.slice(dataUrl.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Visual recognition via the server (Claude vision): the photo is compared
+ * against the user's own pantry catalog. Returns null when the AI service is
+ * unavailable (no API key, network error), so the caller can fall back to
+ * on-device OCR.
+ */
+async function recognizeWithAI(
+  blob: Blob,
+  products: readonly Product[],
+): Promise<AiRecognition | null> {
+  try {
+    const image = await blobToBase64(blob);
+    const res = await fetch('/api/products/recognize', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image, mediaType: blob.type || 'image/jpeg' }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      detected: string | null;
+      matches: { id: string; confidence: string }[];
+    };
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const candidates: ScanCandidate<Product>[] = [];
+    for (const m of data.matches ?? []) {
+      const product = byId.get(m.id);
+      if (product) candidates.push({ product, score: AI_CONFIDENCE_SCORE[m.confidence] ?? 0.5 });
+    }
+    return { candidates, detected: data.detected ?? null };
+  } catch {
+    return null;
+  }
+}
+
 interface Props {
   readonly products: readonly Product[];
   readonly onSelect: (product: Product) => void;
@@ -152,11 +211,36 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
     controlsRef.current = null;
   }, []);
 
-  /** Photo (capture or gallery) → OCR → rank the pantry. */
+  /**
+   * Photo (capture or gallery) → AI visual recognition against the pantry.
+   * Falls back to on-device OCR when the AI service is unavailable.
+   */
   const processImage = useCallback(async (blob: Blob) => {
     setScanState('processing');
-    setPhase('Preparando imagen…');
+    setPhase('Reconociendo producto…');
     setPreviewUrl(URL.createObjectURL(blob));
+
+    const ai = await recognizeWithAI(blob, products);
+    if (!mountedRef.current) return;
+
+    if (ai) {
+      // Single confident hit: jump straight to the product in the grid.
+      if (ai.candidates.length === 1 && ai.candidates[0].score >= AI_CONFIDENCE_SCORE.alta) {
+        onSelect(ai.candidates[0].product);
+        return;
+      }
+      setResults({
+        candidates: ai.candidates,
+        detectedLabel: ai.detected ? `Reconocido: ${ai.detected}` : null,
+        emptyHint: ai.detected
+          ? `Se reconoció “${ai.detected}”, pero no coincide con ningún producto de tu despensa.`
+          : 'No se reconoció ningún producto en la foto. Acércate al producto e inténtalo de nuevo.',
+      });
+      setScanState('results');
+      return;
+    }
+
+    // AI unavailable → on-device OCR of the label text.
     try {
       const { text, candidates } = await ocrAndRank(blob, products, setPhase);
       if (!mountedRef.current) return;
@@ -174,7 +258,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
       setErrorMsg('No se pudo leer la foto. Inténtalo de nuevo.');
       setScanState('error');
     }
-  }, [products, setPreviewUrl]);
+  }, [products, onSelect, setPreviewUrl]);
 
   const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
@@ -307,7 +391,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
                 <span className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-brand-400 rounded-br" />
               </div>
               <p className="mt-4 px-6 text-white/80 text-xs font-medium tracking-wide text-center">
-                Toma una foto del nombre del producto
+                Toma una foto del producto
               </p>
             </div>
 

@@ -14,6 +14,7 @@
     "test:security": "playwright test e2e/security.spec.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "@foody/types": "workspace:*",
     "@heroicons/react": "^2.2.0",
     "@neondatabase/serverless": "^1.1.0",
