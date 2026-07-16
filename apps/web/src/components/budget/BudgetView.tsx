@@ -5,12 +5,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstAt } from '@/lib/fx';
-
-interface MonthEntry {
-  month: string;
-  total: number;
-  trips: number;
-}
+import { buildHistoryWindow, monthKeyOf } from '@/lib/budget-history';
+import type { BudgetMonthEntry as MonthEntry } from '@/lib/budget-history';
 
 interface BudgetData {
   monthlyLimit: number;
@@ -82,7 +78,7 @@ function RadialArc({ pct, color }: { readonly pct: number; readonly color: strin
 }
 
 // Mini bar chart for history
-function HistoryBars({ history, budgetLine }: { readonly history: MonthEntry[]; readonly budgetLine: number }) {
+function HistoryBars({ history, budgetLine, currentKey }: { readonly history: MonthEntry[]; readonly budgetLine: number; readonly currentKey: string }) {
   if (history.length === 0) {
     return (
       <p className="text-center text-xs text-stone-400 py-4">
@@ -96,16 +92,19 @@ function HistoryBars({ history, budgetLine }: { readonly history: MonthEntry[]; 
       {history.map((h) => {
         const heightPct = (h.total / max) * 100;
         const overBudget = budgetLine > 0 && h.total > budgetLine;
+        const isCurrent = h.month === currentKey;
         return (
           <div key={h.month} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-            <span className="text-[10px] font-semibold text-stone-500 tabular-nums">{fmt(h.total)}</span>
+            <span className={`text-[10px] tabular-nums ${isCurrent ? 'font-bold text-stone-700' : 'font-semibold text-stone-500'}`}>{fmt(h.total)}</span>
             <motion.div
-              className={`w-full rounded-t-md ${overBudget ? 'bg-red-400' : 'bg-market-400'}`}
+              className={`w-full rounded-t-md ${overBudget ? 'bg-red-400' : isCurrent ? 'bg-market-500' : 'bg-market-400'}`}
               style={{ height: 0 }}
               animate={{ height: `${Math.max(heightPct, 4)}%` }}
               transition={{ duration: 0.7, delay: 0.05 * history.indexOf(h), ease: 'easeOut' }}
             />
-            <span className="text-[10px] text-stone-400">{monthLabel(h.month)}</span>
+            <span className={`text-[10px] ${isCurrent ? 'font-bold text-market-700' : 'text-stone-400'}`}>
+              {monthLabel(h.month)}{isCurrent ? ' ✦' : ''}
+            </span>
           </div>
         );
       })}
@@ -263,19 +262,11 @@ export default function BudgetView({ initialData }: Props) {
   }
 
   const currentMonth = new Date().toLocaleString('es-MX', { month: 'long', year: 'numeric' });
+  const currentKey = monthKeyOf(new Date());
 
-  // Build full 6-month history array (pad missing months with 0)
-  const historyWithCurrent: MonthEntry[] = (() => {
-    const now = new Date();
-    const months: MonthEntry[] = [];
-    for (let i = 4; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i - 1, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const found = data.history.find((h) => h.month === key);
-      months.push(found ?? { month: key, total: 0, trips: 0 });
-    }
-    return months;
-  })();
+  // Ventana de meses terminando en el ACTUAL, sin los meses vacíos del
+  // inicio — la gráfica arranca en el primer mes con datos y sigue mes a mes.
+  const historyWithCurrent = buildHistoryWindow(data.history);
 
   return (
     <div className="space-y-5 pb-20">
@@ -420,7 +411,7 @@ export default function BudgetView({ initialData }: Props) {
           <p className="text-xl font-black text-stone-800 tabular-nums">
             {data.avgMonthly > 0 ? fmt(data.avgMonthly) : '—'}
           </p>
-          <p className="text-xs text-stone-400 mt-0.5">últimos 5 meses</p>
+          <p className="text-xs text-stone-400 mt-0.5">meses anteriores</p>
         </div>
       </div>
 
@@ -433,7 +424,7 @@ export default function BudgetView({ initialData }: Props) {
           )}
         </div>
         <div className="relative">
-          <HistoryBars history={historyWithCurrent} budgetLine={data.monthlyLimit} />
+          <HistoryBars history={historyWithCurrent} budgetLine={data.monthlyLimit} currentKey={currentKey} />
         </div>
         {data.monthlyLimit > 0 && historyWithCurrent.some((h) => h.total > 0) && (
           <p className="text-[11px] text-stone-400 mt-2 text-center">
