@@ -46,10 +46,17 @@ export const HEIC_TOO_BIG_MESSAGE =
   'Foto HEIC demasiado grande (máx. 4 MB). Cambia el formato de la cámara: en iPhone, Ajustes > Cámara > Formatos > Más Compatible; en Samsung/Android, desactiva las imágenes HEIF de alta eficiencia.';
 
 /**
- * Convert a HEIC/HEIF file to a JPEG Blob via the server (heic-convert).
- * Throws with user-facing Spanish messages on failure.
+ * In-browser HEIC→JPEG via libheif WASM (heic2any). No hay límite de tamaño
+ * ni dependencia de red; el módulo (~1 MB) se carga bajo demanda solo cuando
+ * el usuario elige una foto HEIC.
  */
-export async function convertHeicToJpegBlob(file: File): Promise<Blob> {
+async function convertHeicLocally(file: File): Promise<Blob> {
+  const { default: heic2any } = await import('heic2any');
+  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.82 });
+  return Array.isArray(out) ? out[0] : out;
+}
+
+async function convertHeicViaServer(file: File): Promise<Blob> {
   if (file.size > MAX_HEIC_UPLOAD_BYTES) {
     throw new Error(HEIC_TOO_BIG_MESSAGE);
   }
@@ -66,4 +73,22 @@ export async function convertHeicToJpegBlob(file: File): Promise<Blob> {
   }
   const { dataUrl } = (await res.json()) as { dataUrl: string };
   return dataUrlToBlob(dataUrl);
+}
+
+/**
+ * Convert a HEIC/HEIF file to a JPEG Blob. Primero convierte localmente
+ * (WASM); si el módulo o el archivo fallan, cae al servidor (heic-convert,
+ * ≤4 MB por límite de Vercel). Throws with user-facing Spanish messages.
+ */
+export async function convertHeicToJpegBlob(file: File): Promise<Blob> {
+  try {
+    return await withTimeout(convertHeicLocally(file), 45_000, 'La conversión de la foto');
+  } catch (err) {
+    // heic2any detecta archivos que el navegador SÍ puede leer (un JPEG mal
+    // nombrado .heic) y los rechaza con ERR_USER — úsalos tal cual.
+    if (err instanceof Error && err.message.includes('already browser readable')) {
+      return file;
+    }
+    return convertHeicViaServer(file);
+  }
 }
