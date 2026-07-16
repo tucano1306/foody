@@ -224,6 +224,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
 
   // Items linked to a catalog product (productId !== '') are the only ones sent to the API
   const linkedItems = items.filter((it) => it.productId !== '');
+  const unlinkedCount = items.length - linkedItems.length;
 
   const storeNameValid = storeName.trim().length > 0;
   const canSubmit =
@@ -235,7 +236,6 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
-    const unlinkedCount = items.length - linkedItems.length;
     try {
       const dto: CreateShoppingTripDto = {
         storeName: storeName.trim(),
@@ -262,8 +262,14 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         body: JSON.stringify(dto),
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Error ${res.status}`);
+        let msg = `No se pudo guardar (error ${res.status})`;
+        try {
+          const data = (await res.json()) as { message?: string };
+          if (data.message) msg = data.message;
+        } catch {
+          // cuerpo no-JSON — se queda el mensaje genérico
+        }
+        throw new Error(msg);
       }
       haptic([15, 40, 20]);
       const msg = unlinkedCount > 0
@@ -544,6 +550,14 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           )}
         </div>
       </section>
+
+      {unlinkedCount > 0 && (
+        <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2">
+          {linkedItems.length === 0
+            ? 'Ningún artículo del recibo está vinculado a tu catálogo: al guardar se registrará solo el total. Vincula los que quieras contar en tus estadísticas.'
+            : `${unlinkedCount} artículo${unlinkedCount === 1 ? '' : 's'} del recibo sin vincular se omitirá${unlinkedCount === 1 ? '' : 'n'} al guardar.`}
+        </p>
+      )}
 
       {error && (
         <p className="rounded-xl bg-red-50 text-red-700 text-sm px-3 py-2">{error}</p>

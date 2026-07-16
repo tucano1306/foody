@@ -127,6 +127,30 @@ describe('parseReceiptText — real US chain formats', () => {
   });
 });
 
+describe('parseReceiptText — OCR-mangled fiscal labels', () => {
+  it('"OTAL" (TOTAL with the T dropped by OCR) is the total, not a product', () => {
+    const r = parseReceiptText([
+      'WINN-DIXIE',
+      'CUC MINT 8 OZ 10.99',
+      'AVOCADO WHT 3.89',
+      'OTAL 46.33',
+    ].join('\n'));
+    expect(r.total).toBe(46.33);
+    expect(r.items.some((i) => /otal/i.test(i.name))).toBe(false);
+    expect(r.items).toHaveLength(2);
+  });
+
+  it('"UBTOTAL" (SUBTOTAL with the S dropped) is not a product either', () => {
+    const r = parseReceiptText([
+      'MILK 1GL 3.98',
+      'UBTOTAL 3.98',
+      'TOTAL 4.26',
+    ].join('\n'));
+    expect(r.total).toBe(4.26);
+    expect(r.items).toHaveLength(1);
+  });
+});
+
 describe('parseReceiptText — thousands separators', () => {
   it('parses a total with a comma thousands separator', () => {
     const r = parseReceiptText(['MEMBERSHIP', 'TOTAL          1,299.00'].join('\n'));

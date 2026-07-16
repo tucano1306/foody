@@ -40,7 +40,7 @@ const PRICE_RE = /[-−]?\d{1,3}(?:[.,]\d{3})+[.,]\d{2}(?:\s*[A-Z])?|[-−]?\d{1
  * complexity ≤ 20. Covers US (English) and MX (Spanish) receipt vocabulary.
  */
 const SKIP_STORE = /^(phone|tel[.:]?|fax|store|sucursal|manager|gerente|cashier|cajer[oa]|caja|operator|server|clerk|associate|employee|thank|gracias|vuelva)/i;
-const SKIP_FISCAL = /^(tax|iva|i\.v\.a|sales\s*tax|subtotal|sub-total|change|cambio|cash|efectivo|savings|ahorro|balance|amount\s+due|total\s+due|propina|tip|redondeo)/i;
+const SKIP_FISCAL = /^(tax|iva|i\.v\.a|sales\s*tax|subtotal|sub-total|ubtotal|change|cambio|cash|efectivo|savings|ahorro|balance|amount\s+due|total\s+due|propina|tip|redondeo)/i;
 const SKIP_DOC = /^(receipt|invoice|factura|folio|ticket|address|domicilio|rfc|approved|aprobad[oa]|authorized|autorizad[oa]|declined|pin|account|cuenta|member|socio|reward|puntos|point)/i;
 const SKIP_IDENT = /^(date|fecha|time|hora|transaction|transacci|trans[.]?|ref[.]?|auth[.]?|chip|swipe|terminal)/i;
 const SKIP_MISC = /^(barcode|www[.]|http|visa|mastercard|amex|discover|debit|d[ée]bito|credit|cr[ée]dito|card|tarjeta|ebt)/i;
@@ -63,8 +63,10 @@ const TOTAL_SKIP_RE = /subtotal|sub-total|sub\s+total|total\s+savings|total\s+di
  * qualifier like GRAND/ORDER), so a *product* whose name merely contains the
  * word "total" (e.g. "COLGATE TOTAL", "TOTAL cereal") is not mistaken for the
  * receipt total. The amount is extracted separately via extractPrices().
+ * "[o0]tal" covers OCR dropping/garbling the leading T ("OTAL 46.33"), which
+ * otherwise becomes a bogus line item priced at the receipt's grand total.
  */
-const TOTAL_LABEL_RE = /^(grand|order|purchase|your|net|final|invoice)?\s*total\b|^(amount|balance|total)\s+due\b|^importe(\s+total)?\b|^total\s+a\s+pagar\b/i;
+const TOTAL_LABEL_RE = /^(grand|order|purchase|your|net|final|invoice)?\s*total\b|^[o0]tal\b|^(amount|balance|total)\s+due\b|^importe(\s+total)?\b|^total\s+a\s+pagar\b/i;
 
 /** True when this line is the receipt's grand-total line. */
 function isTotalLine(line: string): boolean {

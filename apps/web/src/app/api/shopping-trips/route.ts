@@ -119,21 +119,29 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json() as CreateShoppingTripDto;
 
-  if (!body.items || body.items.length === 0) {
-    return NextResponse.json({ message: 'items is required' }, { status: 400 });
+  const bodyItems = body.items ?? [];
+  const totalAmount = round2(body.totalAmount ?? 0);
+
+  // A trip with no linked items is valid as long as it carries a total —
+  // receipt scans often can't match any catalog product, but the total spent
+  // is still worth recording.
+  if (bodyItems.length === 0 && totalAmount <= 0) {
+    return NextResponse.json(
+      { message: 'Agrega al menos un producto o un total mayor a 0' },
+      { status: 400 },
+    );
   }
 
   const id = randomUUID();
   const strategy: AllocationStrategy = body.allocationStrategy ?? 'manual_partial';
   const currency = body.currency ?? 'USD';
-  const totalAmount = round2(body.totalAmount ?? 0);
   const purchasedAt = body.purchasedAt ?? new Date().toISOString();
   const storeName = body.storeName ?? null;
   const storeId = body.storeId ?? null;
   const now = new Date().toISOString();
 
   // Resolve items
-  const resolved: ResolvedItem[] = body.items.map((item) => {
+  const resolved: ResolvedItem[] = bodyItems.map((item) => {
     const manual = normalizeManual(item);
     return {
       productId: item.productId,
@@ -194,12 +202,14 @@ export async function POST(request: NextRequest) {
   }
 
   // Mark purchased products as full (they were just bought)
-  await sql`
-    UPDATE products
-    SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
-    WHERE id = ANY(${productIds}::uuid[])
-      AND user_id = ${user.userId}
-  `;
+  if (productIds.length > 0) {
+    await sql`
+      UPDATE products
+      SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
+      WHERE id = ANY(${productIds}::uuid[])
+        AND user_id = ${user.userId}
+    `;
+  }
 
   const tripRows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} LIMIT 1`;
   return NextResponse.json({ trip: tripRows[0], items: allocations }, { status: 201 });
