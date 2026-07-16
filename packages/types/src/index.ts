@@ -149,6 +149,15 @@ export interface CreateShoppingTripDto {
   items: ShoppingTripItemDto[];
 }
 
+export interface UpdateShoppingTripDto {
+  storeName?: string;
+  purchasedAt?: string;
+  totalAmount?: number;
+  notes?: string;
+  /** When present, the trip's purchases are rewritten with a fresh allocation. */
+  items?: ShoppingTripItemDto[];
+}
+
 export interface ShoppingTripDetail extends ShoppingTrip {
   items: ProductPurchase[];
 }
