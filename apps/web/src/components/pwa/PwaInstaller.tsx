@@ -10,6 +10,18 @@ interface BeforeInstallPromptEvent extends Event {
 function registerWorker(): void {
   navigator.serviceWorker
     .register('/sw.js', { updateViaCache: 'none' })
+    .then((reg) => {
+      // Long-lived PWA sessions (Android keeps the app alive for days) never
+      // hit the browser's on-navigation update check, so old builds keep
+      // running — and calling stale endpoints — indefinitely. Check for a new
+      // service worker every time the app returns to the foreground; the SW
+      // itself reloads open pages when a new version activates.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          reg.update().catch(() => null);
+        }
+      });
+    })
     .catch(() => null);
 }
 

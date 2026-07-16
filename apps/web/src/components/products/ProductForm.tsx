@@ -34,6 +34,15 @@ interface Props {
   readonly inHousehold?: boolean;
 }
 
+// fetch() rejects with TypeError ("Failed to fetch") on network-level failures —
+// surface those in Spanish instead of the raw browser message.
+function toFriendlyError(err: unknown, fallback: string): string {
+  if (err instanceof TypeError) {
+    return 'No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
 function isHeicFile(file: File): boolean {
   const name = file.name.toLowerCase();
   return file.type === 'image/heic'
@@ -371,7 +380,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
       setForm((f) => ({ ...f, photoUrl: dataUrl }));
       setPhotoPreview(dataUrl);
     } catch (err) {
-      setError((err as Error).message);
+      setError(toFriendlyError(err, 'No se pudo procesar la imagen'));
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -422,7 +431,7 @@ export default function ProductForm({ product, inHousehold }: Props) {
       router.push('/products');
       router.refresh();
     } catch (err) {
-      setError((err as Error).message);
+      setError(toFriendlyError(err, 'Error al guardar'));
     } finally {
       setSaving(false);
     }

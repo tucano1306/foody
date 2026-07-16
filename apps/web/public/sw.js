@@ -1,6 +1,6 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue, web push */
 
-const VERSION = 'foody-v9';
+const VERSION = 'foody-v10';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;
@@ -35,8 +35,22 @@ globalThis.addEventListener('activate', (event) => {
         req.onblocked = res;
       });
       const keys = await caches.keys();
+      // Old foody-* caches present ⇒ this activation is an UPGRADE (not a first
+      // install): pages currently open are running the previous build's JS.
+      const isUpgrade = keys.some((k) => k.startsWith('foody-') && !k.startsWith(VERSION));
       await Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k)));
       await globalThis.clients.claim();
+      // Reload open pages so long-lived PWA sessions (Android keeps them alive
+      // for days) pick up the new build instead of running stale code that
+      // calls endpoints that may no longer exist.
+      if (isUpgrade) {
+        const wins = await globalThis.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        await Promise.all(wins.map((client) =>
+          typeof client.navigate === 'function'
+            ? client.navigate(client.url).catch(() => null)
+            : null,
+        ));
+      }
     })(),
   );
 });
