@@ -17,10 +17,12 @@ function formatCurrency(value: number, currency: string): string {
 
 function formatDate(iso: string): string {
   try {
+    // Medianoche UTC formateada en hora local mostraría el día anterior.
     return new Intl.DateTimeFormat('es-MX', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+      timeZone: 'UTC',
     }).format(new Date(iso));
   } catch {
     return iso;
@@ -111,43 +113,54 @@ export default async function ShoppingTripsPage() {
           </Link>
         </div>
       ) : (
-        <ul className="space-y-2 card-stagger">
-          {trips.map((trip) => (
-            <li key={trip.id}>
-              <Link
-                href={`/shopping-trips/${trip.id}`}
-                className="group block rounded-2xl bg-white border border-stone-100 px-4 py-3 shadow-sm hover:border-brand-200 hover:shadow-md hover:-translate-y-0.5 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl shrink-0 transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12">🏪</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-stone-800 truncate">
-                      {trip.storeName ?? 'Sin tienda'}
-                    </p>
-                    <p className="text-xs text-stone-500">
-                      {formatDate(trip.purchasedAt)}
-                    </p>
+        <>
+          <p className="text-xs text-stone-400 px-1">
+            👆 Toca un ticket para verlo, editarlo o borrarlo.
+          </p>
+          <ul className="space-y-2 card-stagger">
+            {trips.map((trip) => (
+              <li key={trip.id}>
+                <Link
+                  href={`/shopping-trips/${trip.id}`}
+                  className="group block rounded-2xl bg-white border border-stone-100 px-4 py-3 shadow-sm hover:border-brand-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl shrink-0 transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12">🏪</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-stone-800 truncate">
+                        {trip.storeName ?? 'Sin tienda'}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        {formatDate(trip.purchasedAt)}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-brand-700">
+                        {formatCurrency(trip.totalAmount, trip.currency)}
+                      </p>
+                      {trip.id === cheapestId && (
+                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                          🏆 Más ahorradora
+                        </span>
+                      )}
+                      {trip.id === priciestId && (
+                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600">
+                          💸 La más cara
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 text-stone-300 group-hover:text-brand-400 transition text-lg"
+                    >
+                      ›
+                    </span>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-brand-700">
-                      {formatCurrency(trip.totalAmount, trip.currency)}
-                    </p>
-                    {trip.id === cheapestId && (
-                      <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                        🏆 Más ahorradora
-                      </span>
-                    )}
-                    {trip.id === priciestId && (
-                      <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600">
-                        💸 La más cara
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

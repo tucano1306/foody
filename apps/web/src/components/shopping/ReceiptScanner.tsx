@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { parseReceiptText } from '@/lib/receipt-parser';
 import type { ReceiptParseResult } from '@/lib/receipt-parser';
+import { isHeicFile, convertHeicToJpegBlob } from '@/lib/image-file';
 export type { ReceiptParseResult } from '@/lib/receipt-parser';
 
 /**
@@ -12,7 +13,7 @@ export type { ReceiptParseResult } from '@/lib/receipt-parser';
  * 3. Boosts contrast so faint receipt ink becomes dark against white background
  * These steps dramatically reduce OCR misreads (e.g. "3" → "n", "0" → "o").
  */
-function compressImageFile(file: File, maxPx = 1400): Promise<Blob> {
+function compressImageFile(file: Blob, maxPx = 1400): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -110,13 +111,10 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       setProgressPct(0);
       setPhase('');
 
-      // Show preview
-      const objectUrl = URL.createObjectURL(file);
-      setPreview(objectUrl);
-
       // Tesseract worker instance — kept outside try so finally can terminate it
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let worker: any = null;
+      let objectUrl: string | null = null;
 
       // Hard timeout: if nothing finishes in 2 min, surface an error
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -128,8 +126,34 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       });
 
       try {
+        // HEIC/HEIF (fotos "alta eficiencia" de Samsung/iPhone) no se pueden
+        // decodificar en el navegador — conviértelas en el servidor antes de
+        // mostrar el preview y correr el OCR.
+        let imageBlob: Blob = file;
+        if (isHeicFile(file)) {
+          setPhase('Convirtiendo foto…');
+          imageBlob = await convertHeicToJpegBlob(file);
+        }
+        objectUrl = URL.createObjectURL(imageBlob);
+        setPreview(objectUrl);
+
         // Compress image to prevent WebAssembly OOM on mobile
-        const compressed = await compressImageFile(file);
+        let compressed: Blob;
+        try {
+          compressed = await compressImageFile(imageBlob);
+        } catch (err) {
+          // Red de seguridad: algunos pickers entregan HEIC con nombre/tipo
+          // genérico que isHeicFile no detecta. Si el navegador no pudo
+          // decodificar y aún no convertimos, intenta el servidor una vez.
+          const undecodable = err instanceof Error && err.message === 'No se pudo cargar la imagen';
+          if (!undecodable || imageBlob !== file) throw err;
+          setPhase('Convirtiendo foto…');
+          imageBlob = await convertHeicToJpegBlob(file);
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = URL.createObjectURL(imageBlob);
+          setPreview(objectUrl);
+          compressed = await compressImageFile(imageBlob);
+        }
 
         // Dynamically import Tesseract to avoid SSR / initial bundle bloat
         const { createWorker } = await import('tesseract.js');
@@ -153,7 +177,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         ]);
 
         if (abortRef.current) {
-          URL.revokeObjectURL(objectUrl);
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
           return;
         }
 
@@ -163,7 +187,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         ]);
 
         if (abortRef.current) {
-          URL.revokeObjectURL(objectUrl);
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
           return;
         }
 
@@ -171,7 +195,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         setState('done');
         onResult(parsed);
       } catch (err) {
-        URL.revokeObjectURL(objectUrl);
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
         setErrorMsg(extractErrorMessage(err));
         setState('error');
       } finally {
