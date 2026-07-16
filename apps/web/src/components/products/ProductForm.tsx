@@ -3,12 +3,12 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Product, CreateProductDto } from '@foody/types';
+import { isHeicFile, withTimeout, convertHeicToJpegBlob } from '@/lib/image-file';
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
 const MAX_OUTPUT_DIMENSION = 512;
 const COMPRESS_TIMEOUT_MS = 30_000;
-const HEIC_CONVERT_TIMEOUT_MS = 60_000;
 
 const CATEGORIES = [
   'Frutas y Verduras',
@@ -41,24 +41,6 @@ function toFriendlyError(err: unknown, fallback: string): string {
     return 'No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
   }
   return err instanceof Error ? err.message : fallback;
-}
-
-function isHeicFile(file: File): boolean {
-  const name = file.name.toLowerCase();
-  return file.type === 'image/heic'
-    || file.type === 'image/heif'
-    || name.endsWith('.heic')
-    || name.endsWith('.heif');
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} tardó demasiado. Intenta con otra foto.`)), ms);
-    promise.then(
-      (v) => { clearTimeout(timer); resolve(v); },
-      (e) => { clearTimeout(timer); reject(e); },
-    );
-  });
 }
 
 interface LoadedImage {
@@ -157,33 +139,6 @@ async function compressViaImageBitmap(file: Blob): Promise<string> {
     bitmap.close();
   }
   throw lastErr instanceof Error ? lastErr : new Error('No se pudo procesar la imagen');
-}
-
-// Decode a data URL locally. fetch(dataUrl) is NOT an option: the CSP's
-// connect-src doesn't allow data: URLs, so it rejects with "Failed to fetch".
-function dataUrlToBlob(dataUrl: string): Blob {
-  const comma = dataUrl.indexOf(',');
-  const mime = /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? 'image/jpeg';
-  const binary = atob(dataUrl.slice(comma + 1));
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: mime });
-}
-
-async function convertHeicToJpegBlob(file: File): Promise<Blob> {
-  const formData = new FormData();
-  formData.append('file', file, file.name);
-  const res = await withTimeout(
-    fetch('/api/upload/heic', { method: 'POST', body: formData, credentials: 'include' }),
-    HEIC_CONVERT_TIMEOUT_MS,
-    'La conversión HEIC',
-  );
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({ message: 'No se pudo convertir la foto HEIC' }));
-    throw new Error(data.message ?? 'No se pudo convertir la foto HEIC');
-  }
-  const { dataUrl } = (await res.json()) as { dataUrl: string };
-  return dataUrlToBlob(dataUrl);
 }
 
 function computeFitDimensions(srcWidth: number, srcHeight: number, max: number): { w: number; h: number } {
@@ -323,13 +278,8 @@ async function loadAndCompressInner(file: File): Promise<string> {
     try {
       loaded = await loadImageViaDataUrl(file);
     } catch {
-      // 3. Último recurso: servidor HEIC (solo archivos <4 MB por límite Vercel)
+      // 3. Último recurso: servidor HEIC (valida tamaño ≤4 MB por límite Vercel)
       if (!isHeicFile(file)) throw new Error('No se pudo procesar la imagen');
-      if (file.size > 4 * 1024 * 1024) {
-        throw new Error(
-          'Foto HEIC demasiado grande (máx. 4 MB). Cambia el formato de la cámara: en iPhone, Ajustes > Cámara > Formatos > Más Compatible; en Samsung/Android, desactiva las imágenes HEIF de alta eficiencia.',
-        );
-      }
       const jpegBlob = await convertHeicToJpegBlob(file).catch((err: unknown) => {
         throw err instanceof Error ? err : new Error(
           'No se pudo convertir la foto HEIC. Cambia el formato de la cámara a JPEG (desactiva HEIF/alta eficiencia) y vuelve a intentarlo.',
