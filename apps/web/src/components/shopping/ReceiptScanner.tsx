@@ -211,11 +211,15 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
     onClose();
   }
 
-  function openFilePicker(capture?: 'environment') {
+  // Solo cámara: las fotos de galería en Samsung/iPhone suelen ser HEIC de
+  // gran tamaño y su decodificación falla con demasiada frecuencia en móvil.
+  // La cámara entrega JPEG directamente. (La conversión HEIC de processImage
+  // se conserva por si la cámara está configurada en HEIF.)
+  function openCameraPicker() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    if (capture) input.capture = capture;
+    input.capture = 'environment';
     input.style.cssText = 'position:fixed;top:-200px;left:-200px;opacity:0;';
     document.body.appendChild(input);
     input.addEventListener('change', () => {
@@ -320,21 +324,13 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         {/* Action buttons (visible when idle or error) */}
         {!isProcessing && state !== 'done' && (
           <div className="flex flex-col gap-3 w-full max-w-xs">
-            {/* Camera capture (mobile) */}
+            {/* Camera capture (mobile) — única vía de captura */}
             <button
               type="button"
-              onClick={() => openFilePicker('environment')}
+              onClick={openCameraPicker}
               className="flex items-center justify-center gap-2 rounded-2xl bg-brand-600 text-white px-5 py-3.5 font-semibold text-sm shadow-lg hover:bg-brand-700 transition"
             >
               <span aria-hidden="true">📷</span> Tomar foto del recibo
-            </button>
-            {/* File upload */}
-            <button
-              type="button"
-              onClick={() => openFilePicker()}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 text-white px-5 py-3.5 font-semibold text-sm hover:bg-white/20 transition"
-            >
-              <span aria-hidden="true">🖼️</span> Elegir imagen de galería
             </button>
 
             {/* Torch tip — prominent callout */}
