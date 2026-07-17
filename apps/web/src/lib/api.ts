@@ -423,17 +423,26 @@ export const api = {
     },
     monthlyFoodSpending: async (): Promise<{ currentTotal: number; previousTotal: number; purchaseCount: number }> => {
       const { userId } = await getAuthContext();
+      // Igual que byStore/presupuesto: el total_spent de cada ticket es la
+      // cifra autoritativa (un ticket sin items vinculados cuenta completo),
+      // más las compras sueltas sin ticket agrupadas por sesión. Sumar
+      // product_purchases a secas dejaba el mes en $0 con tickets sin items.
       const rows = await sql`
         SELECT
-          SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW())
-                   THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS current_total,
-          SUM(CASE WHEN purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
-                    AND purchased_at < DATE_TRUNC('month', NOW())
-                   THEN COALESCE(total_price, unit_price * quantity, 0) ELSE 0 END) AS prev_total,
+          SUM(CASE WHEN d >= DATE_TRUNC('month', NOW()) THEN total ELSE 0 END) AS current_total,
+          SUM(CASE WHEN d >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+                    AND d < DATE_TRUNC('month', NOW()) THEN total ELSE 0 END) AS prev_total,
           COUNT(*) AS purchase_count
-        FROM product_purchases
-        WHERE user_id = ${userId}
-          AND purchased_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+        FROM (
+          SELECT date AS d, COALESCE(total_spent, 0) AS total
+          FROM shopping_trips WHERE user_id = ${userId}
+          UNION ALL
+          SELECT purchased_at AS d, SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
+          FROM product_purchases
+          WHERE user_id = ${userId} AND trip_id IS NULL
+          GROUP BY purchased_at, COALESCE(store_name, '')
+        ) visits
+        WHERE d >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
       `;
       const row = rows[0] as { current_total: unknown; prev_total: unknown; purchase_count: unknown } | undefined;
       return {
