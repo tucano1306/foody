@@ -1,6 +1,6 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue, web push */
 
-const VERSION = 'foody-v15';
+const VERSION = 'foody-v16';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;
