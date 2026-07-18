@@ -46,6 +46,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     WHERE id = ${id} AND user_id = ${user.userId}
     RETURNING *
   `;
+
+  // Restocking via a general edit must also clear the shopping list, same as
+  // the dedicated stock-level/mark-ok endpoints.
+  if (body.stockLevel === 'full') {
+    await sql`DELETE FROM shopping_list_items WHERE product_id = ${id} AND user_id = ${user.userId}`;
+  }
+
   return NextResponse.json(rows[0]);
 }
 

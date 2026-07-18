@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
     FROM shopping_list_items sli
     LEFT JOIN products p ON sli.product_id = p.id
     WHERE sli.user_id = ${user.userId}
+      -- Same rule as api.shoppingList.get: a fully stocked product that isn't
+      -- flagged as needed must not appear on the shopping list.
+      AND (p.id IS NULL OR p.stock_level <> 'full' OR p.needs_shopping = true)
     ORDER BY sli.created_at DESC
   `;
   return NextResponse.json(rows);
@@ -32,5 +35,12 @@ export async function POST(request: NextRequest) {
     ON CONFLICT DO NOTHING
     RETURNING *
   `;
+
+  // Manual adds must survive the "fully stocked" list filter.
+  await sql`
+    UPDATE products SET needs_shopping = true, updated_at = NOW()
+    WHERE id = ${body.productId} AND user_id = ${user.userId}
+  `;
+
   return NextResponse.json(rows[0] ?? { id }, { status: 201 });
 }

@@ -383,6 +383,9 @@ export const api = {
           FROM shopping_list_items sli
           LEFT JOIN products p ON sli.product_id = p.id
           WHERE sli.user_id = ${userId} AND sli.is_purchased = false
+            -- Self-heal stale rows: a product that is fully stocked and not
+            -- flagged as needed must never show in Modo Supermercado.
+            AND (p.id IS NULL OR p.stock_level <> 'full' OR p.needs_shopping = true)
           ORDER BY sli.product_id, sli.is_in_cart DESC, sli.created_at ASC
         ) t
         ORDER BY t.created_at DESC
