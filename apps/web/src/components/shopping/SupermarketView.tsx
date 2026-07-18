@@ -307,6 +307,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   function handleAdded(newItem: ShoppingListItem) {
     setItems((prev) => (prev.some((i) => i.product.id === newItem.product.id) ? prev : [newItem, ...prev]));
     toast.show(`"${newItem.product.name}" agregado a la lista ✓`, 'success');
+    // Gentle minor-ish tone: joining the shopping list means something ran out.
+    playSound('low');
     haptic(12);
   }
 
