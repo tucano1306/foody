@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { MonthlyPayment } from '@foody/types';
 import { BanknotesIcon, CheckCircleIcon, ChevronDownIcon, ClockIcon } from '@heroicons/react/24/solid';
@@ -28,8 +28,16 @@ export default function PaymentsList({ initialPayments }: Props) {
   const [payments, setPayments] = useState<MonthlyPayment[]>(initialPayments);
   const [filter, setFilter] = useState<Filter>('all');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('payment');
+
+  // Jump from a history row to that payment's card: reset the filter so the
+  // card is rendered, then let ?payment= trigger its scroll + auto-open.
+  const goToPayment = useCallback((id: string) => {
+    setFilter('all');
+    router.push(`/payments?payment=${id}`, { scroll: false });
+  }, [router]);
 
   const toggleFilter = (f: Filter) => setFilter((prev) => (prev === f ? 'all' : f));
 
@@ -191,7 +199,7 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── All-time paid history ────────────────────────────────────────── */}
       {payments.length > 0 && (
-        <section className="rounded-2xl overflow-hidden shadow-sm bg-linear-to-br from-[#4F46E5] to-[#7C3AED]">
+        <section className="rounded-2xl overflow-hidden shadow-sm bg-linear-to-br from-emerald-600 to-market-700">
           <button
             type="button"
             onClick={() => setHistoryOpen((v) => !v)}
@@ -224,18 +232,27 @@ export default function PaymentsList({ initialPayments }: Props) {
                 </p>
               ) : (
                 paidBreakdown.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between gap-2 bg-white/10 rounded-xl px-3 py-2.5">
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => goToPayment(p.id)}
+                    aria-label={`Ver el pago ${p.name}`}
+                    className="w-full flex items-center justify-between gap-2 bg-white/10 hover:bg-white/20 rounded-xl px-3 py-2.5 text-left transition active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  >
                     <span className="text-white/90 text-xs font-semibold truncate">
                       <span aria-hidden="true" className="mr-1.5">{CATEGORY_ICONS[p.category ?? 'other'] ?? '💰'}</span>
                       {p.name}
                     </span>
-                    <span className="text-white text-xs font-bold shrink-0">
-                      {p.currency} {(p.totalPaidAllTime ?? 0).toFixed(2)}
-                      <span className="text-white/60 font-medium">
-                        {' '}· {p.paidCountAllTime ?? 0} {(p.paidCountAllTime ?? 0) === 1 ? 'pago' : 'pagos'}
+                    <span className="text-white text-xs font-bold shrink-0 flex items-center gap-1.5">
+                      <span>
+                        {p.currency} {(p.totalPaidAllTime ?? 0).toFixed(2)}
+                        <span className="text-white/60 font-medium">
+                          {' '}· {p.paidCountAllTime ?? 0} {(p.paidCountAllTime ?? 0) === 1 ? 'pago' : 'pagos'}
+                        </span>
                       </span>
+                      <span aria-hidden="true" className="text-white/60">›</span>
                     </span>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
