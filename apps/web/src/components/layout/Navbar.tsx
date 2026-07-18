@@ -20,7 +20,7 @@ import {
   BanknotesIcon,
 } from '@heroicons/react/24/solid';
 import ThemeToggle from './ThemeToggle';
-import SoundToggle from './SoundToggle';
+
 import SharingBadge from '@/components/sharing/SharingBadge';
 
 const NAV_SECTIONS = [
@@ -194,7 +194,7 @@ export default function Navbar({ user }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <SoundToggle />
+
               <ThemeToggle />
               <form action="/api/auth/logout" method="POST">
                 <motion.button
@@ -223,7 +223,7 @@ export default function Navbar({ user }: Props) {
             </span>
           </Link>
           <div className="flex items-center gap-2">
-            <SoundToggle />
+
             <ThemeToggle />
             <motion.button
               type="button"

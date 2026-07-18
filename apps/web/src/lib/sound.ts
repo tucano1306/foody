@@ -1,31 +1,13 @@
 /**
  * Playful synthesized sound effects (Web Audio API — no audio assets to load).
  * Every sound fires from a user gesture, so the AudioContext can always start.
- * The 🔊 toggle in the navbar mutes everything; the choice persists per device.
+ * Sounds are always on: volume is the phone's job (hardware buttons/silent
+ * mode), not an in-app toggle.
  */
 
 export type SoundName = 'pop' | 'cart' | 'uncart' | 'low' | 'empty' | 'purchase' | 'payment' | 'levelup';
 
-const STORAGE_KEY = 'foody-sounds';
-
 let ctx: AudioContext | null = null;
-
-export function soundsEnabled(): boolean {
-  if (globalThis.window === undefined) return false;
-  try {
-    return globalThis.localStorage.getItem(STORAGE_KEY) !== '0';
-  } catch {
-    return true;
-  }
-}
-
-export function setSoundsEnabled(on: boolean): void {
-  try {
-    globalThis.localStorage.setItem(STORAGE_KEY, on ? '1' : '0');
-  } catch {
-    /* noop */
-  }
-}
 
 function getContext(): AudioContext | null {
   if (globalThis.window === undefined) return null;
@@ -52,7 +34,6 @@ interface Note {
 }
 
 function schedule(notes: readonly Note[]): void {
-  if (!soundsEnabled()) return;
   const ac = getContext();
   if (!ac) return;
   const now = ac.currentTime;
@@ -80,12 +61,15 @@ const SOUNDS: Record<SoundName, readonly Note[]> = {
     { freq: 440, endFreq: 880, at: 0, dur: 0.09, type: 'sine', vol: 0.08 },
     { freq: 1320, at: 0.06, dur: 0.07, type: 'triangle', vol: 0.04 },
   ],
-  // Bright "di-DING!" — item checked into the cart (louder: must cut through
-  // supermarket noise on a phone speaker)
+  // Happy little fanfare — item bought! Rising major arpeggio (C-E-G-C) with
+  // a sparkle on top. Loud on purpose: must cut through supermarket noise.
   cart: [
-    { freq: 587, endFreq: 1175, at: 0, dur: 0.1, type: 'triangle', vol: 0.22 },
-    { freq: 1568, at: 0.08, dur: 0.16, type: 'sine', vol: 0.2 },
-    { freq: 3136, at: 0.08, dur: 0.12, type: 'sine', vol: 0.08 },
+    { freq: 523, at: 0, dur: 0.07, type: 'triangle', vol: 0.2 },
+    { freq: 659, at: 0.06, dur: 0.07, type: 'triangle', vol: 0.2 },
+    { freq: 784, at: 0.12, dur: 0.07, type: 'triangle', vol: 0.2 },
+    { freq: 1047, at: 0.18, dur: 0.2, type: 'triangle', vol: 0.22 },
+    { freq: 2093, at: 0.2, dur: 0.16, type: 'sine', vol: 0.1 },
+    { freq: 3136, at: 0.26, dur: 0.12, type: 'sine', vol: 0.06 },
   ],
   // Short descending blip — item taken back out of the cart
   uncart: [
@@ -101,11 +85,13 @@ const SOUNDS: Record<SoundName, readonly Note[]> = {
     { freq: 330, endFreq: 247, at: 0, dur: 0.22, type: 'sawtooth', vol: 0.035 },
     { freq: 247, endFreq: 175, at: 0.24, dur: 0.32, type: 'sawtooth', vol: 0.035 },
   ],
-  // Coin "cha-ching" — purchase registered
+  // Big coin "cha-ching" + victory tail — purchase registered
   purchase: [
-    { freq: 988, at: 0, dur: 0.08, type: 'square', vol: 0.035 },
-    { freq: 1319, at: 0.08, dur: 0.28, type: 'square', vol: 0.035 },
-    { freq: 2637, at: 0.08, dur: 0.28, type: 'sine', vol: 0.02 },
+    { freq: 988, at: 0, dur: 0.08, type: 'square', vol: 0.06 },
+    { freq: 1319, at: 0.08, dur: 0.28, type: 'square', vol: 0.06 },
+    { freq: 2637, at: 0.08, dur: 0.28, type: 'sine', vol: 0.04 },
+    { freq: 1568, at: 0.34, dur: 0.12, type: 'triangle', vol: 0.08 },
+    { freq: 2093, at: 0.44, dur: 0.3, type: 'triangle', vol: 0.09 },
   ],
   // Quick rising arpeggio + sparkle — cart 100% complete
   levelup: [
