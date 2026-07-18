@@ -14,6 +14,9 @@ const INITIAL_VISIBLE = 4;
 interface Props {
   readonly initialProducts: readonly Product[];
   readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
+  /** Products already grabbed in the store (in cart in Modo Supermercado):
+   * hidden from the "faltantes" sections while the trip is in progress. */
+  readonly inCartProductIds?: readonly string[];
 }
 
 function ProductGrid({
@@ -92,7 +95,7 @@ function CollapsibleSection({
   );
 }
 
-export default function HomeProductsShell({ initialProducts, lastPurchaseMap: initialPurchaseMap }: Props) {
+export default function HomeProductsShell({ initialProducts, lastPurchaseMap: initialPurchaseMap, inCartProductIds }: Props) {
   const [products, setProducts] = useState<readonly Product[]>(initialProducts);
   const [lastPurchaseMap, setLastPurchaseMap] = useState<Readonly<PurchaseRecord> | undefined>(initialPurchaseMap);
 
@@ -114,8 +117,12 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
     );
   }
 
-  const empty = useMemo(() => products.filter((p) => p.stockLevel === 'empty'), [products]);
-  const low = useMemo(() => products.filter((p) => p.stockLevel === 'half'), [products]);
+  // While a shopping trip is in progress, products already in the cart drop
+  // out of the "faltantes" sections: what you grab at the súper disappears
+  // here at once, so both pages tell the same story.
+  const inCart = useMemo(() => new Set(inCartProductIds ?? []), [inCartProductIds]);
+  const empty = useMemo(() => products.filter((p) => p.stockLevel === 'empty' && !inCart.has(p.id)), [products, inCart]);
+  const low = useMemo(() => products.filter((p) => p.stockLevel === 'half' && !inCart.has(p.id)), [products, inCart]);
 
   return (
     <>

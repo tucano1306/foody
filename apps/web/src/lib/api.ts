@@ -392,6 +392,17 @@ export const api = {
       `;
       return rows.map((row) => mapShoppingListItem(row as Record<string, unknown>));
     },
+    /** Product ids the user already grabbed at the store (is_in_cart). Casa
+     * hides these from the "faltantes" sections so the pantry reflects the
+     * shopping trip in progress. */
+    inCartProductIds: async (): Promise<string[]> => {
+      const { userId } = await getAuthContext();
+      const rows = await sql`
+        SELECT product_id FROM shopping_list_items
+        WHERE user_id = ${userId} AND is_in_cart = true
+      `;
+      return (rows as { product_id: string }[]).map((r) => String(r.product_id));
+    },
     frequent: async () => {
       const { userId } = await getAuthContext();
       const rows = await sql`SELECT product_id as "productId", p.name, p.photo_url as "photoUrl", COUNT(*) as purchases, MAX(purchased_at) as "lastPurchasedAt" FROM product_purchases pp JOIN products p ON pp.product_id = p.id WHERE pp.user_id = ${userId} GROUP BY product_id, p.name, p.photo_url ORDER BY purchases DESC LIMIT 10`;

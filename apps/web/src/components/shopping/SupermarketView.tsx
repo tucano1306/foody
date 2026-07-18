@@ -154,9 +154,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const [zoomItem, setZoomItem] = useState<{ src: string; alt: string; origin?: DOMRect } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ShoppingListItem | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [showAddSheet, setShowAddSheet] = useState(false);
 
   // Lock body scroll while a sheet/modal is open (mobile bottom sheets)
-  const anySheetOpen = showModal || editorItemId !== null;
+  const anySheetOpen = showModal || editorItemId !== null || showAddSheet;
   useEffect(() => {
     if (!anySheetOpen) return;
     const prev = document.body.style.overflow;
@@ -272,6 +273,13 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       setRemoveTarget(null);
       setEditorItemId((cur) => (cur === target.id ? null : cur));
     }
+  }
+
+  // ─── Add a product to today's list ──────────────────────────────────────────
+  function handleAdded(newItem: ShoppingListItem) {
+    setItems((prev) => (prev.some((i) => i.product.id === newItem.product.id) ? prev : [newItem, ...prev]));
+    toast.show(`"${newItem.product.name}" agregado a la lista ✓`, 'success');
+    haptic(12);
   }
 
   // ─── Price entries ──────────────────────────────────────────────────────────
@@ -412,9 +420,25 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         <p className="text-6xl mb-4"><span className="inline-block animate-bounce">🎉</span></p>
         <h2 className="text-xl font-semibold text-stone-600 mb-2">¡Lista vacía!</h2>
         <p className="text-stone-400">No tienes productos marcados para comprar.</p>
-        <Link href="/home" className="mt-4 inline-block text-brand-500 hover:underline">
-          Volver a casa
-        </Link>
+        <button
+          type="button"
+          onClick={() => setShowAddSheet(true)}
+          className="mt-5 px-5 py-2.5 rounded-xl bg-market-600 hover:bg-market-700 text-white text-sm font-bold transition active:scale-95 shadow-sm"
+        >
+          ＋ Agregar un producto a la lista
+        </button>
+        <p className="mt-3">
+          <Link href="/home" className="text-brand-500 hover:underline text-sm">
+            Volver a casa
+          </Link>
+        </p>
+        {showAddSheet && (
+          <AddProductSheet
+            existingProductIds={new Set(items.map((i) => i.product.id))}
+            onAdded={handleAdded}
+            onClose={() => setShowAddSheet(false)}
+          />
+        )}
       </div>
     );
   }
@@ -504,27 +528,36 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         )}
       </AnimatePresence>
 
-      {/* ─── Search + filters ────────────────────────────────────────────────── */}
+      {/* ─── Search + add + filters ──────────────────────────────────────────── */}
       <div className="space-y-3">
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">🔍</span>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Busca un producto o categoría…"
-            aria-label="Buscar producto o categoría"
-            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
-          />
-          {search && (
-            <button
-              type="button"
-              aria-label="Limpiar búsqueda"
-              onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 text-xs"
-            >
-              ✕
-            </button>
-          )}
+        <div className="flex gap-2">
+          <div className="relative flex-1 min-w-0">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">🔍</span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Busca un producto o categoría…"
+              aria-label="Buscar producto o categoría"
+              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="Limpiar búsqueda"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddSheet(true)}
+            className="shrink-0 px-3.5 py-2.5 rounded-xl bg-market-600 hover:bg-market-700 text-white text-sm font-bold transition active:scale-95 shadow-sm"
+          >
+            ＋ Agregar
+          </button>
         </div>
 
         <div className="flex gap-2 overflow-x-auto">
@@ -621,10 +654,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 inCart={false}
                 lineTotal={entriesTotal(entries[item.product.id])}
                 lineQty={entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded))}
-                onToggle={(el) => toggleItem(item.id, el)}
-                onOpenEditor={() => setEditorItemId(item.id)}
+                onOpen={() => setEditorItemId(item.id)}
                 onZoom={(src, origin) => setZoomItem({ src, alt: item.product.name, origin })}
-                onRemove={() => setRemoveTarget(item)}
               />
             ))}
           </div>
@@ -665,8 +696,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 inCart
                 lineTotal={entriesTotal(entries[item.product.id])}
                 lineQty={entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded))}
-                onToggle={(el) => toggleItem(item.id, el)}
-                onOpenEditor={() => setEditorItemId(item.id)}
+                onOpen={() => setEditorItemId(item.id)}
                 onZoom={(src, origin) => setZoomItem({ src, alt: item.product.name, origin })}
               />
             ))}
@@ -707,6 +737,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           onScan={(index) => setScanTarget({ productId: editorItem.product.id, index })}
           onRemoveFromList={!editorItem.isInCart ? () => setRemoveTarget(editorItem) : undefined}
           onMarkBought={!editorItem.isInCart ? () => { toggleItem(editorItem.id); } : undefined}
+          onReturnToPending={editorItem.isInCart ? () => { toggleItem(editorItem.id); } : undefined}
+          onZoom={(src, origin) => setZoomItem({ src, alt: editorItem.product.name, origin })}
           onClose={() => setEditorItemId(null)}
         />
       )}
@@ -726,6 +758,15 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             haptic(20);
           }}
           onClose={() => setScanTarget(null)}
+        />
+      )}
+
+      {/* ─── Add-product sheet ───────────────────────────────────────────────── */}
+      {showAddSheet && (
+        <AddProductSheet
+          existingProductIds={new Set(items.map((i) => i.product.id))}
+          onAdded={handleAdded}
+          onClose={() => setShowAddSheet(false)}
         />
       )}
 
@@ -901,19 +942,16 @@ function ProductPurchaseCard({
   inCart,
   lineTotal,
   lineQty,
-  onToggle,
-  onOpenEditor,
+  onOpen,
   onZoom,
-  onRemove,
 }: {
   readonly item: ShoppingListItem;
   readonly inCart: boolean;
   readonly lineTotal: number;
   readonly lineQty: number;
-  readonly onToggle: (el?: Element | null) => void;
-  readonly onOpenEditor: () => void;
+  /** Tapping anywhere on the card opens the product's action sheet. */
+  readonly onOpen: () => void;
   readonly onZoom: (src: string, origin?: DOMRect) => void;
-  readonly onRemove?: () => void;
 }) {
   const product = item.product;
   const urgent = !inCart && product.stockLevel === 'empty';
@@ -925,112 +963,86 @@ function ProductPurchaseCard({
 
   return (
     <div className={`group relative bg-white dark:bg-stone-900 rounded-2xl border shadow-md transition-all duration-200 flex flex-col overflow-hidden ${borderCls}`}>
-      {/* Photo — tapping it is the fast action: buy / un-buy */}
+      {/* Whole card = one tap target that opens the action sheet. Nothing
+          happens by accident: buying, pricing and removing live in the sheet. */}
       <button
         ref={photoRef}
         type="button"
-        aria-label={inCart ? `Devolver ${product.name}` : `Comprar ${product.name}`}
-        onClick={(e) => onToggle(e.currentTarget)}
-        className="relative aspect-4/3 bg-stone-50 dark:bg-stone-800 w-full overflow-hidden focus:outline-none"
+        aria-label={`Opciones de ${product.name}`}
+        onClick={onOpen}
+        className="w-full text-left focus:outline-none flex-1 flex flex-col"
       >
-        {product.photoUrl ? (
-          <Image
-            src={product.photoUrl}
-            alt={product.name}
-            fill
-            className={`object-cover transition-all duration-300 ${inCart ? 'opacity-80' : ''}`}
-            sizes="(max-width: 640px) 50vw, 25vw"
-          />
-        ) : (
-          <span className="absolute inset-0 flex items-center justify-center text-4xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 dark:from-stone-800 dark:to-stone-900">
-            {categoryEmoji(product.category)}
-          </span>
-        )}
+        <span className="relative aspect-4/3 bg-stone-50 dark:bg-stone-800 w-full overflow-hidden block">
+          {product.photoUrl ? (
+            <Image
+              src={product.photoUrl}
+              alt={product.name}
+              fill
+              className={`object-cover transition-all duration-300 ${inCart ? 'opacity-80' : ''}`}
+              sizes="(max-width: 640px) 50vw, 25vw"
+            />
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center text-4xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 dark:from-stone-800 dark:to-stone-900">
+              {categoryEmoji(product.category)}
+            </span>
+          )}
 
-        {/* Status badge */}
-        {inCart ? (
-          <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-market-500 text-white flex items-center justify-center text-sm font-bold shadow">
-            ✓
-          </span>
-        ) : (
-          <span
-            className={`absolute top-2 right-2 text-[9px] font-bold tracking-wide uppercase px-2 py-1 rounded-full bg-white/95 backdrop-blur-sm shadow-sm ${
-              urgent ? 'text-rose-600' : 'text-amber-600'
-            }`}
-          >
-            {urgent ? '🚨 Urgente' : '⚠️ Bajo'}
-          </span>
-        )}
+          {/* Status badge */}
+          {inCart ? (
+            <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-market-500 text-white flex items-center justify-center text-sm font-bold shadow">
+              ✓
+            </span>
+          ) : (
+            <span
+              className={`absolute top-2 right-2 text-[9px] font-bold tracking-wide uppercase px-2 py-1 rounded-full bg-white/95 backdrop-blur-sm shadow-sm ${
+                urgent ? 'text-rose-600' : 'text-amber-600'
+              }`}
+            >
+              {urgent ? '🚨 Urgente' : '⚠️ Bajo'}
+            </span>
+          )}
 
-        {/* Line total captured so far */}
-        {inCart && lineTotal > 0 && (
-          <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-market-600 text-white shadow tabular-nums">
-            ${lineTotal.toFixed(2)}
+          {/* Line total captured so far */}
+          {inCart && lineTotal > 0 && (
+            <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-market-600 text-white shadow tabular-nums">
+              ${lineTotal.toFixed(2)}
+            </span>
+          )}
+        </span>
+
+        {/* Info */}
+        <span className="block p-2">
+          <span className={`block font-semibold text-xs truncate ${inCart ? 'text-stone-400 line-through' : 'text-stone-800 dark:text-stone-100'}`}>
+            {product.name}
           </span>
-        )}
+          {product.category && (
+            <span className="block text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">{product.category}</span>
+          )}
+          <span className="block text-[10px] text-stone-400 mt-0.5 tabular-nums">
+            {fmtQty(lineQty)} {product.unit || 'unid.'}
+            {!inCart && product.lastPurchasePrice != null && ` · últ. $${product.lastPurchasePrice.toFixed(2)}`}
+          </span>
+          <span className={`mt-1.5 mb-0.5 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold ${
+            inCart
+              ? 'bg-market-50 text-market-700 dark:bg-market-900/30 dark:text-market-300'
+              : 'bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+          }`}>
+            {inCart ? '✓ Comprado · toca para opciones' : 'Toca para comprar / precio'}
+          </span>
+        </span>
       </button>
 
-      {/* Zoom — over the photo, its own tap target */}
+      {/* Zoom — its own sibling tap target on top of the photo */}
       {product.photoUrl && (
         <button
           type="button"
           aria-label={`Ver foto de ${product.name}`}
           onClick={() => onZoom(product.photoUrl!, photoRef.current?.getBoundingClientRect())}
-          className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center text-xs shadow focus:outline-none"
+          className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/45 backdrop-blur-sm text-white flex items-center justify-center text-sm shadow focus:outline-none active:scale-90 transition"
         >
           🔍
         </button>
       )}
-
-      {/* Info */}
-      <div className="p-2 flex-1">
-        <p className={`font-semibold text-xs truncate ${inCart ? 'text-stone-400 line-through' : 'text-stone-800 dark:text-stone-100'}`}>
-          {product.name}
-        </p>
-        {product.category && (
-          <p className="text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">{product.category}</p>
-        )}
-        <p className="text-[10px] text-stone-400 mt-0.5 tabular-nums">
-          {fmtQty(lineQty)} {product.unit || 'unid.'}
-          {!inCart && product.lastPurchasePrice != null && ` · últ. $${product.lastPurchasePrice.toFixed(2)}`}
-        </p>
-      </div>
-
-      {/* Actions */}
-      <div className="p-2 pt-0 flex gap-1.5">
-        <button
-          type="button"
-          onClick={(e) => onToggle(e.currentTarget)}
-          className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition active:scale-95 ${
-            inCart
-              ? 'bg-stone-50 dark:bg-stone-800 text-stone-500 hover:bg-stone-100'
-              : 'bg-market-600 text-white hover:bg-market-700 shadow-sm'
-          }`}
-        >
-          {inCart ? <>↩ Devolver</> : <>🛒 Comprar</>}
-        </button>
-        <button
-          type="button"
-          onClick={onOpenEditor}
-          className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition active:scale-95 ${
-            lineTotal > 0
-              ? 'bg-market-50 text-market-700 border border-market-200'
-              : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-100 border border-stone-200 dark:border-stone-700'
-          }`}
-        >
-          💵 {lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : 'Precio'}
-        </button>
-        {onRemove && (
-          <button
-            type="button"
-            aria-label={`Quitar ${product.name} de la lista`}
-            onClick={onRemove}
-            className="w-8 flex items-center justify-center rounded-xl bg-stone-50 dark:bg-stone-800 text-stone-400 hover:text-rose-500 hover:bg-rose-50 transition active:scale-95 text-xs border border-stone-200 dark:border-stone-700"
-          >
-            ✕
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -1044,6 +1056,8 @@ function PriceEditorSheet({
   onScan,
   onRemoveFromList,
   onMarkBought,
+  onReturnToPending,
+  onZoom,
   onClose,
 }: {
   readonly item: ShoppingListItem;
@@ -1052,8 +1066,11 @@ function PriceEditorSheet({
   readonly onScan: (index: number) => void;
   readonly onRemoveFromList?: () => void;
   readonly onMarkBought?: () => void;
+  readonly onReturnToPending?: () => void;
+  readonly onZoom: (src: string, origin?: DOMRect) => void;
   readonly onClose: () => void;
 }) {
+  const sheetPhotoRef = useRef<HTMLButtonElement>(null);
   const product = item.product;
   const byWeight = isWeightUnit(product.unit);
   const unitLabel = product.unit || 'unid.';
@@ -1088,15 +1105,25 @@ function PriceEditorSheet({
       <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 shrink-0 relative">
+          <button
+            ref={sheetPhotoRef}
+            type="button"
+            aria-label={product.photoUrl ? `Ver foto de ${product.name}` : undefined}
+            disabled={!product.photoUrl}
+            onClick={() => product.photoUrl && onZoom(product.photoUrl, sheetPhotoRef.current?.getBoundingClientRect())}
+            className="w-14 h-14 rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 shrink-0 relative focus:outline-none active:scale-95 transition"
+          >
             {product.photoUrl ? (
-              <Image src={product.photoUrl} alt={product.name} fill className="object-cover" sizes="48px" />
+              <>
+                <Image src={product.photoUrl} alt={product.name} fill className="object-cover" sizes="56px" />
+                <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-black/45 text-white text-[9px] flex items-center justify-center">🔍</span>
+              </>
             ) : (
               <span className="absolute inset-0 flex items-center justify-center text-xl">
                 {categoryEmoji(product.category)}
               </span>
             )}
-          </div>
+          </button>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-bold text-stone-800 dark:text-stone-100 truncate">{product.name}</h2>
             <p className="text-[11px] text-stone-400">
@@ -1254,6 +1281,15 @@ function PriceEditorSheet({
               🛒 Marcar como comprado
             </button>
           )}
+          {onReturnToPending && (
+            <button
+              type="button"
+              onClick={() => { onReturnToPending(); onClose(); }}
+              className="w-full py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition active:scale-[0.98]"
+            >
+              ↩ Devolver a «Por comprar»
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -1270,6 +1306,219 @@ function PriceEditorSheet({
               🚫 No estaba en el súper — quitar de la lista
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add-product bottom sheet ─────────────────────────────────────────────────
+
+interface PantryPick {
+  readonly id: string;
+  readonly name: string;
+  readonly photoUrl: string | null;
+  readonly category: string | null;
+  readonly stockLevel: 'full' | 'half' | 'empty';
+  readonly unit: string;
+  readonly lastPurchasePrice: number | null;
+}
+
+/**
+ * Lets the user pull any pantry product into today's shopping list without
+ * leaving the store — e.g. something removed by mistake, or an extra item
+ * they decided to buy on the spot.
+ */
+function AddProductSheet({
+  existingProductIds,
+  onAdded,
+  onClose,
+}: {
+  readonly existingProductIds: ReadonlySet<string>;
+  readonly onAdded: (item: ShoppingListItem) => void;
+  readonly onClose: () => void;
+}) {
+  const toast = useToast();
+  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<PantryPick[]>([]);
+  const [query, setQuery] = useState('');
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/proxy/products', { credentials: 'include', cache: 'no-store' });
+        if (!res.ok) throw new Error('fetch failed');
+        const rows = (await res.json()) as Record<string, unknown>[];
+        if (cancelled) return;
+        setProducts(rows.map((r) => ({
+          id: String(r.id),
+          name: String(r.name ?? ''),
+          photoUrl: (r.photo_url as string | null) ?? null,
+          category: (r.category as string | null) ?? null,
+          stockLevel: (r.stock_level as 'full' | 'half' | 'empty') ?? 'full',
+          unit: String(r.unit ?? ''),
+          lastPurchasePrice: r.last_purchase_price == null ? null : Number(r.last_purchase_price),
+        })));
+      } catch {
+        if (!cancelled) toast.show('No se pudieron cargar tus productos.', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const pool = products.filter((p) => !existingProductIds.has(p.id));
+    const filtered = q
+      ? pool.filter((p) => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
+      : pool;
+    // Faltantes primero (lo más probable que quieras re-agregar), luego A-Z.
+    return [...filtered].sort((a, b) => {
+      const rank = (lvl: PantryPick['stockLevel']) => (lvl === 'empty' ? 0 : lvl === 'half' ? 1 : 2);
+      const ra = rank(a.stockLevel);
+      const rb = rank(b.stockLevel);
+      if (ra !== rb) return ra - rb;
+      return a.name.localeCompare(b.name, 'es');
+    });
+  }, [products, query, existingProductIds]);
+
+  async function addProduct(p: PantryPick) {
+    if (addingId) return;
+    setAddingId(p.id);
+    try {
+      const res = await fetch('/api/proxy/shopping-list', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: p.id }),
+      });
+      if (!res.ok) throw new Error('add failed');
+      const row = (await res.json()) as Record<string, unknown>;
+      const now = new Date().toISOString();
+      onAdded({
+        id: String(row.id),
+        productId: p.id,
+        quantityNeeded: 1,
+        isInCart: false,
+        isPurchased: false,
+        userId: '',
+        createdAt: now,
+        updatedAt: now,
+        product: {
+          id: p.id,
+          name: p.name,
+          description: null,
+          photoUrl: p.photoUrl,
+          category: p.category,
+          currentQuantity: 0,
+          minQuantity: 0,
+          unit: p.unit,
+          // Adding to the list marks the product as needed server-side, so a
+          // fully-stocked pick shows as "half" locally to match.
+          stockLevel: p.stockLevel === 'full' ? 'half' : p.stockLevel,
+          isRunningLow: true,
+          needsShopping: true,
+          status: 'low',
+          userId: '',
+          createdAt: now,
+          updatedAt: now,
+          lastPurchasePrice: p.lastPurchasePrice,
+          lastPurchaseDate: null,
+          avgPrice: null,
+          totalSpent: 0,
+          totalPurchasedQty: 0,
+          currency: 'USD',
+        },
+      });
+      onClose();
+    } catch {
+      toast.show('No se pudo agregar. Intenta de nuevo.', 'error');
+    } finally {
+      setAddingId(null);
+    }
+  }
+
+  function stockBadge(level: PantryPick['stockLevel']) {
+    if (level === 'empty') return <span className="text-[9px] font-bold uppercase text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full shrink-0">🚨 Se acabó</span>;
+    if (level === 'half') return <span className="text-[9px] font-bold uppercase text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">⚠️ Bajo</span>;
+    return <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full shrink-0">✅ Tengo</span>;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <button
+        type="button"
+        aria-label="Cerrar"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-default"
+        onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      />
+
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 h-[80dvh] flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">➕ Agregar a la lista</h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500 transition"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="relative mb-3">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">🔍</span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Busca en tu despensa…"
+            aria-label="Buscar en tu despensa"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-1.5 pb-[env(safe-area-inset-bottom)]">
+          {loading && (
+            <p className="text-center text-sm text-stone-400 py-10">Cargando tu despensa…</p>
+          )}
+          {!loading && visible.length === 0 && (
+            <p className="text-center text-sm text-stone-400 py-10">
+              {query ? 'Nada coincide con tu búsqueda.' : 'Todos tus productos ya están en la lista.'}
+            </p>
+          )}
+          {visible.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              disabled={addingId !== null}
+              onClick={() => addProduct(p)}
+              className="w-full flex items-center gap-3 p-2 rounded-xl border border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900 hover:border-market-300 hover:bg-market-50/40 dark:hover:bg-stone-800/60 transition text-left disabled:opacity-60"
+            >
+              <span className="w-11 h-11 rounded-lg overflow-hidden bg-stone-100 dark:bg-stone-800 shrink-0 relative">
+                {p.photoUrl ? (
+                  <Image src={p.photoUrl} alt={p.name} fill className="object-cover" sizes="44px" />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center text-lg opacity-50">
+                    {categoryEmoji(p.category)}
+                  </span>
+                )}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold text-stone-800 dark:text-stone-100 truncate">{p.name}</span>
+                {p.category && (
+                  <span className="block text-[10px] text-stone-400 uppercase tracking-wide truncate">{p.category}</span>
+                )}
+              </span>
+              {stockBadge(p.stockLevel)}
+              <span className="shrink-0 w-8 h-8 rounded-full bg-market-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">
+                {addingId === p.id ? '…' : '＋'}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
     </div>

@@ -40,10 +40,11 @@ export default async function HomePage() {
   const session = await getSession();
   const firstName = session.name?.split(' ')[0] ?? null;
 
-  const [products, payments, lastPurchasesRaw]: [Product[], MonthlyPayment[], { productId: string; purchasedAt: string; storeName: string | null }[]] = await Promise.all([
+  const [products, payments, lastPurchasesRaw, inCartIds]: [Product[], MonthlyPayment[], { productId: string; purchasedAt: string; storeName: string | null }[], string[]] = await Promise.all([
     api.products.list().catch(() => [] as Product[]),
     api.payments.list().catch(() => [] as MonthlyPayment[]),
     api.shoppingList.lastPurchases().catch(() => []),
+    api.shoppingList.inCartProductIds().catch(() => [] as string[]),
   ]);
 
   const lastPurchaseMap = Object.fromEntries(
@@ -72,7 +73,7 @@ export default async function HomePage() {
       {/* ─── Despensa (lo más accionable: agotados → poco → todos) ──────────── */}
       <section className="space-y-5">
         <SectionHeader emoji="🥑" title="Mi despensa" centered />
-        <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} />
+        <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} />
       </section>
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
