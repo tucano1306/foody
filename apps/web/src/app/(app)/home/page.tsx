@@ -61,7 +61,7 @@ export default async function HomePage() {
   return (
     <div className="space-y-10">
       {/* ─── Header + Mode Toggle (plain title, consistent with other pages) ── */}
-      <div className="relative">
+      <div className="space-y-4">
         <GreetingToast firstName={firstName} />
         <ModernTitle
           title="🏠 Modo Casa"

@@ -60,15 +60,17 @@ export default function GreetingToast({ firstName }: Props) {
   const emoji = getGreetingEmoji(hour);
   const phrase = DAILY_PHRASES[dayOfYear(now) % DAILY_PHRASES.length];
 
+  // Inline banner: lives in the page flow (never overlaps the title) and
+  // collapses smoothly when it dismisses itself.
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {visible && (
         <motion.div
-          initial={{ opacity: 0, y: -28, scale: 0.8 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -16, scale: 0.9 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 20 }}
-          className="absolute top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
+          className="overflow-hidden"
         >
           <div className="relative">
             {/* Sparkles popping around the card */}
@@ -76,8 +78,8 @@ export default function GreetingToast({ firstName }: Props) {
               <motion.span
                 key={`${s.x}-${s.y}`}
                 aria-hidden="true"
-                className="absolute text-sm"
-                style={{ left: `${s.x}%`, top: `${s.y}%` }}
+                className="absolute text-sm z-10"
+                style={{ left: `${Math.min(Math.max(s.x, 2), 96)}%`, top: `${Math.min(Math.max(s.y, 5), 80)}%` }}
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: [0, 1, 0], scale: [0, 1.3, 0], rotate: [0, 40] }}
                 transition={{ duration: 1.1, delay: s.delay, ease: 'easeOut' }}
@@ -86,11 +88,11 @@ export default function GreetingToast({ firstName }: Props) {
               </motion.span>
             ))}
 
-            {/* Animated gradient card */}
+            {/* Animated gradient banner — sky/navy, same family as Modo Casa */}
             <motion.div
-              className="flex items-center gap-3 text-white px-5 py-3 rounded-2xl shadow-xl whitespace-nowrap border border-white/20"
+              className="flex items-center gap-3 text-white px-4 sm:px-5 py-3 rounded-2xl shadow-md border border-white/20"
               style={{
-                backgroundImage: 'linear-gradient(115deg, #4338ca, #7c3aed, #0e7490, #4338ca)',
+                backgroundImage: 'linear-gradient(115deg, #0284c7, #0e7490, #1e40af, #0284c7)',
                 backgroundSize: '300% 300%',
               }}
               animate={{ backgroundPosition: ['0% 50%', '100% 50%'] }}
@@ -99,19 +101,19 @@ export default function GreetingToast({ firstName }: Props) {
               {/* Waving hand */}
               <motion.span
                 aria-hidden="true"
-                className="text-2xl origin-[70%_80%]"
+                className="text-2xl origin-[70%_80%] shrink-0"
                 animate={{ rotate: [0, 22, -12, 22, -8, 0] }}
                 transition={{ duration: 1.4, delay: 0.3, ease: 'easeInOut' }}
               >
                 👋
               </motion.span>
 
-              <div className="leading-tight">
-                <p className="text-sm font-extrabold">
+              <div className="leading-tight min-w-0">
+                <p className="text-sm font-extrabold truncate">
                   {greeting}{firstName ? `, ${firstName}` : ''}! {emoji}
                 </p>
                 <motion.p
-                  className="text-[11px] text-white/85 font-medium"
+                  className="text-[11px] text-white/85 font-medium truncate"
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.6, duration: 0.4 }}
