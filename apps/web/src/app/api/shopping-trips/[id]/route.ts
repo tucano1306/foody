@@ -121,6 +121,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       WHERE id = ANY(${productIds}::uuid[])
         AND user_id = ${user.userId}
     `;
+    // Restocked products must also leave the shopping list.
+    await sql`
+      DELETE FROM shopping_list_items
+      WHERE product_id = ANY(${productIds}::uuid[])
+        AND user_id = ${user.userId}
+    `;
   }
 
   return NextResponse.json({ trip, items: allocations });

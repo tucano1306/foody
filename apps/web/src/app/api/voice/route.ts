@@ -74,6 +74,13 @@ async function handleAdd(userId: string, productName: string): Promise<IntentRes
     ON CONFLICT DO NOTHING
   `;
 
+  // Flag the product as needed so the list filter (which hides fully stocked,
+  // not-needed products) keeps this manually added item visible.
+  await sql`
+    UPDATE products SET needs_shopping = true, updated_at = NOW()
+    WHERE id = ${product.id} AND user_id = ${userId}
+  `;
+
   return {
     reply: `✅ Agregué "${product.name}" a tu lista de compras.`,
     action: 'added_to_list',

@@ -94,12 +94,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Mark purchased products as full (they were just bought)
+  // Mark purchased products as full (they were just bought) and clear them
+  // from the shopping list — a restocked product must not keep showing in
+  // Modo Supermercado.
   if (productIds.length > 0) {
     await sql`
       UPDATE products
       SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
       WHERE id = ANY(${productIds}::uuid[])
+        AND user_id = ${user.userId}
+    `;
+    await sql`
+      DELETE FROM shopping_list_items
+      WHERE product_id = ANY(${productIds}::uuid[])
         AND user_id = ${user.userId}
     `;
   }
