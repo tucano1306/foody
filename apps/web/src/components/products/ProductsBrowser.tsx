@@ -24,6 +24,10 @@ interface Props {
   readonly lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
   readonly showHealthMeter?: boolean;
+  /** Products already grabbed in Modo Supermercado (in cart). Shown as OK
+   * while the trip is in progress so Casa, Súper y Productos tell the same
+   * story; the real stock update lands when the purchase is finalized. */
+  readonly inCartProductIds?: readonly string[];
 }
 
 const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
@@ -216,6 +220,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     lastPurchaseMap,
     onLevelChange,
     showHealthMeter = false,
+    inCartProductIds,
   } = props;
 
   const searchParams = useSearchParams();
@@ -244,16 +249,28 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     onLevelChange?.(id, newLevel);
   }, [onLevelChange]);
 
+  // Display overlay: an in-cart product reads as OK across the whole browser
+  // (filters, counts, health meter) while the shopping trip is in progress.
+  const inCart = useMemo(() => new Set(inCartProductIds ?? []), [inCartProductIds]);
+  const displayProducts = useMemo(
+    () => (inCart.size === 0
+      ? localProducts
+      : localProducts.map((p) => (inCart.has(p.id) && p.stockLevel !== 'full'
+        ? { ...p, stockLevel: 'full' as StockLevel }
+        : p))),
+    [localProducts, inCart],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return localProducts.filter((p) => {
+    return displayProducts.filter((p) => {
       if (stockFilter === 'low' && p.stockLevel === 'full') return false;
       if (stockFilter !== 'all' && stockFilter !== 'low' && p.stockLevel !== stockFilter) return false;
       if (!q) return true;
       const hay = `${p.name} ${p.category ?? ''} ${p.description ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [localProducts, query, stockFilter]);
+  }, [displayProducts, query, stockFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -290,8 +307,8 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       )}
 
       {/* Pantry health meter (game-style) */}
-      {showHealthMeter && localProducts.length > 0 && (
-        <PantryHealthMeter products={localProducts} />
+      {showHealthMeter && displayProducts.length > 0 && (
+        <PantryHealthMeter products={displayProducts} />
       )}
 
       {/* Search + view toggle */}

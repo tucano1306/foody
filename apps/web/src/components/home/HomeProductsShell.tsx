@@ -177,6 +177,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
             compact
             lastPurchaseMap={lastPurchaseMap}
             onLevelChange={handleLevelChange}
+            inCartProductIds={inCartProductIds}
           />
         )}
       </section>

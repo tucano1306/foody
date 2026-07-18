@@ -8,9 +8,10 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Mis Productos' };
 
 export default async function ProductsPage() {
-  const [products, lastPurchasesRaw] = await Promise.all([
+  const [products, lastPurchasesRaw, inCartIds] = await Promise.all([
     api.products.list().catch(() => [] as Awaited<ReturnType<typeof api.products.list>>),
     api.shoppingList.lastPurchases().catch(() => [] as { productId: string; purchasedAt: string; storeName: string | null }[]),
+    api.shoppingList.inCartProductIds().catch(() => [] as string[]),
   ]);
 
   const lastPurchaseMap = Object.fromEntries(
@@ -53,7 +54,7 @@ export default async function ProductsPage() {
         </div>
       ) : (
         <Suspense>
-          <ProductsBrowser products={products} showActions showStockFilter showHealthMeter pageSize={12} lastPurchaseMap={lastPurchaseMap} />
+          <ProductsBrowser products={products} showActions showStockFilter showHealthMeter pageSize={12} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} />
         </Suspense>
       )}
     </div>
