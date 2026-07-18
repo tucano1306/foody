@@ -653,19 +653,27 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       )}
       {searching && visiblePending.length === 0 && visiblePurchased.length === 0 && (
-        <div className="text-center py-8 bg-white dark:bg-stone-900 rounded-2xl border border-dashed border-stone-200 dark:border-stone-700">
+        <div className="text-center py-8 px-4 bg-white dark:bg-stone-900 rounded-2xl border border-dashed border-stone-200 dark:border-stone-700">
           <p className="text-3xl mb-2">🔍</p>
           <p className="text-sm text-stone-500 dark:text-stone-400">No está en la lista de hoy</p>
           {search.trim() && (
-            <button
+            <motion.button
               type="button"
               onClick={() => setShowAddSheet(true)}
-              className="mt-3 px-4 py-2 rounded-xl text-xs font-bold bg-market-600 hover:bg-market-700 text-white transition active:scale-95 shadow-sm"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 18 }}
+              className="animate-glow mt-4 w-full flex flex-col items-center gap-1 px-5 py-4 rounded-2xl bg-linear-to-r from-market-500 to-emerald-600 hover:from-market-600 hover:to-emerald-700 text-white shadow-xl shadow-market-500/40 transition"
             >
-              ＋ Buscar «{search.trim()}» en tu despensa y agregarlo
-            </button>
+              <span className="flex items-center gap-2 text-base font-black">
+                <span className="text-xl" aria-hidden="true">🔎➕</span>
+                Buscar «{search.trim()}» en tu despensa
+              </span>
+              <span className="text-xs font-semibold opacity-90">y agregarlo a la lista de hoy</span>
+            </motion.button>
           )}
-          <p className="mt-2">
+          <p className="mt-3">
             <button
               type="button"
               onClick={() => { setSearch(''); setFilter('all'); setCategoryFilter(null); }}
