@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
-import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -12,9 +12,11 @@ import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstFromElement, confettiRain } from '@/lib/fx';
 import { useToast } from '@/components/ui/Toast';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
+const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
 
 interface Props {
   readonly initialItems: ShoppingListItem[];
@@ -23,78 +25,81 @@ interface Props {
 
 type Filter = 'all' | 'urgent' | 'low';
 
+/**
+ * One priced batch of a product: a meat tray with its own sticker, a bag of
+ * produce weighed at the scale, or N identical units. `qty` is how many
+ * units/lbs the batch has and `total` what that batch costs altogether.
+ * A product can hold several entries (e.g. two trays with different prices).
+ */
+interface PriceEntry {
+  qty: number;
+  total: number | null;
+}
+
+interface PersistedState {
+  entries: Record<string, PriceEntry[]>;
+  cartTimes: Record<string, number>;
+  storeName: string;
+  totalAmount: string;
+}
+
+// localStorage (not sessionStorage): the in-progress shopping session must
+// survive the phone locking, the PWA being killed, or an accidental close.
+const STORAGE_KEY = 'foody-market-session-v2';
+
+function loadPersisted(): PersistedState {
+  const empty: PersistedState = { entries: {}, cartTimes: {}, storeName: '', totalAmount: '' };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as Partial<PersistedState>;
+    return {
+      entries: parsed.entries ?? {},
+      cartTimes: parsed.cartTimes ?? {},
+      storeName: parsed.storeName ?? '',
+      totalAmount: parsed.totalAmount ?? '',
+    };
+  } catch {
+    return empty;
+  }
+}
+
 function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural;
 }
 
-function getRowCls(inCart: boolean, urgent: boolean): string {
-  if (inCart) return 'bg-market-50/60 border-market-200 dark:bg-market-900/20 dark:border-market-800';
-  if (urgent) return 'bg-white border-rose-200 hover:border-rose-300 hover:bg-rose-50/40 dark:bg-stone-900 dark:border-rose-900/50 dark:hover:bg-rose-950/30';
-  return 'bg-white border-stone-100 hover:border-market-300 hover:bg-market-50/40 dark:bg-stone-900 dark:border-stone-800 dark:hover:bg-stone-800/60';
+/** Sold-by-weight heuristic from the product's unit (lb, libras, kg, oz…). */
+function isWeightUnit(unit: string | null | undefined): boolean {
+  if (!unit) return false;
+  return /\b(lb|lbs|libra|libras|kg|kilo|kilos|oz|onza|onzas|gr|gramo|gramos)\b/i.test(unit);
 }
 
-function getCheckboxCls(inCart: boolean, urgent: boolean): string {
-  if (inCart) return 'border-market-500 bg-market-500 scale-105';
-  if (urgent) return 'border-rose-300';
-  return 'border-stone-300';
+function entriesQty(entries: PriceEntry[] | undefined, fallback: number): number {
+  if (!entries || entries.length === 0) return fallback;
+  const sum = entries.reduce((s, e) => s + (Number.isFinite(e.qty) ? e.qty : 0), 0);
+  return sum > 0 ? sum : fallback;
 }
 
-function getCalculatorLabel(hasEstimated: boolean, total: number): string {
-  if (hasEstimated) return 'Estimado en carrito';
-  if (total > 0) return 'Total en carrito';
-  return 'Carrito';
+function entriesTotal(entries: PriceEntry[] | undefined): number {
+  if (!entries) return 0;
+  return entries.reduce((s, e) => s + (e.total ?? 0), 0);
 }
 
-function getPriceSubtitle(priceCount: number, total: number, inCartCount: number, hasEstimated: boolean): string {
-  if (priceCount === 0) return `${total} ${total === 1 ? 'producto' : 'productos'} · escanea 📷 para ver el total`;
-  const suffix = hasEstimated ? ' · precios estimados' : '';
-  return `${priceCount} de ${inCartCount} con precio${suffix}`;
+function defaultEntries(item: ShoppingListItem): PriceEntry[] {
+  return [{ qty: Math.max(1, item.quantityNeeded), total: null }];
 }
 
-function getCategorySubtitle(urgentCount: number, total: number): string {
-  const plural = total === 1 ? '' : 's';
-  if (urgentCount > 0) {
-    const urgentPlural = urgentCount === 1 ? '' : 's';
-    return `${total} producto${plural} · ${urgentCount} urgente${urgentPlural}`;
-  }
-  return `${total} producto${plural}`;
+function fmtQty(qty: number): string {
+  return Number.isInteger(qty) ? String(qty) : qty.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
-interface CategoryGroup {
-  readonly category: string;
-  readonly emoji: string;
-  readonly items: ShoppingListItem[];
-  readonly urgentCount: number;
-}
-
-function groupByCategory(items: ShoppingListItem[]): CategoryGroup[] {
-  const map = new Map<string, ShoppingListItem[]>();
-  for (const item of items) {
-    const cat = item.product.category ?? 'Sin categoría';
-    if (!map.has(cat)) map.set(cat, []);
-    map.get(cat)!.push(item);
-  }
-  const groups: CategoryGroup[] = [];
-  for (const [cat, catItems] of map) {
-    const sorted = [...catItems].sort((a, b) => {
-      if (a.product.stockLevel === 'empty' && b.product.stockLevel !== 'empty') return -1;
-      if (b.product.stockLevel === 'empty' && a.product.stockLevel !== 'empty') return 1;
-      return a.product.name.localeCompare(b.product.name, 'es');
-    });
-    groups.push({
-      category: cat,
-      emoji: categoryEmoji(cat === 'Sin categoría' ? null : cat),
-      items: sorted,
-      urgentCount: sorted.filter((i) => i.product.stockLevel === 'empty').length,
-    });
-  }
-  return groups.sort((a, b) => {
-    if (a.category === 'Sin categoría') return 1;
-    if (b.category === 'Sin categoría') return -1;
-    const orderA = CATEGORY_ORDER[a.category.toLowerCase()] ?? 50;
-    const orderB = CATEGORY_ORDER[b.category.toLowerCase()] ?? 50;
-    if (orderA !== orderB) return orderA - orderB;
-    return a.category.localeCompare(b.category, 'es');
+function sortCategories(cats: string[]): string[] {
+  return [...cats].sort((a, b) => {
+    if (a === 'Sin categoría') return 1;
+    if (b === 'Sin categoría') return -1;
+    const oa = CATEGORY_ORDER[a.toLowerCase()] ?? 50;
+    const ob = CATEGORY_ORDER[b.toLowerCase()] ?? 50;
+    return oa === ob ? a.localeCompare(b, 'es') : oa - ob;
   });
 }
 
@@ -103,62 +108,69 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const toast = useToast();
   const [items, setItems] = useState(initialItems);
   const [, startTransition] = useTransition();
-  // True only during the very first render pass: rows mounted later (e.g. an
-  // item hopping between "por comprar" and "comprados") must NOT replay the
-  // entrance fade — that reads as a flicker on every toggle.
-  const hasMountedRef = useRef(false);
-  useEffect(() => { hasMountedRef.current = true; }, []);
   const [completing, setCompleting] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+
+  // ─── Persisted shopping session (survives app close) ───────────────────────
+  const [hydrated, setHydrated] = useState(false);
+  const [entries, setEntries] = useState<Record<string, PriceEntry[]>>({});
+  const [cartTimes, setCartTimes] = useState<Record<string, number>>({});
   const [storeName, setStoreName] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
-  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+
+  useEffect(() => {
+    const persisted = loadPersisted();
+    setEntries(persisted.entries);
+    setCartTimes(persisted.cartTimes);
+    setStoreName(persisted.storeName);
+    setTotalAmount(persisted.totalAmount);
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
     try {
-      const s = sessionStorage.getItem('foody-mkt-quantities');
-      return s ? (JSON.parse(s) as Record<string, number>) : {};
-    } catch { return {}; }
-  });
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [scannedPrices, setScannedPrices] = useState<Record<string, number>>(() => {
-    try {
-      const s = sessionStorage.getItem('foody-mkt-prices');
-      return s ? (JSON.parse(s) as Record<string, number>) : {};
-    } catch { return {}; }
-  });
-  const [scanningProductId, setScanningProductId] = useState<string | null>(null);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, cartTimes, storeName, totalAmount } satisfies PersistedState));
+    } catch { /* storage full/blocked — keep going, worst case state is in memory */ }
+  }, [hydrated, entries, cartTimes, storeName, totalAmount]);
 
-  useEffect(() => {
-    try { sessionStorage.setItem('foody-mkt-prices', JSON.stringify(scannedPrices)); } catch { /* ignore */ }
-  }, [scannedPrices]);
+  function clearSession() {
+    setEntries({});
+    setCartTimes({});
+    setStoreName('');
+    setTotalAmount('');
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+  }
 
-  useEffect(() => {
-    try { sessionStorage.setItem('foody-mkt-quantities', JSON.stringify(quantities)); } catch { /* ignore */ }
-  }, [quantities]);
+  // ─── Editor / lightbox / scanner targets ───────────────────────────────────
+  const [editorItemId, setEditorItemId] = useState<string | null>(null);
+  const [scanTarget, setScanTarget] = useState<{ productId: string; index: number } | null>(null);
+  const [zoomItem, setZoomItem] = useState<{ src: string; alt: string; origin?: DOMRect } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<ShoppingListItem | null>(null);
+  const [removing, setRemoving] = useState(false);
 
-  // Lock body scroll while the completion modal is open (mobile bottom sheet)
+  // Lock body scroll while a sheet/modal is open (mobile bottom sheets)
+  const anySheetOpen = showModal || editorItemId !== null;
   useEffect(() => {
-    if (!showModal) return;
+    if (!anySheetOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
-  }, [showModal]);
+  }, [anySheetOpen]);
 
   const { inCart, notInCart, urgent, low } = useMemo(() => {
     const inCart = items.filter((i) => i.isInCart);
     const notInCart = items.filter((i) => !i.isInCart);
     const urgent = notInCart.filter((i) => i.product.stockLevel === 'empty');
-    // Must mirror the 'low' filter (=== 'half') or the chip count disagrees
-    // with what the filter actually shows.
     const low = notInCart.filter((i) => i.product.stockLevel === 'half');
     return { inCart, notInCart, urgent, low };
   }, [items]);
 
   const progress = items.length === 0 ? 0 : (inCart.length / items.length) * 100;
 
-  // Level-up moment: celebrate the first time the cart hits 100%
   const progressRef = useRef<HTMLDivElement>(null);
   const prevProgressRef = useRef(0);
   useEffect(() => {
@@ -170,45 +182,29 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     prevProgressRef.current = progress;
   }, [progress, items.length]);
 
-  // How many units the user is buying of a product. Defaults to the needed
-  // quantity (≥1), but the user can adjust it from the cart row.
-  function getQty(item: ShoppingListItem): number {
-    const q = quantities[item.product.id];
-    if (q !== undefined && q > 0) return q;
-    return item.quantityNeeded > 0 ? item.quantityNeeded : 1;
-  }
+  // ─── Totals ─────────────────────────────────────────────────────────────────
+  const { runningTotal, pricedCount, estimatedCount } = useMemo(() => {
+    let total = 0;
+    let priced = 0;
+    let estimated = 0;
+    for (const item of inCart) {
+      const lineTotal = entriesTotal(entries[item.product.id]);
+      if (lineTotal > 0) {
+        total += lineTotal;
+        priced += 1;
+      } else if (item.product.lastPurchasePrice !== null) {
+        total += item.product.lastPurchasePrice * entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded));
+        estimated += 1;
+      }
+    }
+    return { runningTotal: total, pricedCount: priced, estimatedCount: estimated };
+  }, [inCart, entries]);
 
-  function setQty(productId: string, value: number) {
-    setQuantities((prev) => ({ ...prev, [productId]: Math.max(0, value) }));
-  }
-
-  const runningTotal = useMemo(() =>
-    inCart.reduce((sum, item) => {
-      const price = scannedPrices[item.product.id] ?? item.product.lastPurchasePrice ?? null;
-      if (price === null) return sum;
-      const q = quantities[item.product.id];
-      const qty = q !== undefined && q > 0 ? q : Math.max(1, item.quantityNeeded);
-      return sum + price * qty;
-    }, 0),
-  [inCart, scannedPrices, quantities]);
-  const scannedCount = inCart.filter((i) => scannedPrices[i.product.id] !== undefined).length;
-  const estimatedCount = inCart.filter(
-    (i) => scannedPrices[i.product.id] === undefined && i.product.lastPurchasePrice !== null,
-  ).length;
-  const priceCount = scannedCount + estimatedCount;
   const hasEstimated = estimatedCount > 0;
-  const totalMatchesCalculated =
-    runningTotal > 0 &&
-    Math.abs((Number.parseFloat(totalAmount) || 0) - runningTotal) < 0.01;
 
+  // ─── Cart toggle ────────────────────────────────────────────────────────────
   function replaceItem(id: string, updated: ShoppingListItem) {
     setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
-  }
-
-  function optimisticToggle(id: string) {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, isInCart: !i.isInCart } : i)),
-    );
   }
 
   async function fetchToggle(id: string, original: ShoppingListItem) {
@@ -220,7 +216,6 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       const updated: ShoppingListItem = await res.json();
       replaceItem(id, updated);
     } else {
-      // Roll back optimistic update on failure
       replaceItem(id, original);
     }
   }
@@ -229,34 +224,72 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     haptic(12);
     const original = items.find((i) => i.id === id);
     if (!original) return;
+    const pid = original.product.id;
     if (original.isInCart) {
       playSound('uncart');
+      setCartTimes((prev) => {
+        const next = { ...prev };
+        delete next[pid];
+        return next;
+      });
     } else {
       playSound('cart');
       burstFromElement(el, ['🛒', '✨', '🥳']);
+      // Recency stamp: the most recently grabbed product leads the "Comprados"
+      // section so pricing it right after picking it up is one tap away.
+      setCartTimes((prev) => ({ ...prev, [pid]: Date.now() }));
+      setEntries((prev) => (prev[pid]?.length ? prev : { ...prev, [pid]: defaultEntries(original) }));
     }
-    optimisticToggle(id);
-    startTransition(() => {
-      void fetchToggle(id, original);
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isInCart: !i.isInCart } : i)));
+    startTransition(() => { void fetchToggle(id, original); });
+  }
+
+  // ─── Remove from list ("no estaba en el súper") ─────────────────────────────
+  async function performRemove() {
+    if (!removeTarget) return;
+    const target = removeTarget;
+    setRemoving(true);
+    setItems((prev) => prev.filter((i) => i.id !== target.id));
+    try {
+      const res = await fetch(`/api/proxy/shopping-list/${target.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok || res.status === 404) {
+        toast.show(`"${target.product.name}" quitado de la lista`, 'success');
+      } else {
+        setItems((prev) => [...prev, target]);
+        toast.show('No se pudo quitar. Intenta de nuevo.', 'error');
+      }
+    } catch {
+      setItems((prev) => [...prev, target]);
+      toast.show('Sin conexión. Intenta de nuevo.', 'error');
+    } finally {
+      setRemoving(false);
+      setRemoveTarget(null);
+      setEditorItemId((cur) => (cur === target.id ? null : cur));
+    }
+  }
+
+  // ─── Price entries ──────────────────────────────────────────────────────────
+  function getEntriesFor(item: ShoppingListItem): PriceEntry[] {
+    const list = entries[item.product.id];
+    return list && list.length > 0 ? list : defaultEntries(item);
+  }
+
+  function updateEntries(productId: string, updater: (prev: PriceEntry[]) => PriceEntry[], item: ShoppingListItem) {
+    setEntries((prev) => {
+      const current = prev[productId]?.length ? prev[productId] : defaultEntries(item);
+      return { ...prev, [productId]: updater(current) };
     });
   }
 
+  // ─── Finalize ───────────────────────────────────────────────────────────────
   function openModal() {
     if (inCart.length === 0) return;
-    // Seed any quantity the user hasn't set yet, without overwriting their input.
-    setQuantities((prev) => {
-      const next = { ...prev };
-      for (const item of inCart) {
-        next[item.product.id] ??= Math.max(1, item.quantityNeeded);
-      }
-      return next;
-    });
-    // Prefill with the most-visited store — leaving it blank files the trip
-    // under "Sin tienda". The user can still clear or change it.
     if (!storeName && pastStoreNames && pastStoreNames.length > 0) {
       setStoreName(pastStoreNames[0]);
     }
-    // Auto-fill the total with the calculated amount so the user only confirms.
     if (runningTotal > 0) {
       setTotalAmount(runningTotal.toFixed(2));
     }
@@ -264,14 +297,25 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     haptic(12);
   }
 
-  function closeModal() {
-    setShowModal(false);
-  }
-
   async function confirmShopping() {
     if (inCart.length === 0) return;
     setCompleting(true);
     haptic([25, 50, 25]);
+
+    // Collapse each product's entries into what the API stores: total quantity
+    // bought and the effective unit price (mixed-price trays average out so
+    // qty × unitPrice always equals what was really paid).
+    const quantities: Record<string, number> = {};
+    const unitPrices: Record<string, number> = {};
+    for (const item of inCart) {
+      const list = getEntriesFor(item);
+      const qty = entriesQty(list, Math.max(1, item.quantityNeeded));
+      const lineTotal = entriesTotal(list);
+      quantities[item.product.id] = qty;
+      if (lineTotal > 0 && qty > 0) {
+        unitPrices[item.product.id] = lineTotal / qty;
+      }
+    }
 
     try {
       const res = await fetch('/api/shopping-list/complete', {
@@ -282,7 +326,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           storeName: storeName.trim() || undefined,
           totalAmount: totalAmount.trim() ? Number.parseFloat(totalAmount) : undefined,
           quantities,
-          unitPrices: Object.keys(scannedPrices).length > 0 ? scannedPrices : undefined,
+          unitPrices: Object.keys(unitPrices).length > 0 ? unitPrices : undefined,
         }),
       });
 
@@ -293,14 +337,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         if (data.purchaseError) {
           toast.show('Compra guardada, pero algunos precios no se pudieron guardar.', 'info');
         } else {
-          toast.show('¡Compra registrada! ✓', 'success');
+          toast.show('¡Compra registrada! Tu despensa se actualizó ✓', 'success');
         }
         setShowModal(false);
-        setStoreName('');
-        setTotalAmount('');
-        setQuantities({});
-        setScannedPrices({});
-        try { sessionStorage.removeItem('foody-mkt-prices'); sessionStorage.removeItem('foody-mkt-quantities'); } catch { /* ignore */ }
+        clearSession();
         setItems((prev) => prev.filter((i) => !i.isInCart));
         router.refresh();
       } else {
@@ -313,43 +353,62 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     }
   }
 
-  // Filtered + category-grouped list. Memoised so it isn't re-sorted/re-grouped
-  // on unrelated re-renders (cart quantity edits, modal input, price scans).
-  const visibleGroups = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  // ─── Search + filters (cover BOTH pending and purchased) ────────────────────
+  const q = search.trim().toLowerCase();
+
+  function matches(item: ShoppingListItem): boolean {
+    if (q) {
+      const name = item.product.name.toLowerCase();
+      const cat = (item.product.category ?? 'Sin categoría').toLowerCase();
+      if (!name.includes(q) && !cat.includes(q)) return false;
+    }
+    if (categoryFilter && (item.product.category ?? 'Sin categoría') !== categoryFilter) return false;
+    return true;
+  }
+
+  const visiblePending = useMemo(() => {
     const filtered = notInCart.filter((i) => {
-      if (q && !i.product.name.toLowerCase().includes(q)) return false;
+      if (!matches(i)) return false;
       if (filter === 'urgent' && i.product.stockLevel !== 'empty') return false;
       if (filter === 'low' && i.product.stockLevel !== 'half') return false;
-      if (categoryFilter && (i.product.category ?? 'Sin categoría') !== categoryFilter) return false;
       return true;
     });
-    return groupByCategory(filtered);
-  }, [notInCart, search, filter, categoryFilter]);
+    // Urgent first inside the pending grid, then category order, then name.
+    return [...filtered].sort((a, b) => {
+      const ua = a.product.stockLevel === 'empty' ? 0 : 1;
+      const ub = b.product.stockLevel === 'empty' ? 0 : 1;
+      if (ua !== ub) return ua - ub;
+      const ca = CATEGORY_ORDER[(a.product.category ?? '').toLowerCase()] ?? 50;
+      const cb = CATEGORY_ORDER[(b.product.category ?? '').toLowerCase()] ?? 50;
+      if (ca !== cb) return ca - cb;
+      return a.product.name.localeCompare(b.product.name, 'es');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notInCart, q, filter, categoryFilter]);
 
-  // Categories present in the "not in cart" list for the category filter row
+  // Purchased: most recently grabbed first — the item just picked up is the
+  // one whose price the user wants to type right now.
+  const visiblePurchased = useMemo(() => {
+    const filtered = inCart.filter((i) => matches(i));
+    return [...filtered].sort((a, b) => (cartTimes[b.product.id] ?? 0) - (cartTimes[a.product.id] ?? 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inCart, q, categoryFilter, cartTimes]);
+
   const availableCategories = useMemo(() => {
     const cats = new Set<string>();
-    for (const i of notInCart) {
-      cats.add(i.product.category ?? 'Sin categoría');
-    }
-    return [...cats].sort((a, b) => {
-      if (a === 'Sin categoría') return 1;
-      if (b === 'Sin categoría') return -1;
-      const oa = CATEGORY_ORDER[a.toLowerCase()] ?? 50;
-      const ob = CATEGORY_ORDER[b.toLowerCase()] ?? 50;
-      return oa === ob ? a.localeCompare(b, 'es') : oa - ob;
-    });
-  }, [notInCart]);
+    for (const i of items) cats.add(i.product.category ?? 'Sin categoría');
+    return sortCategories([...cats]);
+  }, [items]);
+
+  const searching = q.length > 0 || categoryFilter !== null || filter !== 'all';
+  const editorItem = editorItemId ? items.find((i) => i.id === editorItemId) ?? null : null;
 
   if (items.length === 0) {
     return (
       <div className="text-center py-20">
         <p className="text-6xl mb-4"><span className="inline-block animate-bounce">🎉</span></p>
         <h2 className="text-xl font-semibold text-stone-600 mb-2">¡Lista vacía!</h2>
-        <p className="text-stone-400">
-          No tienes productos marcados para comprar.
-        </p>
+        <p className="text-stone-400">No tienes productos marcados para comprar.</p>
         <Link href="/home" className="mt-4 inline-block text-brand-500 hover:underline">
           Volver a casa
         </Link>
@@ -358,9 +417,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   }
 
   return (
-    <LayoutGroup>
     <div className="space-y-5 pb-32">
-      {/* ─── Progress (game-style: striped bar + cart riding the tip) ───────── */}
+      {/* ─── Progress ────────────────────────────────────────────────────────── */}
       <div ref={progressRef} className="bg-white dark:bg-stone-900 rounded-2xl p-4 border border-stone-100 dark:border-stone-800 shadow-sm">
         <div className="flex justify-between items-baseline mb-2">
           <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">
@@ -389,7 +447,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       </div>
 
-      {/* ─── Calculator banner ─────────────────────────────────────────────── */}
+      {/* ─── Cart calculator ─────────────────────────────────────────────────── */}
       <AnimatePresence>
         {inCart.length > 0 && (
           <motion.div
@@ -403,7 +461,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-semibold text-market-600 uppercase tracking-wider mb-0.5">
-                  🧮 {getCalculatorLabel(hasEstimated, runningTotal)}
+                  🧮 {hasEstimated ? 'Estimado en carrito' : 'Total en carrito'}
                 </p>
                 <div className="flex items-baseline gap-1">
                   <span className="text-base font-bold text-market-700">$</span>
@@ -418,7 +476,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                   </motion.span>
                 </div>
                 <p className="text-[11px] text-market-600/70 mt-0.5">
-                  {getPriceSubtitle(priceCount, runningTotal, inCart.length, hasEstimated)}
+                  {pricedCount === 0
+                    ? `${inCart.length} en el carrito · toca 💵 en un producto para poner su precio`
+                    : `${pricedCount} de ${inCart.length} con precio${hasEstimated ? ' · algunos estimados' : ''}`}
                 </p>
               </div>
 
@@ -441,50 +501,26 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         )}
       </AnimatePresence>
 
-      {/* ─── Modo compra rápida banner ─────────────────────────────────────── */}
-      <div className="flex items-center gap-2.5 bg-indigo-950/80 border border-indigo-700/40 rounded-2xl px-4 py-2.5">
-        <span className="text-base shrink-0">⚡</span>
-        <p className="text-xs text-indigo-200 leading-snug">
-          <span className="font-bold text-white">Modo compra rápida</span>
-          {' '}· Marca lo que compras y al finalizar tu despensa se actualiza sola
-        </p>
-      </div>
-
-      {/* ─── Search + filters ───────────────────────────────────────────────── */}
+      {/* ─── Search + filters ────────────────────────────────────────────────── */}
       <div className="space-y-3">
         <div className="relative">
-          <motion.span
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none"
-            animate={
-              search
-                ? { scale: [1, 1.35, 0.9, 1.1, 1], rotate: [0, -18, 12, -6, 0], y: [0, -3, 2, -1, 0] }
-                : { scale: [1, 1.08, 1], y: [0, -2, 0] }
-            }
-            transition={
-              search
-                ? { type: 'spring', stiffness: 450, damping: 12 }
-                : { duration: 2, repeat: Infinity, repeatDelay: 1.5, ease: 'easeInOut' }
-            }
-          >
-            🔍
-          </motion.span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">🔍</span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            placeholder=""
-            aria-label="Buscar producto"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+            placeholder="Busca un producto o categoría…"
+            aria-label="Buscar producto o categoría"
+            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
           />
-          {!search && !searchFocused && (
-            <motion.span
-              className="absolute left-9 top-1/2 -translate-y-1/2 text-stone-300 text-sm pointer-events-none select-none"
-              animate={{ opacity: [1, 0.4, 1] }}
-              transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          {search && (
+            <button
+              type="button"
+              aria-label="Limpiar búsqueda"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 text-xs"
             >
-              Escribe para buscar un producto…
-            </motion.span>
+              ✕
+            </button>
           )}
         </div>
 
@@ -494,64 +530,62 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             { k: 'urgent', label: `🚨 Se acabó · ${urgent.length}` },
             { k: 'low', label: `⚠️ Bajo · ${low.length}` },
           ] as { k: Filter; label: string }[]).map(({ k, label }) => (
-            <motion.button
+            <button
               key={k}
               onClick={() => setFilter(k)}
               aria-pressed={filter === k}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${
                 filter === k
                   ? 'bg-market-600 text-white shadow-sm'
                   : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-market-300'
               }`}
-              whileHover={{ scale: 1.07 }}
-              whileTap={{ scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
             >
               {label}
-            </motion.button>
+            </button>
           ))}
         </div>
 
-        {/* Category filter chips */}
         {availableCategories.length > 1 && (
           <div className="flex gap-2 overflow-x-auto pb-0.5">
-            <motion.button
+            <button
               onClick={() => setCategoryFilter(null)}
               aria-pressed={categoryFilter === null}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${
                 categoryFilter === null
                   ? 'bg-stone-700 text-white shadow-sm'
                   : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400'
               }`}
-              whileHover={{ scale: 1.07 }}
-              whileTap={{ scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
             >
               📂 Todas
-            </motion.button>
+            </button>
             {availableCategories.map((cat) => (
-              <motion.button
+              <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
                 aria-pressed={categoryFilter === cat}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${
                   categoryFilter === cat
                     ? 'bg-stone-700 text-white shadow-sm'
                     : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400'
                 }`}
-                whileHover={{ scale: 1.07 }}
-                whileTap={{ scale: 0.9 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 20 }}
               >
                 {categoryEmoji(cat)} {cat}
-              </motion.button>
+              </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* ─── Empty results (filters/search) or everything already in cart ──── */}
-      {visibleGroups.length === 0 && notInCart.length > 0 && (
+      {/* ─── Search verdict: nothing pending, but maybe already bought ───────── */}
+      {searching && visiblePending.length === 0 && visiblePurchased.length > 0 && (
+        <div className="flex items-center gap-2.5 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-2xl px-4 py-3">
+          <span className="text-xl shrink-0">✅</span>
+          <p className="text-sm text-green-800 dark:text-green-200 leading-snug">
+            <strong>Ya está en tu carrito.</strong> Lo encontrarás abajo en «Comprados».
+          </p>
+        </div>
+      )}
+      {searching && visiblePending.length === 0 && visiblePurchased.length === 0 && (
         <div className="text-center py-8 bg-white dark:bg-stone-900 rounded-2xl border border-dashed border-stone-200 dark:border-stone-700">
           <p className="text-3xl mb-2">🔍</p>
           <p className="text-sm text-stone-500 dark:text-stone-400">No hay productos que coincidan</p>
@@ -564,81 +598,86 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           </button>
         </div>
       )}
-      {notInCart.length === 0 && inCart.length > 0 && (
+
+      {/* ─── Por comprar (card grid, pantry-style) ───────────────────────────── */}
+      {visiblePending.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="text-sm font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wide">
+              🛒 Por comprar
+            </h2>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+              {visiblePending.length} {pluralize(visiblePending.length, 'producto', 'productos')}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {visiblePending.map((item) => (
+              <ProductPurchaseCard
+                key={item.id}
+                item={item}
+                inCart={false}
+                lineTotal={entriesTotal(entries[item.product.id])}
+                lineQty={entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded))}
+                onToggle={(el) => toggleItem(item.id, el)}
+                onOpenEditor={() => setEditorItemId(item.id)}
+                onZoom={(src, origin) => setZoomItem({ src, alt: item.product.name, origin })}
+                onRemove={() => setRemoveTarget(item)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {notInCart.length === 0 && inCart.length > 0 && !searching && (
         <div className="text-center py-8 bg-market-50/60 dark:bg-market-900/20 rounded-2xl border border-market-200 dark:border-market-800">
           <p className="text-3xl mb-2">🎉</p>
-          <p className="text-sm font-semibold text-market-700 dark:text-market-300">
-            ¡Todo está en el carrito!
-          </p>
+          <p className="text-sm font-semibold text-market-700 dark:text-market-300">¡Todo está en el carrito!</p>
           <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             Toca «Finalizar compra» abajo para registrarla
           </p>
         </div>
       )}
 
-      {/* ─── Category groups ────────────────────────────────────────────────── */}
-      {visibleGroups.map(({ category, emoji, items: catItems, urgentCount }) => (
-        <Section
-          key={category}
-          title={`${emoji} ${category}`}
-          subtitle={getCategorySubtitle(urgentCount, catItems.length)}
-          badgeCls={urgentCount > 0 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}
-        >
-          {catItems.map((item) => (
-            <ShoppingItemRow
-              key={item.id}
-              item={item}
-              onToggle={(el) => toggleItem(item.id, el)}
-              entrance={!hasMountedRef.current}
-              urgent={item.product.stockLevel === 'empty'}
-            />
-          ))}
-        </Section>
-      ))}
-
-      {/* ─── Comprados ───────────────────────────────────────────────────────── */}
-      {inCart.length > 0 && (
-        <Section
-          title="✔️ Comprados"
-          subtitle={
-            runningTotal > 0
-              ? `${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · ${hasEstimated ? '≈' : ''}$${runningTotal.toFixed(2)}`
-              : `${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')} · toca 📷 para registrar precios`
-          }
-          badgeCls="bg-green-100 text-green-700"
-        >
-          {scannedCount === 0 && (
-            <div className="flex items-center gap-2 px-3 py-2.5 bg-market-50 border border-market-200 rounded-xl mb-1">
-              <span className="text-lg shrink-0">📷</span>
-              <p className="text-xs text-market-700 leading-snug">
-                Toca el precio <strong>(📷)</strong> en cada producto para registrar cuánto costó y llevar el total automático
-              </p>
-            </div>
-          )}
-          {inCart.map((item) => (
-            <ShoppingItemRow
-              key={item.id}
-              item={item}
-              onToggle={(el) => toggleItem(item.id, el)}
-              entrance={!hasMountedRef.current}
-              inCart
-              scannedPrice={scannedPrices[item.product.id]}
-              onScanPrice={() => setScanningProductId(item.product.id)}
-              quantity={getQty(item)}
-              onQtyChange={(v) => setQty(item.product.id, v)}
-            />
-          ))}
-        </Section>
+      {/* ─── Comprados (recency-ordered card grid) ───────────────────────────── */}
+      {visiblePurchased.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="text-sm font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wide">
+              ✔️ Comprados
+            </h2>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+              {runningTotal > 0
+                ? `${visiblePurchased.length} · ${hasEstimated ? '≈' : ''}$${runningTotal.toFixed(2)}`
+                : `${visiblePurchased.length} ${pluralize(visiblePurchased.length, 'producto', 'productos')}`}
+            </span>
+          </div>
+          <p className="text-[11px] text-stone-400 dark:text-stone-500 px-1 mb-2">
+            El último que agarraste aparece primero · toca 💵 para ponerle precio
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {visiblePurchased.map((item) => (
+              <ProductPurchaseCard
+                key={item.id}
+                item={item}
+                inCart
+                lineTotal={entriesTotal(entries[item.product.id])}
+                lineQty={entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded))}
+                onToggle={(el) => toggleItem(item.id, el)}
+                onOpenEditor={() => setEditorItemId(item.id)}
+                onZoom={(src, origin) => setZoomItem({ src, alt: item.product.name, origin })}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* ─── Floating complete button ───────────────────────────────────────── */}
+      {/* ─── Floating complete button ────────────────────────────────────────── */}
       {inCart.length > 0 && (
         <div className="fixed bottom-4 inset-x-4 z-40 md:left-auto md:right-8 md:w-96 pb-[env(safe-area-inset-bottom)]">
           <motion.button
             onClick={openModal}
             disabled={completing}
             className={`w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2${notInCart.length === 0 ? ' animate-glow' : ''}`}
-            whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 400, damping: 18 }}
           >
@@ -646,12 +685,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               'Procesando...'
             ) : (
               <>
-                <motion.span
-                  animate={{ rotate: [0, -15, 10, -6, 0], y: [0, -3, 1, -1, 0] }}
-                  transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }}
-                >
-                  <ShoppingCartIcon className="w-5 h-5" />
-                </motion.span>
+                <ShoppingCartIcon className="w-5 h-5" />
                 {runningTotal > 0
                   ? `Finalizar · $${runningTotal.toFixed(2)} · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`
                   : `Finalizar compra · ${inCart.length} ${pluralize(inCart.length, 'item', 'items')}`}
@@ -661,44 +695,81 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       )}
 
-      {/* ─── Price scanner modal ─────────────────────────────────────────────── */}
-      {scanningProductId && (
-        <PriceScannerModal
-          productName={items.find((i) => i.product.id === scanningProductId)?.product.name ?? ''}
-          onPrice={(price) => {
-            setScannedPrices((prev) => ({ ...prev, [scanningProductId]: price }));
-            setScanningProductId(null);
-            haptic(20);
-          }}
-          onClose={() => setScanningProductId(null)}
+      {/* ─── Price editor bottom sheet ───────────────────────────────────────── */}
+      {editorItem && (
+        <PriceEditorSheet
+          item={editorItem}
+          entries={getEntriesFor(editorItem)}
+          onChange={(updater) => updateEntries(editorItem.product.id, updater, editorItem)}
+          onScan={(index) => setScanTarget({ productId: editorItem.product.id, index })}
+          onRemoveFromList={!editorItem.isInCart ? () => setRemoveTarget(editorItem) : undefined}
+          onMarkBought={!editorItem.isInCart ? () => { toggleItem(editorItem.id); } : undefined}
+          onClose={() => setEditorItemId(null)}
         />
       )}
 
+      {/* ─── Price scanner (fills one entry's total) ─────────────────────────── */}
+      {scanTarget && (
+        <PriceScannerModal
+          productName={items.find((i) => i.product.id === scanTarget.productId)?.product.name ?? ''}
+          onPrice={(price) => {
+            const item = items.find((i) => i.product.id === scanTarget.productId);
+            if (item) {
+              updateEntries(scanTarget.productId, (prev) =>
+                prev.map((e, idx) => (idx === scanTarget.index ? { ...e, total: price } : e)),
+              item);
+            }
+            setScanTarget(null);
+            haptic(20);
+          }}
+          onClose={() => setScanTarget(null)}
+        />
+      )}
+
+      {/* ─── Photo zoom lightbox ─────────────────────────────────────────────── */}
+      {zoomItem && (
+        <PhotoLightbox
+          src={zoomItem.src}
+          alt={zoomItem.alt}
+          originRect={zoomItem.origin}
+          onClose={() => setZoomItem(null)}
+        />
+      )}
+
+      {/* ─── Remove-from-list confirm ────────────────────────────────────────── */}
+      <ConfirmDialog
+        open={removeTarget !== null}
+        title={`¿Quitar "${removeTarget?.product.name ?? ''}"?`}
+        message="Se quitará de la lista de compras de hoy (por ejemplo si no lo encontraste en el súper). Seguirá en tu despensa como faltante."
+        confirmLabel="Quitar de la lista"
+        destructive
+        busy={removing}
+        onConfirm={performRemove}
+        onCancel={() => setRemoveTarget(null)}
+      />
+
+      {/* ─── Completion modal ────────────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          {/* Backdrop */}
           <button
             type="button"
             aria-label="Cerrar"
             className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-default"
-            onClick={closeModal}
-            onKeyDown={(e) => { if (e.key === 'Escape') closeModal(); }}
+            onClick={() => setShowModal(false)}
+            onKeyDown={(e) => { if (e.key === 'Escape') setShowModal(false); }}
           />
 
-          {/* Card */}
           <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
-            {/* Header */}
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">🛒 Finalizar compra</h2>
               <button
-                onClick={closeModal}
+                onClick={() => setShowModal(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500 transition"
               >
                 ✕
               </button>
             </div>
 
-            {/* Store name */}
             <label
               htmlFor="modal-store-name"
               className="block text-sm font-semibold text-stone-700 dark:text-stone-200 mb-1.5"
@@ -721,7 +792,6 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               </datalist>
             )}
 
-            {/* Total amount */}
             <label
               htmlFor="modal-total-amount"
               className="block text-sm font-semibold text-stone-700 dark:text-stone-200 mb-1.5"
@@ -742,24 +812,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
               />
             </div>
-            <p className="text-xs text-stone-400 mb-4">
-              {(() => {
-                if (!runningTotal) return 'Escanea los precios para sumar el total automáticamente, o escríbelo a mano.';
-                if (totalMatchesCalculated) return '✓ Sumado automáticamente. Si es correcto, confirma; si no, ajústalo arriba.';
-                return '✏️ Lo ajustaste manualmente. Toca «Usar» para volver al total calculado.';
-              })()}
-            </p>
-
-            {/* Quantities + Prices */}
-            <p className="text-sm font-semibold text-stone-700 dark:text-stone-200 mb-2">
-              Cantidad y precio por producto
-            </p>
-
-            {/* Calculated total pill */}
             {runningTotal > 0 && (
-              <div className="flex items-center justify-between bg-market-50 border border-market-200 rounded-xl px-3 py-2 mb-3">
+              <div className="flex items-center justify-between bg-market-50 border border-market-200 rounded-xl px-3 py-2 mb-3 mt-2">
                 <span className="text-sm text-market-700 font-medium">
-                  💰 Total calculado ({scannedCount}/{inCart.length})
+                  💰 Suma de tus precios ({pricedCount}/{inCart.length})
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-market-700">${runningTotal.toFixed(2)}</span>
@@ -774,67 +830,43 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               </div>
             )}
 
+            <p className="text-sm font-semibold text-stone-700 dark:text-stone-200 mb-2">
+              Resumen · toca un producto para ajustar
+            </p>
             <div className="flex-1 overflow-y-auto space-y-2 mb-5 pr-1">
               {inCart.map((item) => {
-                const qty = quantities[item.product.id] ?? item.quantityNeeded;
-                const unitPrice = scannedPrices[item.product.id];
-                const lineTotal = unitPrice === undefined ? null : unitPrice * (qty || 1);
+                const list = getEntriesFor(item);
+                const qty = entriesQty(list, Math.max(1, item.quantityNeeded));
+                const lineTotal = entriesTotal(list);
                 return (
-                  <div
+                  <button
                     key={item.id}
-                    className="bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5 border border-stone-100 dark:border-stone-700"
+                    type="button"
+                    onClick={() => setEditorItemId(item.id)}
+                    className="w-full text-left bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5 border border-stone-100 dark:border-stone-700 hover:border-market-300 transition"
                   >
-                    <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-stone-700 dark:text-stone-200 truncate min-w-0">
                         {item.product.name}
                       </span>
-                      {lineTotal !== null && (
-                        <span className="text-xs font-bold text-market-700 shrink-0">
-                          ${lineTotal.toFixed(2)}
-                        </span>
-                      )}
+                      <span className={`text-xs font-bold shrink-0 ${lineTotal > 0 ? 'text-market-700' : 'text-stone-400'}`}>
+                        {lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : 'sin precio'}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={qty === 0 ? '' : qty}
-                          placeholder="0"
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? 0 : Number(e.target.value);
-                            setQuantities((prev) => ({ ...prev, [item.product.id]: val }));
-                          }}
-                          className="w-14 text-center text-sm font-bold text-stone-800 bg-white border border-stone-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
-                        />
-                        {item.product.unit && (
-                          <span className="text-xs text-stone-400">{item.product.unit}</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setScanningProductId(item.product.id)}
-                        className={`ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition ${
-                          unitPrice === undefined
-                            ? 'bg-white border-stone-200 text-stone-500 hover:border-market-300'
-                            : 'bg-market-50 border-market-300 text-market-700 hover:bg-market-100'
-                        }`}
-                      >
-                        <span>📷</span>
-                        <span>{unitPrice === undefined ? 'Precio' : `$${unitPrice.toFixed(2)}`}</span>
-                      </button>
-                    </div>
-                  </div>
+                    <p className="text-[11px] text-stone-400 mt-0.5">
+                      {fmtQty(qty)} {item.product.unit || 'unid.'}
+                      {list.filter((e) => e.total !== null).length > 1 &&
+                        ` · ${list.filter((e) => e.total !== null).length} precios`}
+                    </p>
+                  </button>
                 );
               })}
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 pb-[env(safe-area-inset-bottom)]">
               <button
                 type="button"
-                onClick={closeModal}
+                onClick={() => setShowModal(false)}
                 className="flex-1 py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition"
               >
                 Cancelar
@@ -852,220 +884,375 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
       )}
     </div>
-    </LayoutGroup>
   );
 }
 
-function Section({
-  title,
-  subtitle,
-  badgeCls,
-  children,
-}: {
-  readonly title: string;
-  readonly subtitle: string;
-  readonly badgeCls: string;
-  readonly children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-2 px-1">
-        <h2 className="text-sm font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wide">
-          {title}
-        </h2>
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${badgeCls}`}>
-          {subtitle}
-        </span>
-      </div>
-      <div className="space-y-2">{children}</div>
-    </section>
-  );
-}
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
-function ShoppingItemRow({
+function ProductPurchaseCard({
   item,
+  inCart,
+  lineTotal,
+  lineQty,
   onToggle,
-  entrance = false,
-  inCart = false,
-  urgent = false,
-  scannedPrice,
-  onScanPrice,
-  quantity,
-  onQtyChange,
+  onOpenEditor,
+  onZoom,
+  onRemove,
 }: {
   readonly item: ShoppingListItem;
+  readonly inCart: boolean;
+  readonly lineTotal: number;
+  readonly lineQty: number;
   readonly onToggle: (el?: Element | null) => void;
-  /** Play the entrance fade only on the list's first paint, never on re-mounts. */
-  readonly entrance?: boolean;
-  readonly inCart?: boolean;
-  readonly urgent?: boolean;
-  readonly scannedPrice?: number;
-  readonly onScanPrice?: () => void;
-  readonly quantity?: number;
-  readonly onQtyChange?: (value: number) => void;
+  readonly onOpenEditor: () => void;
+  readonly onZoom: (src: string, origin?: DOMRect) => void;
+  readonly onRemove?: () => void;
 }) {
   const product = item.product;
-  const rowCls = getRowCls(inCart, urgent);
-  const checkboxCls = getCheckboxCls(inCart, urgent);
-  const showCartControls = inCart && !!onScanPrice;
-  const qty = quantity && quantity > 0 ? quantity : Math.max(1, item.quantityNeeded);
-  const lineTotal = scannedPrice === undefined ? undefined : scannedPrice * qty;
+  const urgent = !inCart && product.stockLevel === 'empty';
+  const photoRef = useRef<HTMLButtonElement>(null);
+
+  let borderCls = 'border-stone-100 dark:border-stone-800';
+  if (inCart) borderCls = 'border-market-300 ring-2 ring-market-200/70 dark:border-market-700 dark:ring-market-900';
+  else if (urgent) borderCls = 'border-rose-300 ring-1 ring-rose-200 dark:border-rose-800';
 
   return (
-    <motion.div
-      // `layout` only: it animates position with transforms when siblings
-      // shift. A `layoutId` here made re-mounts (item hopping between
-      // sections) run a shared-layout CROSSFADE that flashes opacity and
-      // ignores `initial` — the toggle flicker.
-      layout
-      initial={entrance ? { opacity: 0, y: 10 } : false}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-      className={`w-full rounded-2xl border transition-colors ${rowCls}`}
-    >
-      <div className="flex items-center gap-2 p-3">
-      {/* Toggle area */}
-      {/* No active:scale here: shrinking the whole row on tap reads as a
-          flicker on phones. The checkbox pop + sound are the tap feedback. */}
+    <div className={`group relative bg-white dark:bg-stone-900 rounded-2xl border shadow-md transition-all duration-200 flex flex-col overflow-hidden ${borderCls}`}>
+      {/* Photo — tapping it is the fast action: buy / un-buy */}
       <button
+        ref={photoRef}
+        type="button"
+        aria-label={inCart ? `Devolver ${product.name}` : `Comprar ${product.name}`}
         onClick={(e) => onToggle(e.currentTarget)}
-        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+        className="relative aspect-4/3 bg-stone-50 dark:bg-stone-800 w-full overflow-hidden focus:outline-none"
       >
-        {/* Checkbox */}
-        <div
-          className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${checkboxCls}`}
-        >
-          {inCart && (
-            <motion.span
-              initial={{ scale: 0, rotate: -30 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 520, damping: 15 }}
-              className="text-white text-xs font-bold"
-            >
-              ✓
-            </motion.span>
-          )}
-        </div>
-
-        {/* Photo */}
-        <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 shrink-0">
-          {product.photoUrl ? (
-            <Image
-              src={product.photoUrl}
-              alt={product.name}
-              width={48}
-              height={48}
-              className="object-cover w-full h-full"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-xl">
-              <motion.span
-                animate={{ rotate: [0, -12, 10, -5, 0], y: [0, -3, 1, -1, 0] }}
-                transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 2.5, ease: 'easeInOut' }}
-              >
-                🛒
-              </motion.span>
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p
-              className={`font-semibold text-sm truncate ${
-                inCart ? 'line-through text-stone-400' : 'text-stone-800 dark:text-stone-100'
-              }`}
-            >
-              {product.name}
-            </p>
-            {urgent && !inCart && (
-              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
-                Urgente
-              </span>
-            )}
-          </div>
-          {product.category && (
-            <p className="text-xs text-stone-400 truncate">{product.category}</p>
-          )}
-        </div>
-
-        {/* Status badge — not-in-cart or in-cart without scan */}
-        {!inCart && (
-          <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-stone-400 bg-stone-50 border border-stone-200 px-2 py-0.5 rounded-full">
-            🛒 {item.quantityNeeded}{product.unit ? ` ${product.unit}` : ''}
+        {product.photoUrl ? (
+          <Image
+            src={product.photoUrl}
+            alt={product.name}
+            fill
+            className={`object-cover transition-all duration-300 ${inCart ? 'opacity-80' : ''}`}
+            sizes="(max-width: 640px) 50vw, 25vw"
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-4xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 dark:from-stone-800 dark:to-stone-900">
+            {categoryEmoji(product.category)}
           </span>
         )}
-        {inCart && !onScanPrice && (
-          <span className="shrink-0 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-            ✔ Comprado
+
+        {/* Status badge */}
+        {inCart ? (
+          <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-market-500 text-white flex items-center justify-center text-sm font-bold shadow">
+            ✓
+          </span>
+        ) : (
+          <span
+            className={`absolute top-2 right-2 text-[9px] font-bold tracking-wide uppercase px-2 py-1 rounded-full bg-white/95 backdrop-blur-sm shadow-sm ${
+              urgent ? 'text-rose-600' : 'text-amber-600'
+            }`}
+          >
+            {urgent ? '🚨 Urgente' : '⚠️ Bajo'}
+          </span>
+        )}
+
+        {/* Line total captured so far */}
+        {inCart && lineTotal > 0 && (
+          <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-market-600 text-white shadow tabular-nums">
+            ${lineTotal.toFixed(2)}
           </span>
         )}
       </button>
+
+      {/* Zoom — over the photo, its own tap target */}
+      {product.photoUrl && (
+        <button
+          type="button"
+          aria-label={`Ver foto de ${product.name}`}
+          onClick={() => onZoom(product.photoUrl!, photoRef.current?.getBoundingClientRect())}
+          className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center text-xs shadow focus:outline-none"
+        >
+          🔍
+        </button>
+      )}
+
+      {/* Info */}
+      <div className="p-2 flex-1">
+        <p className={`font-semibold text-xs truncate ${inCart ? 'text-stone-400 line-through' : 'text-stone-800 dark:text-stone-100'}`}>
+          {product.name}
+        </p>
+        {product.category && (
+          <p className="text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">{product.category}</p>
+        )}
+        <p className="text-[10px] text-stone-400 mt-0.5 tabular-nums">
+          {fmtQty(lineQty)} {product.unit || 'unid.'}
+          {!inCart && product.lastPurchasePrice != null && ` · últ. $${product.lastPurchasePrice.toFixed(2)}`}
+        </p>
       </div>
 
-      {/* Footer: quantity stepper + price (in-cart + scan enabled) */}
-      {showCartControls && (
-        <div className="flex items-center gap-2 px-3 pb-3 -mt-1">
-          {/* Quantity stepper — "¿cuántas piezas compraste?" */}
-          <div className="flex items-center gap-0.5 bg-white border border-stone-200 rounded-xl p-0.5">
-            <button
-              type="button"
-              aria-label="Quitar una unidad"
-              onClick={() => onQtyChange?.(Math.max(1, qty - 1))}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 active:scale-90 transition text-lg font-bold"
-            >
-              −
-            </button>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              aria-label={`Cantidad de ${product.name}`}
-              value={qty}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === '') { onQtyChange?.(0); return; }
-                const n = Number(raw);
-                if (Number.isFinite(n)) onQtyChange?.(n);
-              }}
-              className="w-9 text-center text-sm font-bold text-stone-800 bg-transparent focus:outline-none tabular-nums"
-            />
-            <button
-              type="button"
-              aria-label="Agregar una unidad"
-              onClick={() => onQtyChange?.(qty + 1)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 active:scale-90 transition text-lg font-bold"
-            >
-              ＋
-            </button>
-            {product.unit && (
-              <span className="text-[10px] text-stone-400 pr-1.5">{product.unit}</span>
-            )}
-          </div>
-
-          {/* Line total once a price is captured */}
-          {lineTotal !== undefined && (
-            <span className="text-xs font-bold text-market-700 tabular-nums">
-              = ${lineTotal.toFixed(2)}
-            </span>
-          )}
-
-          {/* Camera / price button */}
+      {/* Actions */}
+      <div className="p-2 pt-0 flex gap-1.5">
+        <button
+          type="button"
+          onClick={(e) => onToggle(e.currentTarget)}
+          className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition active:scale-95 ${
+            inCart
+              ? 'bg-stone-50 dark:bg-stone-800 text-stone-500 hover:bg-stone-100'
+              : 'bg-market-600 text-white hover:bg-market-700 shadow-sm'
+          }`}
+        >
+          {inCart ? <>↩ Devolver</> : <>🛒 Comprar</>}
+        </button>
+        <button
+          type="button"
+          onClick={onOpenEditor}
+          className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold transition active:scale-95 ${
+            lineTotal > 0
+              ? 'bg-market-50 text-market-700 border border-market-200'
+              : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-100 border border-stone-200 dark:border-stone-700'
+          }`}
+        >
+          💵 {lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : 'Precio'}
+        </button>
+        {onRemove && (
           <button
             type="button"
-            onClick={onScanPrice}
-            className={`ml-auto shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition ${
-              scannedPrice === undefined
-                ? 'bg-stone-50 border-stone-200 text-stone-400 hover:border-market-300 hover:text-market-600'
-                : 'bg-market-50 border-market-300 text-market-700'
-            }`}
+            aria-label={`Quitar ${product.name} de la lista`}
+            onClick={onRemove}
+            className="w-8 flex items-center justify-center rounded-xl bg-stone-50 dark:bg-stone-800 text-stone-400 hover:text-rose-500 hover:bg-rose-50 transition active:scale-95 text-xs border border-stone-200 dark:border-stone-700"
           >
-            <span className="text-base leading-none">📷</span>
-            <span>{scannedPrice === undefined ? 'precio c/u' : `$${scannedPrice.toFixed(2)} c/u`}</span>
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Price editor bottom sheet ────────────────────────────────────────────────
+
+function PriceEditorSheet({
+  item,
+  entries,
+  onChange,
+  onScan,
+  onRemoveFromList,
+  onMarkBought,
+  onClose,
+}: {
+  readonly item: ShoppingListItem;
+  readonly entries: PriceEntry[];
+  readonly onChange: (updater: (prev: PriceEntry[]) => PriceEntry[]) => void;
+  readonly onScan: (index: number) => void;
+  readonly onRemoveFromList?: () => void;
+  readonly onMarkBought?: () => void;
+  readonly onClose: () => void;
+}) {
+  const product = item.product;
+  const byWeight = isWeightUnit(product.unit);
+  const unitLabel = product.unit || 'unid.';
+  const totalQty = entriesQty(entries, 0);
+  const lineTotal = entriesTotal(entries);
+  const qtyStep = byWeight ? 0.25 : 1;
+
+  function setEntry(index: number, patch: Partial<PriceEntry>) {
+    onChange((prev) => prev.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  }
+
+  function addEntry() {
+    haptic(8);
+    onChange((prev) => [...prev, { qty: byWeight ? 1 : 1, total: null }]);
+  }
+
+  function removeEntry(index: number) {
+    haptic(8);
+    onChange((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <button
+        type="button"
+        aria-label="Cerrar"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-default"
+        onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      />
+
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 shrink-0 relative">
+            {product.photoUrl ? (
+              <Image src={product.photoUrl} alt={product.name} fill className="object-cover" sizes="48px" />
+            ) : (
+              <span className="absolute inset-0 flex items-center justify-center text-xl">
+                {categoryEmoji(product.category)}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-bold text-stone-800 dark:text-stone-100 truncate">{product.name}</h2>
+            <p className="text-[11px] text-stone-400">
+              {byWeight ? `Se vende por peso (${unitLabel})` : `Se vende por ${unitLabel}`}
+              {product.lastPurchasePrice != null && ` · última vez $${product.lastPurchasePrice.toFixed(2)}`}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500 transition shrink-0"
+          >
+            ✕
           </button>
         </div>
-      )}
-    </motion.div>
+
+        {/* Hint */}
+        <div className="flex items-start gap-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 rounded-xl px-3 py-2 mb-3">
+          <span className="text-sm shrink-0">💡</span>
+          <p className="text-[11px] text-indigo-700 dark:text-indigo-300 leading-snug">
+            {byWeight
+              ? `Pesa y anota lo que dice la balanza: cuántas ${unitLabel} y cuánto costó ese paquete. Si llevas varios paquetes, agrega una línea por cada uno.`
+              : 'Cada línea es un paquete o bandeja con su precio. ¿Dos bandejas de carne con precios distintos? Agrega una línea para cada una.'}
+          </p>
+        </div>
+
+        {/* Entries */}
+        <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-1">
+          {entries.map((entry, index) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <div key={index} className="bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5 border border-stone-100 dark:border-stone-700">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wide">
+                  {entries.length > 1 ? `${byWeight ? 'Paquete' : 'Bandeja'} ${index + 1}` : 'Cantidad y precio'}
+                </span>
+                {entries.length > 1 && (
+                  <button
+                    type="button"
+                    aria-label="Quitar esta línea"
+                    onClick={() => removeEntry(index)}
+                    className="text-[11px] text-stone-400 hover:text-rose-500 transition font-semibold"
+                  >
+                    ✕ quitar
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Quantity */}
+                <div className="flex items-center gap-0.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-0.5">
+                  <button
+                    type="button"
+                    aria-label="Menos"
+                    onClick={() => setEntry(index, { qty: Math.max(qtyStep, Math.round((entry.qty - qtyStep) * 100) / 100) })}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="any"
+                    aria-label={`Cantidad (${unitLabel})`}
+                    value={entry.qty === 0 ? '' : entry.qty}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const n = e.target.value === '' ? 0 : Number(e.target.value);
+                      if (Number.isFinite(n) && n >= 0) setEntry(index, { qty: n });
+                    }}
+                    className="w-12 text-center text-sm font-bold text-stone-800 dark:text-stone-100 bg-transparent focus:outline-none tabular-nums"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Más"
+                    onClick={() => setEntry(index, { qty: Math.round((entry.qty + qtyStep) * 100) / 100 })}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
+                  >
+                    ＋
+                  </button>
+                  <span className="text-[10px] text-stone-400 pr-1.5">{unitLabel}</span>
+                </div>
+
+                {/* Price of this batch */}
+                <div className="relative flex-1 min-w-0">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    aria-label="Precio de este paquete"
+                    value={entry.total ?? ''}
+                    placeholder="0.00"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') { setEntry(index, { total: null }); return; }
+                      const n = Number(raw);
+                      if (Number.isFinite(n) && n >= 0) setEntry(index, { total: n });
+                    }}
+                    className="w-full pl-6 pr-2 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-sm font-bold text-stone-800 dark:text-stone-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                  />
+                </div>
+
+                {/* Scan */}
+                <button
+                  type="button"
+                  aria-label="Escanear precio con la cámara"
+                  onClick={() => onScan(index)}
+                  className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-market-300 transition active:scale-95 text-base"
+                >
+                  📷
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addEntry}
+            className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400 text-xs font-bold hover:border-market-300 hover:text-market-600 transition active:scale-[0.99]"
+          >
+            ＋ Agregar {byWeight ? 'otro paquete pesado' : 'otra bandeja / otro precio'}
+          </button>
+        </div>
+
+        {/* Running line summary */}
+        <div className="flex items-center justify-between bg-market-50 dark:bg-market-900/20 border border-market-200 dark:border-market-800 rounded-xl px-3 py-2 mb-3">
+          <span className="text-sm text-market-700 dark:text-market-300 font-medium">
+            {fmtQty(totalQty)} {unitLabel} en total
+          </span>
+          <span className="font-bold text-market-700 dark:text-market-300 tabular-nums">
+            {lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : 'sin precio'}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div className="space-y-2 pb-[env(safe-area-inset-bottom)]">
+          {onMarkBought && (
+            <button
+              type="button"
+              onClick={() => { onMarkBought(); onClose(); }}
+              className="w-full py-3 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-sm transition active:scale-[0.98]"
+            >
+              🛒 Marcar como comprado
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition"
+          >
+            ✓ Listo
+          </button>
+          {onRemoveFromList && (
+            <button
+              type="button"
+              onClick={onRemoveFromList}
+              className="w-full py-2.5 rounded-2xl text-rose-500 font-semibold text-xs hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+            >
+              🚫 No estaba en el súper — quitar de la lista
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
