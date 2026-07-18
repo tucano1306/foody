@@ -35,8 +35,27 @@ type Filter = 'all' | 'urgent' | 'low';
  */
 interface PriceEntry {
   qty: number;
+  /** Total paid for this batch (mode 'unit'): what the sticker says. */
   total: number | null;
   label?: string;
+  /** 'unit' (default): qty units + batch total. 'lb': qty pounds + price per
+   * pound — the app multiplies (produce like tomatoes/onions/limes is sold
+   * both ways, so each entry picks its own mode). */
+  mode?: 'unit' | 'lb';
+  /** Price per pound (mode 'lb'). */
+  unitPrice?: number | null;
+}
+
+/** Effective money of one entry regardless of its mode. */
+function entryTotal(e: PriceEntry): number {
+  if (e.mode === 'lb') {
+    return e.unitPrice != null && e.qty > 0 ? Math.round(e.qty * e.unitPrice * 100) / 100 : 0;
+  }
+  return e.total ?? 0;
+}
+
+function entryHasPrice(e: PriceEntry): boolean {
+  return e.mode === 'lb' ? e.unitPrice != null : e.total !== null;
 }
 
 interface PersistedState {
@@ -71,6 +90,15 @@ function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural;
 }
 
+/** Accent/case-insensitive haystack match: "vitáminas" finds "Vitaminas". */
+function normalizeText(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function textMatches(haystack: string, normalizedNeedle: string): boolean {
+  return normalizeText(haystack).includes(normalizedNeedle);
+}
+
 /** Sold-by-weight heuristic from the product's unit (lb, libras, kg, oz…). */
 function isWeightUnit(unit: string | null | undefined): boolean {
   if (!unit) return false;
@@ -85,7 +113,7 @@ function entriesQty(entries: PriceEntry[] | undefined, fallback: number): number
 
 function entriesTotal(entries: PriceEntry[] | undefined): number {
   if (!entries) return 0;
-  return entries.reduce((s, e) => s + (e.total ?? 0), 0);
+  return entries.reduce((s, e) => s + entryTotal(e), 0);
 }
 
 function defaultEntries(item: ShoppingListItem): PriceEntry[] {
@@ -365,13 +393,14 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   }
 
   // ─── Search + filters (cover BOTH pending and purchased) ────────────────────
-  const q = search.trim().toLowerCase();
+  const q = normalizeText(search.trim());
 
   function matches(item: ShoppingListItem): boolean {
     if (q) {
-      const name = item.product.name.toLowerCase();
-      const cat = (item.product.category ?? 'Sin categoría').toLowerCase();
-      if (!name.includes(q) && !cat.includes(q)) return false;
+      if (
+        !textMatches(item.product.name, q) &&
+        !textMatches(item.product.category ?? 'Sin categoría', q)
+      ) return false;
     }
     if (categoryFilter && (item.product.category ?? 'Sin categoría') !== categoryFilter) return false;
     return true;
@@ -624,14 +653,25 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       {searching && visiblePending.length === 0 && visiblePurchased.length === 0 && (
         <div className="text-center py-8 bg-white dark:bg-stone-900 rounded-2xl border border-dashed border-stone-200 dark:border-stone-700">
           <p className="text-3xl mb-2">🔍</p>
-          <p className="text-sm text-stone-500 dark:text-stone-400">No hay productos que coincidan</p>
-          <button
-            type="button"
-            onClick={() => { setSearch(''); setFilter('all'); setCategoryFilter(null); }}
-            className="mt-3 px-4 py-1.5 rounded-full text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition"
-          >
-            Limpiar filtros
-          </button>
+          <p className="text-sm text-stone-500 dark:text-stone-400">No está en la lista de hoy</p>
+          {search.trim() && (
+            <button
+              type="button"
+              onClick={() => setShowAddSheet(true)}
+              className="mt-3 px-4 py-2 rounded-xl text-xs font-bold bg-market-600 hover:bg-market-700 text-white transition active:scale-95 shadow-sm"
+            >
+              ＋ Buscar «{search.trim()}» en tu despensa y agregarlo
+            </button>
+          )}
+          <p className="mt-2">
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setFilter('all'); setCategoryFilter(null); }}
+              className="px-4 py-1.5 rounded-full text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition"
+            >
+              Limpiar filtros
+            </button>
+          </p>
         </div>
       )}
 
@@ -751,7 +791,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             const item = items.find((i) => i.product.id === scanTarget.productId);
             if (item) {
               updateEntries(scanTarget.productId, (prev) =>
-                prev.map((e, idx) => (idx === scanTarget.index ? { ...e, total: price } : e)),
+                prev.map((e, idx) => {
+                  if (idx !== scanTarget.index) return e;
+                  // In lb mode the sticker price is per pound; otherwise it's
+                  // the batch total.
+                  return e.mode === 'lb' ? { ...e, unitPrice: price } : { ...e, total: price };
+                }),
               item);
             }
             setScanTarget(null);
@@ -765,6 +810,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       {showAddSheet && (
         <AddProductSheet
           existingProductIds={new Set(items.map((i) => i.product.id))}
+          initialQuery={search.trim()}
           onAdded={handleAdded}
           onClose={() => setShowAddSheet(false)}
         />
@@ -899,10 +945,14 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                     </div>
                     <p className="text-[11px] text-stone-400 mt-0.5">
                       {fmtQty(qty)} {item.product.unit || 'unid.'}
-                      {list.filter((e) => e.total !== null).length > 1 && (
+                      {list.filter(entryHasPrice).length > 1 && (
                         <> · {list
-                          .filter((e) => e.total !== null)
-                          .map((e, i) => `${e.label?.trim() || `#${i + 1}`} $${(e.total ?? 0).toFixed(2)}`)
+                          .filter(entryHasPrice)
+                          .map((e, i) => {
+                            const name = e.label?.trim() || `#${i + 1}`;
+                            const money = entryTotal(e).toFixed(2);
+                            return e.mode === 'lb' ? `${name} ${fmtQty(e.qty)} lb $${money}` : `${name} $${money}`;
+                          })
                           .join(' · ')}</>
                       )}
                     </p>
@@ -1181,73 +1231,139 @@ function PriceEditorSheet({
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {/* Quantity */}
-                <div className="flex items-center gap-0.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-0.5">
-                  <button
-                    type="button"
-                    aria-label="Menos"
-                    onClick={() => setEntry(index, { qty: Math.max(qtyStep, Math.round((entry.qty - qtyStep) * 100) / 100) })}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="any"
-                    aria-label={`Cantidad (${unitLabel})`}
-                    value={entry.qty === 0 ? '' : entry.qty}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const n = e.target.value === '' ? 0 : Number(e.target.value);
-                      if (Number.isFinite(n) && n >= 0) setEntry(index, { qty: n });
-                    }}
-                    className="w-12 text-center text-sm font-bold text-stone-800 dark:text-stone-100 bg-transparent focus:outline-none tabular-nums"
-                  />
-                  <button
-                    type="button"
-                    aria-label="Más"
-                    onClick={() => setEntry(index, { qty: Math.round((entry.qty + qtyStep) * 100) / 100 })}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
-                  >
-                    ＋
-                  </button>
-                  <span className="text-[10px] text-stone-400 pr-1.5">{unitLabel}</span>
-                </div>
+              {(() => {
+                const mode: 'unit' | 'lb' = entry.mode ?? (byWeight ? 'lb' : 'unit');
+                const step = mode === 'lb' ? 0.25 : 1;
+                const qtyLabel = mode === 'lb' ? 'lb' : unitLabel;
+                const computed = entryTotal(entry);
+                return (
+                  <>
+                    {/* Mode toggle: sold by unit or by the pound */}
+                    <div className="flex gap-1.5 mb-2">
+                      <button
+                        type="button"
+                        aria-pressed={mode === 'unit'}
+                        onClick={() => setEntry(index, { mode: 'unit' })}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition active:scale-95 ${
+                          mode === 'unit'
+                            ? 'bg-market-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-500'
+                        }`}
+                      >
+                        📦 Por unidad
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={mode === 'lb'}
+                        onClick={() => setEntry(index, { mode: 'lb' })}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition active:scale-95 ${
+                          mode === 'lb'
+                            ? 'bg-market-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-500'
+                        }`}
+                      >
+                        ⚖️ Por libra
+                      </button>
+                    </div>
 
-                {/* Price of this batch */}
-                <div className="relative flex-1 min-w-0">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="0.01"
-                    aria-label="Precio de este paquete"
-                    value={entry.total ?? ''}
-                    placeholder="0.00"
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === '') { setEntry(index, { total: null }); return; }
-                      const n = Number(raw);
-                      if (Number.isFinite(n) && n >= 0) setEntry(index, { total: n });
-                    }}
-                    className="w-full pl-6 pr-2 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-sm font-bold text-stone-800 dark:text-stone-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-market-300 transition"
-                  />
-                </div>
+                    <div className="flex items-center gap-2">
+                      {/* Quantity (units or pounds) */}
+                      <div className="flex items-center gap-0.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-0.5">
+                        <button
+                          type="button"
+                          aria-label="Menos"
+                          onClick={() => setEntry(index, { qty: Math.max(step, Math.round((entry.qty - step) * 100) / 100) })}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="any"
+                          aria-label={`Cantidad (${qtyLabel})`}
+                          value={entry.qty === 0 ? '' : entry.qty}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const n = e.target.value === '' ? 0 : Number(e.target.value);
+                            if (Number.isFinite(n) && n >= 0) setEntry(index, { qty: n });
+                          }}
+                          className="w-12 text-center text-sm font-bold text-stone-800 dark:text-stone-100 bg-transparent focus:outline-none tabular-nums"
+                        />
+                        <button
+                          type="button"
+                          aria-label="Más"
+                          onClick={() => setEntry(index, { qty: Math.round((entry.qty + step) * 100) / 100 })}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
+                        >
+                          ＋
+                        </button>
+                        <span className="text-[10px] text-stone-400 pr-1.5">{qtyLabel}</span>
+                      </div>
 
-                {/* Scan */}
-                <button
-                  type="button"
-                  aria-label="Escanear precio con la cámara"
-                  onClick={() => onScan(index)}
-                  className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-market-300 transition active:scale-95 text-base"
-                >
-                  📷
-                </button>
-              </div>
+                      {/* Price: batch total (unit) or price per pound (lb) */}
+                      <div className="relative flex-1 min-w-0">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
+                        {mode === 'lb' ? (
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="0.01"
+                            aria-label="Precio por libra"
+                            value={entry.unitPrice ?? ''}
+                            placeholder="precio/lb"
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') { setEntry(index, { unitPrice: null }); return; }
+                              const n = Number(raw);
+                              if (Number.isFinite(n) && n >= 0) setEntry(index, { unitPrice: n });
+                            }}
+                            className="w-full pl-6 pr-2 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-sm font-bold text-stone-800 dark:text-stone-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="0.01"
+                            aria-label="Precio de este paquete"
+                            value={entry.total ?? ''}
+                            placeholder="0.00"
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') { setEntry(index, { total: null }); return; }
+                              const n = Number(raw);
+                              if (Number.isFinite(n) && n >= 0) setEntry(index, { total: n });
+                            }}
+                            className="w-full pl-6 pr-2 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-sm font-bold text-stone-800 dark:text-stone-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                          />
+                        )}
+                      </div>
+
+                      {/* Scan */}
+                      <button
+                        type="button"
+                        aria-label="Escanear precio con la cámara"
+                        onClick={() => onScan(index)}
+                        className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-market-300 transition active:scale-95 text-base"
+                      >
+                        📷
+                      </button>
+                    </div>
+
+                    {/* The app does the math: lbs × $/lb */}
+                    {mode === 'lb' && (
+                      <p className="mt-1.5 text-[11px] font-semibold text-market-700 dark:text-market-300 tabular-nums">
+                        {entry.unitPrice != null && entry.qty > 0
+                          ? `${fmtQty(entry.qty)} lb × $${entry.unitPrice.toFixed(2)}/lb = $${computed.toFixed(2)}`
+                          : 'Pon las libras y el precio por libra — la app calcula el total.'}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ))}
 
@@ -1331,17 +1447,19 @@ interface PantryPick {
  */
 function AddProductSheet({
   existingProductIds,
+  initialQuery,
   onAdded,
   onClose,
 }: {
   readonly existingProductIds: ReadonlySet<string>;
+  readonly initialQuery?: string;
   readonly onAdded: (item: ShoppingListItem) => void;
   readonly onClose: () => void;
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<PantryPick[]>([]);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery ?? '');
   const [addingId, setAddingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1372,10 +1490,10 @@ function AddProductSheet({
   }, []);
 
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeText(query.trim());
     const pool = products.filter((p) => !existingProductIds.has(p.id));
     const filtered = q
-      ? pool.filter((p) => p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q))
+      ? pool.filter((p) => textMatches(p.name, q) || textMatches(p.category ?? '', q))
       : pool;
     // Faltantes primero (lo más probable que quieras re-agregar), luego A-Z.
     return [...filtered].sort((a, b) => {
