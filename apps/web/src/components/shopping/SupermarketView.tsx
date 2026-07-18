@@ -27,13 +27,16 @@ type Filter = 'all' | 'urgent' | 'low';
 
 /**
  * One priced batch of a product: a meat tray with its own sticker, a bag of
- * produce weighed at the scale, or N identical units. `qty` is how many
- * units/lbs the batch has and `total` what that batch costs altogether.
- * A product can hold several entries (e.g. two trays with different prices).
+ * produce weighed at the scale, a large vs. small bottle of the same thing,
+ * or N identical units. `qty` is how many units/lbs the batch has and `total`
+ * what that batch costs altogether. A product can hold several entries (two
+ * trays, or one olive oil grande + one pequeño, each with its own price);
+ * `label` is an optional user note to tell the entries apart.
  */
 interface PriceEntry {
   qty: number;
   total: number | null;
+  label?: string;
 }
 
 interface PersistedState {
@@ -855,8 +858,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                     </div>
                     <p className="text-[11px] text-stone-400 mt-0.5">
                       {fmtQty(qty)} {item.product.unit || 'unid.'}
-                      {list.filter((e) => e.total !== null).length > 1 &&
-                        ` · ${list.filter((e) => e.total !== null).length} precios`}
+                      {list.filter((e) => e.total !== null).length > 1 && (
+                        <> · {list
+                          .filter((e) => e.total !== null)
+                          .map((e, i) => `${e.label?.trim() || `#${i + 1}`} $${(e.total ?? 0).toFixed(2)}`)
+                          .join(' · ')}</>
+                      )}
                     </p>
                   </button>
                 );
@@ -1111,7 +1118,7 @@ function PriceEditorSheet({
           <p className="text-[11px] text-indigo-700 dark:text-indigo-300 leading-snug">
             {byWeight
               ? `Pesa y anota lo que dice la balanza: cuántas ${unitLabel} y cuánto costó ese paquete. Si llevas varios paquetes, agrega una línea por cada uno.`
-              : 'Cada línea es un paquete o bandeja con su precio. ¿Dos bandejas de carne con precios distintos? Agrega una línea para cada una.'}
+              : 'Cada línea es un empaque con su precio. ¿Dos bandejas de carne, o un aceite grande y uno pequeño con precios distintos? Agrega una línea para cada uno y ponle una nota para distinguirlos.'}
           </p>
         </div>
 
@@ -1120,10 +1127,22 @@ function PriceEditorSheet({
           {entries.map((entry, index) => (
             // eslint-disable-next-line react/no-array-index-key
             <div key={index} className="bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5 border border-stone-100 dark:border-stone-700">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wide">
-                  {entries.length > 1 ? `${byWeight ? 'Paquete' : 'Bandeja'} ${index + 1}` : 'Cantidad y precio'}
-                </span>
+              <div className="flex items-center justify-between mb-2 gap-2">
+                {entries.length > 1 ? (
+                  <input
+                    type="text"
+                    aria-label={`Nota del empaque ${index + 1}`}
+                    value={entry.label ?? ''}
+                    placeholder={`${byWeight ? 'Paquete' : 'Empaque'} ${index + 1} · nota (ej. grande)`}
+                    maxLength={30}
+                    onChange={(e) => setEntry(index, { label: e.target.value })}
+                    className="flex-1 min-w-0 text-[11px] font-bold text-stone-600 dark:text-stone-300 uppercase tracking-wide bg-transparent border-b border-dashed border-stone-200 dark:border-stone-700 focus:outline-none focus:border-market-400 placeholder:normal-case placeholder:font-normal placeholder:text-stone-400 pb-0.5"
+                  />
+                ) : (
+                  <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wide">
+                    Cantidad y precio
+                  </span>
+                )}
                 {entries.length > 1 && (
                   <button
                     type="button"
@@ -1210,7 +1229,7 @@ function PriceEditorSheet({
             onClick={addEntry}
             className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400 text-xs font-bold hover:border-market-300 hover:text-market-600 transition active:scale-[0.99]"
           >
-            ＋ Agregar {byWeight ? 'otro paquete pesado' : 'otra bandeja / otro precio'}
+            ＋ Agregar otro {byWeight ? 'paquete pesado' : 'empaque con distinto precio'}
           </button>
         </div>
 
