@@ -12,6 +12,7 @@ import MonthlyExpenseSummary from '@/components/home/MonthlyExpenseSummary';
 import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
 import SectionHeader from '@/components/layout/SectionHeader';
+import Reveal from '@/components/layout/Reveal';
 import GreetingToast from '@/components/home/GreetingToast';
 import type { Metadata } from 'next';
 import type { Product, MonthlyPayment } from '@foody/types';
@@ -70,21 +71,18 @@ export default async function HomePage() {
         />
       </div>
 
-      {/* ─── Despensa (lo más accionable: agotados → poco → todos) ──────────── */}
-      <section className="space-y-5">
-        <SectionHeader emoji="🥑" title="Mi despensa" centered />
-        <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} />
-      </section>
+      {/* ─── Productos primero, luego despensa (headers dentro del shell) ───── */}
+      <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} />
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
-      <section className="space-y-5">
-        <SectionHeader emoji="💰" title="Finanzas" centered />
+      <Reveal className="space-y-5">
+        <SectionHeader emoji="💰" title="Finanzas" tone="green" centered />
         <UpcomingPaymentsWidget payments={upcomingPayments} />
-      </section>
+      </Reveal>
 
       {/* ─── Stats y gráficas (resumen, debajo de lo accionable) ────────────── */}
-      <section className="space-y-5">
-        <SectionHeader emoji="📊" title="Resumen y estadísticas" centered />
+      <Reveal className="space-y-5">
+        <SectionHeader emoji="📊" title="Resumen y estadísticas" tone="violet" centered />
         <DashboardStats
           totalProducts={products.length}
           runningLowCount={runningLow.length}
@@ -105,7 +103,7 @@ export default async function HomePage() {
 
           <ExpensesByStore />
         </Suspense>
-      </section>
+      </Reveal>
     </div>
   );
 }
