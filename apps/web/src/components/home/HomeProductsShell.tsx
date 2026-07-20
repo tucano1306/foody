@@ -11,7 +11,8 @@ import Reveal from '@/components/layout/Reveal';
 type PurchaseEntry = { purchasedAt: string; storeName: string | null };
 type PurchaseRecord = Record<string, PurchaseEntry>;
 
-const INITIAL_VISIBLE = 4;
+// Pantry urgency blocks use denser, smaller cards, so a couple more fit before the fold.
+const DENSE_INITIAL_VISIBLE = 6;
 
 interface Props {
   readonly initialProducts: readonly Product[];
@@ -25,22 +26,28 @@ function ProductGrid({
   items,
   onLevelChange,
   lastPurchaseMap,
+  dense = false,
 }: {
   readonly items: readonly Product[];
   readonly onLevelChange: (id: string, level: StockLevel) => void;
   readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
+  /** Tighter grid (more columns, smaller cards) — used in the pantry urgency blocks. */
+  readonly dense?: boolean;
 }) {
   if (items.length === 1) {
     return (
       <div className="flex justify-center">
-        <div className="w-1/2 sm:w-1/3 md:w-1/4">
+        <div className={dense ? 'w-1/3 sm:w-1/4 md:w-1/5' : 'w-1/2 sm:w-1/3 md:w-1/4'}>
           <ProductCard product={items[0]} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[items[0].id]} />
         </div>
       </div>
     );
   }
+  const cols = dense
+    ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6'
+    : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4';
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+    <div className={`grid ${cols} ${dense ? 'gap-2.5' : 'gap-4'}`}>
       {items.map((p) => (
         <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[p.id]} />
       ))}
@@ -74,8 +81,8 @@ function CollapsibleSection({
   readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? items : items.slice(0, INITIAL_VISIBLE);
-  const hidden = items.length - INITIAL_VISIBLE;
+  const visible = expanded ? items : items.slice(0, DENSE_INITIAL_VISIBLE);
+  const hidden = items.length - DENSE_INITIAL_VISIBLE;
 
   const plural = hidden === 1 ? '' : 's';
   const toggleLabel = expanded ? '▲ Mostrar menos' : `▼ Ver ${hidden} producto${plural} más`;
@@ -83,7 +90,7 @@ function CollapsibleSection({
   return (
     <section className={`zone-card rounded-2xl border p-4 sm:p-5 shadow-sm ${SECTION_TONES[tone].card}`}>
       <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center justify-center gap-2 text-center">{title}</h2>
-      <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} />
+      <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} dense />
       {hidden > 0 && (
         <button
           type="button"
