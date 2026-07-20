@@ -468,6 +468,38 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent
   animation: foody-shake 0.5s ease both;
 }
 
+/* ─── Scroll reveal: sections slide+fade in as they enter the viewport ───── */
+.reveal-section {
+  opacity: 0;
+  transform: translateY(22px) scale(0.985);
+  transition: opacity 0.6s var(--ease-smooth), transform 0.6s var(--ease-smooth);
+  will-change: opacity, transform;
+}
+.reveal-section.reveal-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-section {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Section cards lift softly on hover so each zone feels tactile */
+.zone-card {
+  transition: transform 0.25s var(--ease-smooth), box-shadow 0.25s var(--ease-smooth);
+}
+@media (hover: hover) {
+  .zone-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px -12px rgba(28, 25, 23, 0.18);
+  }
+  html.dark .zone-card:hover {
+    box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.55);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

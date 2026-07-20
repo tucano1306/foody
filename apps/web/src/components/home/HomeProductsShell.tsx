@@ -5,6 +5,8 @@ import Link from 'next/link';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from '@/components/products/ProductCard';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
+import SectionHeader from '@/components/layout/SectionHeader';
+import Reveal from '@/components/layout/Reveal';
 
 type PurchaseEntry = { purchasedAt: string; storeName: string | null };
 type PurchaseRecord = Record<string, PurchaseEntry>;
@@ -79,7 +81,7 @@ function CollapsibleSection({
   const toggleLabel = expanded ? '▲ Mostrar menos' : `▼ Ver ${hidden} producto${plural} más`;
 
   return (
-    <section className={`rounded-2xl border p-4 sm:p-5 shadow-sm ${SECTION_TONES[tone].card}`}>
+    <section className={`zone-card rounded-2xl border p-4 sm:p-5 shadow-sm ${SECTION_TONES[tone].card}`}>
       <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center justify-center gap-2 text-center">{title}</h2>
       <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} />
       {hidden > 0 && (
@@ -126,28 +128,10 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
   return (
     <>
-      {empty.length > 0 && (
-        <CollapsibleSection
-          title={<><span className="text-rose-700 dark:text-rose-400">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-rose-400">({empty.length})</span></>}
-          tone="rose"
-          items={empty}
-          onLevelChange={handleLevelChange}
-          lastPurchaseMap={lastPurchaseMap}
-        />
-      )}
-
-      {low.length > 0 && (
-        <CollapsibleSection
-          title={<><span className="text-amber-700 dark:text-amber-400">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-amber-400">({low.length})</span></>}
-          tone="amber"
-          items={low}
-          onLevelChange={handleLevelChange}
-          lastPurchaseMap={lastPurchaseMap}
-        />
-      )}
-
-      {/* ─── Todos los productos ─────────────────────────────────────────── */}
-      <section className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 p-4 sm:p-5 shadow-sm">
+      {/* ─── Todos los productos (búsqueda + catálogo, primero) ──────────── */}
+      <Reveal className="space-y-5">
+        <SectionHeader emoji="🛒" title="Productos" tone="green" centered />
+        <section className="zone-card bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 p-4 sm:p-5 shadow-sm">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-4">
           <span aria-hidden="true" />
           <h2 className="text-base sm:text-lg font-bold text-stone-700 dark:text-stone-200 truncate text-center">
@@ -180,7 +164,35 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
             inCartProductIds={inCartProductIds}
           />
         )}
-      </section>
+        </section>
+      </Reveal>
+
+      {/* ─── Mi despensa (urgencias: agotados → queda poco) ──────────────── */}
+      {(empty.length > 0 || low.length > 0) && (
+        <Reveal className="space-y-5">
+          <SectionHeader emoji="🥑" title="Mi despensa" tone="amber" centered />
+
+          {empty.length > 0 && (
+            <CollapsibleSection
+              title={<><span className="text-rose-700 dark:text-rose-400">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-rose-400">({empty.length})</span></>}
+              tone="rose"
+              items={empty}
+              onLevelChange={handleLevelChange}
+              lastPurchaseMap={lastPurchaseMap}
+            />
+          )}
+
+          {low.length > 0 && (
+            <CollapsibleSection
+              title={<><span className="text-amber-700 dark:text-amber-400">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-amber-400">({low.length})</span></>}
+              tone="amber"
+              items={low}
+              onLevelChange={handleLevelChange}
+              lastPurchaseMap={lastPurchaseMap}
+            />
+          )}
+        </Reveal>
+      )}
     </>
   );
 }
