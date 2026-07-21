@@ -258,13 +258,8 @@ function mapStore(row: Record<string, unknown>): Store {
 export const api = {
   products: {
     list: async (): Promise<Product[]> => {
-      const { userId, householdId } = await getAuthContext();
-      // Shared pantry: show every product in the household, not just the ones
-      // the current user created. Products are written with both user_id and
-      // household_id, so filtering by user_id alone hid a household member's items.
-      const rows = householdId
-        ? await sql`SELECT * FROM products WHERE household_id = ${householdId} ORDER BY name ASC`
-        : await sql`SELECT * FROM products WHERE user_id = ${userId} ORDER BY name ASC`;
+      const { userId } = await getAuthContext();
+      const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} ORDER BY name ASC`;
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
     },
     runningLow: async (): Promise<Product[]> => {
