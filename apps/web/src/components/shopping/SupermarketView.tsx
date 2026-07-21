@@ -613,32 +613,22 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
 
         {availableCategories.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-0.5">
-            <button
-              onClick={() => setCategoryFilter(null)}
-              aria-pressed={categoryFilter === null}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${
-                categoryFilter === null
-                  ? 'bg-stone-700 text-white shadow-sm'
-                  : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400'
-              }`}
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">📂</span>
+            <select
+              value={categoryFilter ?? ''}
+              onChange={(e) => setCategoryFilter(e.target.value || null)}
+              aria-label="Filtrar por categoría"
+              className="w-full appearance-none pl-9 pr-9 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-market-300 transition cursor-pointer"
             >
-              📂 Todas
-            </button>
-            {availableCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
-                aria-pressed={categoryFilter === cat}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${
-                  categoryFilter === cat
-                    ? 'bg-stone-700 text-white shadow-sm'
-                    : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-stone-400'
-                }`}
-              >
-                {categoryEmoji(cat)} {cat}
-              </button>
-            ))}
+              <option value="">📂 Todas las categorías</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {categoryEmoji(cat)} {cat}
+                </option>
+              ))}
+            </select>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">▾</span>
           </div>
         )}
       </div>
