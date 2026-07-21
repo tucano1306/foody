@@ -621,7 +621,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               aria-label="Filtrar por categoría"
               className="w-full appearance-none pl-9 pr-9 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-market-300 transition cursor-pointer"
             >
-              <option value="">📂 Todas las categorías</option>
+              <option value="">Todas las categorías</option>
               {availableCategories.map((cat) => (
                 <option key={cat} value={cat}>
                   {categoryEmoji(cat)} {cat}
