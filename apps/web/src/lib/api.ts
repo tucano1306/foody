@@ -2,6 +2,7 @@ import { getSession } from './session';
 import { sql } from './db';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
+import { ensureProductSharingSchema } from './ensure-schema';
 import { randomUUID } from 'node:crypto';
 
 interface PushSubscriptionJSON {
@@ -92,6 +93,7 @@ function mapProduct(row: Record<string, unknown>): Product {
     needsShopping: Boolean(row.needs_shopping),
     status: getProductStatus(stockLevel),
     userId: String(row.user_id),
+    isPrivate: Boolean(row.is_private),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
     lastPurchasePrice: row.last_purchase_price == null ? null : asNumber(row.last_purchase_price),
@@ -221,6 +223,7 @@ function mapShoppingListItem(row: Record<string, unknown>): ShoppingListItem {
       needsShopping: Boolean(row.product_needs_shopping),
       status: getProductStatus((row.product_stock_level as StockLevel | undefined) ?? 'full'),
       userId: asText(row.product_user_id, String(row.user_id)),
+      isPrivate: Boolean(row.product_is_private),
       createdAt: row.product_created_at ? asIsoString(row.product_created_at) : asIsoString(row.created_at),
       updatedAt: row.product_updated_at ? asIsoString(row.product_updated_at) : asIsoString(row.updated_at),
       lastPurchasePrice: row.product_last_purchase_price == null ? null : asNumber(row.product_last_purchase_price),
@@ -258,8 +261,20 @@ function mapStore(row: Record<string, unknown>): Store {
 export const api = {
   products: {
     list: async (): Promise<Product[]> => {
-      const { userId } = await getAuthContext();
-      const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} ORDER BY name ASC`;
+      const { userId, householdId } = await getAuthContext();
+      await ensureProductSharingSchema();
+      // Shared pantry: I always see all of MY OWN products (private or not),
+      // PLUS non-private products shared by other members of my household.
+      // The user_id clause guarantees my own products can never disappear, even
+      // legacy rows whose household_id is still NULL.
+      const rows = householdId
+        ? await sql`
+            SELECT * FROM products
+            WHERE user_id = ${userId}
+               OR (household_id = ${householdId} AND is_private = false)
+            ORDER BY name ASC
+          `
+        : await sql`SELECT * FROM products WHERE user_id = ${userId} ORDER BY name ASC`;
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
     },
     runningLow: async (): Promise<Product[]> => {

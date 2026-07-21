@@ -55,3 +55,21 @@ export async function ensurePurchaseSchema(): Promise<void> {
 
   schemaEnsured = true;
 }
+
+let sharingEnsured = false;
+
+/**
+ * Ensures the products table has the `is_private` column that powers
+ * household pantry sharing. Idempotent (ADD COLUMN IF NOT EXISTS) and gated by
+ * an in-memory flag so it runs at most once per cold start.
+ *
+ * Safety: the column defaults to TRUE (private) so every existing product stays
+ * owner-only until the user deliberately marks it "Compartido con el hogar".
+ * A product is shared only when BOTH is_private = false AND household_id matches
+ * the viewer's household — nothing becomes visible to other members on rollout.
+ */
+export async function ensureProductSharingSchema(): Promise<void> {
+  if (sharingEnsured) return;
+  await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT true`;
+  sharingEnsured = true;
+}

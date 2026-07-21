@@ -23,6 +23,9 @@ export async function DELETE(request: NextRequest) {
     await sql`DELETE FROM households WHERE id = ${householdId}`;
   } else {
     await sql`UPDATE users SET household_id = NULL, updated_at = now() WHERE id = ${user.userId}`;
+    // Stop sharing my pantry with a household I no longer belong to: detach my
+    // products from its namespace so remaining members can't see them anymore.
+    await sql`UPDATE products SET household_id = NULL, updated_at = now() WHERE user_id = ${user.userId} AND household_id = ${householdId}`;
   }
 
   return new NextResponse(null, { status: 204 });

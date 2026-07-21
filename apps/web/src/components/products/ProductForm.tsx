@@ -303,7 +303,9 @@ export default function ProductForm({ product, inHousehold }: Props) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
-  const [isPrivate, setIsPrivate] = useState(false);
+  // Opt-in sharing: new products start private; editing shows the product's
+  // current setting so a legacy product is never shared just by being saved.
+  const [isPrivate, setIsPrivate] = useState(product?.isPrivate ?? true);
 
   const [form, setForm] = useState<CreateProductDto>({
     name: product?.name ?? '',
@@ -530,8 +532,8 @@ export default function ProductForm({ product, inHousehold }: Props) {
         />
       </div>
 
-      {/* ─── Private toggle (only when in a household) ───────────────────── */}
-      {inHousehold && !product && (
+      {/* ─── Sharing toggle (when in a household — on create and edit) ────── */}
+      {inHousehold && (
         <button
           type="button"
           onClick={() => setIsPrivate((v) => !v)}

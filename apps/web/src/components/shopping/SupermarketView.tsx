@@ -1543,6 +1543,7 @@ function AddProductSheet({
           needsShopping: true,
           status: 'low',
           userId: '',
+          isPrivate: false,
           createdAt: now,
           updatedAt: now,
           lastPurchasePrice: p.lastPurchasePrice,

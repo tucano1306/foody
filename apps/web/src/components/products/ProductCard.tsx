@@ -45,6 +45,11 @@ interface Props {
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
   readonly onDelete?: (id: string) => void;
   readonly lastPurchase?: LastPurchase;
+  /** The id of the signed-in user. When set and the product belongs to another
+   * household member (shared pantry), the card is read-only: no stock changes,
+   * edit, gift or delete — only the owner manages their own products. Omitted
+   * on screens where every product is the viewer's own (default = owned). */
+  readonly currentUserId?: string;
 }
 
 const LEVEL_CONFIG: Record<
@@ -117,8 +122,11 @@ function latestPurchaseDate(a?: string | null, b?: string | null): string | null
   return new Date(a) >= new Date(b) ? a : b;
 }
 
-export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, onDelete, lastPurchase }: Props) {
+export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, onDelete, lastPurchase, currentUserId }: Props) {
   const router = useRouter();
+  // Shared pantry: a product from another member is view-only for me.
+  const owned = !currentUserId || product.userId === currentUserId;
+  const canAct = owned && showActions;
   const [isPending, startTransition] = useTransition();
   const [current, setCurrent] = useState(product);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -142,7 +150,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const [popKey, setPopKey] = useState(0);
 
   function setLevel(next: StockLevel) {
-    if (next === level || isPending) return;
+    if (!owned || next === level || isPending) return;
 
     haptic(next === 'empty' ? [15, 40, 20] : 10);
 
@@ -188,7 +196,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   const borderCls = getBorderCls(level);
 
   const swipe = useSwipe(
-    compact ? {} : { onSwipeLeft: () => setLevel('empty'), onSwipeRight: () => setLevel('full') },
+    compact || !owned ? {} : { onSwipeLeft: () => setLevel('empty'), onSwipeRight: () => setLevel('full') },
   );
 
   async function performDelete() {
@@ -223,6 +231,11 @@ export default function ProductCard({ product, showActions = false, compact = fa
         <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
         {cfg.short}
       </span>
+      {!owned && (
+        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 bg-brand-500/90 text-white shadow-sm">
+          🤝 Compartido
+        </span>
+      )}
       {level === 'empty' && (
         <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
       )}
@@ -263,7 +276,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           )}
         </div>
       )}
-      {showActions && (
+      {canAct && (
         <div className="mt-2 pb-1 flex gap-1.5">
           <Link
             href={`/products/${current.id}`}
@@ -294,8 +307,8 @@ export default function ProductCard({ product, showActions = false, compact = fa
           <button ref={photoRef} type="button" onClick={openLightbox} className="w-full text-left focus:outline-none">
             {photoSection}
           </button>
-          {/* Info → opens action sheet */}
-          <button type="button" onClick={() => setSheetOpen(true)} className="w-full text-left focus:outline-none flex-1">
+          {/* Info → opens action sheet (owner only; shared items are view-only) */}
+          <button type="button" onClick={owned ? () => setSheetOpen(true) : undefined} className="w-full text-left focus:outline-none flex-1">
             {infoSection}
           </button>
         </div>
@@ -338,8 +351,8 @@ export default function ProductCard({ product, showActions = false, compact = fa
         ) : (
           <button
             type="button"
-            aria-label={`Opciones de ${current.name}`}
-            onClick={() => setSheetOpen(true)}
+            aria-label={owned ? `Opciones de ${current.name}` : current.name}
+            onClick={owned ? () => setSheetOpen(true) : undefined}
             className="absolute inset-0 w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 focus:outline-none"
           />
         )}
@@ -347,6 +360,11 @@ export default function ProductCard({ product, showActions = false, compact = fa
           <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
           {cfg.short}
         </span>
+        {!owned && (
+          <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 bg-brand-500/90 text-white shadow-sm">
+            🤝 Compartido
+          </span>
+        )}
         {level === 'empty' && (
           <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
         )}
@@ -355,7 +373,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
       {/* ─── Info ────────────────────────────────────────────────────────── */}
       <button
         type="button"
-        onClick={() => setSheetOpen(true)}
+        onClick={owned ? () => setSheetOpen(true) : undefined}
         className="w-full text-left p-2 focus:outline-none"
       >
         <p className="font-semibold text-stone-800 text-xs truncate">{current.name}</p>
@@ -400,7 +418,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           { label: 'Marcar como "Tengo"', emoji: '✅', current: level === 'full', onClick: () => setLevel('full') },
           { label: 'Marcar como "A la mitad"', emoji: '⚠️', current: level === 'half', onClick: () => setLevel('half') },
           { label: 'Marcar como "Se acabó"', emoji: '🚨', current: level === 'empty', onClick: () => setLevel('empty') },
-          ...(showActions ? [
+          ...(canAct ? [
             { label: 'Editar producto', emoji: '✏️', onClick: () => router.push(`/products/${current.id}`) },
             { label: 'Enviar a un amigo', emoji: '🎁', onClick: () => setGiftOpen(true) },
             { label: 'Eliminar producto', emoji: '🗑️', destructive: true, onClick: () => setConfirmDelete(true) },

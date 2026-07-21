@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { api } from '@/lib/api';
+import { getSession } from '@/lib/session';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
 import ModernTitle from '@/components/layout/ModernTitle';
 import type { Metadata } from 'next';
@@ -8,6 +9,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Mis Productos' };
 
 export default async function ProductsPage() {
+  const session = await getSession();
   const [products, lastPurchasesRaw, inCartIds] = await Promise.all([
     api.products.list().catch(() => [] as Awaited<ReturnType<typeof api.products.list>>),
     api.shoppingList.lastPurchases().catch(() => [] as { productId: string; purchasedAt: string; storeName: string | null }[]),
@@ -54,7 +56,7 @@ export default async function ProductsPage() {
         </div>
       ) : (
         <Suspense>
-          <ProductsBrowser products={products} showActions showStockFilter showHealthMeter pageSize={12} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} />
+          <ProductsBrowser products={products} showActions showStockFilter showHealthMeter pageSize={12} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} currentUserId={session.userId} />
         </Suspense>
       )}
     </div>
