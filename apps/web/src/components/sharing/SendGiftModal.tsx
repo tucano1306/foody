@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface Props {
@@ -11,17 +11,23 @@ interface Props {
 
 export default function SendGiftModal({ productId, productName, onClose }: Props) {
   const router = useRouter();
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, start] = useTransition();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Promote to the top layer so the modal escapes any transformed ancestor
+  // (product cards use hover:scale/-translate, which would otherwise trap a
+  // plain position:fixed overlay inside the card). Also locks background scroll.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    const el = dialogRef.current;
+    if (el && !el.open) el.showModal();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, []);
 
   function handleSubmit(e: React.BaseSyntheticEvent) {
     e.preventDefault();
@@ -44,27 +50,20 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
   }
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* Clickable backdrop */}
-      <button
-        type="button"
-        aria-label="Cerrar modal"
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm w-full h-full cursor-default border-0"
-        onClick={onClose}
-        tabIndex={-1}
-      />
-      {/* Dialog */}
-      <div className="absolute inset-0 flex items-end sm:items-center justify-center p-4 pointer-events-none">
-        <dialog
-          open
-          aria-label={`Enviar ${productName} a un amigo`}
-          className="relative w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-6 space-y-4 m-0 border-0 pointer-events-auto"
-        >
+    <dialog
+      ref={dialogRef}
+      onClose={onClose}
+      onClick={(e) => { if (e.target === dialogRef.current) onClose(); }}
+      aria-label={`Enviar ${productName} a un amigo`}
+      className="m-0 w-full max-w-none h-full max-h-none bg-transparent backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+    >
+      <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-none">
+        <div className="pointer-events-auto w-full sm:max-w-sm max-h-[92dvh] overflow-y-auto bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 space-y-4 animate-fade-up">
           {success ? (
             <div className="text-center py-4 space-y-3">
               <div className="text-5xl">🎁</div>
               <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">¡Regalo enviado!</h2>
-              <p className="text-sm text-gray-500">El destinatario recibirá una notificación en Compartir.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">El destinatario recibirá una notificación en Compartir.</p>
               <button
                 type="button"
                 onClick={onClose}
@@ -75,15 +74,25 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
             </div>
           ) : (
             <>
-              <div>
-                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">🎁 Enviar producto</h2>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Envía <span className="font-semibold text-gray-700 dark:text-gray-200">{productName}</span> a otro usuario de Foody
-                </p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">🎁 Enviar producto</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    Envía <span className="font-semibold text-gray-700 dark:text-gray-200">{productName}</span> a otro usuario de Foody
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Cerrar"
+                  className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 transition"
+                >
+                  ✕
+                </button>
               </div>
 
               {error && (
-                <p className="text-sm text-rose-600 bg-rose-50 rounded-xl px-3 py-2">{error}</p>
+                <p className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-xl px-3 py-2">{error}</p>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -95,6 +104,7 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
                     id="gift-email"
                     type="email"
                     required
+                    autoFocus
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError(null); }}
                     placeholder="amigo@ejemplo.com"
@@ -133,8 +143,8 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
               </form>
             </>
           )}
-        </dialog>
+        </div>
       </div>
-    </div>
+    </dialog>
   );
 }
