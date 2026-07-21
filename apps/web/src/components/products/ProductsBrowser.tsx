@@ -30,6 +30,9 @@ interface Props {
    * while the trip is in progress so Casa, Súper y Productos tell the same
    * story; the real stock update lands when the purchase is finalized. */
   readonly inCartProductIds?: readonly string[];
+  /** Signed-in user id — lets each card tell my products from a household
+   * member's shared ones (shared items render read-only). */
+  readonly currentUserId?: string;
 }
 
 const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
@@ -101,15 +104,17 @@ interface GridOptions {
   lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   onLevelChange?: (id: string, newLevel: StockLevel) => void;
   onDelete?: (id: string) => void;
+  currentUserId?: string;
 }
 
-function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelChange, onDelete }: {
+function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelChange, onDelete, currentUserId }: {
   readonly products: readonly Product[];
   readonly showActions: boolean;
   readonly compact: boolean;
   readonly lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
   readonly onLevelChange?: (id: string, newLevel: StockLevel) => void;
   readonly onDelete?: (id: string) => void;
+  readonly currentUserId?: string;
 }) {
   return (
     <div className={`grid gap-2 sm:gap-3 card-stagger ${showActions ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5'}`}>
@@ -122,6 +127,7 @@ function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelC
           lastPurchase={lastPurchaseMap?.[product.id]}
           onLevelChange={onLevelChange}
           onDelete={onDelete}
+          currentUserId={currentUserId}
         />
       ))}
     </div>
@@ -140,6 +146,7 @@ function renderGrid({
   lastPurchaseMap,
   onLevelChange,
   onDelete,
+  currentUserId,
 }: GridOptions): React.ReactNode {
   if (searchOnly && !trimmedQuery && !categoryActive) {
     return (
@@ -157,7 +164,7 @@ function renderGrid({
     );
   }
   return (
-    <ProductGrid products={visible} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} onDelete={onDelete} />
+    <ProductGrid products={visible} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} onDelete={onDelete} currentUserId={currentUserId} />
   );
 }
 
@@ -169,6 +176,7 @@ function renderGrouped({
   lastPurchaseMap,
   onLevelChange,
   onDelete,
+  currentUserId,
 }: Omit<GridOptions, 'visible' | 'trimmedQuery' | 'searchOnly' | 'categoryActive'>): React.ReactNode {
   if (filtered.length === 0) {
     return (
@@ -204,7 +212,7 @@ function renderGrouped({
                 {items.length} {items.length === 1 ? 'producto' : 'productos'}
               </span>
             </div>
-            <ProductGrid products={items} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} onDelete={onDelete} />
+            <ProductGrid products={items} showActions={showActions} compact={compact} lastPurchaseMap={lastPurchaseMap} onLevelChange={onLevelChange} onDelete={onDelete} currentUserId={currentUserId} />
           </section>
         );
       })}
@@ -225,6 +233,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     onLevelChange,
     showHealthMeter = false,
     inCartProductIds,
+    currentUserId,
   } = props;
 
   const searchParams = useSearchParams();
@@ -459,8 +468,8 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
       {/* Grid or Grouped */}
       {viewMode === 'categories' && !searchOnly
-        ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete })
-        : renderGrid({ searchOnly, trimmedQuery: query.trim(), categoryActive: categoryFilter !== ALL_CATEGORIES, filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete })}
+        ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete, currentUserId })
+        : renderGrid({ searchOnly, trimmedQuery: query.trim(), categoryActive: categoryFilter !== ALL_CATEGORIES, filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete, currentUserId })}
 
       {/* Pagination — only in grid mode */}
       {viewMode === 'grid' && totalPages > 1 && (

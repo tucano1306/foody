@@ -20,6 +20,8 @@ interface Props {
   /** Products already grabbed in the store (in cart in Modo Supermercado):
    * hidden from the "faltantes" sections while the trip is in progress. */
   readonly inCartProductIds?: readonly string[];
+  /** Signed-in user id — shared household products render read-only. */
+  readonly currentUserId?: string;
 }
 
 function ProductGrid({
@@ -27,18 +29,20 @@ function ProductGrid({
   onLevelChange,
   lastPurchaseMap,
   dense = false,
+  currentUserId,
 }: {
   readonly items: readonly Product[];
   readonly onLevelChange: (id: string, level: StockLevel) => void;
   readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
   /** Tighter grid (more columns, smaller cards) — used in the pantry urgency blocks. */
   readonly dense?: boolean;
+  readonly currentUserId?: string;
 }) {
   if (items.length === 1) {
     return (
       <div className="flex justify-center">
         <div className={dense ? 'w-1/3 sm:w-1/4 md:w-1/5' : 'w-1/2 sm:w-1/3 md:w-1/4'}>
-          <ProductCard product={items[0]} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[items[0].id]} />
+          <ProductCard product={items[0]} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[items[0].id]} currentUserId={currentUserId} />
         </div>
       </div>
     );
@@ -49,7 +53,7 @@ function ProductGrid({
   return (
     <div className={`grid ${cols} ${dense ? 'gap-2.5' : 'gap-4'}`}>
       {items.map((p) => (
-        <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[p.id]} />
+        <ProductCard key={p.id} product={p} onLevelChange={onLevelChange} lastPurchase={lastPurchaseMap?.[p.id]} currentUserId={currentUserId} />
       ))}
     </div>
   );
@@ -73,12 +77,14 @@ function CollapsibleSection({
   items,
   onLevelChange,
   lastPurchaseMap,
+  currentUserId,
 }: {
   readonly title: React.ReactNode;
   readonly tone: keyof typeof SECTION_TONES;
   readonly items: readonly Product[];
   readonly onLevelChange: (id: string, level: StockLevel) => void;
   readonly lastPurchaseMap?: Readonly<PurchaseRecord>;
+  readonly currentUserId?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? items : items.slice(0, DENSE_INITIAL_VISIBLE);
@@ -90,7 +96,7 @@ function CollapsibleSection({
   return (
     <section className={`zone-card rounded-2xl border p-4 sm:p-5 shadow-sm ${SECTION_TONES[tone].card}`}>
       <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center justify-center gap-2 text-center">{title}</h2>
-      <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} dense />
+      <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} dense currentUserId={currentUserId} />
       {hidden > 0 && (
         <button
           type="button"
@@ -104,7 +110,7 @@ function CollapsibleSection({
   );
 }
 
-export default function HomeProductsShell({ initialProducts, lastPurchaseMap: initialPurchaseMap, inCartProductIds }: Props) {
+export default function HomeProductsShell({ initialProducts, lastPurchaseMap: initialPurchaseMap, inCartProductIds, currentUserId }: Props) {
   const [products, setProducts] = useState<readonly Product[]>(initialProducts);
   const [lastPurchaseMap, setLastPurchaseMap] = useState<Readonly<PurchaseRecord> | undefined>(initialPurchaseMap);
 
@@ -169,6 +175,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
             lastPurchaseMap={lastPurchaseMap}
             onLevelChange={handleLevelChange}
             inCartProductIds={inCartProductIds}
+            currentUserId={currentUserId}
           />
         )}
         </section>
@@ -186,6 +193,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
               items={empty}
               onLevelChange={handleLevelChange}
               lastPurchaseMap={lastPurchaseMap}
+              currentUserId={currentUserId}
             />
           )}
 
@@ -196,6 +204,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
               items={low}
               onLevelChange={handleLevelChange}
               lastPurchaseMap={lastPurchaseMap}
+              currentUserId={currentUserId}
             />
           )}
         </Reveal>

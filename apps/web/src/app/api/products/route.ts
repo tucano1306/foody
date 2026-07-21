@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { ensureProductSharingSchema } from '@/lib/ensure-schema';
 import { randomUUID } from 'node:crypto';
 
 // GET /api/products
@@ -48,10 +49,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'name must be 255 characters or fewer' }, { status: 422 });
   }
 
-  // Per-user isolation: products are always created as personal (no
-  // household sharing). The isPrivate flag is kept for forward compat but
-  // has no effect under the per-user model.
-  const effectiveHouseholdId = null;
+  await ensureProductSharingSchema();
+
+  // Household pantry sharing: a product belongs to the creator's household
+  // namespace, and `is_private` decides whether other members can see it.
+  // Private products (or products created outside a household) stay owner-only.
+  const householdRows = await sql`SELECT household_id FROM users WHERE id = ${user.userId} LIMIT 1`;
+  const effectiveHouseholdId = (householdRows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
+  const isPrivate = body.isPrivate === true;
 
   const id = randomUUID();
   const currentQty = typeof body.currentQuantity === 'number' ? body.currentQuantity : 0;
@@ -71,13 +76,13 @@ export async function POST(request: NextRequest) {
         id, name, description, photo_url, category,
         current_quantity, min_quantity, unit,
         stock_level, is_running_low, needs_shopping,
-        user_id, household_id,
+        user_id, household_id, is_private,
         created_at, updated_at
       ) VALUES (
         ${id}, ${name}, ${description}, ${photoUrl}, ${category},
         ${currentQty}, ${minQty}, ${unit},
         ${stockLevel}, ${isRunningLow}, ${needsShopping},
-        ${user.userId}, ${effectiveHouseholdId},
+        ${user.userId}, ${effectiveHouseholdId}, ${isPrivate},
         NOW(), NOW()
       ) RETURNING *
     `;
@@ -85,9 +90,10 @@ export async function POST(request: NextRequest) {
     // Add to shopping list if needed
     if (needsShopping || isRunningLow) {
       const listId = randomUUID();
+      // Shopping list stays strictly per-user — never scope list rows by household.
       await sql`
         INSERT INTO shopping_list_items (id, product_id, user_id, household_id, created_at, updated_at)
-        VALUES (${listId}, ${id}, ${user.userId}, ${effectiveHouseholdId}, NOW(), NOW())
+        VALUES (${listId}, ${id}, ${user.userId}, NULL, NOW(), NOW())
         ON CONFLICT DO NOTHING
       `;
     }

@@ -11,6 +11,7 @@ export const TEST_USER_ID = '00000000-test-user-0000-000000000001';
 export const PRODUCTS: Product[] = [
   {
     id: 'prod-0001-0000-0000-000000000001',
+    isPrivate: false,
     name: 'Leche',
     description: null,
     photoUrl: null,
@@ -34,6 +35,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'prod-0002-0000-0000-000000000002',
+    isPrivate: false,
     name: 'Pan integral',
     description: null,
     photoUrl: null,
@@ -57,6 +59,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'prod-0003-0000-0000-000000000003',
+    isPrivate: false,
     name: 'Detergente',
     description: null,
     photoUrl: null,
@@ -80,6 +83,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'prod-0004-0000-0000-000000000004',
+    isPrivate: false,
     name: 'Manzanas',
     description: null,
     photoUrl: null,
@@ -103,6 +107,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'prod-0005-0000-0000-000000000005',
+    isPrivate: false,
     name: 'Arroz',
     description: null,
     photoUrl: null,

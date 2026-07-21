@@ -72,7 +72,7 @@ export default async function HomePage() {
       </div>
 
       {/* ─── Productos primero, luego despensa (headers dentro del shell) ───── */}
-      <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} />
+      <HomeProductsShell initialProducts={products} lastPurchaseMap={lastPurchaseMap} inCartProductIds={inCartIds} currentUserId={session.userId} />
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
       <Reveal className="space-y-5">

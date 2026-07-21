@@ -27,6 +27,9 @@ export interface Product {
   needsShopping: boolean;
   status: ProductStatus;
   userId: string;
+  /** When true, the product stays visible only to its owner and is never
+   * shared with the household, regardless of household membership. */
+  isPrivate: boolean;
   createdAt: string;
   updatedAt: string;
   lastPurchasePrice: number | null;

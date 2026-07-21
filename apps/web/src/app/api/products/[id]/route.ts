@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
+import { ensureProductSharingSchema } from '@/lib/ensure-schema';
 
 async function findProduct(id: string, userId: string) {
   const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
@@ -27,8 +28,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const body = await request.json() as Record<string, unknown>;
 
+  await ensureProductSharingSchema();
+
   // Treat empty string as null so a missing photo never clears an existing one
   const newPhotoUrl = typeof body.photoUrl === 'string' && body.photoUrl ? body.photoUrl : null;
+
+  // Sharing controls. `is_private` is only touched when the client sends a
+  // boolean (COALESCE with null → keep current). Saving also adopts the
+  // product into the owner's current household namespace, so toggling a legacy
+  // product to "Compartido" actually makes it visible to household members.
+  const isPrivate = typeof body.isPrivate === 'boolean' ? body.isPrivate : null;
+  const householdRows = await sql`SELECT household_id FROM users WHERE id = ${user.userId} LIMIT 1`;
+  const householdId = (householdRows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
 
   const rows = await sql`
     UPDATE products SET
@@ -42,6 +53,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       stock_level = COALESCE(${body.stockLevel as string ?? null}, stock_level),
       is_running_low = COALESCE(${body.isRunningLow as boolean ?? null}, is_running_low),
       needs_shopping = COALESCE(${body.needsShopping as boolean ?? null}, needs_shopping),
+      is_private = COALESCE(${isPrivate}, is_private),
+      household_id = ${householdId},
       updated_at = NOW()
     WHERE id = ${id} AND user_id = ${user.userId}
     RETURNING *
