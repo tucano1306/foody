@@ -404,7 +404,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         !textMatches(item.product.category ?? 'Sin categoría', q)
       ) return false;
     }
-    if (categoryFilter && (item.product.category ?? 'Sin categoría') !== categoryFilter) return false;
+    // Accent/case-insensitive: selecting "Lácteos" also matches products saved
+    // as "lácteos", "Lacteos", "LÁCTEOS"… so no item of the category is hidden.
+    if (categoryFilter && normalizeText(item.product.category ?? 'Sin categoría') !== normalizeText(categoryFilter)) return false;
     return true;
   }
 
@@ -436,10 +438,34 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inCart, q, categoryFilter, cartTimes]);
 
+  // Total of only the currently-visible purchased items — so a category filter
+  // shows the sum of what's on screen, not the whole cart. When no filter is
+  // active this equals runningTotal (visiblePurchased === inCart).
+  const { visiblePurchasedTotal, visibleHasEstimated } = useMemo(() => {
+    let total = 0;
+    let estimated = 0;
+    for (const item of visiblePurchased) {
+      const lineTotal = entriesTotal(entries[item.product.id]);
+      if (lineTotal > 0) {
+        total += lineTotal;
+      } else if (item.product.lastPurchasePrice !== null) {
+        total += item.product.lastPurchasePrice * entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded));
+        estimated += 1;
+      }
+    }
+    return { visiblePurchasedTotal: total, visibleHasEstimated: estimated > 0 };
+  }, [visiblePurchased, entries]);
+
   const availableCategories = useMemo(() => {
-    const cats = new Set<string>();
-    for (const i of items) cats.add(i.product.category ?? 'Sin categoría');
-    return sortCategories([...cats]);
+    // Dedupe by normalized key so "Lácteos" and "lácteos" collapse into one
+    // dropdown option (matches the accent/case-insensitive filter above).
+    const seen = new Map<string, string>();
+    for (const i of items) {
+      const cat = i.product.category?.trim() || 'Sin categoría';
+      const key = normalizeText(cat);
+      if (!seen.has(key)) seen.set(key, cat);
+    }
+    return sortCategories([...seen.values()]);
   }, [items]);
 
   const searching = q.length > 0 || categoryFilter !== null || filter !== 'all';
@@ -720,8 +746,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               ✔️ Comprados
             </h2>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-              {runningTotal > 0
-                ? `${visiblePurchased.length} · ${hasEstimated ? '≈' : ''}$${runningTotal.toFixed(2)}`
+              {visiblePurchasedTotal > 0
+                ? `${visiblePurchased.length} · ${visibleHasEstimated ? '≈' : ''}$${visiblePurchasedTotal.toFixed(2)}`
                 : `${visiblePurchased.length} ${pluralize(visiblePurchased.length, 'producto', 'productos')}`}
             </span>
           </div>
