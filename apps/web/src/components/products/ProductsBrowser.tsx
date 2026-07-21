@@ -8,6 +8,8 @@ import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
 import { categoryEmoji, categoryOrder } from '@/lib/categories';
 
+const ALL_CATEGORIES = '__all__';
+
 const ProductScanSearch = dynamic(() => import('./ProductScanSearch'), { ssr: false });
 
 type StockFilter = 'all' | 'low' | StockLevel;
@@ -90,6 +92,7 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
 interface GridOptions {
   searchOnly: boolean;
   trimmedQuery: string;
+  categoryActive: boolean;
   filtered: readonly Product[];
   emptyState: React.ReactNode;
   visible: readonly Product[];
@@ -128,6 +131,7 @@ function ProductGrid({ products, showActions, compact, lastPurchaseMap, onLevelC
 function renderGrid({
   searchOnly,
   trimmedQuery,
+  categoryActive,
   filtered,
   emptyState,
   visible,
@@ -137,7 +141,7 @@ function renderGrid({
   onLevelChange,
   onDelete,
 }: GridOptions): React.ReactNode {
-  if (searchOnly && !trimmedQuery) {
+  if (searchOnly && !trimmedQuery && !categoryActive) {
     return (
       <div className="text-center py-10 text-stone-400">
         <p className="text-3xl mb-2">🔍</p>
@@ -165,7 +169,7 @@ function renderGrouped({
   lastPurchaseMap,
   onLevelChange,
   onDelete,
-}: Omit<GridOptions, 'visible' | 'trimmedQuery' | 'searchOnly'>): React.ReactNode {
+}: Omit<GridOptions, 'visible' | 'trimmedQuery' | 'searchOnly' | 'categoryActive'>): React.ReactNode {
   if (filtered.length === 0) {
     return (
       <div className="text-center py-12 text-stone-400">
@@ -228,6 +232,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
   const [localProducts, setLocalProducts] = useState<readonly Product[]>(initialProducts);
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES);
   const [stockFilter, setStockFilter] = useState<StockFilter>(initialFilter);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('categories');
@@ -261,16 +266,24 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     [localProducts, inCart],
   );
 
+  // Every category present in the pantry, in aisle order — powers the dropdown.
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of displayProducts) set.add(p.category?.trim() || 'Otro');
+    return [...set].sort((a, b) => categoryOrder(a) - categoryOrder(b) || a.localeCompare(b));
+  }, [displayProducts]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return displayProducts.filter((p) => {
       if (stockFilter === 'low' && p.stockLevel === 'full') return false;
       if (stockFilter !== 'all' && stockFilter !== 'low' && p.stockLevel !== stockFilter) return false;
+      if (categoryFilter !== ALL_CATEGORIES && (p.category?.trim() || 'Otro') !== categoryFilter) return false;
       if (!q) return true;
       const hay = `${p.name} ${p.category ?? ''} ${p.description ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [displayProducts, query, stockFilter]);
+  }, [displayProducts, query, stockFilter, categoryFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -284,6 +297,11 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
   const onFilterChange = (key: StockFilter) => {
     setStockFilter(key);
+    setPage(1);
+  };
+
+  const onCategoryChange = (value: string) => {
+    setCategoryFilter(value);
     setPage(1);
   };
 
@@ -383,6 +401,27 @@ export default function ProductsBrowser(props: Readonly<Props>) {
         )}
       </div>
 
+      {/* Category dropdown — jump straight to a section (quesos, lácteos…) */}
+      {availableCategories.length > 1 && (
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none">📂</span>
+          <select
+            value={categoryFilter}
+            onChange={(e) => onCategoryChange(e.target.value)}
+            aria-label="Filtrar por categoría"
+            className="w-full appearance-none pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition cursor-pointer"
+          >
+            <option value={ALL_CATEGORIES}>Todas las categorías</option>
+            {availableCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {categoryEmoji(cat)} {cat}
+              </option>
+            ))}
+          </select>
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none">▾</span>
+        </div>
+      )}
+
       {/* Stock filter chips */}
       {showStockFilter && (
         <div className="flex gap-2 flex-wrap">
@@ -421,7 +460,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       {/* Grid or Grouped */}
       {viewMode === 'categories' && !searchOnly
         ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete })
-        : renderGrid({ searchOnly, trimmedQuery: query.trim(), filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete })}
+        : renderGrid({ searchOnly, trimmedQuery: query.trim(), categoryActive: categoryFilter !== ALL_CATEGORIES, filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete })}
 
       {/* Pagination — only in grid mode */}
       {viewMode === 'grid' && totalPages > 1 && (
