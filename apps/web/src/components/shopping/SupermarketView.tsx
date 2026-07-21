@@ -35,23 +35,24 @@ type Filter = 'all' | 'urgent' | 'low';
  */
 interface PriceEntry {
   qty: number;
-  /** Total paid for this batch (mode 'unit'): what the sticker says. */
+  /** Price PER UNIT (mode 'unit'). The line total is qty × total. */
   total: number | null;
   label?: string;
-  /** 'unit' (default): qty units + batch total. 'lb': qty pounds + price per
-   * pound — the app multiplies (produce like tomatoes/onions/limes is sold
-   * both ways, so each entry picks its own mode). */
+  /** 'unit' (default): qty units × price per unit. 'lb': qty pounds × price per
+   * pound. Both modes multiply quantity by a per-unit price so the totals are
+   * consistent (produce like tomatoes/onions/limes is sold both ways, so each
+   * entry picks its own mode). */
   mode?: 'unit' | 'lb';
   /** Price per pound (mode 'lb'). */
   unitPrice?: number | null;
 }
 
-/** Effective money of one entry regardless of its mode. */
+/** Effective money of one entry: quantity × per-unit price, regardless of mode. */
 function entryTotal(e: PriceEntry): number {
   if (e.mode === 'lb') {
     return e.unitPrice != null && e.qty > 0 ? Math.round(e.qty * e.unitPrice * 100) / 100 : 0;
   }
-  return e.total ?? 0;
+  return e.total != null && e.qty > 0 ? Math.round(e.qty * e.total * 100) / 100 : 0;
 }
 
 function entryHasPrice(e: PriceEntry): boolean {
@@ -819,8 +820,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               updateEntries(scanTarget.productId, (prev) =>
                 prev.map((e, idx) => {
                   if (idx !== scanTarget.index) return e;
-                  // In lb mode the sticker price is per pound; otherwise it's
-                  // the batch total.
+                  // In lb mode the sticker price is per pound; in unit mode it's
+                  // the price per unit (the line total is qty × this).
                   return e.mode === 'lb' ? { ...e, unitPrice: price } : { ...e, total: price };
                 }),
               item);
@@ -1328,7 +1329,7 @@ function PriceEditorSheet({
                         <span className="text-[10px] text-stone-400 pr-1.5">{qtyLabel}</span>
                       </div>
 
-                      {/* Price: batch total (unit) or price per pound (lb) */}
+                      {/* Price per unit (unit) or price per pound (lb) — both × qty */}
                       <div className="relative flex-1 min-w-0">
                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
                         {mode === 'lb' ? (
@@ -1354,9 +1355,9 @@ function PriceEditorSheet({
                             inputMode="decimal"
                             min={0}
                             step="0.01"
-                            aria-label="Precio de este paquete"
+                            aria-label={`Precio por ${unitLabel}`}
                             value={entry.total ?? ''}
-                            placeholder="0.00"
+                            placeholder="precio c/u"
                             onChange={(e) => {
                               const raw = e.target.value;
                               if (raw === '') { setEntry(index, { total: null }); return; }
@@ -1385,6 +1386,15 @@ function PriceEditorSheet({
                         {entry.unitPrice != null && entry.qty > 0
                           ? `${fmtQty(entry.qty)} lb × $${entry.unitPrice.toFixed(2)}/lb = $${computed.toFixed(2)}`
                           : 'Pon las libras y el precio por libra — la app calcula el total.'}
+                      </p>
+                    )}
+
+                    {/* The app does the math: units × $/unit */}
+                    {mode === 'unit' && (
+                      <p className="mt-1.5 text-[11px] font-semibold text-market-700 dark:text-market-300 tabular-nums">
+                        {entry.total != null && entry.qty > 0
+                          ? `${fmtQty(entry.qty)} ${qtyLabel} × $${entry.total.toFixed(2)} = $${computed.toFixed(2)}`
+                          : `Pon la cantidad y el precio por ${qtyLabel} — la app calcula el total.`}
                       </p>
                     )}
                   </>
