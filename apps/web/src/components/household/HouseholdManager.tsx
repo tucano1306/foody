@@ -115,16 +115,22 @@ export default function HouseholdManager() {
     }
   }
 
+  // Shared by the header button and by my own card in the member sheet. Throws
+  // so the sheet can show the failure inline instead of closing silently.
+  async function leaveHousehold() {
+    await fetchJson('/households/leave', { method: 'DELETE' });
+    haptic(30);
+    playSound('low');
+    await refresh();
+    router.refresh();
+  }
+
   async function handleLeave() {
     setConfirmLeave(false);
     setWorking(true);
     setError(null);
     try {
-      await fetchJson('/households/leave', { method: 'DELETE' });
-      haptic(30);
-      playSound('low');
-      await refresh();
-      router.refresh();
+      await leaveHousehold();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -365,7 +371,7 @@ export default function HouseholdManager() {
           ))}
         </ul>
         <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
-          Toca un miembro para cambiar su nombre{isOwner ? ' o sacarlo del hogar' : ''}.
+          Toca un miembro para cambiar su nombre o sacarlo del hogar.
         </p>
       </section>
 
@@ -433,6 +439,7 @@ export default function HouseholdManager() {
         onClose={() => setSelectedMember(null)}
         onRename={handleRenameMember}
         onRemove={handleRemoveMember}
+        onLeave={leaveHousehold}
       />
 
       <ConfirmDialog

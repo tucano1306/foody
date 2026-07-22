@@ -24,10 +24,12 @@ interface Props {
   readonly onClose: () => void;
   readonly onRename: (id: string, name: string) => Promise<void>;
   readonly onRemove: (id: string) => Promise<void>;
+  /** Leaving on my own card: dissolves the household when I own it */
+  readonly onLeave: () => Promise<void>;
 }
 
 /**
- * Detail sheet for one household member: rename, or remove them from the home.
+ * Detail sheet for one household member: rename, or take them out of the home.
  * Rendered as an overlay (not a native <dialog>) so the ConfirmDialog used for
  * the destructive action can stack on top of it.
  */
@@ -39,6 +41,7 @@ export default function MemberSheet({
   onClose,
   onRename,
   onRemove,
+  onLeave,
 }: Props) {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -59,8 +62,10 @@ export default function MemberSheet({
 
   // I can rename myself; renaming somebody else is the owner's call.
   const canEdit = isSelf || viewerIsOwner;
-  // The owner closes the home with "Disolver hogar", not by removing themselves.
+  // Every card offers a way out. On somebody else's card the owner takes them
+  // out; on my own card I leave — and if I own the home, leaving dissolves it.
   const canRemove = viewerIsOwner && !isSelf;
+  const dissolves = isSelf && viewerIsOwner;
   const trimmed = name.trim();
   const dirty = Boolean(member) && trimmed.length > 0 && trimmed !== (member?.name ?? '');
 
@@ -189,14 +194,24 @@ export default function MemberSheet({
                   🚪 Sacar del hogar
                 </button>
               )}
-              {/* Nobody can remove themselves here — say why instead of just
-                  hiding the button, which reads as a bug. */}
+              {/* My own card: the same action, but on me. Named after what it
+                  really does so nobody dissolves the home by accident. */}
               {isSelf && (
-                <p className="mt-4 text-xs text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5">
-                  {viewerIsOwner
-                    ? 'Esta tarjeta eres tú, y eres el dueño del hogar: no puedes sacarte a ti mismo. Para cerrarlo usa «Disolver hogar».'
-                    : 'Esta tarjeta eres tú. Para irte del hogar usa «Salir».'}
-                </p>
+                <>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setConfirmRemove(true)}
+                    className="mt-4 w-full py-3 rounded-2xl bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-semibold text-sm transition disabled:opacity-50"
+                  >
+                    {dissolves ? '💥 Disolver el hogar' : '🚪 Salir del hogar'}
+                  </button>
+                  {dissolves && (
+                    <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                      Eres el dueño: sacarte a ti mismo cierra el hogar para todos.
+                    </p>
+                  )}
+                </>
               )}
 
               <button
@@ -213,17 +228,38 @@ export default function MemberSheet({
 
       <ConfirmDialog
         open={confirmRemove}
-        title={`¿Sacar a ${displayName} del hogar?`}
-        message="Dejará de ver la despensa compartida y sus productos volverán a ser solo suyos. Puedes volver a invitarlo con un código."
-        confirmLabel="Sacar"
+        title={getConfirmTitle(isSelf, dissolves, displayName)}
+        message={getConfirmMessage(isSelf, dissolves)}
+        confirmLabel={getConfirmLabel(isSelf, dissolves)}
         destructive
         busy={saving}
         onConfirm={() => {
           setConfirmRemove(false);
-          if (member) void run(() => onRemove(member.id));
+          if (!member) return;
+          void run(() => (isSelf ? onLeave() : onRemove(member.id)));
         }}
         onCancel={() => setConfirmRemove(false)}
       />
     </>
   );
+}
+
+function getConfirmTitle(isSelf: boolean, dissolves: boolean, displayName: string): string {
+  if (dissolves) return '¿Disolver el hogar?';
+  if (isSelf) return '¿Salir del hogar?';
+  return `¿Sacar a ${displayName} del hogar?`;
+}
+
+function getConfirmMessage(isSelf: boolean, dissolves: boolean): string {
+  if (dissolves) {
+    return 'Eres el propietario. El hogar se cerrará para todos sus miembros y los productos compartidos dejarán de verse. Tus productos siguen siendo tuyos.';
+  }
+  if (isSelf) return 'Dejarás de compartir despensa, lista y pagos con este hogar.';
+  return 'Dejará de ver la despensa compartida y sus productos volverán a ser solo suyos. Puedes volver a invitarlo con un código.';
+}
+
+function getConfirmLabel(isSelf: boolean, dissolves: boolean): string {
+  if (dissolves) return 'Disolver';
+  if (isSelf) return 'Salir';
+  return 'Sacar';
 }
