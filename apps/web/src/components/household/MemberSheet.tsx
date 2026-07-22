@@ -189,6 +189,15 @@ export default function MemberSheet({
                   🚪 Sacar del hogar
                 </button>
               )}
+              {/* Nobody can remove themselves here — say why instead of just
+                  hiding the button, which reads as a bug. */}
+              {isSelf && (
+                <p className="mt-4 text-xs text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5">
+                  {viewerIsOwner
+                    ? 'Esta tarjeta eres tú, y eres el dueño del hogar: no puedes sacarte a ti mismo. Para cerrarlo usa «Disolver hogar».'
+                    : 'Esta tarjeta eres tú. Para irte del hogar usa «Salir».'}
+                </p>
+              )}
 
               <button
                 type="button"
