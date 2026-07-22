@@ -13,6 +13,8 @@
  * Se prueba en finance-engine.test.ts; la capa de datos vive en finance-data.ts.
  */
 
+import type { BaselineSource, GroceryInsight } from './grocery-insights';
+
 // ─── Tipos de entrada ─────────────────────────────────────────────────────────
 
 export type GoalKind = 'trip' | 'debt' | 'project' | 'purchase' | 'emergency';
@@ -61,10 +63,16 @@ export interface PlanInput {
   incomes: readonly IncomeSource[];
   goals: readonly FinanceGoal[];
   fixedPayments: readonly FixedPaymentInput[];
-  /** Estimado mensual de super: el límite de presupuesto o el promedio real. */
+  /**
+   * Estimado mensual de super que resta el plan. Sale de las compras reales
+   * (`groceries.baseline`); solo cae al límite del presupuesto cuando todavía
+   * no hay tickets registrados.
+   */
   groceriesMonthly: number;
-  groceriesSource: 'limit' | 'average' | 'none';
+  groceriesSource: BaselineSource;
   groceriesSpentThisMonth: number;
+  /** Análisis de las compras registradas — alimenta los consejos de super. */
+  groceries?: GroceryInsight;
   /** Dinero extra mensual para simular escenarios ("¿y si aporto $200 más?"). */
   extraMonthly?: number;
   now?: Date;
@@ -144,7 +152,7 @@ export type AdviceTone = 'critical' | 'warning' | 'good' | 'idea' | 'info';
 
 export interface AdviceAction {
   label: string;
-  kind: 'add_income' | 'add_goal' | 'open_payments' | 'open_budget' | 'edit_goal' | 'contribute';
+  kind: 'add_income' | 'add_goal' | 'open_payments' | 'open_budget' | 'open_trips' | 'edit_goal' | 'contribute';
   goalId?: string;
 }
 
@@ -476,16 +484,6 @@ function adviceForCashFlow(input: PlanInput, cash: CashFlow, out: Advice[]): voi
     });
   }
 
-  if (input.groceriesSource === 'none') {
-    out.push({
-      id: 'no-grocery-baseline',
-      tone: 'info',
-      icon: '🛒',
-      title: 'Fija tu límite de super',
-      body: 'Aún no hay límite ni historial de compras suficiente, así que el plan asume $0 de super. Establece tu límite mensual en Presupuesto para que los cálculos sean reales.',
-      action: { label: 'Ir a Presupuesto', kind: 'open_budget' },
-    });
-  }
 }
 
 function adviceForDebt(cash: CashFlow, debts: DebtOverview, out: Advice[]): void {
@@ -649,29 +647,124 @@ function adviceForSurplus(cash: CashFlow, goals: GoalProjection[], out: Advice[]
   });
 }
 
+/** Meses que se adelanta una meta si recibe `extra` más cada mes. */
+export function monthsSavedWith(goal: GoalProjection, extra: number): number {
+  if (extra <= 0 || goal.remaining <= 0) return 0;
+  const before = monthsToReach(goal.remaining, goal.allocatedMonthly);
+  const after = monthsToReach(goal.remaining, goal.allocatedMonthly + extra);
+  if (after === null) return 0;
+  if (before === null) return 0; // sin ritmo previo no hay "adelanto" que medir
+  return Math.max(0, before - after);
+}
+
+/** Traduce un ahorro mensual en avance concreto sobre la meta prioritaria. */
+function impactOnGoal(goals: GoalProjection[], extra: number): string {
+  const target = goals.find((g) => g.status === 'active' && g.remaining > 0);
+  if (!target || extra <= 0) return '';
+  const saved = monthsSavedWith(target, extra);
+  if (saved > 0) return ` Mandándolos a «${target.name}» la adelantas ${saved} ${saved === 1 ? 'mes' : 'meses'}.`;
+  return ` Son ${money(extra)} más al mes para «${target.name}».`;
+}
+
+/**
+ * Consejos de super basados en las compras registradas: ritmo del mes,
+ * tendencia contra el promedio y la categoría que más pesa.
+ */
 function adviceForGroceries(input: PlanInput, cash: CashFlow, goals: GoalProjection[], out: Advice[]): void {
-  if (input.groceriesMonthly <= 0) return;
-  const enRiesgo = goals.some((g) => g.feasibility === 'at_risk' || g.feasibility === 'tight');
-  if (!enRiesgo) return;
+  const g = input.groceries;
 
-  const recorte = input.groceriesMonthly * 0.1;
-  out.push({
-    id: 'grocery-lever',
-    tone: 'idea',
-    icon: '🥑',
-    title: `Recortar 10% del super libera ${money(recorte)} al mes`,
-    body: `Tu super ronda los ${money(input.groceriesMonthly)} mensuales (${input.groceriesSource === 'limit' ? 'tu límite' : 'tu promedio real'}). Un 10% son ${money(recorte)} — ${money(recorte * 12)} al año — y sale de comprar marca propia, revisar la despensa antes de salir y evitar la compra sin lista.`,
-    action: { label: 'Ver presupuesto', kind: 'open_budget' },
-  });
-
-  if (input.groceriesSpentThisMonth > input.groceriesMonthly && input.groceriesSource === 'limit') {
+  if (!g || (g.monthsWithData === 0 && g.spentThisMonth === 0)) {
+    // Sin ingresos el consejo prioritario es otro; no saturar el arranque.
+    if (cash.monthlyIncome <= 0) return;
     out.push({
-      id: 'grocery-over-limit',
+      id: 'grocery-no-purchases',
+      tone: 'info',
+      icon: '🧾',
+      title: 'Registra tus compras y el plan se afina solo',
+      body: 'Todavía no hay tickets cargados, así que el super se estima con tu límite. En cuanto registres compras uso tu gasto real: el ritmo del mes, la tendencia y las categorías que más pesan.',
+      action: { label: 'Ir a Presupuesto', kind: 'open_budget' },
+    });
+    return;
+  }
+
+  const enRiesgo = goals.some((p) => p.feasibility === 'at_risk' || p.feasibility === 'tight');
+
+  // 1. Ritmo del mes contra el límite declarado.
+  if (g.limit > 0 && g.overLimit > 1) {
+    out.push({
+      id: 'grocery-pace-over-limit',
       tone: 'warning',
       icon: '🛒',
-      title: 'Este mes ya te pasaste del super',
-      body: `Llevas ${money(input.groceriesSpentThisMonth)} contra un límite de ${money(input.groceriesMonthly)}. Ese exceso de ${money(input.groceriesSpentThisMonth - input.groceriesMonthly)} sale directo del dinero de tus metas.`,
+      title: `Vas a cerrar el super en ${money(g.projectedMonthEnd)}`,
+      body: `Llevas ${money(g.spentThisMonth)} en ${g.daysElapsed} días (${money(g.dailyPace)} diarios) y tu límite es ${money(g.limit)}: te pasarías ${money(g.overLimit)}. Ese exceso sale del dinero de tus metas.${impactOnGoal(goals, g.overLimit)}`,
       action: { label: 'Ver presupuesto', kind: 'open_budget' },
+    });
+  } else if (g.limit > 0 && g.overLimit < -1 && g.spentThisMonth > 0) {
+    const sobrante = Math.abs(g.overLimit);
+    // Sin meta activa no hay dónde aportar: se invita a crear una.
+    const destino = goals.find((p) => p.status === 'active' && p.remaining > 0);
+    out.push({
+      id: 'grocery-under-limit',
+      tone: 'good',
+      icon: '🥬',
+      title: `Vas ${money(sobrante)} por debajo de tu límite de super`,
+      body: `A este ritmo cierras el mes en ${money(g.projectedMonthEnd)} contra un límite de ${money(g.limit)}. Ese sobrante no es tuyo hasta que lo apartas.${destino ? impactOnGoal(goals, sobrante) : ' Crea una meta y ese dinero deja de evaporarse.'}`,
+      action: destino
+        ? { label: 'Registrar aporte', kind: 'contribute', goalId: destino.goalId }
+        : { label: 'Crear meta', kind: 'add_goal' },
+    });
+  }
+
+  // 2. Tendencia contra el promedio histórico.
+  if (g.trendPct !== null && g.monthsWithData >= 2) {
+    const diff = Math.abs(g.projectedMonthEnd - g.avgMonthly);
+    if (g.trendPct >= 15) {
+      const culpable = g.biggestMover
+        ? ` Lo que más subió es ${g.biggestMover.category}: ${money(g.biggestMover.currentMonth)} contra ${money(g.biggestMover.prevMonth)} el mes pasado.`
+        : '';
+      out.push({
+        id: 'grocery-trend-up',
+        tone: 'warning',
+        icon: '📈',
+        title: `Tu super va ${Math.round(g.trendPct)}% arriba de tu promedio`,
+        body: `Proyectas ${money(g.projectedMonthEnd)} frente a los ${money(g.avgMonthly)} que gastas normalmente — ${money(diff)} de más.${culpable} Volver a tu promedio le devuelve ese dinero a tus metas.`,
+        action: { label: 'Ver presupuesto', kind: 'open_budget' },
+      });
+    } else if (g.trendPct <= -15) {
+      out.push({
+        id: 'grocery-trend-down',
+        tone: 'good',
+        icon: '📉',
+        title: `Estás gastando ${Math.abs(Math.round(g.trendPct))}% menos en super`,
+        body: `Proyectas ${money(g.projectedMonthEnd)} contra tu promedio de ${money(g.avgMonthly)}: ${money(diff)} liberados este mes.${impactOnGoal(goals, diff)}`,
+      });
+    }
+  }
+
+  // 3. La categoría que más pesa — solo si hay metas que necesitan aire.
+  const top = g.categories[0];
+  if (enRiesgo && top && top.share >= 20 && top.currentMonth > 0) {
+    const recorte = top.currentMonth * 0.15;
+    out.push({
+      id: 'grocery-category-lever',
+      tone: 'idea',
+      icon: '🥑',
+      title: `${top.category} se lleva el ${Math.round(top.share)}% de tu super`,
+      body: `Son ${money(top.currentMonth)} este mes. Recortar un 15% ahí libera ${money(recorte)} mensuales — ${money(recorte * 12)} al año — sin tocar el resto de la despensa: marca propia, comprar por peso y revisar el inventario antes de salir.${impactOnGoal(goals, recorte)}`,
+      action: { label: 'Ver mis compras', kind: 'open_trips' },
+    });
+  }
+
+  // 4. Muchas visitas al super: cada viaje extra es compra impulsiva.
+  if (enRiesgo && g.tripsThisMonth >= 8 && g.spentThisMonth > 0) {
+    const porViaje = g.spentThisMonth / g.tripsThisMonth;
+    out.push({
+      id: 'grocery-trip-frequency',
+      tone: 'idea',
+      icon: '🚗',
+      title: `Llevas ${g.tripsThisMonth} visitas al super este mes`,
+      body: `Cada visita promedia ${money(porViaje)}. Concentrar las compras en una vez por semana suele recortar el gasto sin comer distinto — el ticket sube, pero el total del mes baja porque desaparece la compra de paso.`,
+      action: { label: 'Ver mis compras', kind: 'open_trips' },
     });
   }
 }

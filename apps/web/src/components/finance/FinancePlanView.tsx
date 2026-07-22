@@ -16,6 +16,7 @@ import ContributeModal from './ContributeModal';
 import DebtPanel from './DebtPanel';
 import GoalCard from './GoalCard';
 import GoalFormModal, { type GoalPayload } from './GoalFormModal';
+import GrocerySpendCard from './GrocerySpendCard';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
 import SimulatorCard from './SimulatorCard';
 import { fmtMoney, healthColor, healthLabel } from './finance-ui';
@@ -169,6 +170,8 @@ export default function FinancePlanView({ initialData }: Props) {
         return router.push('/payments');
       case 'open_budget':
         return router.push('/budget');
+      case 'open_trips':
+        return router.push('/shopping-trips');
       case 'edit_goal': {
         const goal = data.rawGoals.find((g) => g.id === action.goalId);
         return setModal({ kind: 'goal', goal: goal ?? null });
@@ -194,9 +197,10 @@ export default function FinancePlanView({ initialData }: Props) {
       incomes: data.incomes,
       goals: data.rawGoals,
       fixedPayments: data.payments,
-      groceriesMonthly: data.groceries.monthly,
-      groceriesSource: data.groceries.source,
+      groceriesMonthly: data.groceries.baseline,
+      groceriesSource: data.groceries.baselineSource,
       groceriesSpentThisMonth: data.groceries.spentThisMonth,
+      groceries: data.groceries,
     }),
     [data],
   );
@@ -257,11 +261,14 @@ export default function FinancePlanView({ initialData }: Props) {
       {/* ─── Flujo del mes ───────────────────────────────────────────────── */}
       <CashFlowCard
         cash={cash}
-        groceriesSource={data.groceries.source}
+        groceriesSource={data.groceries.baselineSource}
         onOpenIncome={() => setModal({ kind: 'income' })}
         onOpenPayments={() => router.push('/payments')}
         onOpenBudget={() => router.push('/budget')}
       />
+
+      {/* ─── Compras reales ──────────────────────────────────────────────── */}
+      <GrocerySpendCard groceries={data.groceries} history={data.history} />
 
       {/* ─── Consejero ───────────────────────────────────────────────────── */}
       <AdviceFeed advice={data.advice} onAction={runAdviceAction} />

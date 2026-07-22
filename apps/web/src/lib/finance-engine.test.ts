@@ -11,6 +11,7 @@ import {
   type IncomeSource,
   type PlanInput,
 } from './finance-engine';
+import { EMPTY_GROCERY_INSIGHT, type GroceryInsight } from './grocery-insights';
 
 const NOW = new Date(2026, 6, 22, 12, 0, 0); // 22 jul 2026
 
@@ -291,26 +292,121 @@ describe('buildFinancePlan — consejos', () => {
     }));
   });
 
-  it('sugiere el recorte de super solo si hay metas apretadas', () => {
-    const holgado = buildFinancePlan(plan());
-    expect(holgado.advice.some((a) => a.id === 'grocery-lever')).toBe(false);
-
-    const apretado = buildFinancePlan(plan({ incomes: [income({ amount: 1700 })] }));
-    const lever = apretado.advice.find((a) => a.id === 'grocery-lever');
-    expect(lever?.body).toContain('$40'); // 10% de 400
-  });
-
-  it('avisa del exceso de super sobre el límite', () => {
-    const { advice } = buildFinancePlan(
-      plan({ incomes: [income({ amount: 1700 })], groceriesSpentThisMonth: 520 }),
-    );
-    expect(advice.some((a) => a.id === 'grocery-over-limit')).toBe(true);
-  });
-
   it('propone destino para el sobrante mensual', () => {
     const { advice, cashFlow } = buildFinancePlan(plan());
     expect(cashFlow.unallocated).toBeGreaterThan(0);
     expect(advice.some((a) => a.id === 'surplus-boost')).toBe(true);
+  });
+});
+
+describe('buildFinancePlan — consejos desde las compras reales', () => {
+  /** Insight de super con lo mínimo para disparar cada regla. */
+  function insight(over: Partial<GroceryInsight> = {}): GroceryInsight {
+    return {
+      ...EMPTY_GROCERY_INSIGHT,
+      spentThisMonth: 420,
+      tripsThisMonth: 5,
+      daysElapsed: 22,
+      daysInMonth: 31,
+      dailyPace: 19.09,
+      projectedMonthEnd: 592,
+      avgMonthly: 550,
+      lastMonth: 500,
+      monthsWithData: 2,
+      limit: 400,
+      baseline: 580,
+      baselineSource: 'pace',
+      overLimit: 192,
+      trendPct: 7.6,
+      categories: [
+        { category: 'carnes', currentMonth: 180, prevMonth: 120, deltaPct: 50, share: 42.9 },
+        { category: 'bebidas', currentMonth: 100, prevMonth: 60, deltaPct: 66.7, share: 23.8 },
+      ],
+      biggestMover: { category: 'carnes', currentMonth: 180, prevMonth: 120, deltaPct: 50, share: 42.9 },
+      ...over,
+    };
+  }
+
+  function conCompras(g: Partial<GroceryInsight>, over: Partial<PlanInput> = {}) {
+    const full = insight(g);
+    return buildFinancePlan(plan({ groceries: full, groceriesMonthly: full.baseline, groceriesSource: full.baselineSource, groceriesSpentThisMonth: full.spentThisMonth, ...over }));
+  }
+
+  it('avisa del ritmo que rebasa el límite con la proyección al cierre', () => {
+    const { advice } = conCompras({});
+    const pace = advice.find((a) => a.id === 'grocery-pace-over-limit');
+    expect(pace?.tone).toBe('warning');
+    expect(pace?.body).toContain('$420');   // llevas
+    expect(pace?.body).toContain('22 días');
+    expect(pace?.body).toContain('$192');   // exceso proyectado
+  });
+
+  it('celebra ir por debajo del límite y ofrece aportar el sobrante', () => {
+    const { advice } = conCompras({ projectedMonthEnd: 300, overLimit: -100, limit: 400 });
+    const under = advice.find((a) => a.id === 'grocery-under-limit');
+    expect(under?.tone).toBe('good');
+    expect(under?.action?.kind).toBe('contribute');
+    expect(under?.body).toContain('$100');
+  });
+
+  it('sin metas, el sobrante del super invita a crear una en vez de aportar a la nada', () => {
+    const { advice } = conCompras({ projectedMonthEnd: 300, overLimit: -100, limit: 400 }, { goals: [] });
+    const under = advice.find((a) => a.id === 'grocery-under-limit');
+    expect(under?.action?.kind).toBe('add_goal');
+    expect(under?.action?.goalId).toBeUndefined();
+  });
+
+  it('detecta el alza contra el promedio y nombra la categoría culpable', () => {
+    const { advice } = conCompras({ projectedMonthEnd: 800, avgMonthly: 550, trendPct: 45.5, overLimit: 400 });
+    const trend = advice.find((a) => a.id === 'grocery-trend-up');
+    expect(trend?.title).toContain('46%');
+    expect(trend?.body).toContain('carnes');
+    expect(trend?.body).toContain('$250'); // 800 − 550
+  });
+
+  it('reconoce el mes en que se gasta menos que el promedio', () => {
+    const { advice } = conCompras({ projectedMonthEnd: 300, avgMonthly: 550, trendPct: -45.5, overLimit: -100 });
+    const down = advice.find((a) => a.id === 'grocery-trend-down');
+    expect(down?.tone).toBe('good');
+    expect(down?.body).toContain('$250');
+  });
+
+  it('no juzga la tendencia con menos de dos meses de historial', () => {
+    const { advice } = conCompras({ monthsWithData: 1, trendPct: 80, projectedMonthEnd: 900 });
+    expect(advice.some((a) => a.id.startsWith('grocery-trend'))).toBe(false);
+  });
+
+  it('propone recortar la categoría dominante solo si alguna meta lo necesita', () => {
+    const holgado = conCompras({});
+    expect(holgado.advice.some((a) => a.id === 'grocery-category-lever')).toBe(false);
+
+    const apretado = conCompras({}, { incomes: [income({ amount: 1700 })] });
+    const lever = apretado.advice.find((a) => a.id === 'grocery-category-lever');
+    expect(lever?.title).toContain('carnes');
+    expect(lever?.body).toContain('$27');  // 15% de 180
+    expect(lever?.body).toContain('$324'); // al año
+    expect(lever?.action?.kind).toBe('open_trips');
+  });
+
+  it('señala el exceso de visitas al super cuando las metas van apretadas', () => {
+    const { advice } = conCompras({ tripsThisMonth: 10 }, { incomes: [income({ amount: 1700 })] });
+    const trips = advice.find((a) => a.id === 'grocery-trip-frequency');
+    expect(trips?.body).toContain('$42'); // 420 / 10 por visita
+  });
+
+  it('pide registrar compras cuando no hay ninguna', () => {
+    const { advice } = conCompras({ spentThisMonth: 0, monthsWithData: 0, categories: [], biggestMover: null });
+    expect(advice.some((a) => a.id === 'grocery-no-purchases')).toBe(true);
+  });
+
+  it('traduce el ahorro en meses de adelanto de la meta prioritaria', () => {
+    // Meta de $2100 restantes con $700/mes asignados → 3 meses; con +$700 → 2.
+    const { advice } = conCompras(
+      { projectedMonthEnd: 300, overLimit: -700, limit: 1000 },
+      { goals: [goal({ targetAmount: 2100, targetDate: null })] },
+    );
+    const under = advice.find((a) => a.id === 'grocery-under-limit');
+    expect(under?.body).toMatch(/adelantas \d+ mes/);
   });
 });
 

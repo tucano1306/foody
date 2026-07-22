@@ -2,11 +2,19 @@
 
 import { motion } from 'framer-motion';
 import type { CashFlow } from '@/lib/finance-engine';
+import type { BaselineSource } from '@/lib/grocery-insights';
 import { fmtMoney } from './finance-ui';
+
+const GROCERY_HINT: Record<BaselineSource, string> = {
+  pace: 'según tus compras reales',
+  average: 'tu promedio de tickets',
+  limit: 'tu límite (aún sin compras)',
+  none: 'sin datos',
+};
 
 interface Props {
   readonly cash: CashFlow;
-  readonly groceriesSource: 'limit' | 'average' | 'none';
+  readonly groceriesSource: BaselineSource;
   readonly onOpenIncome: () => void;
   readonly onOpenPayments: () => void;
   readonly onOpenBudget: () => void;
@@ -52,7 +60,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       key: 'groceries',
       emoji: '🛒',
       label: 'Super',
-      hint: groceriesSource === 'limit' ? 'tu límite mensual' : groceriesSource === 'average' ? 'tu promedio real' : 'sin datos',
+      hint: GROCERY_HINT[groceriesSource],
       amount: -cash.groceriesEstimate,
       bar: 'from-amber-300 to-yellow-300',
       onClick: onOpenBudget,

@@ -12,6 +12,13 @@ import { sql } from '@/lib/db';
 import { getBudgetData } from '@/lib/budget-data';
 import { buildPaymentAggregates, type PaidRecordInput } from '@/lib/payment-aggregates';
 import {
+  computeGroceryInsight,
+  type CategorySpendInput,
+  type GroceryInsight,
+  type MonthTotal,
+  type StoreSpend,
+} from '@/lib/grocery-insights';
+import {
   buildFinancePlan,
   type FinanceGoal,
   type FinancePlan,
@@ -39,13 +46,10 @@ export interface FinancePlanPayload extends FinancePlan {
   incomes: IncomeSource[];
   rawGoals: FinanceGoal[];
   contributions: GoalContribution[];
-  groceries: {
-    monthly: number;
-    source: 'limit' | 'average' | 'none';
-    spentThisMonth: number;
-    limit: number;
-    average: number;
-  };
+  /** Análisis de las compras reales que alimenta el plan. */
+  groceries: GroceryInsight;
+  /** Totales de super por mes (para la mini gráfica de tendencia). */
+  history: MonthTotal[];
   payments: FixedPaymentInput[];
 }
 
@@ -219,38 +223,103 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
   });
 }
 
+// ─── Compras reales ───────────────────────────────────────────────────────────
+
+/**
+ * Gasto de super por categoría y por tienda del mes en curso.
+ *
+ * Mismo criterio que Stats: las categorías salen de los ítems (product_purchases
+ * unidos a products) y las visitas combinan tickets formales con compras sueltas
+ * sin ticket, agrupadas por sesión para no contar cada línea como una visita.
+ */
+async function loadGroceryBreakdown(userId: string): Promise<{
+  categories: CategorySpendInput[];
+  stores: StoreSpend[];
+}> {
+  const [categoryRows, storeRows] = await Promise.all([
+    sql`
+      SELECT
+        COALESCE(p.category, 'Sin categoría') AS category,
+        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW())
+                 THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS current_month,
+        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+                 THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS prev_month
+      FROM product_purchases pp
+      JOIN products p ON p.id = pp.product_id
+      WHERE pp.user_id = ${userId}
+        AND pp.purchased_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+      GROUP BY COALESCE(p.category, 'Sin categoría')
+      ORDER BY current_month DESC
+    `,
+    sql`
+      SELECT name, COUNT(*) AS trips, SUM(total) AS total_spent
+      FROM (
+        SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
+        FROM shopping_trips
+        WHERE user_id = ${userId} AND date >= DATE_TRUNC('month', NOW())
+        UNION ALL
+        SELECT COALESCE(store_name, 'Sin tienda') AS name,
+               SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
+        FROM product_purchases
+        WHERE user_id = ${userId} AND trip_id IS NULL
+          AND purchased_at >= DATE_TRUNC('month', NOW())
+        GROUP BY COALESCE(store_name, 'Sin tienda'), purchased_at
+      ) visits
+      GROUP BY name
+      ORDER BY total_spent DESC
+      LIMIT 5
+    `,
+  ]);
+
+  return {
+    categories: (categoryRows as Record<string, unknown>[]).map((r) => ({
+      category: String(r.category),
+      currentMonth: num(r.current_month),
+      prevMonth: num(r.prev_month),
+    })),
+    stores: (storeRows as Record<string, unknown>[]).map((r) => ({
+      name: String(r.name),
+      total: num(r.total_spent),
+      trips: Math.trunc(num(r.trips)),
+    })),
+  };
+}
+
 // ─── Ensamblado ───────────────────────────────────────────────────────────────
 
 export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<FinancePlanPayload> {
   await ensureFinanceSchema();
 
-  const [incomeRows, goalRows, contributionRows, fixedPayments, budget] = await Promise.all([
+  const [incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown] = await Promise.all([
     sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
     sql`SELECT * FROM finance_goals WHERE user_id = ${userId} ORDER BY priority ASC, target_date ASC NULLS LAST, created_at ASC`,
     sql`SELECT * FROM finance_goal_contributions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`,
     loadFixedPayments(userId),
     getBudgetData(userId),
+    loadGroceryBreakdown(userId),
   ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
   const goals = goalRows.map((r) => mapGoalRow(r as Record<string, unknown>));
   const contributions = contributionRows.map((r) => mapContributionRow(r as Record<string, unknown>));
 
-  // El límite manda sobre el promedio: es lo que el usuario decidió gastar.
-  let groceriesMonthly = budget.monthlyLimit;
-  let groceriesSource: 'limit' | 'average' | 'none' = 'limit';
-  if (groceriesMonthly <= 0) {
-    groceriesMonthly = budget.avgMonthly;
-    groceriesSource = budget.avgMonthly > 0 ? 'average' : 'none';
-  }
+  // El plan resta lo que REALMENTE se gasta en super: el historial de tickets
+  // manda sobre el límite declarado, que solo se usa si aún no hay compras.
+  const groceries = computeGroceryInsight({
+    monthlyTotals: budget.history,
+    categories: breakdown.categories,
+    stores: breakdown.stores,
+    limit: budget.monthlyLimit,
+  });
 
   const input: PlanInput = {
     incomes,
     goals,
     fixedPayments,
-    groceriesMonthly,
-    groceriesSource,
-    groceriesSpentThisMonth: budget.spentThisMonth,
+    groceriesMonthly: groceries.baseline,
+    groceriesSource: groceries.baselineSource,
+    groceriesSpentThisMonth: groceries.spentThisMonth,
+    groceries,
     extraMonthly,
   };
 
@@ -261,13 +330,8 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     incomes,
     rawGoals: goals,
     contributions,
-    groceries: {
-      monthly: groceriesMonthly,
-      source: groceriesSource,
-      spentThisMonth: budget.spentThisMonth,
-      limit: budget.monthlyLimit,
-      average: budget.avgMonthly,
-    },
+    groceries,
+    history: budget.history,
     payments: fixedPayments,
   };
 }
