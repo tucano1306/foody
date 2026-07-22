@@ -32,6 +32,9 @@ const CATEGORIES = [
 interface Props {
   readonly product?: Product;
   readonly inHousehold?: boolean;
+  /** false when editing a product another household member shared with me:
+   * the edit is allowed, but the sharing toggle belongs to the owner. */
+  readonly isOwner?: boolean;
 }
 
 // fetch() rejects with TypeError ("Failed to fetch") on network-level failures —
@@ -299,7 +302,7 @@ function compressImage(file: File): Promise<string> {
   return withTimeout(loadAndCompressInner(file), COMPRESS_TIMEOUT_MS, 'La compresión de la imagen');
 }
 
-export default function ProductForm({ product, inHousehold }: Props) {
+export default function ProductForm({ product, inHousehold, isOwner = true }: Props) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -379,7 +382,9 @@ export default function ProductForm({ product, inHousehold }: Props) {
         method: product ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...form, isPrivate }),
+        // The sharing flag only travels when I own the product — the server
+        // ignores it otherwise, but no need to send it at all.
+        body: JSON.stringify(isOwner ? { ...form, isPrivate } : form),
       });
 
       if (!res.ok) {
@@ -532,8 +537,8 @@ export default function ProductForm({ product, inHousehold }: Props) {
         />
       </div>
 
-      {/* ─── Sharing toggle (when in a household — on create and edit) ────── */}
-      {inHousehold && (
+      {/* ─── Sharing toggle (household + owner only — on create and edit) ─── */}
+      {inHousehold && isOwner && (
         <button
           type="button"
           onClick={() => setIsPrivate((v) => !v)}

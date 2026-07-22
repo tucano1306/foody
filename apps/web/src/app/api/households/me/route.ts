@@ -13,14 +13,14 @@ export async function GET(request: NextRequest) {
   const householdId = (userRows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
 
   if (!householdId) {
-    return NextResponse.json({ household: null, members: [], isOwner: false });
+    return NextResponse.json({ household: null, members: [], isOwner: false, userId: user.userId });
   }
 
   const householdRows = await sql`
     SELECT id, name, owner_id FROM households WHERE id = ${householdId} LIMIT 1
   `;
   if (householdRows.length === 0) {
-    return NextResponse.json({ household: null, members: [], isOwner: false });
+    return NextResponse.json({ household: null, members: [], isOwner: false, userId: user.userId });
   }
 
   const household = householdRows[0] as { id: string; name: string; owner_id: string };
@@ -37,5 +37,6 @@ export async function GET(request: NextRequest) {
     household: { id: household.id, name: household.name, ownerId: household.owner_id },
     members,
     isOwner: household.owner_id === user.userId,
+    userId: user.userId,
   });
 }

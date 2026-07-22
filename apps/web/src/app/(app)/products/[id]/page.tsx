@@ -31,6 +31,9 @@ export default async function EditProductPage({
     const rows = await sql`SELECT household_id FROM users WHERE id = ${session.userId} LIMIT 1`;
     inHousehold = Boolean((rows[0] as { household_id: string | null } | undefined)?.household_id);
   }
+  // A shared product can be edited by any household member, but only its owner
+  // decides whether it stays shared.
+  const isOwner = !session.userId || product.userId === session.userId;
 
   return (
     <div className="max-w-xl mx-auto">
@@ -39,9 +42,14 @@ export default async function EditProductPage({
           ← Volver a productos
         </a>
         <h1 className="text-2xl font-bold text-stone-800 mt-2">Editar {product.name}</h1>
+        {!isOwner && (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-700">
+            🤝 Producto compartido de tu hogar
+          </p>
+        )}
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-        <ProductForm product={product} inHousehold={inHousehold} />
+        <ProductForm product={product} inHousehold={inHousehold} isOwner={isOwner} />
       </div>
     </div>
   );

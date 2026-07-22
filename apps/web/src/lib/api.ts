@@ -283,8 +283,18 @@ export const api = {
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
     },
     get: async (id: string) => {
-      const { userId } = await getAuthContext();
-      const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
+      const { userId, householdId } = await getAuthContext();
+      await ensureProductSharingSchema();
+      // Same rule as list(): my own products, plus products shared with me by
+      // my household — otherwise "Editar" on a shared card would 404.
+      const rows = householdId
+        ? await sql`
+            SELECT * FROM products
+            WHERE id = ${id}
+              AND (user_id = ${userId} OR (household_id = ${householdId} AND is_private = false))
+            LIMIT 1
+          `
+        : await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
       return rows[0] ? mapProduct(rows[0] as Record<string, unknown>) : null;
     },
     create: async (data: CreateProductDto) => {

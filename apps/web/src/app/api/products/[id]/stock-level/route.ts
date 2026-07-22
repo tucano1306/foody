@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
+import { findAccessibleProduct } from '@/lib/product-access';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
 
@@ -64,16 +65,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const isRunningLow = level !== 'full';
   const needsShopping = level === 'empty';
 
+  // Shared pantry: my own products, plus products another household member
+  // shared with me — anyone in the house can report "se acabó".
+  const access = await findAccessibleProduct(id, user.userId);
+  if (!access) return notFound();
+  const ownerId = String(access.product.user_id);
+
   try {
-    // Per-user isolation: only the owner of the product can change its stock.
     // The CTE captures the level *before* the update so we only notify on a
     // real transition (avoids duplicate pushes when re-tapping the same level).
     const rows = await sql`
       WITH previous AS (
-        SELECT stock_level AS prev FROM products WHERE id = ${id} AND user_id = ${user.userId}
+        SELECT stock_level AS prev FROM products WHERE id = ${id}
       )
       UPDATE products SET stock_level = ${level}, is_running_low = ${isRunningLow}, needs_shopping = ${needsShopping}, updated_at = NOW()
-      WHERE id = ${id} AND user_id = ${user.userId}
+      WHERE id = ${id}
       RETURNING *, (SELECT prev FROM previous) AS previous_stock_level
     `;
     if (!rows.length) return notFound();
@@ -91,9 +97,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { previous_stock_level: previousLevel, ...product } = rows[0] as Record<string, unknown>;
     const productName = typeof product.name === 'string' ? product.name : '';
 
-    // Notify when stock actually drops to low or empty.
+    // Notify when stock actually drops to low or empty. The push goes to the
+    // product's owner: for my own products that's me (unchanged), and when a
+    // household member marks a shared product, the owner is the one who needs
+    // to know.
     if (level !== previousLevel && (level === 'half' || level === 'empty')) {
-      await notifyStockChange(user.userId, id, productName, level);
+      await notifyStockChange(ownerId, id, productName, level);
     }
 
     return NextResponse.json(product);

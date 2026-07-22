@@ -7,18 +7,14 @@ import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstFromElement, confettiRain } from '@/lib/fx';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-
-interface Member {
-  id: string;
-  name: string | null;
-  email: string;
-  avatarUrl: string | null;
-}
+import MemberSheet, { type Member } from '@/components/household/MemberSheet';
 
 interface HouseholdState {
   household: { id: string; name: string; ownerId: string } | null;
   members: Member[];
   isOwner: boolean;
+  /** id of the signed-in user, to tell "yo" apart from the rest of the members */
+  userId: string;
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -54,6 +50,7 @@ export default function HouseholdManager() {
   const [working, setWorking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
   const isOwner = state?.isOwner ?? false;
 
@@ -133,6 +130,25 @@ export default function HouseholdManager() {
     } finally {
       setWorking(false);
     }
+  }
+
+  // Both member actions let their error bubble up to MemberSheet, which shows it
+  // inside the sheet and keeps it open so the change isn't silently lost.
+  async function handleRenameMember(id: string, name: string) {
+    await fetchJson(`/households/members/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    });
+    playSound('pop');
+    await refresh();
+    router.refresh();
+  }
+
+  async function handleRemoveMember(id: string) {
+    await fetchJson(`/households/members/${id}`, { method: 'DELETE' });
+    playSound('low');
+    await refresh();
+    router.refresh();
   }
 
   async function handleGenerateInvite(e?: React.MouseEvent) {
@@ -304,36 +320,53 @@ export default function HouseholdManager() {
           </button>
         </div>
 
-        <ul className="space-y-2 divide-y divide-stone-100 dark:divide-stone-800 card-stagger">
+        <ul className="space-y-1 divide-y divide-stone-100 dark:divide-stone-800 card-stagger">
           {members.map((m) => (
-            <li key={m.id} className="group flex items-center gap-3 py-2">
-              {m.avatarUrl ? (
-                <Image
-                  src={m.avatarUrl}
-                  alt={m.name ?? m.email}
-                  width={36}
-                  height={36}
-                  className="rounded-full transition-transform duration-300 group-hover:scale-110"
-                />
-              ) : (
-                <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-bold flex items-center justify-center text-sm transition-transform duration-300 group-hover:scale-110">
-                  {(m.name ?? m.email)[0].toUpperCase()}
+            <li key={m.id}>
+              {/* Whole row is tappable → member sheet (rename / sacar del hogar) */}
+              <button
+                type="button"
+                onClick={() => { haptic(10); setSelectedMember(m); }}
+                aria-label={`Opciones de ${m.name ?? m.email}`}
+                className="group w-full flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl text-left hover:bg-stone-50 dark:hover:bg-stone-800 active:bg-stone-100 dark:active:bg-stone-700 transition"
+              >
+                {m.avatarUrl ? (
+                  <Image
+                    src={m.avatarUrl}
+                    alt={m.name ?? m.email}
+                    width={36}
+                    height={36}
+                    className="rounded-full transition-transform duration-300 group-hover:scale-110"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-bold flex items-center justify-center text-sm transition-transform duration-300 group-hover:scale-110">
+                    {(m.name ?? m.email)[0].toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-stone-800 dark:text-stone-100 text-sm truncate">
+                    {m.name ?? m.email}
+                    {m.id === household.ownerId && (
+                      <span className="ml-2 text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold">
+                        👑 Dueño
+                      </span>
+                    )}
+                    {m.id === state.userId && (
+                      <span className="ml-1.5 text-[10px] bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400 px-1.5 py-0.5 rounded-full font-bold">
+                        Tú
+                      </span>
+                    )}
+                  </p>
+                  {m.name && <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{m.email}</p>}
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-stone-800 dark:text-stone-100 text-sm truncate">
-                  {m.name ?? m.email}
-                  {m.id === household.ownerId && (
-                    <span className="ml-2 text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold">
-                      👑 Dueño
-                    </span>
-                  )}
-                </p>
-                {m.name && <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{m.email}</p>}
-              </div>
+                <span aria-hidden="true" className="text-stone-300 dark:text-stone-600 group-hover:text-brand-500 transition">›</span>
+              </button>
             </li>
           ))}
         </ul>
+        <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
+          Toca un miembro para cambiar su nombre{isOwner ? ' o sacarlo del hogar' : ''}.
+        </p>
       </section>
 
       <section className={cardCls}>
@@ -391,6 +424,16 @@ export default function HouseholdManager() {
           </button>
         )}
       </section>
+
+      <MemberSheet
+        member={selectedMember}
+        isSelf={selectedMember?.id === state.userId}
+        isHouseholdOwner={selectedMember?.id === household.ownerId}
+        viewerIsOwner={isOwner}
+        onClose={() => setSelectedMember(null)}
+        onRename={handleRenameMember}
+        onRemove={handleRemoveMember}
+      />
 
       <ConfirmDialog
         open={confirmLeave}
