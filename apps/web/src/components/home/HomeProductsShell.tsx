@@ -143,19 +143,34 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
     <>
       {/* ─── Todos los productos (búsqueda + catálogo, primero) ──────────── */}
       <Reveal className="space-y-5">
-        <SectionHeader emoji="🛒" title="Productos" tone="green" centered />
+        <SectionHeader
+          emoji="🛒"
+          title="Productos"
+          subtitle="Busca en tu despensa o explora por categoría"
+          tone="brand"
+          centered
+        />
         <section className="zone-card bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 p-4 sm:p-5 shadow-sm">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 mb-4">
-          <span aria-hidden="true" />
-          <h2 className="text-base sm:text-lg font-bold text-stone-700 dark:text-stone-200 truncate text-center">
-            🛒 Todos los productos ({products.length})
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="flex items-center gap-2 min-w-0 text-base sm:text-lg font-bold text-stone-700 dark:text-stone-200">
+            <span
+              aria-hidden="true"
+              className="grid place-items-center w-8 h-8 shrink-0 rounded-xl bg-brand-50 dark:bg-brand-900/50 ring-1 ring-brand-100 dark:ring-brand-900/60 text-base"
+            >
+              🛒
+            </span>
+            <span className="truncate">Todos los productos</span>
+            <span className="shrink-0 rounded-full bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-stone-500 dark:text-stone-400">
+              {products.length}
+            </span>
           </h2>
           <Link
             href="/products/new"
             aria-label="Agregar producto"
-            className="justify-self-end shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors whitespace-nowrap"
+            className="shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors whitespace-nowrap shadow-sm"
           >
-            + Agregar
+            <span className="sm:hidden">+</span>
+            <span className="hidden sm:inline">+ Agregar</span>
           </Link>
         </div>
         {products.length === 0 ? (
@@ -184,7 +199,13 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
       {/* ─── Mi despensa (urgencias: agotados → queda poco) ──────────────── */}
       {(empty.length > 0 || low.length > 0) && (
         <Reveal className="space-y-5">
-          <SectionHeader emoji="🥑" title="Mi despensa" tone="amber" centered />
+          <SectionHeader
+            emoji="🥑"
+            title="Mi despensa"
+            subtitle="Lo que se acabó o está por acabarse"
+            tone="amber"
+            centered
+          />
 
           {empty.length > 0 && (
             <CollapsibleSection

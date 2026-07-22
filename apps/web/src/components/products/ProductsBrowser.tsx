@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
@@ -92,6 +92,110 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
   );
 }
 
+/**
+ * Category picker as a single scrollable row of chips.
+ * Beats a <select> here: the categories you own are visible without opening
+ * anything, each one carries its count, and one tap browses a whole aisle —
+ * which is what fills the space where the "escribe para buscar" hint used to sit.
+ */
+function CategoryChips({
+  categories,
+  counts,
+  total,
+  value,
+  onChange,
+}: {
+  readonly categories: readonly string[];
+  readonly counts: ReadonlyMap<string, number>;
+  readonly total: number;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}) {
+  const chip = (active: boolean) =>
+    `shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm whitespace-nowrap transition ${
+      active
+        ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
+        : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 hover:border-stone-300'
+    }`;
+
+  const badge = (active: boolean) =>
+    `text-[11px] font-semibold tabular-nums px-1.5 py-px rounded-full ${
+      active ? 'bg-white/25 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+    }`;
+
+  const allActive = value === ALL_CATEGORIES;
+
+  // Edge fades tell you there are more aisles off-screen, and vanish once you
+  // reach that end. A mask (not a gradient overlay) so it works on any
+  // background — this row sits on a white card at home, on the page bg elsewhere.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: false, end: false });
+
+  const syncEdges = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const next = { start: el.scrollLeft > 4, end: el.scrollLeft < max - 4 };
+    // Bail on no-ops: this runs on every scroll frame.
+    setEdges((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
+  }, []);
+
+  // A ResizeObserver, not a window resize listener: the row is inside a Reveal
+  // wrapper that can still be laid out at zero width on mount, and measuring
+  // then would leave the "more aisles →" fade permanently off.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    syncEdges();
+    const ro = new ResizeObserver(syncEdges);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [syncEdges, categories]);
+
+  const mask = `linear-gradient(to right, ${
+    edges.start ? 'transparent 0, black 28px' : 'black 0'
+  }, ${edges.end ? 'black calc(100% - 28px), transparent 100%' : 'black 100%'})`;
+
+  return (
+    <div
+      ref={scrollerRef}
+      onScroll={syncEdges}
+      style={{ maskImage: mask, WebkitMaskImage: mask }}
+      className="flex gap-2 overflow-x-auto scroll-row py-0.5"
+      role="group"
+      aria-label="Filtrar por categoría"
+    >
+      <button
+        type="button"
+        onClick={() => onChange(ALL_CATEGORIES)}
+        aria-pressed={allActive}
+        className={chip(allActive)}
+      >
+        <span aria-hidden="true">🗂️</span>
+        Todas
+        <span className={badge(allActive)}>{total}</span>
+      </button>
+
+      {categories.map((cat) => {
+        const active = value === cat;
+        return (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => onChange(active ? ALL_CATEGORIES : cat)}
+            aria-pressed={active}
+            className={chip(active)}
+          >
+            <span aria-hidden="true">{categoryEmoji(cat)}</span>
+            {cat}
+            <span className={badge(active)}>{counts.get(cat) ?? 0}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 interface GridOptions {
   searchOnly: boolean;
   trimmedQuery: string;
@@ -148,18 +252,20 @@ function renderGrid({
   onDelete,
   currentUserId,
 }: GridOptions): React.ReactNode {
-  if (searchOnly && !trimmedQuery && !categoryActive) {
-    return (
-      <div className="text-center py-10 text-stone-400">
-        <p className="text-3xl mb-2">🔍</p>
-        <p className="text-sm">Escribe para buscar un producto</p>
-      </div>
-    );
-  }
+  // Search-only mode idles empty on purpose: the search box and the category
+  // chips are the whole UI until you ask for something. A placeholder block
+  // here would just be dead space above the pantry sections.
+  if (searchOnly && !trimmedQuery && !categoryActive) return null;
+
   if (filtered.length === 0) {
     return (
-      <div className="text-center py-12 text-stone-400">
-        {emptyState ?? <p>No hay productos que coincidan</p>}
+      <div className="text-center py-8 text-stone-400">
+        {emptyState ?? (
+          <>
+            <p className="text-3xl mb-2">🤷</p>
+            <p className="text-sm">No hay productos que coincidan</p>
+          </>
+        )}
       </div>
     );
   }
@@ -275,12 +381,21 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     [localProducts, inCart],
   );
 
-  // Every category present in the pantry, in aisle order — powers the dropdown.
-  const availableCategories = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of displayProducts) set.add(p.category?.trim() || 'Otro');
-    return [...set].sort((a, b) => categoryOrder(a) - categoryOrder(b) || a.localeCompare(b));
+  // Every category present in the pantry, in aisle order, with how many
+  // products each holds — powers the chip row.
+  const categoryCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of displayProducts) {
+      const cat = p.category?.trim() || 'Otro';
+      map.set(cat, (map.get(cat) ?? 0) + 1);
+    }
+    return map;
   }, [displayProducts]);
+
+  const availableCategories = useMemo(
+    () => [...categoryCounts.keys()].sort((a, b) => categoryOrder(a) - categoryOrder(b) || a.localeCompare(b)),
+    [categoryCounts],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -293,6 +408,14 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       return hay.includes(q);
     });
   }, [displayProducts, query, stockFilter, categoryFilter]);
+
+  const trimmedQuery = query.trim();
+  const categoryActive = categoryFilter !== ALL_CATEGORIES;
+  const anyFilterActive = Boolean(trimmedQuery) || categoryActive;
+  // searchOnly always renders the flat, paginated grid — the view toggle isn't
+  // shown there, so the meta line and pager have to follow the grid, not the
+  // (unreachable) 'grid' view mode.
+  const gridMode = searchOnly || viewMode === 'grid';
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -338,11 +461,12 @@ export default function ProductsBrowser(props: Readonly<Props>) {
         <PantryHealthMeter products={displayProducts} />
       )}
 
-      {/* Search + view toggle */}
+      {/* Search + view toggle. The camera lives inside the field so the row
+          stays a single search affordance instead of three boxes. */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <motion.span
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
             whileHover={{ scale: 1.3, rotate: -15 }}
             animate={
               query
@@ -362,39 +486,41 @@ export default function ProductsBrowser(props: Readonly<Props>) {
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Buscar productos…"
-            className="w-full pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-stone-700 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition"
+            className={`w-full pl-11 py-3 bg-white border border-stone-200 rounded-2xl text-stone-700 placeholder:text-stone-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition ${query ? 'pr-20' : 'pr-14'}`}
           />
-          {query && (
+
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+            {query && (
+              <button
+                type="button"
+                onClick={() => onQueryChange('')}
+                className="w-8 h-8 grid place-items-center rounded-full text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition"
+                aria-label="Limpiar búsqueda"
+              >
+                ✕
+              </button>
+            )}
+            {/* Camera search: photograph the product to find it in the pantry */}
             <button
               type="button"
-              onClick={() => onQueryChange('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-              aria-label="Limpiar búsqueda"
+              onClick={() => setScanOpen(true)}
+              aria-label="Buscar producto con la cámara"
+              title="Buscar producto con la cámara"
+              className="w-9 h-9 grid place-items-center rounded-full text-base text-stone-500 hover:bg-stone-100 active:scale-95 transition"
             >
-              ✕
+              📷
             </button>
-          )}
+          </div>
         </div>
-
-        {/* Camera search: photograph the product to find it in the pantry */}
-        <button
-          type="button"
-          onClick={() => setScanOpen(true)}
-          aria-label="Buscar producto con la cámara"
-          title="Buscar producto con la cámara"
-          className="px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-base text-stone-500 hover:bg-stone-50 shrink-0 transition"
-        >
-          📷
-        </button>
 
         {/* View mode toggle */}
         {!searchOnly && (
-          <div className="flex rounded-xl border border-stone-200 overflow-hidden bg-white shrink-0">
+          <div className="flex rounded-2xl border border-stone-200 overflow-hidden bg-white shadow-sm shrink-0">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
               aria-label="Vista cuadrícula"
-              className={`px-3 py-2.5 text-base transition ${viewMode === 'grid' ? 'bg-brand-500 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
+              className={`px-3 py-3 text-base transition ${viewMode === 'grid' ? 'bg-brand-500 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
             >
               ⊞
             </button>
@@ -402,7 +528,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
               type="button"
               onClick={() => setViewMode('categories')}
               aria-label="Vista por categorías"
-              className={`px-3 py-2.5 text-base transition ${viewMode === 'categories' ? 'bg-brand-500 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
+              className={`px-3 py-3 text-base transition ${viewMode === 'categories' ? 'bg-brand-500 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
             >
               📂
             </button>
@@ -410,25 +536,15 @@ export default function ProductsBrowser(props: Readonly<Props>) {
         )}
       </div>
 
-      {/* Category dropdown — jump straight to a section (quesos, lácteos…) */}
+      {/* Category chips — one tap browses a whole aisle (lácteos, bebidas…) */}
       {availableCategories.length > 1 && (
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none">📂</span>
-          <select
-            value={categoryFilter}
-            onChange={(e) => onCategoryChange(e.target.value)}
-            aria-label="Filtrar por categoría"
-            className="w-full appearance-none pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition cursor-pointer"
-          >
-            <option value={ALL_CATEGORIES}>Todas las categorías</option>
-            {availableCategories.map((cat) => (
-              <option key={cat} value={cat}>
-                {categoryEmoji(cat)} {cat}
-              </option>
-            ))}
-          </select>
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none">▾</span>
-        </div>
+        <CategoryChips
+          categories={availableCategories}
+          counts={categoryCounts}
+          total={displayProducts.length}
+          value={categoryFilter}
+          onChange={onCategoryChange}
+        />
       )}
 
       {/* Stock filter chips */}
@@ -457,22 +573,37 @@ export default function ProductsBrowser(props: Readonly<Props>) {
         </div>
       )}
 
-      {/* Results meta — only in grid mode */}
-      {viewMode === 'grid' && (!searchOnly || query.trim()) && (
-        <p className="text-xs text-stone-500">
-          {filtered.length === 0
-            ? 'Sin resultados'
-            : `Mostrando ${start + 1}–${Math.min(start + pageSize, filtered.length)} de ${filtered.length}`}
-        </p>
+      {/* Results meta + escape hatch — only when a flat grid is on screen */}
+      {gridMode && (!searchOnly || anyFilterActive) && (
+        <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
+          <p className="truncate">
+            {filtered.length === 0
+              ? 'Sin resultados'
+              : `Mostrando ${start + 1}–${Math.min(start + pageSize, filtered.length)} de ${filtered.length}`}
+          </p>
+          {anyFilterActive && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setCategoryFilter(ALL_CATEGORIES);
+                setPage(1);
+              }}
+              className="shrink-0 font-semibold text-brand-500 hover:text-brand-600 hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
       )}
 
       {/* Grid or Grouped */}
-      {viewMode === 'categories' && !searchOnly
+      {!gridMode
         ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete, currentUserId })
-        : renderGrid({ searchOnly, trimmedQuery: query.trim(), categoryActive: categoryFilter !== ALL_CATEGORIES, filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete, currentUserId })}
+        : renderGrid({ searchOnly, trimmedQuery, categoryActive, filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete, currentUserId })}
 
       {/* Pagination — only in grid mode */}
-      {viewMode === 'grid' && totalPages > 1 && (
+      {gridMode && totalPages > 1 && (
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
           <button
             type="button"

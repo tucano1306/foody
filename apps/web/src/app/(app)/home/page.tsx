@@ -76,13 +76,25 @@ export default async function HomePage() {
 
       {/* ─── Pagos próximos ─────────────────────────────────────────────────── */}
       <Reveal className="space-y-5">
-        <SectionHeader emoji="💰" title="Finanzas" tone="green" centered />
+        <SectionHeader
+          emoji="💰"
+          title="Finanzas"
+          subtitle="Tus pagos del mes y lo que viene"
+          tone="green"
+          centered
+        />
         <UpcomingPaymentsWidget payments={upcomingPayments} />
       </Reveal>
 
       {/* ─── Stats y gráficas (resumen, debajo de lo accionable) ────────────── */}
       <Reveal className="space-y-5">
-        <SectionHeader emoji="📊" title="Resumen y estadísticas" tone="violet" centered />
+        <SectionHeader
+          emoji="📊"
+          title="Resumen"
+          subtitle="Tus números y gráficas del mes"
+          tone="violet"
+          centered
+        />
         <DashboardStats
           totalProducts={products.length}
           runningLowCount={runningLow.length}

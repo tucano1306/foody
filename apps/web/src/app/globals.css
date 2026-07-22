@@ -150,6 +150,18 @@ html.dark .text-stone-400 {
   background: #a8a29e;
 }
 
+/* Horizontal chip rows (category filters): no scrollbar — the edge fade on the
+   element itself is the "there's more" cue, and a 6px bar under the chips just
+   made the row taller. */
+.scroll-row {
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+}
+.scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
 /* ─── Utilities: subtle motion ───────────────────────────────────────────── */
 @keyframes foody-fade-up {
   from {
