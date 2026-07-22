@@ -39,7 +39,7 @@ function ProgressRing({ pct, color, emoji }: { readonly pct: number; readonly co
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg leading-none" aria-hidden="true">{emoji}</span>
-        <span className="text-[11px] font-black text-slate-700 dark:text-white tabular-nums mt-0.5">{Math.round(pct)}%</span>
+        <span className="text-[11px] font-black text-black dark:text-white tabular-nums mt-0.5">{Math.round(pct)}%</span>
       </div>
     </div>
   );
@@ -56,7 +56,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, type: 'spring', stiffness: 260, damping: 26 }}
-      className="rounded-3xl border border-slate-100 dark:border-white/10 bg-white dark:bg-navy-800 shadow-sm overflow-hidden"
+      className="rounded-3xl border border-sky-100 dark:border-white/10 bg-sky-50/70 dark:bg-navy-800 shadow-sm overflow-hidden"
     >
       {/* Encabezado pastel */}
       <div className={`bg-linear-to-br ${meta.gradient} px-4 py-4`}>
@@ -65,7 +65,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base font-black text-slate-800 dark:text-white truncate">{goal.name}</h3>
+              <h3 className="text-base font-black text-black dark:text-white truncate">{goal.name}</h3>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${feas.chip}`}>
                 {feas.icon} {feas.label}
               </span>
@@ -86,18 +86,18 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
       </div>
 
       {/* Números del plan */}
-      <div className="px-4 py-3 grid grid-cols-3 gap-2 border-b border-slate-100 dark:border-white/10">
+      <div className="px-4 py-3 grid grid-cols-3 gap-2 border-b border-sky-100 dark:border-white/10">
         {[
-          { label: 'Falta', value: fmtMoney(goal.remaining), tone: 'text-slate-800 dark:text-white' },
+          { label: 'Falta', value: fmtMoney(goal.remaining), tone: 'text-black dark:text-white' },
           {
             label: 'Necesitas/mes',
             value: fmtMoneyFine(goal.requiredMonthly),
-            tone: goal.shortfallMonthly > 0 ? 'text-rose-600 dark:text-rose-300' : 'text-slate-800 dark:text-white',
+            tone: 'text-black dark:text-white',
           },
           {
             label: 'Plan asigna',
             value: fmtMoneyFine(goal.allocatedMonthly),
-            tone: goal.allocatedMonthly > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400',
+            tone: goal.allocatedMonthly > 0 ? 'text-black dark:text-white' : 'text-slate-400',
           },
         ].map((cell) => (
           <div key={cell.label} className="text-center">
@@ -109,16 +109,16 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
 
       {/* Diagnóstico */}
       {!done && (
-        <div className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 bg-slate-50/60 dark:bg-white/5">
+        <div className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-white/5">
           {goal.shortfallMonthly > 0 ? (
             <span>
-              ⚠️ Te faltan <strong className="text-rose-600 dark:text-rose-300">{fmtMoneyFine(goal.shortfallMonthly)}</strong> al mes.
+              ⚠️ Te faltan <strong className="text-black dark:text-white">{fmtMoneyFine(goal.shortfallMonthly)}</strong> al mes.
               {goal.projectedDate && ` A este ritmo la lograrías el ${formatDateKey(goal.projectedDate, true)}`}
               {goal.monthsLate > 0 && ` (${goal.monthsLate} ${goal.monthsLate === 1 ? 'mes' : 'meses'} tarde).`}
             </span>
           ) : (
             <span>
-              💡 Aparta <strong className="text-emerald-600 dark:text-emerald-300">{fmtMoneyFine(goal.requiredWeekly)}</strong> por semana
+              💡 Aparta <strong className="text-black dark:text-white">{fmtMoneyFine(goal.requiredWeekly)}</strong> por semana
               {goal.requiredDaily > 0 && ` o ${fmtMoneyFine(goal.requiredDaily)} al día`} y llegas a tiempo.
             </span>
           )}
@@ -130,7 +130,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
         <button
           type="button"
           onClick={() => { haptic(10); onContribute(); }}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-linear-to-r from-emerald-400 to-teal-400 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-sm transition"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-linear-to-r from-sky-400 to-blue-400 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-bold shadow-sm transition"
         >
           <PlusCircleIcon className="w-4 h-4" />
           Aportar
@@ -141,7 +141,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
             onClick={() => { haptic([12, 20, 12]); onComplete(); }}
             title="Marcar como lograda"
             aria-label="Marcar como lograda"
-            className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 transition"
+            className="p-2.5 rounded-2xl bg-sky-50 dark:bg-sky-500/15 text-sky-600 dark:text-sky-300 hover:bg-sky-100 transition"
           >
             <CheckCircleIcon className="w-4 h-4" />
           </button>
@@ -151,7 +151,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
           onClick={() => { haptic(8); onEdit(); }}
           title="Editar meta"
           aria-label="Editar meta"
-          className="p-2.5 rounded-2xl bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+          className="p-2.5 rounded-2xl bg-white/70 dark:bg-white/5 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition"
         >
           <PencilSquareIcon className="w-4 h-4" />
         </button>
@@ -160,7 +160,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
           onClick={() => { haptic(14); onDelete(); }}
           title="Eliminar meta"
           aria-label="Eliminar meta"
-          className="p-2.5 rounded-2xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition"
+          className="p-2.5 rounded-2xl bg-white/70 dark:bg-white/5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition"
         >
           <TrashIcon className="w-4 h-4" />
         </button>

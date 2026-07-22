@@ -35,10 +35,10 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
   const maxMonth = Math.max(...history.map((h) => h.total), g.projectedMonthEnd, 1);
 
   return (
-    <section className="rounded-3xl border border-slate-100 dark:border-white/10 bg-white dark:bg-navy-800 shadow-sm p-5">
+    <section className="rounded-3xl border border-sky-100 dark:border-white/10 bg-sky-50/70 dark:bg-navy-800 shadow-sm p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-sm font-black text-slate-700 dark:text-white uppercase tracking-wide">
+          <h2 className="text-sm font-black text-black dark:text-white uppercase tracking-wide">
             🛒 Tus compras en el plan
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -55,8 +55,8 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
           <span
             className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-black ${
               g.trendPct > 0
-                ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200'
-                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200'
+                : 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200'
             }`}
           >
             {g.trendPct > 0 ? '↑' : '↓'} {Math.abs(Math.round(g.trendPct))}%
@@ -65,26 +65,26 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
       </div>
 
       {/* Ritmo del mes */}
-      <div className="rounded-2xl bg-slate-50 dark:bg-white/5 p-4">
+      <div className="rounded-2xl bg-white/70 dark:bg-white/5 p-4">
         <div className="flex items-baseline justify-between mb-2">
           <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Ritmo del mes · día {g.daysElapsed} de {g.daysInMonth}
           </span>
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 tabular-nums">
+          <span className="text-xs font-bold tabular-nums text-black dark:text-white">
             {fmtMoney(g.dailyPace)}/día
           </span>
         </div>
 
-        <div className="relative h-3.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+        <div className="relative h-3.5 rounded-full bg-sky-100 dark:bg-white/10 overflow-hidden">
           {/* Proyección al cierre (translúcida) sobre lo ya gastado (sólida) */}
           <motion.div
-            className={`absolute inset-y-0 left-0 rounded-full ${overLimit ? 'bg-rose-200 dark:bg-rose-500/30' : 'bg-emerald-200 dark:bg-emerald-500/30'}`}
+            className={`absolute inset-y-0 left-0 rounded-full ${overLimit ? 'bg-blue-200 dark:bg-blue-500/30' : 'bg-sky-200 dark:bg-sky-500/30'}`}
             initial={{ width: 0 }}
             animate={{ width: `${paceWidth}%` }}
             transition={{ duration: 0.9, ease: [0.22, 0.61, 0.36, 1] }}
           />
           <motion.div
-            className={`absolute inset-y-0 left-0 rounded-full bg-linear-to-r ${overLimit ? 'from-rose-400 to-orange-400' : 'from-emerald-400 to-teal-400'}`}
+            className={`absolute inset-y-0 left-0 rounded-full bg-linear-to-r ${overLimit ? 'from-blue-500 to-blue-400' : 'from-sky-400 to-blue-400'}`}
             initial={{ width: 0 }}
             animate={{ width: `${g.limit > 0 ? spentWidth : 100}%` }}
             transition={{ duration: 0.9, delay: 0.1, ease: [0.22, 0.61, 0.36, 1] }}
@@ -94,11 +94,11 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
         <div className="grid grid-cols-3 gap-2 mt-3 text-center">
           <div>
             <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Llevas</p>
-            <p className="text-sm font-black text-slate-800 dark:text-white tabular-nums">{fmtMoney(g.spentThisMonth)}</p>
+            <p className="text-sm font-black text-black dark:text-white tabular-nums">{fmtMoney(g.spentThisMonth)}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Cerrarás en</p>
-            <p className={`text-sm font-black tabular-nums ${overLimit ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+            <p className="text-sm font-black tabular-nums text-black dark:text-white">
               {fmtMoney(g.projectedMonthEnd)}
             </p>
           </div>
@@ -106,14 +106,14 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
             <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">
               {g.limit > 0 ? 'Tu límite' : 'Tu promedio'}
             </p>
-            <p className="text-sm font-black text-slate-500 dark:text-slate-300 tabular-nums">
+            <p className="text-sm font-black text-black dark:text-white tabular-nums">
               {fmtMoney(g.limit > 0 ? g.limit : g.avgMonthly)}
             </p>
           </div>
         </div>
 
         {g.limit > 0 && (
-          <p className={`text-xs mt-2.5 ${overLimit ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+          <p className="text-xs mt-2.5 text-slate-700 dark:text-slate-200">
             {overLimit
               ? `⚠️ A este ritmo te pasas ${fmtMoney(g.overLimit)} — ese dinero deja de ir a tus metas.`
               : `✅ Vas ${fmtMoney(Math.abs(g.overLimit))} por debajo del límite: es dinero libre para tus metas.`}
@@ -132,7 +132,7 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
               <div key={h.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
                 <motion.div
                   className={`w-full rounded-t-md ${
-                    i === history.length - 1 ? 'bg-linear-to-t from-sky-400 to-cyan-300' : 'bg-slate-200 dark:bg-white/10'
+                    i === history.length - 1 ? 'bg-linear-to-t from-sky-400 to-sky-300' : 'bg-sky-100 dark:bg-white/10'
                   }`}
                   initial={{ height: 0 }}
                   animate={{ height: `${Math.max(6, (h.total / maxMonth) * 100)}%` }}
@@ -162,18 +162,18 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
                       {c.category}
                     </span>
-                    <span className="text-xs font-black text-slate-800 dark:text-white tabular-nums shrink-0">
+                    <span className="text-xs font-black text-black dark:text-white tabular-nums shrink-0">
                       {fmtMoney(c.currentMonth)}
                       {c.deltaPct !== null && Math.abs(c.deltaPct) >= 10 && (
-                        <span className={`ml-1.5 font-bold ${c.deltaPct > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                        <span className={`ml-1.5 font-bold ${c.deltaPct > 0 ? 'text-blue-700 dark:text-blue-300' : 'text-sky-700 dark:text-sky-300'}`}>
                           {c.deltaPct > 0 ? '+' : ''}{Math.round(c.deltaPct)}%
                         </span>
                       )}
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-slate-100 dark:bg-white/5 mt-1 overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-white dark:bg-white/5 mt-1 overflow-hidden">
                     <motion.div
-                      className="h-full rounded-full bg-linear-to-r from-violet-300 to-fuchsia-300"
+                      className="h-full rounded-full bg-linear-to-r from-sky-300 to-blue-300"
                       initial={{ width: 0 }}
                       animate={{ width: `${c.share}%` }}
                       transition={{ duration: 0.7 }}
@@ -186,7 +186,7 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-slate-100 dark:border-white/10">
+      <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-sky-100 dark:border-white/10">
         <p className="text-[11px] text-slate-400">
           {g.tripsThisMonth > 0
             ? `${g.tripsThisMonth} ${g.tripsThisMonth === 1 ? 'visita' : 'visitas'} al super este mes`

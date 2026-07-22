@@ -292,18 +292,18 @@ export default function BudgetView({ initialData }: Props) {
       <Link
         href="/plan"
         onClick={() => haptic(10)}
-        className="group flex items-center gap-3 rounded-2xl border border-indigo-200 dark:border-indigo-500/25 bg-linear-to-r from-indigo-50 via-violet-50 to-sky-50 dark:from-indigo-500/10 dark:via-violet-500/10 dark:to-sky-500/5 p-4 transition hover:shadow-md"
+        className="group flex items-center gap-3 rounded-2xl border border-sky-200 dark:border-white/10 bg-linear-to-r from-sky-100 to-blue-100 dark:from-sky-500/10 dark:to-blue-500/5 p-4 transition hover:shadow-md"
       >
         <span className="text-2xl shrink-0" aria-hidden="true">🧭</span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-indigo-800 dark:text-indigo-200">
+          <p className="text-sm font-bold text-black dark:text-white">
             ¿Tienes un viaje, una deuda o un proyecto?
           </p>
-          <p className="text-xs text-indigo-600/80 dark:text-indigo-300/80 mt-0.5">
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
             El Plan financiero calcula cuánto apartar cada mes y te da consejos para lograrlo.
           </p>
         </div>
-        <span className="shrink-0 text-indigo-400 group-hover:translate-x-1 transition-transform" aria-hidden="true">→</span>
+        <span className="shrink-0 text-sky-500 group-hover:translate-x-1 transition-transform" aria-hidden="true">→</span>
       </Link>
 
       {/* ─── Radial gauge ────────────────────────────────────────────────────── */}

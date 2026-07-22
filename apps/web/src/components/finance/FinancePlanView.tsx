@@ -19,7 +19,7 @@ import GoalFormModal, { type GoalPayload } from './GoalFormModal';
 import GrocerySpendCard from './GrocerySpendCard';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
 import SimulatorCard from './SimulatorCard';
-import { fmtMoney, healthColor, healthLabel } from './finance-ui';
+import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel } from './finance-ui';
 
 interface Props {
   readonly initialData: FinancePlanPayload;
@@ -39,7 +39,7 @@ function HealthRing({ score }: { readonly score: number }) {
   return (
     <div className="relative w-28 h-28 shrink-0">
       <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90" aria-hidden="true">
-        <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="11" />
+        <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="currentColor" className="text-white/70 dark:text-white/10" strokeWidth="11" />
         <motion.circle
           cx="60"
           cy="60"
@@ -54,17 +54,17 @@ function HealthRing({ score }: { readonly score: number }) {
           transition={{ duration: 1.2, ease: [0.22, 0.61, 0.36, 1] }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
         <motion.span
           key={score}
           initial={{ scale: 0.7, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 420, damping: 18 }}
-          className="text-3xl font-black tabular-nums leading-none"
+          className={`text-3xl font-black tabular-nums leading-none ${NUM}`}
         >
           {score}
         </motion.span>
-        <span className="text-[10px] uppercase tracking-widest opacity-80 mt-1">salud</span>
+        <span className={`text-[10px] uppercase tracking-widest mt-1 ${LABEL}`}>salud</span>
       </div>
     </div>
   );
@@ -208,23 +208,21 @@ export default function FinancePlanView({ initialData }: Props) {
   return (
     <div className="space-y-5 pb-24">
       {/* ─── Hero: salud financiera ──────────────────────────────────────── */}
-      <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-indigo-400 via-violet-400 to-sky-400 dark:from-indigo-600 dark:via-violet-700 dark:to-sky-700 text-white p-5 shadow-xl shadow-indigo-500/20">
-        <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/10 blur-2xl" aria-hidden="true" />
+      <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-sky-100 via-blue-100 to-sky-50 dark:from-navy-700 dark:via-navy-800 dark:to-navy-900 border border-sky-200 dark:border-white/10 p-5 shadow-sm">
+        <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/40 dark:bg-white/5 blur-2xl" aria-hidden="true" />
         <div className="relative flex items-center gap-5">
           <HealthRing score={data.healthScore} />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] uppercase tracking-widest text-white/70 font-bold">Salud financiera</p>
-            <h2 className="text-2xl font-black leading-tight">{healthLabel(data.healthScore)}</h2>
+            <p className={`text-[11px] uppercase tracking-widest font-bold ${LABEL}`}>Salud financiera</p>
+            <h2 className={`text-2xl font-black leading-tight ${NUM}`}>{healthLabel(data.healthScore)}</h2>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-white/60 font-bold">Ingreso</p>
-                <p className="font-black tabular-nums">{fmtMoney(cash.monthlyIncome)}</p>
+                <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>Ingreso</p>
+                <p className={`font-black tabular-nums ${NUM}`}>{fmtMoney(cash.monthlyIncome)}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-white/60 font-bold">Libre al mes</p>
-                <p className={`font-black tabular-nums ${cash.available < 0 ? 'text-rose-100' : ''}`}>
-                  {fmtMoney(cash.available)}
-                </p>
+                <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>Libre al mes</p>
+                <p className={`font-black tabular-nums ${NUM}`}>{fmtMoney(cash.available)}</p>
               </div>
             </div>
           </div>
@@ -234,7 +232,7 @@ export default function FinancePlanView({ initialData }: Props) {
           <button
             type="button"
             onClick={() => { haptic(12); setModal({ kind: 'goal', goal: null }); }}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-white text-indigo-600 text-sm font-black shadow-lg hover:bg-white/90 transition"
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-sm font-black shadow-sm transition ${BTN_PRIMARY}`}
           >
             <PlusIcon className="w-4 h-4" />
             Nueva meta
@@ -242,7 +240,7 @@ export default function FinancePlanView({ initialData }: Props) {
           <button
             type="button"
             onClick={() => { haptic(10); setModal({ kind: 'income' }); }}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 text-white text-sm font-bold backdrop-blur transition"
+            className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition ${BTN_SOFT}`}
           >
             <BriefcaseIcon className="w-4 h-4" />
             Ingresos
@@ -251,7 +249,7 @@ export default function FinancePlanView({ initialData }: Props) {
             type="button"
             onClick={() => { haptic(8); void refresh(); }}
             aria-label="Actualizar plan"
-            className="p-2.5 rounded-2xl bg-white/20 hover:bg-white/30 text-white backdrop-blur transition"
+            className={`p-2.5 rounded-2xl transition ${BTN_SOFT}`}
           >
             <ArrowPathIcon className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -279,7 +277,7 @@ export default function FinancePlanView({ initialData }: Props) {
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black text-slate-700 dark:text-white uppercase tracking-wide">
+          <h2 className="text-sm font-black text-black dark:text-white uppercase tracking-wide">
             🎯 Tus metas
           </h2>
           {activeGoals.length > 0 && (
@@ -290,9 +288,9 @@ export default function FinancePlanView({ initialData }: Props) {
         </div>
 
         {activeGoals.length === 0 ? (
-          <div className="rounded-3xl border-2 border-dashed border-indigo-200 dark:border-indigo-500/25 bg-indigo-50/50 dark:bg-indigo-500/5 p-8 text-center">
+          <div className="rounded-3xl border-2 border-dashed border-sky-200 dark:border-sky-500/25 bg-sky-50/50 dark:bg-sky-500/5 p-8 text-center">
             <span className="text-4xl" aria-hidden="true">🎯</span>
-            <h3 className="text-base font-black text-slate-700 dark:text-white mt-3">Dime qué quieres lograr</h3>
+            <h3 className={`text-base font-black mt-3 ${NUM}`}>Dime qué quieres lograr</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-sm mx-auto">
               Un viaje, saldar una deuda, un proyecto. Escribe cuánto cuesta y para cuándo lo quieres:
               yo calculo cuánto apartar cada mes y te aviso si te desvías.
@@ -300,7 +298,7 @@ export default function FinancePlanView({ initialData }: Props) {
             <button
               type="button"
               onClick={() => { haptic(12); setModal({ kind: 'goal', goal: null }); }}
-              className="mt-4 px-5 py-2.5 rounded-2xl bg-linear-to-r from-indigo-500 to-violet-500 text-white text-sm font-black shadow-lg shadow-indigo-500/20"
+              className={`mt-4 px-5 py-2.5 rounded-2xl text-sm font-black shadow-sm ${BTN_PRIMARY}`}
             >
               ✨ Crear mi primera meta
             </button>
@@ -325,8 +323,8 @@ export default function FinancePlanView({ initialData }: Props) {
         )}
 
         {doneGoals.length > 0 && (
-          <details className="rounded-2xl border border-emerald-200 dark:border-emerald-500/25 bg-emerald-50/60 dark:bg-emerald-500/5 px-4 py-3">
-            <summary className="cursor-pointer text-sm font-bold text-emerald-700 dark:text-emerald-200 select-none">
+          <details className="rounded-2xl border border-sky-200 dark:border-sky-500/25 bg-sky-50/60 dark:bg-sky-500/5 px-4 py-3">
+            <summary className={`cursor-pointer text-sm font-bold select-none ${NUM}`}>
               🏆 Metas logradas ({doneGoals.length})
             </summary>
             <ul className="mt-3 space-y-2">
@@ -335,7 +333,7 @@ export default function FinancePlanView({ initialData }: Props) {
                   <span className="text-slate-700 dark:text-slate-200 truncate">
                     {g.emoji} {g.name}
                   </span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-300 tabular-nums shrink-0 ml-3">
+                  <span className={`font-bold tabular-nums shrink-0 ml-3 ${NUM}`}>
                     {fmtMoney(g.targetAmount)}
                   </span>
                 </li>

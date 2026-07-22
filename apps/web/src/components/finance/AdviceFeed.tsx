@@ -19,7 +19,7 @@ export default function AdviceFeed({ advice, onAction }: Props) {
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2">
-        <h2 className="text-sm font-black text-slate-700 dark:text-white uppercase tracking-wide">
+        <h2 className="text-sm font-black text-black dark:text-white uppercase tracking-wide">
           🧠 Tu consejero financiero
         </h2>
         <span className="text-[11px] text-slate-400">{advice.length} recomendaciones</span>

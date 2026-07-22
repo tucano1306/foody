@@ -1,9 +1,10 @@
 /**
  * finance-ui.ts — vocabulario visual del Plan Financiero.
  *
- * Paleta pastel: cada tipo de meta y cada tono de consejo tiene su familia de
- * color, definida una sola vez aquí para que tarjetas, modales y feed se vean
- * como un mismo sistema (y para que el modo oscuro se ajuste en un solo lugar).
+ * Una sola familia de color: azul pastel claro. El significado (meta en
+ * riesgo, consejo crítico, deuda) NO se comunica con rojos ni verdes, sino con
+ * la profundidad del azul, el emoji y el texto. Las cifras van en negro para
+ * que sean lo único que destaque sobre el fondo claro.
  */
 import type { AdviceTone, Feasibility, GoalKind, IncomeFrequency } from '@/lib/finance-engine';
 
@@ -17,6 +18,23 @@ export const fmtMoney = (n: number, decimals = 0) =>
 
 /** $1,234.56 solo cuando el decimal aporta (aportes, cuotas semanales). */
 export const fmtMoneyFine = (n: number) => (Number.isInteger(n) ? fmtMoney(n) : fmtMoney(n, 2));
+
+// ─── Tokens compartidos ───────────────────────────────────────────────────────
+
+/** Cifras: negras en claro, blancas en oscuro. */
+export const NUM = 'text-black dark:text-white';
+/** Cifra secundaria (comparativas, totales de apoyo). */
+export const NUM_SOFT = 'text-slate-700 dark:text-slate-200';
+/** Texto de etiqueta sobre superficie azul pastel. */
+export const LABEL = 'text-slate-600 dark:text-slate-300';
+/** Superficie base de las tarjetas. */
+export const CARD = 'bg-sky-50/70 dark:bg-navy-800 border border-sky-100 dark:border-white/10';
+/** Encabezado degradado pastel. */
+export const HEADER_GRADIENT = 'from-sky-100 to-blue-100 dark:from-sky-500/15 dark:to-blue-500/10';
+/** Botón principal. */
+export const BTN_PRIMARY = 'bg-sky-500 hover:bg-sky-600 text-white';
+/** Botón secundario sobre pastel. */
+export const BTN_SOFT = 'bg-white/80 dark:bg-white/10 text-slate-800 dark:text-white hover:bg-white';
 
 const MONTHS_ES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -34,54 +52,20 @@ export function formatDateKey(key: string | null, short = false): string {
 export interface KindMeta {
   label: string;
   emoji: string;
-  /** Degradado pastel del encabezado de la tarjeta. */
   gradient: string;
   chip: string;
+  /** Color del anillo de progreso — todos en la gama azul. */
   ring: string;
-  accent: string;
 }
 
+const CHIP = 'bg-sky-100 text-slate-800 dark:bg-sky-500/20 dark:text-sky-100';
+
 export const KIND_META: Record<GoalKind, KindMeta> = {
-  trip: {
-    label: 'Viaje',
-    emoji: '✈️',
-    gradient: 'from-sky-100 to-cyan-100 dark:from-sky-500/15 dark:to-cyan-500/10',
-    chip: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200',
-    ring: '#7dd3fc',
-    accent: 'text-sky-600 dark:text-sky-300',
-  },
-  debt: {
-    label: 'Deuda',
-    emoji: '💳',
-    gradient: 'from-rose-100 to-orange-100 dark:from-rose-500/15 dark:to-orange-500/10',
-    chip: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200',
-    ring: '#fda4af',
-    accent: 'text-rose-600 dark:text-rose-300',
-  },
-  project: {
-    label: 'Proyecto',
-    emoji: '🏗️',
-    gradient: 'from-violet-100 to-fuchsia-100 dark:from-violet-500/15 dark:to-fuchsia-500/10',
-    chip: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200',
-    ring: '#c4b5fd',
-    accent: 'text-violet-600 dark:text-violet-300',
-  },
-  purchase: {
-    label: 'Compra',
-    emoji: '🛍️',
-    gradient: 'from-amber-100 to-yellow-100 dark:from-amber-500/15 dark:to-yellow-500/10',
-    chip: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200',
-    ring: '#fcd34d',
-    accent: 'text-amber-600 dark:text-amber-300',
-  },
-  emergency: {
-    label: 'Fondo',
-    emoji: '🛟',
-    gradient: 'from-emerald-100 to-teal-100 dark:from-emerald-500/15 dark:to-teal-500/10',
-    chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200',
-    ring: '#6ee7b7',
-    accent: 'text-emerald-600 dark:text-emerald-300',
-  },
+  trip:      { label: 'Viaje',    emoji: '✈️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#38bdf8' },
+  debt:      { label: 'Deuda',    emoji: '💳', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#0ea5e9' },
+  project:   { label: 'Proyecto', emoji: '🏗️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#60a5fa' },
+  purchase:  { label: 'Compra',   emoji: '🛍️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#7dd3fc' },
+  emergency: { label: 'Fondo',    emoji: '🛟', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#93c5fd' },
 };
 
 export interface FeasibilityMeta {
@@ -90,13 +74,14 @@ export interface FeasibilityMeta {
   chip: string;
 }
 
+/** El estado lo dice el emoji y la palabra; el azul solo cambia de intensidad. */
 export const FEASIBILITY_META: Record<Feasibility, FeasibilityMeta> = {
-  done:     { label: 'Lograda',      icon: '🎉', chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200' },
-  on_track: { label: 'En camino',    icon: '✅', chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200' },
-  tight:    { label: 'Va justa',     icon: '🎯', chip: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200' },
-  at_risk:  { label: 'En riesgo',    icon: '⚠️', chip: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200' },
-  overdue:  { label: 'Fecha vencida', icon: '📅', chip: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200' },
-  no_date:  { label: 'Sin fecha',    icon: '🗓️', chip: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300' },
+  done:     { label: 'Lograda',       icon: '🎉', chip: 'bg-sky-200 text-slate-900 dark:bg-sky-500/30 dark:text-white' },
+  on_track: { label: 'En camino',     icon: '✅', chip: 'bg-sky-100 text-slate-800 dark:bg-sky-500/20 dark:text-sky-100' },
+  tight:    { label: 'Va justa',      icon: '🎯', chip: 'bg-blue-200 text-slate-900 dark:bg-blue-500/25 dark:text-blue-50' },
+  at_risk:  { label: 'En riesgo',     icon: '⚠️', chip: 'bg-blue-300 text-slate-900 dark:bg-blue-500/35 dark:text-white' },
+  overdue:  { label: 'Fecha vencida', icon: '📅', chip: 'bg-blue-300 text-slate-900 dark:bg-blue-500/35 dark:text-white' },
+  no_date:  { label: 'Sin fecha',     icon: '🗓️', chip: 'bg-sky-50 text-slate-600 dark:bg-white/10 dark:text-slate-300' },
 };
 
 export interface ToneMeta {
@@ -106,35 +91,39 @@ export interface ToneMeta {
   button: string;
 }
 
+/**
+ * La gravedad del consejo se lee en el borde izquierdo: cuanto más oscuro el
+ * azul, más urgente. El icono hace el resto.
+ */
 export const TONE_META: Record<AdviceTone, ToneMeta> = {
   critical: {
-    card: 'bg-rose-50/90 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/30',
-    title: 'text-rose-800 dark:text-rose-200',
-    body: 'text-rose-700/90 dark:text-rose-100/80',
-    button: 'bg-rose-500 hover:bg-rose-600 text-white',
+    card: 'bg-sky-100/80 border-sky-200 border-l-4 border-l-blue-500 dark:bg-blue-500/10 dark:border-white/10 dark:border-l-blue-400',
+    title: 'text-slate-900 dark:text-white',
+    body: 'text-slate-700 dark:text-slate-200',
+    button: 'bg-blue-500 hover:bg-blue-600 text-white',
   },
   warning: {
-    card: 'bg-amber-50/90 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/30',
-    title: 'text-amber-800 dark:text-amber-200',
-    body: 'text-amber-700/90 dark:text-amber-100/80',
-    button: 'bg-amber-500 hover:bg-amber-600 text-white',
+    card: 'bg-sky-50/90 border-sky-200 border-l-4 border-l-sky-400 dark:bg-sky-500/10 dark:border-white/10 dark:border-l-sky-400',
+    title: 'text-slate-900 dark:text-white',
+    body: 'text-slate-700 dark:text-slate-200',
+    button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   idea: {
-    card: 'bg-violet-50/90 border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/30',
-    title: 'text-violet-800 dark:text-violet-200',
-    body: 'text-violet-700/90 dark:text-violet-100/80',
-    button: 'bg-violet-500 hover:bg-violet-600 text-white',
+    card: 'bg-sky-50/70 border-sky-100 border-l-4 border-l-sky-300 dark:bg-white/5 dark:border-white/10 dark:border-l-sky-500/60',
+    title: 'text-slate-900 dark:text-white',
+    body: 'text-slate-700 dark:text-slate-200',
+    button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   good: {
-    card: 'bg-emerald-50/90 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30',
-    title: 'text-emerald-800 dark:text-emerald-200',
-    body: 'text-emerald-700/90 dark:text-emerald-100/80',
-    button: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+    card: 'bg-blue-50/70 border-sky-100 border-l-4 border-l-sky-200 dark:bg-white/5 dark:border-white/10 dark:border-l-sky-500/40',
+    title: 'text-slate-900 dark:text-white',
+    body: 'text-slate-700 dark:text-slate-200',
+    button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   info: {
-    card: 'bg-sky-50/90 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/30',
-    title: 'text-sky-800 dark:text-sky-200',
-    body: 'text-sky-700/90 dark:text-sky-100/80',
+    card: 'bg-sky-50/60 border-sky-100 border-l-4 border-l-sky-200 dark:bg-white/5 dark:border-white/10 dark:border-l-white/20',
+    title: 'text-slate-900 dark:text-white',
+    body: 'text-slate-700 dark:text-slate-200',
     button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
 };
@@ -153,11 +142,11 @@ export const PRIORITY_LABEL: Record<number, string> = {
   3: 'Cuando se pueda',
 };
 
-/** Color del anillo de salud: pastel verde → ámbar → rosa. */
+/** Anillo de salud: azul intenso cuando va bien, azul apagado cuando no. */
 export function healthColor(score: number): string {
-  if (score >= 75) return '#34d399';
-  if (score >= 45) return '#fbbf24';
-  return '#fb7185';
+  if (score >= 75) return '#0ea5e9';
+  if (score >= 45) return '#60a5fa';
+  return '#93c5fd';
 }
 
 export function healthLabel(score: number): string {

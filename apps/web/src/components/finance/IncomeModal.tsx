@@ -26,7 +26,7 @@ interface Props {
 const FREQUENCIES: readonly IncomeFrequency[] = ['monthly', 'biweekly', 'weekly', 'yearly'];
 
 const inputCls =
-  'w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-300 transition';
+  'w-full px-3 py-2.5 rounded-xl border border-sky-200 dark:border-white/10 bg-white/70 dark:bg-white/5 text-black dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
 
 export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onClose }: Props) {
   const [name, setName] = useState('');
@@ -63,18 +63,18 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
       title="Tus ingresos"
       subtitle="Todo lo que entra cada mes — sueldo, freelance, rentas, bonos"
       emoji="💼"
-      headerClass="from-emerald-100 to-teal-100 dark:from-emerald-500/20 dark:to-teal-500/10"
+      headerClass="from-sky-100 to-blue-100 dark:from-sky-500/20 dark:to-blue-500/10"
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 font-bold">Total mensual</p>
-            <p className="text-xl font-black text-emerald-600 dark:text-emerald-300 tabular-nums">{fmtMoney(totalMonthly)}</p>
+            <p className="text-xl font-black text-black dark:text-white tabular-nums">{fmtMoney(totalMonthly)}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-3 rounded-2xl bg-linear-to-r from-emerald-500 to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/20"
+            className="px-6 py-3 rounded-2xl bg-linear-to-r from-sky-500 to-blue-500 text-white font-bold text-sm shadow-lg shadow-sky-500/20"
           >
             Listo
           </button>
@@ -94,7 +94,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                 exit={{ opacity: 0, x: -30 }}
                 className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition ${
                   inc.isActive
-                    ? 'bg-emerald-50/70 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/25'
+                    ? 'bg-sky-50/70 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/25'
                     : 'bg-slate-50 border-slate-200 dark:bg-white/5 dark:border-white/10 opacity-60'
                 }`}
               >
@@ -103,7 +103,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                   onClick={() => { haptic(8); void onToggle(inc.id, !inc.isActive); }}
                   aria-label={inc.isActive ? 'Desactivar' : 'Activar'}
                   className={`relative w-10 h-6 rounded-full shrink-0 transition ${
-                    inc.isActive ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-white/20'
+                    inc.isActive ? 'bg-sky-400' : 'bg-slate-300 dark:bg-white/20'
                   }`}
                 >
                   <span
@@ -113,7 +113,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                   />
                 </button>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{inc.name}</p>
+                  <p className="text-sm font-bold text-black dark:text-white truncate">{inc.name}</p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     {fmtMoney(inc.amount)} · {FREQUENCY_LABEL[inc.frequency]}
                     {inc.frequency !== 'monthly' && ` → ${fmtMoney(monthlyEquivalent(inc.amount, inc.frequency))}/mes`}
@@ -123,7 +123,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                   type="button"
                   onClick={() => { haptic(14); void onDelete(inc.id); }}
                   aria-label={`Eliminar ${inc.name}`}
-                  className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition shrink-0"
+                  className="p-2 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition shrink-0"
                 >
                   <TrashIcon className="w-4 h-4" />
                 </button>
@@ -139,7 +139,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
         </div>
 
         {/* Alta */}
-        <div className="rounded-2xl border border-dashed border-emerald-300 dark:border-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-500/5 p-4 space-y-3">
+        <div className="rounded-2xl border border-dashed border-sky-300 dark:border-sky-500/30 bg-sky-50/40 dark:bg-sky-500/5 p-4 space-y-3">
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <input
               value={name}
@@ -171,8 +171,8 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                 onClick={() => { setFrequency(f); haptic(6); }}
                 className={`py-2 rounded-xl text-[11px] font-bold transition ${
                   frequency === f
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-200 ring-2 ring-emerald-200'
-                    : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10'
+                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-200 ring-2 ring-sky-200'
+                    : 'bg-white dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-sky-200 dark:border-white/10'
                 }`}
               >
                 {FREQUENCY_LABEL[f]}
@@ -184,13 +184,13 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
             type="button"
             onClick={() => void add()}
             disabled={busy}
-            className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+            className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm flex items-center justify-center gap-1.5 transition disabled:opacity-50"
           >
             <PlusIcon className="w-4 h-4" />
             {busy ? 'Agregando…' : 'Agregar ingreso'}
           </button>
 
-          {error && <p className="text-xs font-semibold text-rose-600 dark:text-rose-300">{error}</p>}
+          {error && <p className="text-xs font-semibold text-blue-600 dark:text-blue-300">{error}</p>}
         </div>
       </div>
     </ModalShell>

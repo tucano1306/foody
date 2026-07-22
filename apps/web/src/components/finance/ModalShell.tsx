@@ -24,7 +24,7 @@ export default function ModalShell({
   title,
   subtitle,
   emoji,
-  headerClass = 'from-sky-100 to-indigo-100 dark:from-sky-500/20 dark:to-indigo-500/10',
+  headerClass = 'from-sky-100 to-blue-100 dark:from-sky-500/20 dark:to-blue-500/10',
   onClose,
   children,
   footer,
@@ -58,12 +58,12 @@ export default function ModalShell({
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: 40, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-        className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-white dark:bg-navy-800 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+        className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-sky-50 dark:bg-navy-800 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
       >
         <div className={`shrink-0 bg-linear-to-br ${headerClass} px-5 pt-5 pb-4`}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
+              <h2 className="text-lg font-black text-black dark:text-white flex items-center gap-2">
                 {emoji && <span aria-hidden="true">{emoji}</span>}
                 <span className="truncate">{title}</span>
               </h2>
@@ -83,7 +83,7 @@ export default function ModalShell({
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
 
         {footer && (
-          <div className="shrink-0 border-t border-slate-100 dark:border-white/10 px-5 py-4 bg-white/80 dark:bg-navy-800/80 backdrop-blur">
+          <div className="shrink-0 border-t border-sky-100 dark:border-white/10 px-5 py-4 bg-sky-50 dark:bg-navy-800/90 backdrop-blur">
             {footer}
           </div>
         )}
