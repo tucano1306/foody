@@ -277,3 +277,61 @@ ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "bank_name" VARCHAR(100)
 ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "account_last4" VARCHAR(4) NULL;
 ALTER TABLE "monthly_payments" ADD COLUMN IF NOT EXISTS "is_auto_pay" BOOLEAN NOT NULL DEFAULT false;
 
+
+-- ─── Plan Financiero: ingresos ────────────────────────────────
+CREATE TABLE IF NOT EXISTS "finance_income_sources" (
+  "id"         UUID          NOT NULL DEFAULT gen_random_uuid(),
+  "user_id"    UUID          NOT NULL,
+  "name"       VARCHAR(120)  NOT NULL,
+  "amount"     DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "frequency"  VARCHAR(20)   NOT NULL DEFAULT 'monthly',
+  "is_active"  BOOLEAN       NOT NULL DEFAULT true,
+  "note"       TEXT,
+  "created_at" TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  "updated_at" TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  CONSTRAINT "PK_finance_income_sources" PRIMARY KEY ("id"),
+  CONSTRAINT "FK_income_user" FOREIGN KEY ("user_id")
+    REFERENCES "users"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_income_user" ON "finance_income_sources" ("user_id", "is_active");
+
+-- ─── Plan Financiero: metas ───────────────────────────────────
+CREATE TABLE IF NOT EXISTS "finance_goals" (
+  "id"               UUID          NOT NULL DEFAULT gen_random_uuid(),
+  "user_id"          UUID          NOT NULL,
+  "name"             VARCHAR(160)  NOT NULL,
+  "emoji"            VARCHAR(12)   NOT NULL DEFAULT '🎯',
+  "kind"             VARCHAR(20)   NOT NULL DEFAULT 'project',
+  "target_amount"    DECIMAL(12,2) NOT NULL,
+  "saved_amount"     DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "target_date"      DATE,
+  "priority"         SMALLINT      NOT NULL DEFAULT 2,
+  "monthly_override" DECIMAL(12,2),
+  "status"           VARCHAR(12)   NOT NULL DEFAULT 'active',
+  "note"             TEXT,
+  "created_at"       TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  "updated_at"       TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  CONSTRAINT "PK_finance_goals" PRIMARY KEY ("id"),
+  CONSTRAINT "FK_goals_user" FOREIGN KEY ("user_id")
+    REFERENCES "users"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_goals_user" ON "finance_goals" ("user_id", "status");
+
+-- ─── Plan Financiero: aportes ─────────────────────────────────
+CREATE TABLE IF NOT EXISTS "finance_goal_contributions" (
+  "id"         UUID          NOT NULL DEFAULT gen_random_uuid(),
+  "goal_id"    UUID          NOT NULL,
+  "user_id"    UUID          NOT NULL,
+  "amount"     DECIMAL(12,2) NOT NULL,
+  "note"       TEXT,
+  "created_at" TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  CONSTRAINT "PK_finance_goal_contributions" PRIMARY KEY ("id"),
+  CONSTRAINT "FK_contrib_goal" FOREIGN KEY ("goal_id")
+    REFERENCES "finance_goals"("id") ON DELETE CASCADE,
+  CONSTRAINT "FK_contrib_user" FOREIGN KEY ("user_id")
+    REFERENCES "users"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_contrib_goal" ON "finance_goal_contributions" ("goal_id", "created_at" DESC);
