@@ -18,6 +18,7 @@ import {
   XMarkIcon,
   ShareIcon,
   BanknotesIcon,
+  FlagIcon,
 } from '@heroicons/react/24/solid';
 import ThemeToggle from './ThemeToggle';
 
@@ -38,6 +39,7 @@ const NAV_SECTIONS = [
     items: [
       { href: '/budget',   icon: BanknotesIcon,  label: 'Presupuesto' },
       { href: '/payments', icon: CreditCardIcon, label: 'Pagos' },
+      { href: '/plan',     icon: FlagIcon,       label: 'Plan financiero' },
     ],
   },
   {
