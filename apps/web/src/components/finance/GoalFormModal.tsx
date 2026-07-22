@@ -45,7 +45,7 @@ const TEMPLATES: readonly Template[] = [
 const EMOJI_CHOICES = ['✈️', '🏖️', '💳', '🏠', '🚗', '💻', '🎓', '💍', '🛟', '🎸', '🏥', '🎁'];
 
 const inputCls =
-  'w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-800 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
+  'w-full px-3 py-2.5 rounded-xl border border-sky-200 dark:border-white/10 bg-white/70 dark:bg-white/5 text-black dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
 
 const labelCls = 'block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wide';
 
@@ -130,7 +130,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition"
+            className="flex-1 py-3 rounded-2xl border border-sky-200 dark:border-white/10 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition"
           >
             Cancelar
           </button>
@@ -138,7 +138,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
             type="button"
             onClick={() => void submit()}
             disabled={saving}
-            className="flex-[1.4] py-3 rounded-2xl bg-linear-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 text-white font-bold text-sm shadow-lg shadow-sky-500/20 transition disabled:opacity-50"
+            className="flex-[1.4] py-3 rounded-2xl bg-linear-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600 text-white font-bold text-sm shadow-lg shadow-sky-500/20 transition disabled:opacity-50"
           >
             {saving ? 'Guardando…' : editing ? '✓ Guardar cambios' : '✨ Crear meta'}
           </button>
@@ -160,7 +160,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                   className={`flex flex-col items-center gap-1 py-2.5 rounded-2xl border text-[11px] font-semibold transition ${
                     active
                       ? `${KIND_META[t.kind].chip} border-transparent shadow-sm scale-[1.03]`
-                      : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
+                      : 'bg-white/70 dark:bg-white/5 border-sky-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
                   }`}
                 >
                   <span className="text-lg leading-none" aria-hidden="true">{t.emoji}</span>
@@ -189,7 +189,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                 type="button"
                 onClick={() => { setEmoji(e); haptic(6); }}
                 className={`w-8 h-8 rounded-xl text-base transition ${
-                  emoji === e ? 'bg-sky-100 dark:bg-sky-500/25 ring-2 ring-sky-300 scale-110' : 'bg-slate-50 dark:bg-white/5 hover:bg-slate-100'
+                  emoji === e ? 'bg-sky-100 dark:bg-sky-500/25 ring-2 ring-sky-300 scale-110' : 'bg-white/70 dark:bg-white/5 hover:bg-slate-100'
                 }`}
                 aria-label={`Usar ${e}`}
               >
@@ -261,8 +261,8 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                   title={PRIORITY_LABEL[p]}
                   className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold transition ${
                     priority === p
-                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/25 dark:text-indigo-200 ring-2 ring-indigo-200'
-                      : 'bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
+                      ? 'bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-200 ring-2 ring-sky-200'
+                      : 'bg-white/70 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
                   }`}
                 >
                   {'⭐'.repeat(4 - p)}
@@ -277,14 +277,14 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
           <div
             className={`rounded-2xl border p-4 ${
               preview.remaining === 0
-                ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/30'
+                ? 'bg-sky-50 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/30'
                 : preview.fits
                   ? 'bg-sky-50 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/30'
-                  : 'bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/30'
+                  : 'bg-sky-50 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/30'
             }`}
           >
             {preview.remaining === 0 ? (
-              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-200">🎉 ¡Ya tienes el monto completo!</p>
+              <p className="text-sm font-bold text-sky-700 dark:text-sky-200">🎉 ¡Ya tienes el monto completo!</p>
             ) : (
               <>
                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
@@ -297,7 +297,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                     { label: 'por día', value: preview.daily },
                   ].map((row) => (
                     <div key={row.label} className="rounded-xl bg-white/70 dark:bg-white/5 py-2">
-                      <p className="text-base font-black text-slate-800 dark:text-white tabular-nums leading-tight">
+                      <p className="text-base font-black text-black dark:text-white tabular-nums leading-tight">
                         {fmtMoneyFine(Math.round(row.value * 100) / 100)}
                       </p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400">{row.label}</p>
@@ -360,7 +360,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
         </details>
 
         {error && (
-          <p className="text-sm font-semibold text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 rounded-xl px-3 py-2">
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10 rounded-xl px-3 py-2">
             {error}
           </p>
         )}

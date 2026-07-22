@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import type { CashFlow } from '@/lib/finance-engine';
 import type { BaselineSource } from '@/lib/grocery-insights';
-import { fmtMoney } from './finance-ui';
+import { CARD, LABEL, NUM, fmtMoney } from './finance-ui';
 
 const GROCERY_HINT: Record<BaselineSource, string> = {
   pace: 'según tus compras reales',
@@ -44,7 +44,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       label: 'Ingresos',
       hint: cash.extraMonthly > 0 ? `incluye ${fmtMoney(cash.extraMonthly)} simulados` : 'todo lo que entra al mes',
       amount: cash.monthlyIncome + cash.extraMonthly,
-      bar: 'from-emerald-300 to-teal-300',
+      bar: 'from-sky-300 to-sky-400',
       onClick: onOpenIncome,
     },
     {
@@ -53,7 +53,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       label: 'Pagos fijos',
       hint: 'renta, servicios, suscripciones',
       amount: -cash.fixedPayments,
-      bar: 'from-rose-300 to-orange-300',
+      bar: 'from-blue-300 to-blue-400',
       onClick: onOpenPayments,
     },
     {
@@ -62,7 +62,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       label: 'Super',
       hint: GROCERY_HINT[groceriesSource],
       amount: -cash.groceriesEstimate,
-      bar: 'from-amber-300 to-yellow-300',
+      bar: 'from-sky-200 to-sky-300',
       onClick: onOpenBudget,
     },
   ];
@@ -74,15 +74,15 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       label: 'Ponerse al día',
       hint: 'abono a pagos atrasados',
       amount: -cash.debtCatchUp,
-      bar: 'from-rose-400 to-pink-400',
+      bar: 'from-blue-400 to-blue-500',
       onClick: onOpenPayments,
     });
   }
 
   return (
-    <section className="rounded-3xl border border-slate-100 dark:border-white/10 bg-white dark:bg-navy-800 shadow-sm p-5">
+    <section className={`rounded-3xl shadow-sm p-5 ${CARD}`}>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-black text-slate-700 dark:text-white uppercase tracking-wide">💵 Tu mes</h2>
+        <h2 className={`text-sm font-black uppercase tracking-wide ${NUM}`}>💵 Tu mes</h2>
         <span className="text-[11px] text-slate-400">toca una fila para editarla</span>
       </div>
 
@@ -102,15 +102,11 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
                   {row.label}
                   <span className="font-normal text-slate-400 hidden sm:inline">· {row.hint}</span>
                 </span>
-                <span
-                  className={`text-sm font-black tabular-nums ${
-                    row.amount >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'
-                  }`}
-                >
+                <span className={`text-sm font-black tabular-nums ${NUM}`}>
                   {row.amount >= 0 ? '+' : '−'}{fmtMoney(Math.abs(row.amount))}
                 </span>
               </div>
-              <div className="h-2.5 rounded-full bg-slate-100 dark:bg-white/5 overflow-hidden">
+              <div className="h-2.5 rounded-full bg-white/80 dark:bg-white/5 overflow-hidden">
                 <motion.div
                   className={`h-full rounded-full bg-linear-to-r ${row.bar} group-hover:brightness-105`}
                   initial={{ width: 0 }}
@@ -124,30 +120,18 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       </div>
 
       {/* Resultado */}
-      <div
-        className={`mt-4 rounded-2xl p-4 flex items-center justify-between gap-3 ${
-          cash.available >= 0
-            ? 'bg-linear-to-r from-emerald-50 to-teal-50 dark:from-emerald-500/10 dark:to-teal-500/5'
-            : 'bg-linear-to-r from-rose-50 to-orange-50 dark:from-rose-500/10 dark:to-orange-500/5'
-        }`}
-      >
+      <div className="mt-4 rounded-2xl p-4 flex items-center justify-between gap-3 bg-linear-to-r from-sky-100 to-blue-100 dark:from-sky-500/10 dark:to-blue-500/5">
         <div>
-          <p className="text-[11px] uppercase tracking-wide font-bold text-slate-500 dark:text-slate-400">
+          <p className={`text-[11px] uppercase tracking-wide font-bold ${LABEL}`}>
             {cash.available >= 0 ? 'Te queda libre' : 'Te falta cada mes'}
           </p>
-          <p
-            className={`text-2xl font-black tabular-nums ${
-              cash.available >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'
-            }`}
-          >
-            {fmtMoney(Math.abs(cash.available))}
-          </p>
+          <p className={`text-2xl font-black tabular-nums ${NUM}`}>{fmtMoney(Math.abs(cash.available))}</p>
         </div>
         <div className="text-right">
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">Para metas</p>
-          <p className="text-base font-black text-slate-700 dark:text-white tabular-nums">{fmtMoney(cash.goalsBudget)}</p>
+          <p className={`text-[11px] ${LABEL}`}>Para metas</p>
+          <p className={`text-base font-black tabular-nums ${NUM}`}>{fmtMoney(cash.goalsBudget)}</p>
           {cash.unallocated > 0 && (
-            <p className="text-[11px] text-violet-500 dark:text-violet-300 font-semibold">
+            <p className="text-[11px] font-semibold text-black dark:text-white">
               {fmtMoney(cash.unallocated)} sin asignar
             </p>
           )}
