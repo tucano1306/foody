@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
-import { ensureProductSharingSchema } from '@/lib/ensure-schema';
-
-async function findProduct(id: string, userId: string) {
-  const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
-  return rows[0] ?? null;
-}
+import { findAccessibleProduct } from '@/lib/product-access';
 
 // GET /api/products/[id]
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const product = await findProduct(id, user.userId);
-  if (!product) return notFound();
-  return NextResponse.json(product);
+  const access = await findAccessibleProduct(id, user.userId);
+  if (!access) return notFound();
+  return NextResponse.json(access.product);
 }
 
 // PATCH /api/products/[id]
@@ -23,12 +18,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const product = await findProduct(id, user.userId);
-  if (!product) return notFound();
+  // Household members may edit a product shared with them, not only its owner.
+  const access = await findAccessibleProduct(id, user.userId);
+  if (!access) return notFound();
 
   const body = await request.json() as Record<string, unknown>;
-
-  await ensureProductSharingSchema();
 
   // Treat empty string as null so a missing photo never clears an existing one
   const newPhotoUrl = typeof body.photoUrl === 'string' && body.photoUrl ? body.photoUrl : null;
@@ -37,9 +31,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // boolean (COALESCE with null → keep current). Saving also adopts the
   // product into the owner's current household namespace, so toggling a legacy
   // product to "Compartido" actually makes it visible to household members.
-  const isPrivate = typeof body.isPrivate === 'boolean' ? body.isPrivate : null;
-  const householdRows = await sql`SELECT household_id FROM users WHERE id = ${user.userId} LIMIT 1`;
-  const householdId = (householdRows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
+  // Only the owner decides those two: a member editing a shared product must
+  // not be able to unshare it or move it to another household.
+  const isPrivate = access.isOwner && typeof body.isPrivate === 'boolean' ? body.isPrivate : null;
+  const householdId = access.isOwner
+    ? await getUserHouseholdId(user.userId)
+    : (access.product.household_id as string | null);
 
   const rows = await sql`
     UPDATE products SET
@@ -56,12 +53,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       is_private = COALESCE(${isPrivate}, is_private),
       household_id = ${householdId},
       updated_at = NOW()
-    WHERE id = ${id} AND user_id = ${user.userId}
+    WHERE id = ${id}
     RETURNING *
   `;
 
   // Restocking via a general edit must also clear the shopping list, same as
-  // the dedicated stock-level/mark-ok endpoints.
+  // the dedicated stock-level/mark-ok endpoints. Only my own list row is
+  // touched — each member keeps their own shopping list.
   if (body.stockLevel === 'full') {
     await sql`DELETE FROM shopping_list_items WHERE product_id = ${id} AND user_id = ${user.userId}`;
   }
@@ -74,9 +72,21 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
-  const product = await findProduct(id, user.userId);
-  if (!product) return notFound();
+  const access = await findAccessibleProduct(id, user.userId);
+  if (!access) return notFound();
+  // Destructive: a shared product can only be deleted by its owner.
+  if (!access.isOwner) {
+    return NextResponse.json(
+      { message: 'Solo el dueño puede eliminar este producto compartido' },
+      { status: 403 },
+    );
+  }
 
   await sql`DELETE FROM products WHERE id = ${id} AND user_id = ${user.userId}`;
   return new NextResponse(null, { status: 204 });
+}
+
+async function getUserHouseholdId(userId: string): Promise<string | null> {
+  const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
+  return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, badRequest, notFound } from '@/lib/route-helpers';
 import { ensureSharingSchema } from '@/lib/ensure-sharing-schema';
+import { findAccessibleProduct } from '@/lib/product-access';
 
 /**
  * GET /api/sharing/gifts
@@ -56,9 +57,9 @@ export async function POST(request: NextRequest) {
   if (!productId) return badRequest('productId is required');
   if (!email) return badRequest('email is required');
 
-  // Verify product belongs to sender
-  const products = await sql`SELECT id, name FROM products WHERE id = ${productId} AND user_id = ${user.userId} LIMIT 1`;
-  if (!products.length) return notFound('Producto no encontrado');
+  // The sender must own the product or have it shared with them by their household
+  const access = await findAccessibleProduct(productId, user.userId);
+  if (!access) return notFound('Producto no encontrado');
 
   // Resolve recipient
   const targets = await sql`SELECT id, name FROM users WHERE LOWER(email) = ${email} LIMIT 1`;
