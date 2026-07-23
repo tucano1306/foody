@@ -5,7 +5,7 @@ import type { Product } from '@foody/types';
 export default async function NewShoppingTripPage() {
   let products: Product[] = [];
   try {
-    products = await api.products.list();
+    products = await api.products.listWithoutPhotos();
   } catch {
     products = [];
   }

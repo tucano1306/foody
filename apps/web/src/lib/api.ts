@@ -316,6 +316,37 @@ export const api = {
         category: (row.category as string | null) ?? null,
       }));
     },
+    /**
+     * Igual que list(), pero sin la columna photo_url.
+     *
+     * Para las pantallas que solo necesitan elegir productos de una lista
+     * (registrar un ticket, ver su detalle): la foto en base64 es la columna
+     * más pesada con diferencia y ahí no se dibuja ninguna imagen.
+     * `photoUrl` sale como null, así que el tipo Product se mantiene intacto.
+     */
+    listWithoutPhotos: async (): Promise<Product[]> => {
+      const { userId, householdId } = await getAuthContext();
+      await ensureProductSharingSchema();
+      const rows = householdId
+        ? await sql`
+            SELECT id, name, description, category, current_quantity, min_quantity,
+                   unit, is_running_low, needs_shopping, stock_level, household_id,
+                   user_id, is_private, created_at, updated_at
+            FROM products
+            WHERE user_id = ${userId}
+               OR (household_id = ${householdId} AND is_private = false)
+            ORDER BY name ASC
+          `
+        : await sql`
+            SELECT id, name, description, category, current_quantity, min_quantity,
+                   unit, is_running_low, needs_shopping, stock_level, household_id,
+                   user_id, is_private, created_at, updated_at
+            FROM products
+            WHERE user_id = ${userId}
+            ORDER BY name ASC
+          `;
+      return rows.map((row) => mapProduct(row as Record<string, unknown>));
+    },
     runningLow: async (): Promise<Product[]> => {
       const { userId } = await getAuthContext();
       const rows = await sql`SELECT * FROM products WHERE user_id = ${userId} AND (needs_shopping = true OR is_running_low = true) ORDER BY name ASC`;
