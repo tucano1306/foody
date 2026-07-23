@@ -28,7 +28,7 @@ export default async function TripDetailPage({
   try {
     [trip, products] = await Promise.all([
       api.shoppingTrips.get(id),
-      api.products.list(),
+      api.products.listWithoutPhotos(),
     ]);
   } catch {
     notFound();
