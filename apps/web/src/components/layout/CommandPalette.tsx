@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Product } from '@foody/types';
+import type { PaletteProduct } from '@/lib/api';
 import { haptic } from '@/lib/haptic';
 
 interface Props {
-  readonly products: readonly Product[];
+  readonly products: readonly PaletteProduct[];
 }
 
 interface Command {
