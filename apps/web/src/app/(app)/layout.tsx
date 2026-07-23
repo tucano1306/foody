@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, type PaletteProduct } from '@/lib/api';
 import Navbar from '@/components/layout/Navbar';
 import OnboardingTour from '@/components/layout/OnboardingTour';
 import PullToRefresh from '@/components/layout/PullToRefresh';
@@ -16,9 +16,12 @@ export default async function AppLayout({ children }: { readonly children: React
   const session = await getSession();
   if (!session.isLoggedIn) redirect('/login');
 
-  let products: Product[] = [];
+  // Consulta ligera a propósito: este layout corre en CADA página, así que
+  // pedir la lista completa traería la foto en base64 de cada producto en toda
+  // navegación. El buscador solo necesita nombre y categoría.
+  let products: PaletteProduct[] = [];
   try {
-    products = await api.products.list();
+    products = await api.products.listForPalette();
   } catch {
     // ignore — palette still works with nav-only commands
   }

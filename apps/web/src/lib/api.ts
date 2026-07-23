@@ -31,6 +31,13 @@ import type {
   UpdateStoreDto,
 } from '@foody/types';
 
+/** Lo mínimo que el buscador rápido necesita de un producto — sin la foto. */
+export interface PaletteProduct {
+  id: string;
+  name: string;
+  category: string | null;
+}
+
 async function getUserHousehold(userId: string): Promise<string | null> {
   const rows = await sql`SELECT household_id FROM users WHERE id = ${userId} LIMIT 1`;
   return (rows[0] as { household_id: string | null } | undefined)?.household_id ?? null;
@@ -276,6 +283,38 @@ export const api = {
           `
         : await sql`SELECT * FROM products WHERE user_id = ${userId} ORDER BY name ASC`;
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
+    },
+    /**
+     * Versión ligera para el buscador rápido (⌘K), que solo muestra nombre y
+     * categoría de los primeros 50 productos.
+     *
+     * Existe porque el layout de la app corre en CADA página: usar list() aquí
+     * arrastraba la tabla entera —incluida la foto en base64 de cada fila— en
+     * cada navegación a Presupuesto, Pagos, Stats… Eso solo agotó la cuota de
+     * transferencia de Neon. Aquí se piden 3 columnas y 50 filas, nunca la foto.
+     */
+    listForPalette: async (): Promise<PaletteProduct[]> => {
+      const { userId, householdId } = await getAuthContext();
+      await ensureProductSharingSchema();
+      const rows = householdId
+        ? await sql`
+            SELECT id, name, category FROM products
+            WHERE user_id = ${userId}
+               OR (household_id = ${householdId} AND is_private = false)
+            ORDER BY name ASC
+            LIMIT 50
+          `
+        : await sql`
+            SELECT id, name, category FROM products
+            WHERE user_id = ${userId}
+            ORDER BY name ASC
+            LIMIT 50
+          `;
+      return rows.map((row) => ({
+        id: String(row.id),
+        name: String(row.name ?? ''),
+        category: (row.category as string | null) ?? null,
+      }));
     },
     runningLow: async (): Promise<Product[]> => {
       const { userId } = await getAuthContext();
