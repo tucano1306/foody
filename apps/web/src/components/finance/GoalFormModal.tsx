@@ -45,9 +45,9 @@ const TEMPLATES: readonly Template[] = [
 const EMOJI_CHOICES = ['✈️', '🏖️', '💳', '🏠', '🚗', '💻', '🎓', '💍', '🛟', '🎸', '🏥', '🎁'];
 
 const inputCls =
-  'w-full px-3 py-2.5 rounded-xl border border-sky-200 dark:border-white/10 bg-white/70 dark:bg-white/5 text-black dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
+  'w-full px-3 py-2.5 rounded-xl border border-sky-200 bg-white/70 text-black text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
 
-const labelCls = 'block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5 uppercase tracking-wide';
+const labelCls = 'block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide';
 
 export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose }: Props) {
   const editing = goal !== null;
@@ -130,7 +130,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-sky-200 dark:border-white/10 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition"
+            className="flex-1 py-3 rounded-2xl border border-sky-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
           >
             Cancelar
           </button>
@@ -160,7 +160,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                   className={`flex flex-col items-center gap-1 py-2.5 rounded-2xl border text-[11px] font-semibold transition ${
                     active
                       ? `${KIND_META[t.kind].chip} border-transparent shadow-sm scale-[1.03]`
-                      : 'bg-white/70 dark:bg-white/5 border-sky-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
+                      : 'bg-white/70 border-sky-200 text-slate-500 hover:bg-slate-100'
                   }`}
                 >
                   <span className="text-lg leading-none" aria-hidden="true">{t.emoji}</span>
@@ -189,7 +189,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                 type="button"
                 onClick={() => { setEmoji(e); haptic(6); }}
                 className={`w-8 h-8 rounded-xl text-base transition ${
-                  emoji === e ? 'bg-sky-100 dark:bg-sky-500/25 ring-2 ring-sky-300 scale-110' : 'bg-white/70 dark:bg-white/5 hover:bg-slate-100'
+                  emoji === e ? 'bg-sky-100 ring-2 ring-sky-300 scale-110' : 'bg-white/70 hover:bg-slate-100'
                 }`}
                 aria-label={`Usar ${e}`}
               >
@@ -261,8 +261,8 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                   title={PRIORITY_LABEL[p]}
                   className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold transition ${
                     priority === p
-                      ? 'bg-sky-100 text-sky-700 dark:bg-sky-500/25 dark:text-sky-200 ring-2 ring-sky-200'
-                      : 'bg-white/70 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-100'
+                      ? 'bg-sky-100 text-sky-700 ring-2 ring-sky-200'
+                      : 'bg-white/70 text-slate-500 hover:bg-slate-100'
                   }`}
                 >
                   {'⭐'.repeat(4 - p)}
@@ -277,17 +277,17 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
           <div
             className={`rounded-2xl border p-4 ${
               preview.remaining === 0
-                ? 'bg-sky-50 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/30'
+                ? 'bg-sky-50 border-sky-200'
                 : preview.fits
-                  ? 'bg-sky-50 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/30'
-                  : 'bg-sky-50 border-sky-200 dark:bg-sky-500/10 dark:border-sky-500/30'
+                  ? 'bg-sky-50 border-sky-200'
+                  : 'bg-sky-50 border-sky-200'
             }`}
           >
             {preview.remaining === 0 ? (
-              <p className="text-sm font-bold text-sky-700 dark:text-sky-200">🎉 ¡Ya tienes el monto completo!</p>
+              <p className="text-sm font-bold text-sky-700">🎉 ¡Ya tienes el monto completo!</p>
             ) : (
               <>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
                   Para lograrlo necesitas apartar
                 </p>
                 <div className="grid grid-cols-3 gap-2 text-center">
@@ -296,15 +296,15 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
                     { label: 'por semana', value: preview.weekly },
                     { label: 'por día', value: preview.daily },
                   ].map((row) => (
-                    <div key={row.label} className="rounded-xl bg-white/70 dark:bg-white/5 py-2">
-                      <p className="text-base font-black text-black dark:text-white tabular-nums leading-tight">
+                    <div key={row.label} className="rounded-xl bg-white/70 py-2">
+                      <p className="text-base font-black text-black tabular-nums leading-tight">
                         {fmtMoneyFine(Math.round(row.value * 100) / 100)}
                       </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{row.label}</p>
+                      <p className="text-[10px] text-slate-500">{row.label}</p>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs mt-2.5 text-slate-600 dark:text-slate-300">
+                <p className="text-xs mt-2.5 text-slate-600">
                   {preview.days === null
                     ? 'Sin fecha límite calculo un horizonte de 12 meses. Ponle fecha para un plan exacto.'
                     : preview.days <= 0
@@ -320,7 +320,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
 
         {/* Avanzado */}
         <details className="group">
-          <summary className="cursor-pointer text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 select-none">
+          <summary className="cursor-pointer text-xs font-bold text-slate-500 hover:text-slate-700 select-none">
             ⚙️ Opciones avanzadas
           </summary>
           <div className="mt-3 space-y-3">
@@ -360,7 +360,7 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
         </details>
 
         {error && (
-          <p className="text-sm font-semibold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10 rounded-xl px-3 py-2">
+          <p className="text-sm font-semibold text-blue-600 bg-blue-50 rounded-xl px-3 py-2">
             {error}
           </p>
         )}

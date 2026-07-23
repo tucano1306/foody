@@ -5,6 +5,10 @@
  * riesgo, consejo crítico, deuda) NO se comunica con rojos ni verdes, sino con
  * la profundidad del azul, el emoji y el texto. Las cifras van en negro para
  * que sean lo único que destaque sobre el fondo claro.
+ *
+ * Esta sección NO cambia con el tema oscuro: las cifras son negras siempre
+ * (decisión del usuario), así que las superficies tienen que seguir claras o
+ * el negro quedaría ilegible. Por eso aquí no hay variantes `dark:`.
  */
 import type { AdviceTone, Feasibility, GoalKind, IncomeFrequency } from '@/lib/finance-engine';
 
@@ -21,20 +25,20 @@ export const fmtMoneyFine = (n: number) => (Number.isInteger(n) ? fmtMoney(n) : 
 
 // ─── Tokens compartidos ───────────────────────────────────────────────────────
 
-/** Cifras: negras en claro, blancas en oscuro. */
-export const NUM = 'text-black dark:text-white';
+/** Cifras: negro absoluto, en cualquier tema. */
+export const NUM = 'text-black';
 /** Cifra secundaria (comparativas, totales de apoyo). */
-export const NUM_SOFT = 'text-slate-700 dark:text-slate-200';
+export const NUM_SOFT = 'text-slate-700';
 /** Texto de etiqueta sobre superficie azul pastel. */
-export const LABEL = 'text-slate-600 dark:text-slate-300';
+export const LABEL = 'text-slate-600';
 /** Superficie base de las tarjetas. */
-export const CARD = 'bg-sky-50/70 dark:bg-navy-800 border border-sky-100 dark:border-white/10';
+export const CARD = 'bg-sky-50/70 border border-sky-100';
 /** Encabezado degradado pastel. */
-export const HEADER_GRADIENT = 'from-sky-100 to-blue-100 dark:from-sky-500/15 dark:to-blue-500/10';
+export const HEADER_GRADIENT = 'from-sky-100 to-blue-100';
 /** Botón principal. */
 export const BTN_PRIMARY = 'bg-sky-500 hover:bg-sky-600 text-white';
 /** Botón secundario sobre pastel. */
-export const BTN_SOFT = 'bg-white/80 dark:bg-white/10 text-slate-800 dark:text-white hover:bg-white';
+export const BTN_SOFT = 'bg-white/80 text-slate-800 hover:bg-white';
 
 const MONTHS_ES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -58,7 +62,7 @@ export interface KindMeta {
   ring: string;
 }
 
-const CHIP = 'bg-sky-100 text-slate-800 dark:bg-sky-500/20 dark:text-sky-100';
+const CHIP = 'bg-sky-100 text-slate-800';
 
 export const KIND_META: Record<GoalKind, KindMeta> = {
   trip:      { label: 'Viaje',    emoji: '✈️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#38bdf8' },
@@ -76,12 +80,12 @@ export interface FeasibilityMeta {
 
 /** El estado lo dice el emoji y la palabra; el azul solo cambia de intensidad. */
 export const FEASIBILITY_META: Record<Feasibility, FeasibilityMeta> = {
-  done:     { label: 'Lograda',       icon: '🎉', chip: 'bg-sky-200 text-slate-900 dark:bg-sky-500/30 dark:text-white' },
-  on_track: { label: 'En camino',     icon: '✅', chip: 'bg-sky-100 text-slate-800 dark:bg-sky-500/20 dark:text-sky-100' },
-  tight:    { label: 'Va justa',      icon: '🎯', chip: 'bg-blue-200 text-slate-900 dark:bg-blue-500/25 dark:text-blue-50' },
-  at_risk:  { label: 'En riesgo',     icon: '⚠️', chip: 'bg-blue-300 text-slate-900 dark:bg-blue-500/35 dark:text-white' },
-  overdue:  { label: 'Fecha vencida', icon: '📅', chip: 'bg-blue-300 text-slate-900 dark:bg-blue-500/35 dark:text-white' },
-  no_date:  { label: 'Sin fecha',     icon: '🗓️', chip: 'bg-sky-50 text-slate-600 dark:bg-white/10 dark:text-slate-300' },
+  done:     { label: 'Lograda',       icon: '🎉', chip: 'bg-sky-200 text-slate-900' },
+  on_track: { label: 'En camino',     icon: '✅', chip: 'bg-sky-100 text-slate-800' },
+  tight:    { label: 'Va justa',      icon: '🎯', chip: 'bg-blue-200 text-slate-900' },
+  at_risk:  { label: 'En riesgo',     icon: '⚠️', chip: 'bg-blue-300 text-slate-900' },
+  overdue:  { label: 'Fecha vencida', icon: '📅', chip: 'bg-blue-300 text-slate-900' },
+  no_date:  { label: 'Sin fecha',     icon: '🗓️', chip: 'bg-sky-50 text-slate-600' },
 };
 
 export interface ToneMeta {
@@ -97,33 +101,33 @@ export interface ToneMeta {
  */
 export const TONE_META: Record<AdviceTone, ToneMeta> = {
   critical: {
-    card: 'bg-sky-100/80 border-sky-200 border-l-4 border-l-blue-500 dark:bg-blue-500/10 dark:border-white/10 dark:border-l-blue-400',
-    title: 'text-slate-900 dark:text-white',
-    body: 'text-slate-700 dark:text-slate-200',
+    card: 'bg-sky-100/80 border-sky-200 border-l-4 border-l-blue-500',
+    title: 'text-slate-900',
+    body: 'text-slate-700',
     button: 'bg-blue-500 hover:bg-blue-600 text-white',
   },
   warning: {
-    card: 'bg-sky-50/90 border-sky-200 border-l-4 border-l-sky-400 dark:bg-sky-500/10 dark:border-white/10 dark:border-l-sky-400',
-    title: 'text-slate-900 dark:text-white',
-    body: 'text-slate-700 dark:text-slate-200',
+    card: 'bg-sky-50/90 border-sky-200 border-l-4 border-l-sky-400',
+    title: 'text-slate-900',
+    body: 'text-slate-700',
     button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   idea: {
-    card: 'bg-sky-50/70 border-sky-100 border-l-4 border-l-sky-300 dark:bg-white/5 dark:border-white/10 dark:border-l-sky-500/60',
-    title: 'text-slate-900 dark:text-white',
-    body: 'text-slate-700 dark:text-slate-200',
+    card: 'bg-sky-50/70 border-sky-100 border-l-4 border-l-sky-300',
+    title: 'text-slate-900',
+    body: 'text-slate-700',
     button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   good: {
-    card: 'bg-blue-50/70 border-sky-100 border-l-4 border-l-sky-200 dark:bg-white/5 dark:border-white/10 dark:border-l-sky-500/40',
-    title: 'text-slate-900 dark:text-white',
-    body: 'text-slate-700 dark:text-slate-200',
+    card: 'bg-blue-50/70 border-sky-100 border-l-4 border-l-sky-200',
+    title: 'text-slate-900',
+    body: 'text-slate-700',
     button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   info: {
-    card: 'bg-sky-50/60 border-sky-100 border-l-4 border-l-sky-200 dark:bg-white/5 dark:border-white/10 dark:border-l-white/20',
-    title: 'text-slate-900 dark:text-white',
-    body: 'text-slate-700 dark:text-slate-200',
+    card: 'bg-sky-50/60 border-sky-100 border-l-4 border-l-sky-200',
+    title: 'text-slate-900',
+    body: 'text-slate-700',
     button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
 };
