@@ -5,7 +5,8 @@ const CSP = [
   // unsafe-inline for Next.js; wasm-unsafe-eval for Tesseract.js WebAssembly; cdn.jsdelivr.net for Tesseract
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.amazonaws.com",
+  // blob.vercel-storage.com: fotos de productos (antes iban embebidas en la BD)
+  "img-src 'self' data: blob: https://*.amazonaws.com https://*.blob.vercel-storage.com",
   "font-src 'self'",
   // cdn.jsdelivr.net: Tesseract.js WASM core + traineddata downloads
   "connect-src 'self' https://*.neon.tech https://cdn.jsdelivr.net",
@@ -23,6 +24,11 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '*.amazonaws.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.blob.vercel-storage.com',
         pathname: '/**',
       },
     ],

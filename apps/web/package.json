@@ -11,13 +11,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:security": "playwright test e2e/security.spec.ts"
+    "test:security": "playwright test e2e/security.spec.ts",
+    "migrate:photos": "node scripts/migrate-photos-to-blob.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
     "@foody/types": "workspace:*",
     "@heroicons/react": "^2.2.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "^2.6.1",
     "@zxing/browser": "^0.2.0",
     "@zxing/library": "^0.23.0",
     "framer-motion": "^12.38.0",
