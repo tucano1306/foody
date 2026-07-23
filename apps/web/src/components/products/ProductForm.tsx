@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Product, CreateProductDto } from '@foody/types';
-import { isHeicFile, withTimeout, convertHeicToJpegBlob } from '@/lib/image-file';
+import { isHeicFile, withTimeout, convertHeicToJpegBlob, dataUrlToBlob } from '@/lib/image-file';
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
@@ -302,6 +302,30 @@ function compressImage(file: File): Promise<string> {
   return withTimeout(loadAndCompressInner(file), COMPRESS_TIMEOUT_MS, 'La compresión de la imagen');
 }
 
+/**
+ * Sube la foto ya comprimida y devuelve su URL, o null si no se pudo.
+ *
+ * Devolver null en vez de lanzar es deliberado: si el almacenamiento no está
+ * configurado o falla la red, el producto se guarda igual con la imagen
+ * embebida (el comportamiento anterior). Es mejor una fila pesada que un
+ * usuario que no puede guardar su producto.
+ */
+async function uploadPhoto(dataUrl: string): Promise<string | null> {
+  try {
+    const blob = dataUrlToBlob(dataUrl);
+    const body = new FormData();
+    body.append('file', blob, 'photo.jpg');
+
+    const res = await fetch('/api/upload/photo', { method: 'POST', body, credentials: 'include' });
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as { url?: string };
+    return typeof json.url === 'string' ? json.url : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ProductForm({ product, inHousehold, isOwner = true }: Props) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -342,8 +366,16 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
       }
 
       const dataUrl = await compressImage(file);
-      setForm((f) => ({ ...f, photoUrl: dataUrl }));
+      // Vista previa inmediata con la copia local: subir tarda y el usuario
+      // debe ver su foto al instante.
       setPhotoPreview(dataUrl);
+
+      // La foto va al almacenamiento de archivos y en el producto se guarda
+      // solo la URL. Guardarla embebida engordaba la fila ~200 KB y cada
+      // lectura de la lista la arrastraba entera. Si el almacenamiento no está
+      // configurado se cae al modo anterior para no bloquear el guardado.
+      const uploaded = await uploadPhoto(dataUrl);
+      setForm((f) => ({ ...f, photoUrl: uploaded ?? dataUrl }));
     } catch (err) {
       setError(toFriendlyError(err, 'No se pudo procesar la imagen'));
     } finally {
