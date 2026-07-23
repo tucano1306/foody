@@ -39,7 +39,7 @@ function HealthRing({ score }: { readonly score: number }) {
   return (
     <div className="relative w-28 h-28 shrink-0">
       <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90" aria-hidden="true">
-        <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="currentColor" className="text-white/70 dark:text-white/10" strokeWidth="11" />
+        <circle cx="60" cy="60" r={RADIUS} fill="none" stroke="currentColor" className="text-white/70" strokeWidth="11" />
         <motion.circle
           cx="60"
           cy="60"
@@ -208,8 +208,8 @@ export default function FinancePlanView({ initialData }: Props) {
   return (
     <div className="space-y-5 pb-24">
       {/* ─── Hero: salud financiera ──────────────────────────────────────── */}
-      <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-sky-100 via-blue-100 to-sky-50 dark:from-navy-700 dark:via-navy-800 dark:to-navy-900 border border-sky-200 dark:border-white/10 p-5 shadow-sm">
-        <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/40 dark:bg-white/5 blur-2xl" aria-hidden="true" />
+      <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-sky-100 via-blue-100 to-sky-50 border border-sky-200 p-5 shadow-sm">
+        <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/40 blur-2xl" aria-hidden="true" />
         <div className="relative flex items-center gap-5">
           <HealthRing score={data.healthScore} />
           <div className="min-w-0 flex-1">
@@ -277,7 +277,7 @@ export default function FinancePlanView({ initialData }: Props) {
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black text-black dark:text-white uppercase tracking-wide">
+          <h2 className="text-sm font-black text-black uppercase tracking-wide">
             🎯 Tus metas
           </h2>
           {activeGoals.length > 0 && (
@@ -288,10 +288,10 @@ export default function FinancePlanView({ initialData }: Props) {
         </div>
 
         {activeGoals.length === 0 ? (
-          <div className="rounded-3xl border-2 border-dashed border-sky-200 dark:border-sky-500/25 bg-sky-50/50 dark:bg-sky-500/5 p-8 text-center">
+          <div className="rounded-3xl border-2 border-dashed border-sky-200 bg-sky-50/50 p-8 text-center">
             <span className="text-4xl" aria-hidden="true">🎯</span>
             <h3 className={`text-base font-black mt-3 ${NUM}`}>Dime qué quieres lograr</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-sm mx-auto">
+            <p className="text-sm text-slate-500 mt-1.5 max-w-sm mx-auto">
               Un viaje, saldar una deuda, un proyecto. Escribe cuánto cuesta y para cuándo lo quieres:
               yo calculo cuánto apartar cada mes y te aviso si te desvías.
             </p>
@@ -323,14 +323,14 @@ export default function FinancePlanView({ initialData }: Props) {
         )}
 
         {doneGoals.length > 0 && (
-          <details className="rounded-2xl border border-sky-200 dark:border-sky-500/25 bg-sky-50/60 dark:bg-sky-500/5 px-4 py-3">
+          <details className="rounded-2xl border border-sky-200 bg-sky-50/60 px-4 py-3">
             <summary className={`cursor-pointer text-sm font-bold select-none ${NUM}`}>
               🏆 Metas logradas ({doneGoals.length})
             </summary>
             <ul className="mt-3 space-y-2">
               {doneGoals.map((g) => (
                 <li key={g.goalId} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-700 dark:text-slate-200 truncate">
+                  <span className="text-slate-700 truncate">
                     {g.emoji} {g.name}
                   </span>
                   <span className={`font-bold tabular-nums shrink-0 ml-3 ${NUM}`}>

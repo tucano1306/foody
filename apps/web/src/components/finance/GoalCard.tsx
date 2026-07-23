@@ -22,7 +22,7 @@ function ProgressRing({ pct, color, emoji }: { readonly pct: number; readonly co
   return (
     <div className="relative w-20 h-20 shrink-0">
       <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90" aria-hidden="true">
-        <circle cx="40" cy="40" r={RADIUS} fill="none" stroke="currentColor" className="text-slate-200 dark:text-white/10" strokeWidth="7" />
+        <circle cx="40" cy="40" r={RADIUS} fill="none" stroke="currentColor" className="text-slate-200" strokeWidth="7" />
         <motion.circle
           cx="40"
           cy="40"
@@ -39,7 +39,7 @@ function ProgressRing({ pct, color, emoji }: { readonly pct: number; readonly co
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg leading-none" aria-hidden="true">{emoji}</span>
-        <span className="text-[11px] font-black text-black dark:text-white tabular-nums mt-0.5">{Math.round(pct)}%</span>
+        <span className="text-[11px] font-black text-black tabular-nums mt-0.5">{Math.round(pct)}%</span>
       </div>
     </div>
   );
@@ -56,7 +56,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, type: 'spring', stiffness: 260, damping: 26 }}
-      className="rounded-3xl border border-sky-100 dark:border-white/10 bg-sky-50/70 dark:bg-navy-800 shadow-sm overflow-hidden"
+      className="rounded-3xl border border-sky-100 bg-sky-50/70 shadow-sm overflow-hidden"
     >
       {/* Encabezado pastel */}
       <div className={`bg-linear-to-br ${meta.gradient} px-4 py-4`}>
@@ -65,16 +65,16 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base font-black text-black dark:text-white truncate">{goal.name}</h3>
+              <h3 className="text-base font-black text-black truncate">{goal.name}</h3>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${feas.chip}`}>
                 {feas.icon} {feas.label}
               </span>
             </div>
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums mt-1">
+            <p className="text-sm font-bold text-slate-700 tabular-nums mt-1">
               {fmtMoney(goal.savedAmount)}
-              <span className="text-slate-500 dark:text-slate-400 font-medium"> de {fmtMoney(goal.targetAmount)}</span>
+              <span className="text-slate-500 font-medium"> de {fmtMoney(goal.targetAmount)}</span>
             </p>
-            <p className="text-[11px] text-slate-600/80 dark:text-slate-300/80 mt-0.5">
+            <p className="text-[11px] text-slate-600/80 mt-0.5">
               {goal.targetDate
                 ? goal.daysLeft !== null && goal.daysLeft > 0
                   ? `📅 ${formatDateKey(goal.targetDate, true)} · faltan ${goal.daysLeft} días`
@@ -86,18 +86,18 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
       </div>
 
       {/* Números del plan */}
-      <div className="px-4 py-3 grid grid-cols-3 gap-2 border-b border-sky-100 dark:border-white/10">
+      <div className="px-4 py-3 grid grid-cols-3 gap-2 border-b border-sky-100">
         {[
-          { label: 'Falta', value: fmtMoney(goal.remaining), tone: 'text-black dark:text-white' },
+          { label: 'Falta', value: fmtMoney(goal.remaining), tone: 'text-black' },
           {
             label: 'Necesitas/mes',
             value: fmtMoneyFine(goal.requiredMonthly),
-            tone: 'text-black dark:text-white',
+            tone: 'text-black',
           },
           {
             label: 'Plan asigna',
             value: fmtMoneyFine(goal.allocatedMonthly),
-            tone: goal.allocatedMonthly > 0 ? 'text-black dark:text-white' : 'text-slate-400',
+            tone: goal.allocatedMonthly > 0 ? 'text-black' : 'text-slate-400',
           },
         ].map((cell) => (
           <div key={cell.label} className="text-center">
@@ -109,16 +109,16 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
 
       {/* Diagnóstico */}
       {!done && (
-        <div className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-white/5">
+        <div className="px-4 py-2.5 text-xs text-slate-600 bg-white/60">
           {goal.shortfallMonthly > 0 ? (
             <span>
-              ⚠️ Te faltan <strong className="text-black dark:text-white">{fmtMoneyFine(goal.shortfallMonthly)}</strong> al mes.
+              ⚠️ Te faltan <strong className="text-black">{fmtMoneyFine(goal.shortfallMonthly)}</strong> al mes.
               {goal.projectedDate && ` A este ritmo la lograrías el ${formatDateKey(goal.projectedDate, true)}`}
               {goal.monthsLate > 0 && ` (${goal.monthsLate} ${goal.monthsLate === 1 ? 'mes' : 'meses'} tarde).`}
             </span>
           ) : (
             <span>
-              💡 Aparta <strong className="text-black dark:text-white">{fmtMoneyFine(goal.requiredWeekly)}</strong> por semana
+              💡 Aparta <strong className="text-black">{fmtMoneyFine(goal.requiredWeekly)}</strong> por semana
               {goal.requiredDaily > 0 && ` o ${fmtMoneyFine(goal.requiredDaily)} al día`} y llegas a tiempo.
             </span>
           )}
@@ -141,7 +141,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
             onClick={() => { haptic([12, 20, 12]); onComplete(); }}
             title="Marcar como lograda"
             aria-label="Marcar como lograda"
-            className="p-2.5 rounded-2xl bg-sky-50 dark:bg-sky-500/15 text-sky-600 dark:text-sky-300 hover:bg-sky-100 transition"
+            className="p-2.5 rounded-2xl bg-sky-50 text-sky-600 hover:bg-sky-100 transition"
           >
             <CheckCircleIcon className="w-4 h-4" />
           </button>
@@ -151,7 +151,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
           onClick={() => { haptic(8); onEdit(); }}
           title="Editar meta"
           aria-label="Editar meta"
-          className="p-2.5 rounded-2xl bg-white/70 dark:bg-white/5 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+          className="p-2.5 rounded-2xl bg-white/70 text-slate-500 hover:bg-slate-100 transition"
         >
           <PencilSquareIcon className="w-4 h-4" />
         </button>
@@ -160,7 +160,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
           onClick={() => { haptic(14); onDelete(); }}
           title="Eliminar meta"
           aria-label="Eliminar meta"
-          className="p-2.5 rounded-2xl bg-white/70 dark:bg-white/5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition"
+          className="p-2.5 rounded-2xl bg-white/70 text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition"
         >
           <TrashIcon className="w-4 h-4" />
         </button>

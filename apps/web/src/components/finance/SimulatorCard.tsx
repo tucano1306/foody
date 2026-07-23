@@ -43,24 +43,24 @@ export default function SimulatorCard({ planInput }: Props) {
   }, [priority, priorityBase]);
 
   return (
-    <section className="rounded-3xl border border-sky-200 dark:border-sky-500/25 bg-linear-to-br from-sky-50 to-blue-50 dark:from-sky-500/10 dark:to-blue-500/5 p-5">
-      <h2 className="text-sm font-black text-black dark:text-white uppercase tracking-wide">
+    <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-50 to-blue-50 p-5">
+      <h2 className="text-sm font-black text-black uppercase tracking-wide">
         🔮 Simulador «¿y si…?»
       </h2>
-      <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+      <p className="text-xs text-slate-600 mt-1">
         Mueve el deslizador para ver qué pasa si consigues dinero extra cada mes.
       </p>
 
       <div className="mt-4">
         <div className="flex items-baseline justify-between mb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
             Dinero extra al mes
           </span>
           <motion.span
             key={extra}
             initial={{ scale: 0.8, opacity: 0.5 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="text-xl font-black text-black dark:text-white tabular-nums"
+            className="text-xl font-black text-black tabular-nums"
           >
             +{fmtMoney(extra)}
           </motion.span>
@@ -87,7 +87,7 @@ export default function SimulatorCard({ planInput }: Props) {
               className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
                 extra === s
                   ? 'bg-sky-500 text-white shadow-sm'
-                  : 'bg-white/70 dark:bg-white/10 text-sky-700 dark:text-sky-200 hover:bg-white'
+                  : 'bg-white/70 text-sky-700 hover:bg-white'
               }`}
             >
               {s === 0 ? 'Hoy' : `+${fmtMoney(s)}`}
@@ -98,9 +98,9 @@ export default function SimulatorCard({ planInput }: Props) {
 
       {/* Resultado de la simulación */}
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-2xl bg-white/70 dark:bg-white/5 py-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 font-bold">Salud</p>
-          <p className="text-lg font-black text-black dark:text-white tabular-nums">
+        <div className="rounded-2xl bg-white/70 py-3">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Salud</p>
+          <p className="text-lg font-black text-black tabular-nums">
             {simulated.healthScore}
             {simulated.healthScore !== base.healthScore && (
               <span className={`text-xs ml-1 ${simulated.healthScore > base.healthScore ? 'text-sky-500' : 'text-blue-500'}`}>
@@ -109,23 +109,23 @@ export default function SimulatorCard({ planInput }: Props) {
             )}
           </p>
         </div>
-        <div className="rounded-2xl bg-white/70 dark:bg-white/5 py-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 font-bold">Metas a tiempo</p>
-          <p className="text-lg font-black text-black dark:text-white tabular-nums">
+        <div className="rounded-2xl bg-white/70 py-3">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Metas a tiempo</p>
+          <p className="text-lg font-black text-black tabular-nums">
             {healthyAfter}
             {healthyAfter > healthyBefore && <span className="text-xs text-sky-500 ml-1">+{healthyAfter - healthyBefore}</span>}
           </p>
         </div>
-        <div className="rounded-2xl bg-white/70 dark:bg-white/5 py-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 font-bold">Adelanto</p>
-          <p className="text-lg font-black text-black dark:text-white tabular-nums">
+        <div className="rounded-2xl bg-white/70 py-3">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Adelanto</p>
+          <p className="text-lg font-black text-black tabular-nums">
             {monthsSaved > 0 ? `${monthsSaved} ${monthsSaved === 1 ? 'mes' : 'meses'}` : '—'}
           </p>
         </div>
       </div>
 
       {extra > 0 && priority && (
-        <p className="text-xs text-sky-700 dark:text-sky-200 mt-3 bg-white/60 dark:bg-white/5 rounded-xl px-3 py-2">
+        <p className="text-xs text-sky-700 mt-3 bg-white/60 rounded-xl px-3 py-2">
           {monthsSaved > 0
             ? `Con ${fmtMoney(extra)} extra al mes adelantas «${priority.name}» ${monthsSaved} ${monthsSaved === 1 ? 'mes' : 'meses'}.`
             : `Con ${fmtMoney(extra)} extra al mes tu margen sube a ${fmtMoney(simulated.cashFlow.available)}.`}

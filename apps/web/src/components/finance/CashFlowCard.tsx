@@ -97,7 +97,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
               className="w-full text-left group"
             >
               <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <span aria-hidden="true">{row.emoji}</span>
                   {row.label}
                   <span className="font-normal text-slate-400 hidden sm:inline">· {row.hint}</span>
@@ -106,7 +106,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
                   {row.amount >= 0 ? '+' : '−'}{fmtMoney(Math.abs(row.amount))}
                 </span>
               </div>
-              <div className="h-2.5 rounded-full bg-white/80 dark:bg-white/5 overflow-hidden">
+              <div className="h-2.5 rounded-full bg-white/80 overflow-hidden">
                 <motion.div
                   className={`h-full rounded-full bg-linear-to-r ${row.bar} group-hover:brightness-105`}
                   initial={{ width: 0 }}
@@ -120,7 +120,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       </div>
 
       {/* Resultado */}
-      <div className="mt-4 rounded-2xl p-4 flex items-center justify-between gap-3 bg-linear-to-r from-sky-100 to-blue-100 dark:from-sky-500/10 dark:to-blue-500/5">
+      <div className="mt-4 rounded-2xl p-4 flex items-center justify-between gap-3 bg-linear-to-r from-sky-100 to-blue-100">
         <div>
           <p className={`text-[11px] uppercase tracking-wide font-bold ${LABEL}`}>
             {cash.available >= 0 ? 'Te queda libre' : 'Te falta cada mes'}
@@ -131,7 +131,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
           <p className={`text-[11px] ${LABEL}`}>Para metas</p>
           <p className={`text-base font-black tabular-nums ${NUM}`}>{fmtMoney(cash.goalsBudget)}</p>
           {cash.unallocated > 0 && (
-            <p className="text-[11px] font-semibold text-black dark:text-white">
+            <p className="text-[11px] font-semibold text-black">
               {fmtMoney(cash.unallocated)} sin asignar
             </p>
           )}
