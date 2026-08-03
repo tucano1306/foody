@@ -14,6 +14,7 @@
  *
  * Uso:
  *   node scripts/migrate-photos-to-blob.mjs --dry-run   (no escribe nada)
+ *   node scripts/migrate-photos-to-blob.mjs --limit=1    (migra solo una)
  *   node scripts/migrate-photos-to-blob.mjs
  *
  * Requiere DATABASE_URL y BLOB_READ_WRITE_TOKEN en el entorno.
@@ -23,6 +24,18 @@ import { put } from '@vercel/blob';
 import { decodeDataUrl, looksLikeImage, formatKB } from './lib/data-url.mjs';
 
 const DRY_RUN = process.argv.includes('--dry-run');
+
+/**
+ * `--limit=N` migra solo las N primeras. Sirve para probar el recorrido
+ * completo con una foto y comprobarla en la app antes de mover el resto:
+ * como el script es reanudable, la siguiente ejecución sigue donde quedó.
+ */
+const LIMIT = (() => {
+  const arg = process.argv.find((a) => a.startsWith('--limit='));
+  if (!arg) return Number.POSITIVE_INFINITY;
+  const n = Number.parseInt(arg.slice('--limit='.length), 10);
+  return Number.isFinite(n) && n > 0 ? n : Number.POSITIVE_INFINITY;
+})();
 
 const { DATABASE_URL, BLOB_READ_WRITE_TOKEN } = process.env;
 
@@ -68,12 +81,17 @@ async function main() {
     return;
   }
 
+  const pending = Number.isFinite(LIMIT) ? rows.slice(0, LIMIT) : rows;
+  if (pending.length !== rows.length) {
+    console.log(`— limitado a ${pending.length} de ${rows.length}; el resto queda intacto —\n`);
+  }
+
   let migrated = 0;
   let failed = 0;
   let freedBytes = 0;
 
-  for (const [i, row] of rows.entries()) {
-    const label = `[${i + 1}/${rows.length}] ${row.id}`;
+  for (const [i, row] of pending.entries()) {
+    const label = `[${i + 1}/${pending.length}] ${row.id}`;
     try {
       // Se trae una sola foto a la vez, no todas a memoria.
       const [full] = await sql`SELECT photo_url FROM products WHERE id = ${row.id} LIMIT 1`;
@@ -107,6 +125,23 @@ async function main() {
 
       if (!blob?.url) {
         console.warn(`${label} — la subida no devolvió URL, se deja intacta`);
+        failed++;
+        continue;
+      }
+
+      // Se descarga lo recién subido y se compara con el original ANTES de
+      // borrarlo de la base. Es el único momento en que ambas copias existen:
+      // después, si la subida se hubiera corrompido en tránsito, no habría
+      // forma de recuperar la foto.
+      const verify = await fetch(blob.url);
+      if (!verify.ok) {
+        console.warn(`${label} — la foto subida no se puede leer (HTTP ${verify.status}), se deja intacta`);
+        failed++;
+        continue;
+      }
+      const subido = Buffer.from(await verify.arrayBuffer());
+      if (Buffer.compare(subido, decoded.buffer) !== 0) {
+        console.warn(`${label} — la copia subida NO coincide con el original, se deja intacta`);
         failed++;
         continue;
       }
