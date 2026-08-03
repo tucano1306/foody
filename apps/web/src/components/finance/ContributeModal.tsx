@@ -88,9 +88,6 @@ export default function ContributeModal({ goal, onContribute, onClose }: Props) 
               className="w-full pl-9 pr-4 py-3.5 rounded-2xl border border-sky-200 bg-white/70 text-black text-2xl font-black tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
             />
           </div>
-          <p className="text-[11px] text-slate-400 mt-1.5">
-            Usa un monto negativo si necesitas retirar dinero de esta meta.
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">

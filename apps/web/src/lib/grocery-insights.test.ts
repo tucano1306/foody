@@ -170,14 +170,46 @@ describe('computeGroceryInsight — categorías', () => {
     expect(g.biggestMover).toBeNull();
   });
 
-  it('descarta categorías sin gasto en ninguno de los dos meses', () => {
+  it('lista solo lo gastado ESTE mes, sin filas fantasma', () => {
+    // Una categoría con gasto el mes pasado pero $0 este mes salía en la UI
+    // como "Café $0 −100%" los primeros días del mes.
     const g = computeGroceryInsight(
       input({ categories: [
         { category: 'carnes', currentMonth: 100, prevMonth: 0 },
+        { category: 'café', currentMonth: 0, prevMonth: 45 },
         { category: 'vacía', currentMonth: 0, prevMonth: 0 },
       ] }),
     );
     expect(g.categories.map((c) => c.category)).toEqual(['carnes']);
+  });
+});
+
+describe('paceIsMeaningful — cuándo la UI puede hablar del ritmo', () => {
+  it('es falso al arrancar el mes, aunque haya historial', () => {
+    const g = computeGroceryInsight(
+      input({ now: new Date(2026, 7, 3), monthlyTotals: [
+        { month: '2026-06', total: 500, trips: 6 },
+        { month: '2026-07', total: 600, trips: 7 },
+      ] }),
+    );
+    expect(g.daysElapsed).toBe(3);
+    expect(g.paceIsMeaningful).toBe(false);
+  });
+
+  it('es falso si el mes ya avanzó pero no hay compras', () => {
+    const g = computeGroceryInsight(
+      input({ monthlyTotals: [
+        { month: '2026-06', total: 500, trips: 6 },
+        { month: '2026-07', total: 0, trips: 0 },
+      ] }),
+    );
+    expect(g.spentThisMonth).toBe(0);
+    expect(g.paceIsMeaningful).toBe(false);
+  });
+
+  it('es verdadero con días y compras suficientes', () => {
+    const g = computeGroceryInsight(input()); // día 22, $420 gastados
+    expect(g.paceIsMeaningful).toBe(true);
   });
 });
 

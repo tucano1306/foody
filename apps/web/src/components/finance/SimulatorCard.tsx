@@ -47,9 +47,6 @@ export default function SimulatorCard({ planInput }: Props) {
       <h2 className="text-sm font-black text-black uppercase tracking-wide">
         🔮 Simulador «¿y si…?»
       </h2>
-      <p className="text-xs text-slate-600 mt-1">
-        Mueve el deslizador para ver qué pasa si consigues dinero extra cada mes.
-      </p>
 
       <div className="mt-4">
         <div className="flex items-baseline justify-between mb-2">

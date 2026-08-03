@@ -61,7 +61,6 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
   return (
     <ModalShell
       title="Tus ingresos"
-      subtitle="Todo lo que entra cada mes — sueldo, freelance, rentas, bonos"
       emoji="💼"
       headerClass="from-sky-100 to-blue-100"
       onClose={onClose}
