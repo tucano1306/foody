@@ -22,7 +22,9 @@ export default function AdviceFeed({ advice, onAction }: Props) {
         <h2 className="text-sm font-black text-black uppercase tracking-wide">
           🧠 Tu consejero financiero
         </h2>
-        <span className="text-[11px] text-slate-400">{advice.length} recomendaciones</span>
+        <span className="text-[11px] text-slate-400">
+          {advice.length} {advice.length === 1 ? 'recomendación' : 'recomendaciones'}
+        </span>
       </div>
 
       {advice.map((item, i) => {

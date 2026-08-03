@@ -72,6 +72,12 @@ export interface GroceryInsight {
   /** Categoría que más subió vs el mes pasado, si subió. */
   biggestMover: CategorySpend | null;
   topStores: StoreSpend[];
+  /**
+   * true cuando ya hay días y compras suficientes para que el ritmo y la
+   * proyección signifiquen algo. Antes de eso la UI debe callar en vez de
+   * anunciar "cerrarás en $0" o "vas $500 por debajo del límite".
+   */
+  paceIsMeaningful: boolean;
 }
 
 function round2(n: number): number {
@@ -100,6 +106,7 @@ export const EMPTY_GROCERY_INSIGHT: GroceryInsight = {
   categories: [],
   biggestMover: null,
   topStores: [],
+  paceIsMeaningful: false,
 };
 
 /** Días de mes necesarios para que proyectar el cierre signifique algo. */
@@ -180,8 +187,10 @@ export function computeGroceryInsight(input: GroceryInsightInput): GroceryInsigh
     monthsWithData: past.length,
   });
 
+  // Solo lo que se gastó ESTE mes. Incluir las de gasto cero producía filas
+  // fantasma —"Café $0 −100%"— los primeros días, cuando aún no hay compras.
   const categories: CategorySpend[] = input.categories
-    .filter((c) => c.currentMonth > 0 || c.prevMonth > 0)
+    .filter((c) => c.currentMonth > 0)
     .map((c) => ({
       category: c.category,
       currentMonth: round2(c.currentMonth),
@@ -215,5 +224,6 @@ export function computeGroceryInsight(input: GroceryInsightInput): GroceryInsigh
     categories: categories.slice(0, 6),
     biggestMover,
     topStores: input.stores.slice(0, 3),
+    paceIsMeaningful: daysElapsed >= MIN_DAYS_FOR_PACE && spentThisMonth > 0,
   };
 }

@@ -81,10 +81,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
 
   return (
     <section className={`rounded-3xl shadow-sm p-5 ${CARD}`}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className={`text-sm font-black uppercase tracking-wide ${NUM}`}>💵 Tu mes</h2>
-        <span className="text-[11px] text-slate-400">toca una fila para editarla</span>
-      </div>
+      <h2 className={`text-sm font-black uppercase tracking-wide mb-4 ${NUM}`}>💵 Tu mes</h2>
 
       <div className="space-y-3">
         {rows.map((row, i) => {

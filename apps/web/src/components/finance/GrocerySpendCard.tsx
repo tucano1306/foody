@@ -49,9 +49,9 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
                 : `Aún sin compras registradas: el plan usa tu límite de ${fmtMoney(g.baseline)}.`}
           </p>
         </div>
-        {/* Mismo criterio que el consejero: con un solo mes cerrado el
-            porcentaje compara contra ruido, así que no se muestra. */}
-        {g.trendPct !== null && g.monthsWithData >= 2 && Math.abs(g.trendPct) >= 5 && (
+        {/* Mismo criterio que el consejero: con un solo mes cerrado —o con el
+            mes recién empezado— el porcentaje compara contra ruido. */}
+        {g.paceIsMeaningful && g.trendPct !== null && g.monthsWithData >= 2 && Math.abs(g.trendPct) >= 5 && (
           <span
             className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-black ${
               g.trendPct > 0
@@ -64,7 +64,19 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
         )}
       </div>
 
-      {/* Ritmo del mes */}
+      {/* Ritmo del mes — solo cuando ya significa algo. Al arrancar el mes, sin
+          compras todavía, mostraba "cerrarás en $0" y "vas $500 por debajo del
+          límite", que es ruido disfrazado de dato. */}
+      {!g.paceIsMeaningful ? (
+        <div className="rounded-2xl bg-white/70 p-4 flex items-center gap-3">
+          <span className="text-2xl" aria-hidden="true">🧾</span>
+          <p className="text-sm text-slate-600">
+            {g.spentThisMonth > 0
+              ? `Llevas ${fmtMoney(g.spentThisMonth)} este mes.`
+              : 'Aún no hay compras este mes.'}
+          </p>
+        </div>
+      ) : (
       <div className="rounded-2xl bg-white/70 p-4">
         <div className="flex items-baseline justify-between mb-2">
           <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
@@ -120,6 +132,7 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
           </p>
         )}
       </div>
+      )}
 
       {/* Historial */}
       {history.length > 1 && (

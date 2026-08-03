@@ -21,6 +21,8 @@ export interface GoalPayload {
 
 interface Props {
   readonly goal: FinanceGoal | null;
+  /** Tipo elegido desde los atajos, para abrir el formulario ya encaminado. */
+  readonly preset?: GoalKind;
   /** Dinero libre mensual del plan — sirve para avisar si la meta no cabe. */
   readonly monthlyAvailable: number;
   readonly onSave: (payload: GoalPayload) => Promise<void>;
@@ -49,10 +51,12 @@ const inputCls =
 
 const labelCls = 'block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide';
 
-export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose }: Props) {
+export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, onClose }: Props) {
   const editing = goal !== null;
-  const [kind, setKind] = useState<GoalKind>(goal?.kind ?? 'trip');
-  const [emoji, setEmoji] = useState(goal?.emoji ?? '✈️');
+  const [kind, setKind] = useState<GoalKind>(goal?.kind ?? preset ?? 'trip');
+  const [emoji, setEmoji] = useState(
+    goal?.emoji ?? (preset ? (TEMPLATES.find((t) => t.kind === preset)?.emoji ?? '🎯') : '✈️'),
+  );
   const [name, setName] = useState(goal?.name ?? '');
   const [target, setTarget] = useState(goal ? String(goal.targetAmount) : '');
   const [saved, setSaved] = useState(goal ? String(goal.savedAmount) : '');
@@ -124,7 +128,6 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
   return (
     <ModalShell
       title={editing ? 'Editar meta' : 'Nueva meta'}
-      subtitle={editing ? 'Ajusta el objetivo, la fecha o la prioridad' : 'Dime qué quieres lograr y yo calculo cómo llegar'}
       emoji={emoji}
       headerClass={meta.gradient}
       onClose={onClose}

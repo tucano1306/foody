@@ -9,7 +9,7 @@ import { playSound } from '@/lib/sound';
 import { burstAt, confettiRain } from '@/lib/fx';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { FinancePlanPayload } from '@/lib/finance-data';
-import type { AdviceAction, FinanceGoal, GoalProjection, PlanInput } from '@/lib/finance-engine';
+import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
 import AdviceFeed from './AdviceFeed';
 import CashFlowCard from './CashFlowCard';
 import ContributeModal from './ContributeModal';
@@ -27,9 +27,19 @@ interface Props {
 
 type Modal =
   | { kind: 'none' }
-  | { kind: 'goal'; goal: FinanceGoal | null }
+  /** `preset` abre el formulario con ese tipo de meta ya elegido. */
+  | { kind: 'goal'; goal: FinanceGoal | null; preset?: GoalKind }
   | { kind: 'income' }
   | { kind: 'contribute'; goal: GoalProjection };
+
+/** Atajos del estado vacío: tocar el tipo ES la instrucción. */
+const GOAL_SHORTCUTS: readonly { id: string; kind: GoalKind; emoji: string; label: string }[] = [
+  { id: 'trip', kind: 'trip', emoji: '✈️', label: 'Viaje' },
+  { id: 'debt', kind: 'debt', emoji: '💳', label: 'Deuda' },
+  { id: 'project', kind: 'project', emoji: '🏗️', label: 'Proyecto' },
+  { id: 'purchase', kind: 'purchase', emoji: '🛍️', label: 'Compra' },
+  { id: 'emergency', kind: 'emergency', emoji: '🛟', label: 'Fondo' },
+];
 
 const RADIUS = 52;
 const CIRC = 2 * Math.PI * RADIUS;
@@ -309,20 +319,22 @@ export default function FinancePlanView({ initialData }: Props) {
         </div>
 
         {activeGoals.length === 0 ? (
-          <div className="rounded-3xl border-2 border-dashed border-sky-200 bg-sky-50/50 p-8 text-center">
-            <span className="text-4xl" aria-hidden="true">🎯</span>
-            <h3 className={`text-base font-black mt-3 ${NUM}`}>Dime qué quieres lograr</h3>
-            <p className="text-sm text-slate-500 mt-1.5 max-w-sm mx-auto">
-              Un viaje, saldar una deuda, un proyecto. Escribe cuánto cuesta y para cuándo lo quieres:
-              yo calculo cuánto apartar cada mes y te aviso si te desvías.
-            </p>
-            <button
-              type="button"
-              onClick={() => { haptic(12); setModal({ kind: 'goal', goal: null }); }}
-              className={`mt-4 px-5 py-2.5 rounded-2xl text-sm font-black shadow-sm ${BTN_PRIMARY}`}
-            >
-              ✨ Crear mi primera meta
-            </button>
+          /* Sin instrucciones: el tipo de meta se elige tocándolo, y el
+             formulario abre con esa opción ya puesta. */
+          <div className="grid grid-cols-3 gap-3">
+            {GOAL_SHORTCUTS.map(({ id, kind, emoji, label }) => (
+              <motion.button
+                key={id}
+                type="button"
+                whileTap={{ scale: 0.94 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                onClick={() => { haptic(12); setModal({ kind: 'goal', goal: null, preset: kind }); }}
+                className="flex flex-col items-center justify-center gap-2 aspect-square rounded-3xl bg-white border border-sky-100 shadow-sm active:shadow-inner transition-shadow"
+              >
+                <span className="text-3xl leading-none" aria-hidden="true">{emoji}</span>
+                <span className={`text-xs font-bold ${NUM}`}>{label}</span>
+              </motion.button>
+            ))}
           </div>
         ) : (
           <AnimatePresence mode="popLayout">
@@ -381,6 +393,7 @@ export default function FinancePlanView({ initialData }: Props) {
       {modal.kind === 'goal' && (
         <GoalFormModal
           goal={modal.goal}
+          preset={modal.preset}
           monthlyAvailable={cash.goalsBudget}
           onSave={saveGoal}
           onClose={closeModal}
