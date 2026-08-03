@@ -77,6 +77,10 @@ export default function FinancePlanView({ initialData }: Props) {
   const [deleting, setDeleting] = useState<GoalProjection | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  /** Referencia estable: evita que el efecto de ModalShell se reejecute en
+   *  cada render (guardaba 'hidden' como overflow "anterior" del body). */
+  const closeModal = useCallback(() => setModal({ kind: 'none' }), []);
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -104,14 +108,29 @@ export default function FinancePlanView({ initialData }: Props) {
 
   // ── Metas ──────────────────────────────────────────────────────────────────
 
+  /**
+   * Los adornos (sonido, confeti) y el refresco van DESPUÉS de cerrar el modal
+   * y sin poder tumbar el flujo: si uno fallara, el llamante mostraría "no se
+   * pudo guardar" sobre una meta que sí quedó guardada.
+   */
+  function celebrate(run: () => void) {
+    try {
+      run();
+    } catch {
+      // un adorno roto nunca debe parecer un fallo al guardar
+    }
+  }
+
   async function saveGoal(payload: GoalPayload) {
     const editing = modal.kind === 'goal' && modal.goal !== null;
     const url = editing ? `/api/finance/goals/${(modal as { goal: FinanceGoal }).goal.id}` : '/api/finance/goals';
     await send(url, editing ? 'PATCH' : 'POST', payload);
     setModal({ kind: 'none' });
     if (!editing) {
-      playSound('levelup');
-      burstAt(window.innerWidth / 2, window.innerHeight / 3, [payload.emoji, '🎯', '✨']);
+      celebrate(() => {
+        playSound('levelup');
+        burstAt(window.innerWidth / 2, window.innerHeight / 3, [payload.emoji, '🎯', '✨']);
+      });
     }
     await refresh();
   }
@@ -119,18 +138,20 @@ export default function FinancePlanView({ initialData }: Props) {
   async function contribute(goalId: string, amount: number, note: string | null) {
     const updated = (await send(`/api/finance/goals/${goalId}/contribute`, 'POST', { amount, note })) as FinanceGoal;
     setModal({ kind: 'none' });
-    playSound('payment');
-    if (updated.savedAmount >= updated.targetAmount) {
-      confettiRain(['🎉', '🏆', '✨']);
-    } else {
-      burstAt(window.innerWidth / 2, window.innerHeight / 2, ['💰', '✨']);
-    }
+    celebrate(() => {
+      playSound('payment');
+      if (updated.savedAmount >= updated.targetAmount) {
+        confettiRain(['🎉', '🏆', '✨']);
+      } else {
+        burstAt(window.innerWidth / 2, window.innerHeight / 2, ['💰', '✨']);
+      }
+    });
     await refresh();
   }
 
   async function completeGoal(goalId: string) {
     await send(`/api/finance/goals/${goalId}`, 'PATCH', { status: 'done' });
-    confettiRain(['🎉', '🏆']);
+    celebrate(() => confettiRain(['🎉', '🏆']));
     await refresh();
   }
 
@@ -346,36 +367,41 @@ export default function FinancePlanView({ initialData }: Props) {
       {/* ─── Simulador ───────────────────────────────────────────────────── */}
       {data.incomes.length > 0 && activeGoals.length > 0 && <SimulatorCard planInput={planInput} />}
 
-      {/* ─── Modales ─────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {modal.kind === 'goal' && (
-          <GoalFormModal
-            key="goal-modal"
-            goal={modal.goal}
-            monthlyAvailable={cash.goalsBudget}
-            onSave={saveGoal}
-            onClose={() => setModal({ kind: 'none' })}
-          />
-        )}
-        {modal.kind === 'income' && (
-          <IncomeModal
-            key="income-modal"
-            incomes={data.incomes}
-            onCreate={createIncome}
-            onToggle={toggleIncome}
-            onDelete={deleteIncome}
-            onClose={() => setModal({ kind: 'none' })}
-          />
-        )}
-        {modal.kind === 'contribute' && (
-          <ContributeModal
-            key="contribute-modal"
-            goal={modal.goal}
-            onContribute={(amount, note) => contribute(modal.goal.goalId, amount, note)}
-            onClose={() => setModal({ kind: 'none' })}
-          />
-        )}
-      </AnimatePresence>
+      {/* ─── Modales ─────────────────────────────────────────────────────────
+          Renderizado condicional directo, SIN AnimatePresence.
+
+          Con AnimatePresence los tres hijos condicionales se volvían `false` a
+          la vez al cerrar, y nunca completaba el desmontaje: el modal quedaba
+          montado e invisible (opacity 0), con el fondo bloqueado y el overlay
+          capturando los clics. La app parecía congelada justo después de
+          guardar una meta — y ni «Cancelar» la liberaba.
+
+          La animación de ENTRADA se conserva (ocurre al montar). Perder la de
+          salida es un precio ínfimo por un cierre que siempre funciona. */}
+      {modal.kind === 'goal' && (
+        <GoalFormModal
+          goal={modal.goal}
+          monthlyAvailable={cash.goalsBudget}
+          onSave={saveGoal}
+          onClose={closeModal}
+        />
+      )}
+      {modal.kind === 'income' && (
+        <IncomeModal
+          incomes={data.incomes}
+          onCreate={createIncome}
+          onToggle={toggleIncome}
+          onDelete={deleteIncome}
+          onClose={closeModal}
+        />
+      )}
+      {modal.kind === 'contribute' && (
+        <ContributeModal
+          goal={modal.goal}
+          onContribute={(amount, note) => contribute(modal.goal.goalId, amount, note)}
+          onClose={closeModal}
+        />
+      )}
 
       <ConfirmDialog
         open={deleting !== null}

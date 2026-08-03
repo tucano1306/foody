@@ -689,8 +689,10 @@ function adviceForGroceries(input: PlanInput, cash: CashFlow, goals: GoalProject
 
   const enRiesgo = goals.some((p) => p.feasibility === 'at_risk' || p.feasibility === 'tight');
 
-  // 1. Ritmo del mes contra el límite declarado.
-  if (g.limit > 0 && g.overLimit > 1) {
+  // 1. Ritmo del mes contra el límite declarado. Igual que la tendencia, no
+  //    tiene sentido antes de que haya días suficientes para proyectar.
+  const RITMO_FIABLE = g.daysElapsed >= 7;
+  if (RITMO_FIABLE && g.limit > 0 && g.overLimit > 1) {
     out.push({
       id: 'grocery-pace-over-limit',
       tone: 'warning',
@@ -699,7 +701,7 @@ function adviceForGroceries(input: PlanInput, cash: CashFlow, goals: GoalProject
       body: `Llevas ${money(g.spentThisMonth)} en ${g.daysElapsed} días (${money(g.dailyPace)} diarios) y tu límite es ${money(g.limit)}: te pasarías ${money(g.overLimit)}. Ese exceso sale del dinero de tus metas.${impactOnGoal(goals, g.overLimit)}`,
       action: { label: 'Ver presupuesto', kind: 'open_budget' },
     });
-  } else if (g.limit > 0 && g.overLimit < -1 && g.spentThisMonth > 0) {
+  } else if (RITMO_FIABLE && g.limit > 0 && g.overLimit < -1 && g.spentThisMonth > 0) {
     const sobrante = Math.abs(g.overLimit);
     // Sin meta activa no hay dónde aportar: se invita a crear una.
     const destino = goals.find((p) => p.status === 'active' && p.remaining > 0);
@@ -715,8 +717,11 @@ function adviceForGroceries(input: PlanInput, cash: CashFlow, goals: GoalProject
     });
   }
 
-  // 2. Tendencia contra el promedio histórico.
-  if (g.trendPct !== null && g.monthsWithData >= 2) {
+  // 2. Tendencia contra el promedio histórico. Los primeros días del mes no
+  //    dicen nada: sin compras aún, la proyección es $0 y saldría un absurdo
+  //    "estás gastando 100% menos".
+  const RITMO_FIABLE_DESDE_DIA = 7;
+  if (g.trendPct !== null && g.monthsWithData >= 2 && g.daysElapsed >= RITMO_FIABLE_DESDE_DIA) {
     const diff = Math.abs(g.projectedMonthEnd - g.avgMonthly);
     if (g.trendPct >= 15) {
       const culpable = g.biggestMover
@@ -780,19 +785,11 @@ export function buildAdvice(
   adviceForCashFlow(input, cash, out);
   adviceForDebt(cash, debts, out);
 
+  // Sin metas no se emite consejo: la sección "Tus metas" ya muestra su propio
+  // estado vacío con el mismo mensaje, y repetirlo llenaba la pantalla de
+  // instrucciones duplicadas.
   const active = goals.filter((g) => g.status === 'active');
-  if (active.length === 0) {
-    out.push({
-      id: 'no-goals',
-      tone: 'info',
-      icon: '🎯',
-      title: 'Dime qué quieres lograr',
-      body: 'Crea tu primera meta — un viaje, saldar una deuda, un proyecto — con su monto y su fecha. A partir de ahí calculo cuánto apartar cada mes y te aviso si te desvías.',
-      action: { label: 'Crear meta', kind: 'add_goal' },
-    });
-  } else {
-    for (const goal of active) adviceForGoal(goal, cash, input, out);
-  }
+  for (const goal of active) adviceForGoal(goal, cash, input, out);
 
   adviceForGroceries(input, cash, goals, out);
   adviceForSurplus(cash, goals, out);

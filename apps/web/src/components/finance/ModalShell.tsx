@@ -43,20 +43,27 @@ export default function ModalShell({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
-      <motion.button
+    // La raíz DEBE ser un motion component: es el hijo que AnimatePresence
+    // rastrea para saber cuándo puede desmontar. Con un <div> normal aquí, al
+    // cerrar el modal quedaba montado e invisible, con el fondo bloqueado
+    // (overflow:hidden) y el overlay capturando los clics — la app parecía
+    // congelada justo después de guardar una meta.
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"
+    >
+      <button
         type="button"
         aria-label="Cerrar"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm cursor-default"
         onClick={onClose}
       />
       <motion.div
-        initial={{ y: 60, opacity: 0, scale: 0.98 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        exit={{ y: 40, opacity: 0 }}
+        initial={{ y: 60, scale: 0.98 }}
+        animate={{ y: 0, scale: 1 }}
         transition={{ type: 'spring', stiffness: 360, damping: 30 }}
         className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-sky-50 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
       >
@@ -88,6 +95,6 @@ export default function ModalShell({
           </div>
         )}
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
