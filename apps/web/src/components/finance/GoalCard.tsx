@@ -45,18 +45,40 @@ function ProgressRing({ pct, color, emoji }: { readonly pct: number; readonly co
   );
 }
 
+/** Desplazamiento a partir del cual el gesto cuenta como acción. */
+const SWIPE_THRESHOLD = 90;
+
 export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, onComplete }: Props) {
   const meta = KIND_META[goal.kind];
   const feas = FEASIBILITY_META[goal.feasibility];
   const done = goal.feasibility === 'done';
 
   return (
+    /* La tarjeta se arrastra sobre dos acciones que asoman debajo: a la
+       derecha aportar, a la izquierda eliminar. El arrastre es elástico y
+       vuelve solo si no se cruza el umbral, así que explorar no destruye. */
+    <div className="relative rounded-3xl overflow-hidden">
+      <div className="absolute inset-0 flex items-center justify-between px-6 bg-linear-to-r from-sky-200 to-blue-200" aria-hidden="true">
+        <span className="flex items-center gap-1.5 text-xs font-black text-black">
+          <PlusCircleIcon className="w-5 h-5" /> Aportar
+        </span>
+        <span className="flex items-center gap-1.5 text-xs font-black text-black">
+          Eliminar <TrashIcon className="w-5 h-5" />
+        </span>
+      </div>
     <motion.article
       layout
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, type: 'spring', stiffness: 260, damping: 26 }}
-      className="rounded-3xl border border-sky-100 bg-sky-50/70 shadow-sm overflow-hidden"
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.5}
+      onDragEnd={(_, info) => {
+        if (info.offset.x > SWIPE_THRESHOLD) { haptic(12); onContribute(); }
+        else if (info.offset.x < -SWIPE_THRESHOLD) { haptic(16); onDelete(); }
+      }}
+      className="relative rounded-3xl border border-sky-100 bg-sky-50/70 shadow-sm overflow-hidden touch-pan-y cursor-grab active:cursor-grabbing"
     >
       {/* Encabezado pastel */}
       <div className={`bg-linear-to-br ${meta.gradient} px-4 py-4`}>
@@ -166,5 +188,6 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
         </button>
       </div>
     </motion.article>
+    </div>
   );
 }
