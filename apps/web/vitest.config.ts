@@ -8,7 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // scripts/ también: la lógica de los scripts de mantenimiento se prueba
+    // igual que la de la app (ver scripts/lib/data-url.test.ts).
+    include: ['{src,scripts}/**/*.{test,spec}.{ts,tsx}'],
   },
   resolve: {
     alias: {

@@ -20,6 +20,7 @@
  */
 import { neon } from '@neondatabase/serverless';
 import { put } from '@vercel/blob';
+import { decodeDataUrl, looksLikeImage, formatKB } from './lib/data-url.mjs';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
@@ -36,20 +37,7 @@ if (!BLOB_READ_WRITE_TOKEN && !DRY_RUN) {
 
 const sql = neon(DATABASE_URL);
 
-/** "data:image/jpeg;base64,/9j/4AA..." → { buffer, contentType, extension } */
-function decodeDataUrl(dataUrl) {
-  const comma = dataUrl.indexOf(',');
-  if (comma === -1) return null;
-  const header = dataUrl.slice(0, comma);
-  const contentType = /^data:([^;,]+)/.exec(header)?.[1] ?? 'image/jpeg';
-  if (!header.includes('base64')) return null;
-  const buffer = Buffer.from(dataUrl.slice(comma + 1), 'base64');
-  if (buffer.length === 0) return null;
-  const extension = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
-  return { buffer, contentType, extension };
-}
-
-const fmtKB = (bytes) => `${(bytes / 1024).toFixed(0)} KB`;
+const fmtKB = formatKB;
 
 async function main() {
   console.log(DRY_RUN ? '— MODO PRUEBA: no se escribe nada —\n' : '— MIGRACIÓN REAL —\n');
@@ -97,6 +85,15 @@ async function main() {
       const decoded = decodeDataUrl(full.photo_url);
       if (!decoded) {
         console.warn(`${label} — data URL ilegible, se deja intacta`);
+        failed++;
+        continue;
+      }
+
+      // Un base64 corrupto decodifica sin error pero produce basura. Subirla
+      // reemplazaría el original por una imagen rota, y el base64 se perdería
+      // para siempre: ante la duda, no se toca la fila.
+      if (!looksLikeImage(decoded.buffer)) {
+        console.warn(`${label} — los bytes no son una imagen válida, se deja intacta`);
         failed++;
         continue;
       }
