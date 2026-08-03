@@ -272,9 +272,9 @@ describe('buildFinancePlan — consejos', () => {
     expect(advice[0].action?.kind).toBe('add_income');
   });
 
-  it('invita a crear la primera meta', () => {
+  it('no repite el "crea tu primera meta" que ya muestra la sección vacía', () => {
     const { advice } = buildFinancePlan(plan({ goals: [] }));
-    expect(advice.some((a) => a.id === 'no-goals')).toBe(true);
+    expect(advice.some((a) => a.id === 'no-goals')).toBe(false);
   });
 
   it('ordena los consejos por gravedad', () => {
@@ -392,6 +392,24 @@ describe('buildFinancePlan — consejos desde las compras reales', () => {
     const { advice } = conCompras({ tripsThisMonth: 10 }, { incomes: [income({ amount: 1700 })] });
     const trips = advice.find((a) => a.id === 'grocery-trip-frequency');
     expect(trips?.body).toContain('$42'); // 420 / 10 por visita
+  });
+
+  it('calla sobre el ritmo los primeros días del mes', () => {
+    // Caso real del 1 de agosto: sin compras aún, la proyección es $0 y salía
+    // un absurdo "estás gastando 100% menos en super".
+    const { advice } = conCompras({
+      daysElapsed: 1, spentThisMonth: 0, projectedMonthEnd: 0,
+      trendPct: -100, overLimit: -400, avgMonthly: 220, monthsWithData: 3,
+    });
+    const superAdvice = advice.filter((a) => a.id.startsWith('grocery-'));
+    expect(superAdvice.map((a) => a.id)).not.toContain('grocery-trend-down');
+    expect(superAdvice.map((a) => a.id)).not.toContain('grocery-under-limit');
+    expect(superAdvice.map((a) => a.id)).not.toContain('grocery-pace-over-limit');
+  });
+
+  it('vuelve a opinar del ritmo pasada la primera semana', () => {
+    const { advice } = conCompras({ daysElapsed: 10, projectedMonthEnd: 800, overLimit: 400, trendPct: 45, avgMonthly: 550, monthsWithData: 3 });
+    expect(advice.some((a) => a.id === 'grocery-pace-over-limit')).toBe(true);
   });
 
   it('pide registrar compras cuando no hay ninguna', () => {

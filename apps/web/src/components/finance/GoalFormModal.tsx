@@ -114,6 +114,9 @@ export default function GoalFormModal({ goal, monthlyAvailable, onSave, onClose 
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar');
+    } finally {
+      // También en éxito: si el cierre del modal se retrasara, el botón debe
+      // volver a estar utilizable en vez de quedarse en "Guardando…".
       setSaving(false);
     }
   }
