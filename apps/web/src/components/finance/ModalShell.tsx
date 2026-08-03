@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useDragControls } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/solid';
 
 interface Props {
@@ -29,6 +29,8 @@ export default function ModalShell({
   children,
   footer,
 }: Props) {
+  const dragControls = useDragControls();
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -61,13 +63,29 @@ export default function ModalShell({
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm cursor-default"
         onClick={onClose}
       />
+      {/* Bottom sheet: se arrastra hacia abajo para cerrar, como espera
+          cualquier app móvil. El arrastre solo agarra de la cabecera para no
+          pelearse con el scroll del contenido. */}
       <motion.div
         initial={{ y: 60, scale: 0.98 }}
         animate={{ y: 0, scale: 1 }}
         transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.4 }}
+        dragListener={false}
+        dragControls={dragControls}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 120 || info.velocity.y > 500) onClose();
+        }}
         className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-sky-50 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
       >
-        <div className={`shrink-0 bg-linear-to-br ${headerClass} px-5 pt-5 pb-4`}>
+        <div
+          className={`shrink-0 bg-linear-to-br ${headerClass} px-5 pt-5 pb-4 touch-none`}
+          onPointerDown={(e) => dragControls.start(e)}
+        >
+          {/* Asa: dice "arrástrame" sin una sola palabra. */}
+          <div className="sm:hidden mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-400/40" aria-hidden="true" />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-lg font-black text-black flex items-center gap-2">

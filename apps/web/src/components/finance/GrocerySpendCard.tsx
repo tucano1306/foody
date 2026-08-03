@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { CameraIcon } from '@heroicons/react/24/solid';
 import { CATEGORY_EMOJI } from '@/lib/categories';
 import type { GroceryInsight, MonthTotal } from '@/lib/grocery-insights';
 import { fmtMoney } from './finance-ui';
@@ -205,11 +206,14 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
             ? `${g.tripsThisMonth} ${g.tripsThisMonth === 1 ? 'visita' : 'visitas'} al super este mes`
             : 'Sin visitas registradas este mes'}
         </p>
+        {/* Atajo directo al escáner: es la vía por la que entran los datos que
+            alimentan todo el plan, y antes no había forma de llegar desde aquí. */}
         <Link
-          href="/shopping-trips"
-          className="text-[11px] font-bold text-sky-600 hover:underline shrink-0"
+          href="/shopping-trips/new"
+          className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-sky-500 active:bg-sky-600 active:scale-95 text-white text-sm font-bold shadow-sm transition"
         >
-          Ver mis compras →
+          <CameraIcon className="w-5 h-5" />
+          Escanear factura
         </Link>
       </div>
     </section>

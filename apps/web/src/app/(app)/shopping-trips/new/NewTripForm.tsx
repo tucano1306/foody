@@ -17,6 +17,7 @@ const ReceiptScanner = dynamic(
   { ssr: false },
 );
 import { useToast } from '@/components/ui/Toast';
+import { notifyGoalImpact } from '@/lib/notify-goal-impact';
 
 interface Props {
   readonly products: Product[];
@@ -276,6 +277,11 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         ? `Compra guardada ✨ (${unlinkedCount} del recibo sin vincular se omitieron)`
         : 'Compra guardada ✨';
       toast.show(msg, 'success');
+
+      // Qué le hizo esta compra a las metas. Va después del aviso de éxito y
+      // nunca puede tumbar el guardado: si falla, la compra ya está a salvo.
+      void notifyGoalImpact(totalValid ? parsedTotal : 0, toast.show);
+
       router.push('/shopping-trips');
       router.refresh();
     } catch (e) {
