@@ -6,6 +6,9 @@ import type { MonthlyPayment } from '@foody/types';
 import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
 import MarkPaidModal, { type AppliedPayment } from '@/components/payments/MarkPaidModal';
+import { motion } from 'framer-motion';
+import { CheckCircleIcon } from '@heroicons/react/24/solid';
+import { haptic } from '@/lib/haptic';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { formatMonthShort } from '@/lib/payment-aggregates';
 interface Props {
@@ -17,6 +20,9 @@ interface Props {
 }
 
 type Urgency = 'overdue' | 'today' | 'urgent' | 'upcoming' | 'normal';
+
+/** Desplazamiento a partir del cual el gesto cuenta como acción. */
+const SWIPE_THRESHOLD = 90;
 
 const CATEGORY_ICONS: Record<string, string> = {
   utilities: '💡',
@@ -50,13 +56,18 @@ function getUrgency(isPaid: boolean, daysUntilDue: number): Urgency {
   return 'normal';
 }
 
+/**
+ * Una sola gama azul: la urgencia se lee en la INTENSIDAD, no en el matiz.
+ * Cuanto más oscuro, más urgente. Lo pagado se apaga hasta casi desaparecer,
+ * que es exactamente la jerarquía que interesa: lo pendiente destaca solo.
+ */
 function getCircleColor(urgency: Urgency, isPaid: boolean): string {
-  if (isPaid) return '#10B981';
-  if (urgency === 'overdue') return '#DC2626';
-  if (urgency === 'today') return '#EF4444';
-  if (urgency === 'urgent') return '#F59E0B';
-  if (urgency === 'upcoming') return '#3B82F6';
-  return '#6366F1';
+  if (isPaid) return '#bae6fd';       // sky-200, apagado
+  if (urgency === 'overdue') return '#1d4ed8'; // blue-700, lo más oscuro
+  if (urgency === 'today') return '#2563eb';   // blue-600
+  if (urgency === 'urgent') return '#3b82f6';  // blue-500
+  if (urgency === 'upcoming') return '#0ea5e9'; // sky-500
+  return '#7dd3fc';                    // sky-300, sin prisa
 }
 
 function getUrgencyBadge(urgency: Urgency, daysUntilDue: number): string {
@@ -66,24 +77,24 @@ function getUrgencyBadge(urgency: Urgency, daysUntilDue: number): string {
 }
 
 function getUrgencyBadgeCls(urgency: Urgency): string {
-  if (urgency === 'overdue') return 'bg-red-100 dark:bg-red-500/25 text-red-700 dark:text-red-300';
-  if (urgency === 'today') return 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300';
-  if (urgency === 'urgent') return 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300';
-  if (urgency === 'upcoming') return 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300';
-  return 'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400';
+  if (urgency === 'overdue') return 'bg-blue-100 text-blue-700';
+  if (urgency === 'today') return 'bg-blue-100 text-blue-600';
+  if (urgency === 'urgent') return 'bg-sky-100 text-sky-600';
+  if (urgency === 'upcoming') return 'bg-blue-100 text-blue-600';
+  return 'bg-white/70 text-slate-500';
 }
 
 function renderStatusBadge(isPaid: boolean, isSnoozed: boolean, urgency: Urgency, daysUntilDue: number): React.ReactNode {
   if (isPaid) {
     return (
-      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-100 text-sky-700">
         ✓ Pagado este mes
       </span>
     );
   }
   if (isSnoozed) {
     return (
-      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400">
+      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 text-slate-500">
         ⏸ Pospuesto 3 días
       </span>
     );
@@ -236,12 +247,27 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
   return (
     <div ref={cardRef}>
-      {/* Tappable card */}
-      <button
+      {/* La acción principal —marcar pagado— también se hace deslizando la
+          tarjeta a la derecha. Debajo asoma la confirmación, y el arrastre es
+          elástico: si no se cruza el umbral, vuelve sola. */}
+      <div className="relative rounded-2xl overflow-hidden">
+        <div className="absolute inset-0 flex items-center px-6 bg-linear-to-r from-sky-200 to-blue-200" aria-hidden="true">
+          <span className="flex items-center gap-2 text-sm font-black text-black">
+            <CheckCircleIcon className="w-6 h-6" />
+            {isPaid ? 'Marcar pendiente' : 'Marcar pagado'}
+          </span>
+        </div>
+      <motion.button
         type="button"
+        drag={isSnoozed ? false : 'x'}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.5}
+        onDragEnd={(_, info) => {
+          if (info.offset.x > SWIPE_THRESHOLD) { haptic([12, 30, 12]); void togglePaid(); }
+        }}
         onClick={() => setSheetOpen(true)}
         onAnimationEnd={(e) => { if (e.animationName === 'foody-pop') setJustPaid(false); }}
-        className={`w-full text-left flex flex-col bg-stone-50 dark:bg-stone-800/80 border border-stone-100 dark:border-stone-700 rounded-2xl p-5 shadow-sm hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500${justPaid ? ' animate-pop' : ''}`}
+        className={`relative w-full text-left flex flex-col bg-sky-50/70 border border-sky-100 rounded-2xl p-5 shadow-sm hover:bg-white/70 active:scale-[0.98] transition-all duration-200 touch-pan-y focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${justPaid ? ' animate-pop' : ''}`}
       >
         {/* Top row: icon + name + amount */}
         <div className="flex items-center gap-4">
@@ -252,21 +278,21 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
             {icon}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-stone-800 dark:text-white font-bold text-base truncate">{currentPayment.name}</p>
+            <p className="text-black font-bold text-base truncate">{currentPayment.name}</p>
             {currentPayment.description && (
-              <div className="text-stone-500 dark:text-stone-400 text-xs mt-0.5 line-clamp-1">
+              <div className="text-slate-500 text-xs mt-0.5 line-clamp-1">
                 <Markdown>{currentPayment.description}</Markdown>
               </div>
             )}
           </div>
           <div className="text-right shrink-0">
-            <p className="text-stone-800 dark:text-white font-extrabold text-lg leading-tight">
+            <p className="text-black font-extrabold text-lg leading-tight">
               {currentPayment.isVariableAmount && (
-                <span className="text-stone-400 dark:text-stone-500 mr-0.5" title="Monto variable">≈</span>
+                <span className="text-slate-400 mr-0.5" title="Monto variable">≈</span>
               )}
               {currentPayment.currency} {currentPayment.amount.toFixed(2)}
             </p>
-            <p className="text-stone-400 dark:text-stone-500 text-[11px]">
+            <p className="text-slate-400 text-[11px]">
               {currentPayment.isVariableAmount ? `Variable · Día ${currentPayment.dueDay}` : `Día ${currentPayment.dueDay} / mes`}
             </p>
           </div>
@@ -278,8 +304,8 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
               currentPayment.isAutoPay
-                ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
-                : 'bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-400'
+                ? 'bg-sky-100 text-sky-700'
+                : 'bg-white/70 text-slate-500'
             }`}
           >
             {currentPayment.isAutoPay ? '🤖 Automático' : '✋ Manual'}
@@ -288,16 +314,16 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
         {/* Accumulated debt banner */}
         {unpaidMonths.length > 0 && !isPaid && (
-          <div className="mt-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl px-3 py-2">
+          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-red-700 dark:text-red-300">
+              <span className="text-xs font-bold text-blue-700">
                 🚨 Ya llevas acumulado
               </span>
-              <span className="text-sm font-extrabold text-red-700 dark:text-red-300 shrink-0">
+              <span className="text-sm font-extrabold text-blue-700 shrink-0">
                 {currentPayment.currency} {(unpaidMonths.length * currentPayment.amount).toFixed(2)}
               </span>
             </div>
-            <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">
+            <p className="text-[11px] text-blue-600 mt-0.5">
               {unpaidMonths.length === 1 ? '1 mes sin pagar' : `${unpaidMonths.length} meses sin pagar`}
               {': '}
               {unpaidMonths.slice(0, 3).map((u) => formatMonthShort(u)).join(' · ')}
@@ -308,20 +334,21 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
         {/* Next-payment banner — the cycle restarts after paying */}
         {isPaid && currentPayment.daysUntilDue > 0 && (
-          <div className="mt-3 flex items-center justify-between gap-2 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl px-3 py-2">
+          <div className="mt-3 flex items-center justify-between gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
             <div className="flex items-center gap-1.5">
               <span className="text-base">🔄</span>
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              <span className="text-xs font-semibold text-sky-700">
                 Próximo pago
               </span>
             </div>
-            <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+            <span className="text-sm font-bold text-sky-700">
               en {dayLabel(currentPayment.daysUntilDue)}
               {nextDueLabel && <span className="font-medium opacity-80"> · {nextDueLabel}</span>}
             </span>
           </div>
         )}
-      </button>
+      </motion.button>
+      </div>
 
       {/* Quick actions for urgent payments */}
       {showQuickActions && !isSnoozed && (
@@ -329,7 +356,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); togglePaid(); }}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-sm font-semibold transition-all"
+            className="flex-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 active:scale-95 text-white text-sm font-semibold transition-all"
           >
             ✅ Pagado
           </button>
@@ -337,7 +364,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
             type="button"
             disabled={isSnoozePending}
             onClick={(e) => { e.stopPropagation(); snooze(); }}
-            className="flex-1 py-2.5 rounded-xl bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 text-stone-700 dark:text-stone-200 text-sm font-semibold transition-all disabled:opacity-60"
+            className="flex-1 py-2.5 rounded-xl bg-white/70 hover:bg-slate-200 active:scale-95 text-slate-700 text-sm font-semibold transition-all disabled:opacity-60"
           >
             {getSnoozeBtnLabel(isSnoozePending, snoozeError)}
           </button>

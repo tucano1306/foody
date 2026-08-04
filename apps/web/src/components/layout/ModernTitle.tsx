@@ -15,8 +15,10 @@ export default function ModernTitle({
   onDark = false,
   action,
 }: Readonly<Props>) {
-  const titleCls = onDark ? 'text-white' : 'text-stone-900 dark:text-stone-100';
-  const subtitleCls = onDark ? 'text-brand-100' : 'text-stone-500 dark:text-stone-400';
+  // Título en negro y subrayado azul: el mismo idioma visual que las secciones
+  // de finanzas, para que el encabezado no delate el diseño anterior.
+  const titleCls = onDark ? 'text-white' : 'text-black dark:text-white';
+  const subtitleCls = onDark ? 'text-sky-100' : 'text-slate-500 dark:text-slate-400';
   const alignCls = align === 'center' ? 'items-center text-center' : 'items-start text-left';
   const barAlignCls = align === 'center' ? 'mx-auto' : '';
 
@@ -37,7 +39,7 @@ export default function ModernTitle({
           <p className={`text-xs sm:text-sm mt-1 sm:mt-1.5 ${subtitleCls}`}>{subtitle}</p>
         )}
         <div
-          className={`h-1 mt-2 sm:mt-3 rounded-full shadow-md bg-linear-to-r from-brand-600 via-sky-400 to-energy-400 w-20 sm:w-32 ${barAlignCls}`}
+          className={`h-1 mt-2 sm:mt-3 rounded-full shadow-md bg-linear-to-r from-blue-600 via-sky-400 to-sky-300 w-20 sm:w-32 ${barAlignCls}`}
           aria-hidden="true"
         />
       </div>

@@ -37,12 +37,12 @@ const CURRENCIES = ['USD', 'EUR', 'MXN', 'COP', 'ARS', 'CLP', 'PEN'];
 
 /** Background gradient per method for the little icon tile */
 const METHOD_TILE_BG: Record<PaymentMethod, string> = {
-  transfer: 'linear-gradient(135deg,#3B82F6,#2563EB)',
-  debit_card: 'linear-gradient(135deg,#6366F1,#4F46E5)',
-  credit_card: 'linear-gradient(135deg,#8B5CF6,#6D28D9)',
-  bank_account: 'linear-gradient(135deg,#10B981,#059669)',
-  cash: 'linear-gradient(135deg,#22C55E,#16A34A)',
-  other: 'linear-gradient(135deg,#6B7280,#4B5563)',
+  transfer: 'linear-gradient(135deg,#3b82f6,#2563eb)',
+  debit_card: 'linear-gradient(135deg,#38bdf8,#0ea5e9)',
+  credit_card: 'linear-gradient(135deg,#60a5fa,#3b82f6)',
+  bank_account: 'linear-gradient(135deg,#0ea5e9,#0284c7)',
+  cash: 'linear-gradient(135deg,#7dd3fc,#38bdf8)',
+  other: 'linear-gradient(135deg,#94a3b8,#64748b)',
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -103,12 +103,12 @@ function formatShortDate(iso: string | undefined): string | null {
 /** Pending-status pill label + classes, handling overdue / due-today / upcoming. */
 function pendingStatus(days: number): { label: string; cls: string } {
   if (days < 0) {
-    return { label: `⏰ Pendiente · Venció hace ${plural(Math.abs(days), 'día')}`, cls: 'bg-red-500/20 text-red-300' };
+    return { label: `⏰ Pendiente · Venció hace ${plural(Math.abs(days), 'día')}`, cls: 'bg-blue-500/20 text-blue-300' };
   }
   if (days === 0) {
-    return { label: '⚡ Pendiente · Vence hoy', cls: 'bg-red-500/20 text-red-300' };
+    return { label: '⚡ Pendiente · Vence hoy', cls: 'bg-blue-500/20 text-blue-300' };
   }
-  return { label: `⏰ Pendiente · En ${plural(days, 'día')}`, cls: 'bg-amber-500/20 text-amber-300' };
+  return { label: `⏰ Pendiente · En ${plural(days, 'día')}`, cls: 'bg-sky-500/20 text-sky-300' };
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -598,7 +598,7 @@ export default function PaymentDetailSheet({
         <div className="flex items-start gap-4 mb-5">
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-            style={{ backgroundColor: isPaid ? '#10B981' : '#6366F1' }}
+            style={{ backgroundColor: isPaid ? '#38bdf8' : '#0ea5e9' }}
           >
             {icon}
           </div>
@@ -621,12 +621,12 @@ export default function PaymentDetailSheet({
           <p className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-1 flex items-center gap-2">
             {currentPayment.isVariableAmount ? 'Monto estimado' : 'Monto mensual'}
             {currentPayment.isVariableAmount && (
-              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 tracking-normal">
+              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 tracking-normal">
                 ⚡ Variable
               </span>
             )}
             {currentPayment.isAutoPay && (
-              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 tracking-normal">
+              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 tracking-normal">
                 🤖 Auto
               </span>
             )}
@@ -644,10 +644,10 @@ export default function PaymentDetailSheet({
 
         {/* Accumulated debt */}
         {!isPaid && (currentPayment.unpaidMonths?.length ?? 0) > 0 && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-4">
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 mb-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-red-300 text-xs font-semibold uppercase tracking-wide">🚨 Acumulado</p>
-              <p className="text-red-300 text-lg font-extrabold">
+              <p className="text-blue-300 text-xs font-semibold uppercase tracking-wide">🚨 Acumulado</p>
+              <p className="text-blue-300 text-lg font-extrabold">
                 {currentPayment.currency} {((currentPayment.unpaidMonths?.length ?? 0) * currentPayment.amount).toFixed(2)}
               </p>
             </div>
@@ -655,13 +655,13 @@ export default function PaymentDetailSheet({
               {(currentPayment.unpaidMonths ?? []).map((u) => (
                 <span
                   key={`${u.year}-${u.month}`}
-                  className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-red-500/20 text-red-200"
+                  className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-blue-500/20 text-blue-200"
                 >
                   {formatMonthShort(u)}
                 </span>
               ))}
             </div>
-            <p className="text-red-400/80 text-[11px] mt-2">
+            <p className="text-blue-400/80 text-[11px] mt-2">
               Cada pago que registres abona al mes más antiguo pendiente.
             </p>
           </div>
@@ -787,7 +787,7 @@ export default function PaymentDetailSheet({
               aria-pressed={currentPayment.isAutoPay}
               className={`py-2.5 rounded-lg text-xs font-bold transition disabled:opacity-60 ${
                 currentPayment.isAutoPay
-                  ? 'bg-emerald-500 text-white shadow-md'
+                  ? 'bg-sky-500 text-white shadow-md'
                   : 'text-gray-400 hover:bg-white/10 active:bg-white/15'
               }`}
             >
@@ -829,7 +829,7 @@ export default function PaymentDetailSheet({
         <div className="mb-5 flex flex-col items-start gap-2">
           {isPaid ? (
             <>
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full bg-sky-500/20 text-sky-300">
                 <CheckCircleIcon className="w-4 h-4" />
                 Pagado este mes
               </span>
@@ -857,7 +857,7 @@ export default function PaymentDetailSheet({
             className={`w-full py-3 rounded-2xl font-bold text-sm transition ${
               isPaid
                 ? 'bg-white/10 text-gray-300 hover:bg-white/20'
-                : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                : 'bg-sky-500 text-white hover:bg-sky-600'
             }`}
           >
             {isPaid ? '↩ Desmarcar como pagado' : '✓ Marcar como pagado'}
@@ -874,7 +874,7 @@ export default function PaymentDetailSheet({
             <button
               type="button"
               onClick={() => setMode('confirm-delete')}
-              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 font-semibold text-sm transition"
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 font-semibold text-sm transition"
             >
               <TrashIcon className="w-4 h-4" />
               Eliminar
@@ -994,7 +994,7 @@ export default function PaymentDetailSheet({
     return (
       <div className="px-3 pb-3 flex flex-col gap-2">
         {recError && (
-          <p className="text-rose-300 text-xs bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
+          <p className="text-blue-300 text-xs bg-blue-500/10 border border-blue-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
         )}
         <div>
           <label htmlFor="rec-edit-amount" className="block text-[11px] font-semibold text-gray-400 mb-1">
@@ -1044,15 +1044,15 @@ export default function PaymentDetailSheet({
             onClick={() => deleteRecord(rec)}
             className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${
               recDeleteArmed
-                ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300'
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-blue-500/15 hover:bg-blue-500/25 text-blue-300'
             }`}
           >
             {recDeleteArmed ? '¿Seguro? Sí, eliminar' : '🗑 Eliminar'}
           </button>
         </div>
         {recDeleteArmed && (
-          <p className="text-[10px] text-rose-400/80">
+          <p className="text-[10px] text-blue-400/80">
             Al eliminarlo, ese mes volverá a contar como pendiente y se restará del total pagado.
           </p>
         )}
@@ -1076,7 +1076,7 @@ export default function PaymentDetailSheet({
       <div className="mt-2 bg-brand-500/10 border border-brand-500/30 rounded-xl p-3 flex flex-col gap-2">
         <p className="text-brand-300 text-xs font-semibold">Registrar pago de un mes</p>
         {recError && (
-          <p className="text-rose-300 text-xs bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
+          <p className="text-blue-300 text-xs bg-blue-500/10 border border-blue-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
         )}
         <div>
           <label htmlFor="add-record-month" className="block text-[11px] font-semibold text-gray-400 mb-1">Mes</label>
@@ -1122,7 +1122,7 @@ export default function PaymentDetailSheet({
             type="button"
             disabled={recBusy}
             onClick={addRecord}
-            className="flex-1 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition disabled:opacity-50"
+            className="flex-1 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold transition disabled:opacity-50"
           >
             {recBusy ? 'Guardando…' : '✓ Registrar'}
           </button>
@@ -1155,7 +1155,7 @@ export default function PaymentDetailSheet({
           {paidCount > 0 && (
             <p className="text-[11px] text-gray-400 text-right">
               Pagado a la fecha:{' '}
-              <span className="text-emerald-300 font-bold">
+              <span className="text-sky-300 font-bold">
                 {currentPayment.currency} {totalPaid.toFixed(2)}
               </span>
               <span className="text-gray-500"> · {paidCount} {paidCount === 1 ? 'pago' : 'pagos'}</span>
@@ -1183,7 +1183,7 @@ export default function PaymentDetailSheet({
                     aria-expanded={isExpanded}
                     className="w-full p-3 flex items-start gap-3 text-left hover:bg-white/5 active:bg-white/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 group"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-base shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-sky-500/15 text-sky-300 flex items-center justify-center text-base shrink-0">
                       {methodInfo?.icon ?? '✓'}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1226,7 +1226,7 @@ export default function PaymentDetailSheet({
   function renderConfirmDelete() {
     return (
       <div className="flex flex-col items-center text-center gap-4 py-4">
-        <div className="w-16 h-16 rounded-full bg-rose-500/20 flex items-center justify-center text-3xl">
+        <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center text-3xl">
           🗑️
         </div>
         <div>
@@ -1240,7 +1240,7 @@ export default function PaymentDetailSheet({
             type="button"
             disabled={isPending}
             onClick={handleDelete}
-            className="w-full py-3 rounded-2xl bg-rose-500 text-white font-bold text-sm hover:bg-rose-600 transition disabled:opacity-50"
+            className="w-full py-3 rounded-2xl bg-blue-500 text-white font-bold text-sm hover:bg-blue-600 transition disabled:opacity-50"
           >
             {isPending ? 'Eliminando…' : 'Sí, eliminar'}
           </button>
@@ -1273,7 +1273,7 @@ export default function PaymentDetailSheet({
         </div>
 
         {error && (
-          <div className="px-4 py-3 bg-rose-500/20 border border-rose-500/30 rounded-xl text-rose-300 text-sm">
+          <div className="px-4 py-3 bg-blue-500/20 border border-blue-500/30 rounded-xl text-blue-300 text-sm">
             {error}
           </div>
         )}
@@ -1332,13 +1332,13 @@ export default function PaymentDetailSheet({
             aria-pressed={form.isVariableAmount}
             className={`mt-2 w-full flex items-start gap-2.5 p-3 rounded-xl border text-left transition ${
               form.isVariableAmount
-                ? 'bg-amber-500/15 border-amber-500/40'
+                ? 'bg-sky-500/15 border-sky-500/40'
                 : 'bg-white/5 border-white/10 hover:border-white/20'
             }`}
           >
             <div
               className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 transition ${
-                form.isVariableAmount ? 'bg-amber-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
+                form.isVariableAmount ? 'bg-sky-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
               }`}
             >
               ✓
@@ -1358,13 +1358,13 @@ export default function PaymentDetailSheet({
             aria-pressed={form.isAutoPay}
             className={`mt-2 w-full flex items-start gap-2.5 p-3 rounded-xl border text-left transition ${
               form.isAutoPay
-                ? 'bg-emerald-500/15 border-emerald-500/40'
+                ? 'bg-sky-500/15 border-sky-500/40'
                 : 'bg-white/5 border-white/10 hover:border-white/20'
             }`}
           >
             <div
               className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 transition ${
-                form.isAutoPay ? 'bg-emerald-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
+                form.isAutoPay ? 'bg-sky-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
               }`}
             >
               ✓

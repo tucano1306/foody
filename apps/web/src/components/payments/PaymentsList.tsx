@@ -13,6 +13,16 @@ interface Props {
 
 type Filter = 'all' | 'pending' | 'paid';
 
+/** Atajos de la lista vacía: tocar la categoría ES la instrucción. */
+const PAYMENT_SHORTCUTS: readonly { category: string; emoji: string; label: string }[] = [
+  { category: 'rent', emoji: '🏠', label: 'Renta' },
+  { category: 'utilities', emoji: '💡', label: 'Servicios' },
+  { category: 'internet', emoji: '🌐', label: 'Internet' },
+  { category: 'phone', emoji: '📞', label: 'Teléfono' },
+  { category: 'streaming', emoji: '🎬', label: 'Streaming' },
+  { category: 'other', emoji: '💰', label: 'Otro' },
+];
+
 const CATEGORY_ICONS: Record<string, string> = {
   utilities: '💡',
   subscriptions: '📱',
@@ -104,13 +114,13 @@ export default function PaymentsList({ initialPayments }: Props) {
     <div className="space-y-6">
       {/* ─── Accumulated debt alert ──────────────────────────────────────── */}
       {totalAccumulated > 0 && (
-        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
           <span className="text-2xl shrink-0">🚨</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-700 dark:text-red-300">
+            <p className="text-sm font-bold text-blue-700">
               Ya llevas {formatTotal(totalAccumulated)} acumulado
             </p>
-            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+            <p className="text-xs text-blue-600 mt-0.5">
               Meses vencidos sin pagar — cada pago que registres abona al mes más antiguo.
             </p>
           </div>
@@ -123,23 +133,23 @@ export default function PaymentsList({ initialPayments }: Props) {
         <button
           type="button"
           onClick={() => setFilter('all')}
-          className={`flex flex-col items-center bg-white dark:bg-stone-900 border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
             filter === 'all'
-              ? 'border-[#4F46E5] ring-2 ring-[#4F46E5]/30 scale-[1.03]'
-              : 'border-stone-100 dark:border-stone-800 hover:scale-105'
+              ? 'border-[#0ea5e9] ring-2 ring-[#0ea5e9]/30 scale-[1.03]'
+              : 'border-sky-100 hover:scale-105'
           }`}
         >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#4F46E5' }}
+            style={{ backgroundColor: '#0ea5e9' }}
           >
             <BanknotesIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <p className="text-stone-600 dark:text-stone-300 font-semibold text-[11px] sm:text-sm text-center leading-tight">
+          <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Total mensual
           </p>
-          <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            {formatTotal(totalExpenses)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
+          <p className="text-black text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
+            {formatTotal(totalExpenses)}{mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
           </p>
         </button>
 
@@ -147,23 +157,23 @@ export default function PaymentsList({ initialPayments }: Props) {
         <button
           type="button"
           onClick={() => toggleFilter('paid')}
-          className={`flex flex-col items-center bg-white dark:bg-stone-900 border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
             filter === 'paid'
-              ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-[1.03]'
-              : 'border-stone-100 dark:border-stone-800 hover:scale-105'
+              ? 'border-sky-500 ring-2 ring-sky-500/30 scale-[1.03]'
+              : 'border-sky-100 hover:scale-105'
           }`}
         >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#10B981' }}
+            style={{ backgroundColor: '#38bdf8' }}
           >
             <CheckCircleIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <p className="text-stone-600 dark:text-stone-300 font-semibold text-[11px] sm:text-sm text-center leading-tight">
+          <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Pagado
           </p>
-          <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            {formatTotal(totalPaid)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
+          <p className="text-black text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
+            {formatTotal(totalPaid)}{mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
           </p>
         </button>
 
@@ -171,26 +181,26 @@ export default function PaymentsList({ initialPayments }: Props) {
         <button
           type="button"
           onClick={() => toggleFilter('pending')}
-          className={`flex flex-col items-center bg-white dark:bg-stone-900 border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
             filter === 'pending'
-              ? 'border-amber-400 ring-2 ring-amber-400/30 scale-[1.03]'
-              : 'border-stone-100 dark:border-stone-800 hover:scale-105'
+              ? 'border-sky-400 ring-2 ring-sky-400/30 scale-[1.03]'
+              : 'border-sky-100 hover:scale-105'
           }`}
         >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#F59E0B' }}
+            style={{ backgroundColor: '#3b82f6' }}
           >
             <ClockIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
-          <p className="text-stone-600 dark:text-stone-300 font-semibold text-[11px] sm:text-sm text-center leading-tight">
+          <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Pendiente
           </p>
-          <p className="text-stone-800 dark:text-stone-100 text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            {formatTotal(totalExpenses - totalPaid)}{mixedCurrencies && <span className="text-xs text-stone-400 ml-1">*</span>}
+          <p className="text-black text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
+            {formatTotal(totalExpenses - totalPaid)}{mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
           </p>
           {totalSnoozed > 0 && (
-            <p className="text-stone-400 dark:text-stone-500 text-[10px] sm:text-xs mt-1 text-center leading-tight">
+            <p className="text-slate-400 text-[10px] sm:text-xs mt-1 text-center leading-tight">
               incl. {formatTotal(totalSnoozed)} pospuesto
             </p>
           )}
@@ -199,7 +209,7 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── All-time paid history ────────────────────────────────────────── */}
       {payments.length > 0 && (
-        <section className="rounded-2xl overflow-hidden shadow-sm bg-linear-to-br from-emerald-600 to-market-700">
+        <section className="rounded-2xl overflow-hidden shadow-sm bg-linear-to-br from-sky-600 to-blue-700">
           <button
             type="button"
             onClick={() => setHistoryOpen((v) => !v)}
@@ -262,13 +272,13 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Pending payments ─────────────────────────────────────────────── */}
       {pending.length > 0 && filter !== 'paid' && (
-        <section className="bg-amber-50/70 dark:bg-amber-500/[0.06] rounded-2xl p-5 border-2 border-amber-200/80 dark:border-amber-500/25 shadow-sm">
+        <section className="bg-sky-50/70 rounded-2xl p-5 border-2 border-sky-200/80 shadow-sm">
           <div className="flex items-center gap-2.5 mb-4">
-            <span className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+            <span className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
               ⏰
             </span>
-            <h2 className="text-lg font-bold text-amber-900 dark:text-amber-200">Pendientes</h2>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-200/80 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">
+            <h2 className="text-lg font-bold text-sky-900">Pendientes</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sky-200/80 text-sky-800">
               {pending.length}
             </span>
           </div>
@@ -289,13 +299,13 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Snoozed payments ─────────────────────────────────────────────── */}
       {snoozed.length > 0 && filter !== 'paid' && (
-        <section className="bg-stone-50/80 dark:bg-white/[0.03] rounded-2xl p-5 border-2 border-stone-200/80 dark:border-stone-700/60 shadow-sm">
+        <section className="bg-sky-50/70/80 rounded-2xl p-5 border-2 border-sky-200/80 shadow-sm">
           <div className="flex items-center gap-2.5 mb-4">
-            <span className="w-9 h-9 rounded-xl bg-stone-200/70 dark:bg-white/10 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+            <span className="w-9 h-9 rounded-xl bg-slate-200/70 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
               ⏸
             </span>
-            <h2 className="text-lg font-bold text-stone-700 dark:text-stone-300">Pospuestos</h2>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-stone-200/80 dark:bg-white/10 text-stone-600 dark:text-stone-400">
+            <h2 className="text-lg font-bold text-slate-700">Pospuestos</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-600">
               {snoozed.length}
             </span>
           </div>
@@ -316,13 +326,13 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Paid this month ──────────────────────────────────────────────── */}
       {paid.length > 0 && filter !== 'pending' && (
-        <section className="bg-emerald-50/70 dark:bg-emerald-500/[0.06] rounded-2xl p-5 border-2 border-emerald-200/80 dark:border-emerald-500/25 shadow-sm">
+        <section className="bg-sky-50/70 rounded-2xl p-5 border-2 border-sky-200/80 shadow-sm">
           <div className="flex items-center gap-2.5 mb-4">
-            <span className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+            <span className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
               ✅
             </span>
-            <h2 className="text-lg font-bold text-emerald-900 dark:text-emerald-200">Pagados este mes</h2>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-200/80 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+            <h2 className="text-lg font-bold text-sky-900">Pagados este mes</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sky-200/80 text-sky-800">
               {paid.length}
             </span>
           </div>
@@ -342,18 +352,19 @@ export default function PaymentsList({ initialPayments }: Props) {
       )}
 
       {/* ─── Empty state ──────────────────────────────────────────────────── */}
+      {/* Sin instrucciones: tocar la categoría abre el formulario ya encaminado. */}
       {payments.length === 0 && (
-        <div className="text-center py-20">
-          <p className="text-6xl mb-4">💸</p>
-          <h2 className="text-xl font-semibold text-stone-600 mb-2">
-            Sin pagos registrados
-          </h2>
-          <Link
-            href="/payments/new"
-            className="inline-block bg-brand-500 text-white px-6 py-3 rounded-xl font-semibold hover:bg-brand-600 transition mt-4"
-          >
-            Agregar primer pago
-          </Link>
+        <div className="grid grid-cols-3 gap-3 py-6">
+          {PAYMENT_SHORTCUTS.map(({ category, emoji, label }) => (
+            <Link
+              key={category}
+              href={`/payments/new?category=${category}`}
+              className="flex flex-col items-center justify-center gap-2 aspect-square rounded-3xl bg-white border border-sky-100 shadow-sm active:scale-95 active:shadow-inner transition"
+            >
+              <span className="text-3xl leading-none" aria-hidden="true">{emoji}</span>
+              <span className="text-xs font-bold text-black">{label}</span>
+            </Link>
+          ))}
         </div>
       )}
     </div>

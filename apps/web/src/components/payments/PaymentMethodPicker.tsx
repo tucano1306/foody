@@ -22,25 +22,25 @@ function chipClass(selected: boolean, variant: Variant): string {
   if (variant === 'dark') {
     return 'bg-white/5 border-white/10 text-gray-200 hover:border-brand-500/50';
   }
-  return 'bg-white border-stone-200 text-stone-700 hover:border-brand-300 hover:bg-brand-50';
+  return 'bg-white border-sky-200 text-slate-700 hover:border-brand-300 hover:bg-brand-50';
 }
 
 function hintClass(selected: boolean, variant: Variant): string {
   if (selected) return 'text-white/80';
-  return variant === 'dark' ? 'text-gray-500' : 'text-stone-400';
+  return variant === 'dark' ? 'text-gray-500' : 'text-slate-400';
 }
 
 function inputClass(variant: Variant): string {
   if (variant === 'dark') {
     return 'w-full px-4 py-3 rounded-2xl border border-white/10 bg-white/5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm';
   }
-  return 'w-full px-4 py-3 rounded-2xl border border-stone-200 bg-white text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-sm';
+  return 'w-full px-4 py-3 rounded-2xl border border-sky-200 bg-white text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-sm';
 }
 
 function labelClass(variant: Variant): string {
   return variant === 'dark'
     ? 'block text-xs font-semibold text-gray-300 mb-1.5'
-    : 'block text-xs font-semibold text-stone-600 mb-1.5';
+    : 'block text-xs font-semibold text-slate-600 mb-1.5';
 }
 
 export default function PaymentMethodPicker({
@@ -55,7 +55,7 @@ export default function PaymentMethodPicker({
 }: Props) {
   const needsBank = methodNeedsBank(method);
   const card = isCardMethod(method);
-  const mutedNote = variant === 'dark' ? 'text-gray-500' : 'text-stone-400';
+  const mutedNote = variant === 'dark' ? 'text-gray-500' : 'text-slate-400';
 
   return (
     <div className="flex flex-col gap-3">
@@ -122,7 +122,7 @@ export default function PaymentMethodPicker({
               </div>
             </div>
           </div>
-          <p className={`text-[11px] flex items-start gap-1.5 ${variant === 'dark' ? 'text-amber-300' : 'text-amber-600'}`}>
+          <p className={`text-[11px] flex items-start gap-1.5 ${variant === 'dark' ? 'text-sky-300' : 'text-sky-600'}`}>
             <span aria-hidden="true">🔒</span>
             <span>
               Por seguridad solo guardamos los <strong>últimos 4 dígitos</strong>. Nunca ingreses el número completo.
