@@ -67,7 +67,7 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
               <button
                 type="button"
                 onClick={onClose}
-                className="mt-2 w-full py-3 rounded-2xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition"
+                className="mt-2 w-full py-3 rounded-2xl bg-sky-600 text-white font-semibold hover:bg-sky-700 transition"
               >
                 Cerrar
               </button>
@@ -92,7 +92,7 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
               </div>
 
               {error && (
-                <p className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/40 rounded-xl px-3 py-2">{error}</p>
+                <p className="text-sm text-blue-600 bg-blue-50 dark:bg-blue-950/40 rounded-xl px-3 py-2">{error}</p>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -108,7 +108,7 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError(null); }}
                     placeholder="amigo@ejemplo.com"
-                    className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
                   />
                 </div>
                 <div>
@@ -121,7 +121,7 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="¡Te lo regalo!"
-                    className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                    className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
                   />
                 </div>
                 <div className="flex gap-2 pt-1">
@@ -135,7 +135,7 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
                   <button
                     type="submit"
                     disabled={isPending || !email.trim()}
-                    className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
+                    className="flex-1 py-3 rounded-2xl bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 disabled:opacity-50 transition"
                   >
                     {isPending ? 'Enviando…' : 'Enviar regalo'}
                   </button>

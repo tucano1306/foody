@@ -209,16 +209,16 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
   return (
     <div className={`space-y-4 ${editing ? 'pb-24' : ''}`}>
-      <Link href="/shopping-trips" className="text-sm text-stone-500 hover:text-stone-700">
+      <Link href="/shopping-trips" className="text-sm text-slate-500 hover:text-slate-700">
         ← Volver a compras
       </Link>
 
       {/* ── Encabezado del ticket ─────────────────────────────────────────── */}
-      <header className="rounded-2xl bg-white p-5 shadow-sm border border-stone-100">
+      <header className="rounded-2xl bg-white p-5 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between">
           <p className="text-xs uppercase tracking-wide text-brand-600 font-semibold">Ticket</p>
           {!editing && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
               Estrategia: {STRATEGY_LABELS[trip.allocationStrategy] ?? trip.allocationStrategy}
             </span>
           )}
@@ -227,32 +227,32 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
         {editing ? (
           <div className="mt-3 space-y-3">
             <label className="block">
-              <span className="block text-xs font-semibold text-stone-500 mb-1">
-                Tienda <span className="text-red-500">*</span>
+              <span className="block text-xs font-semibold text-slate-500 mb-1">
+                Tienda <span className="text-blue-500">*</span>
               </span>
               <input
                 type="text"
                 value={store}
                 onChange={(e) => setStore(e.target.value)}
                 placeholder="Ej. Walmart, Publix, Soriana…"
-                className={`w-full rounded-xl border px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:border-brand-500 ${
-                  storeValid ? 'border-stone-200 bg-white' : 'border-red-300 bg-red-50'
+                className={`w-full rounded-xl border px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-brand-500 ${
+                  storeValid ? 'border-slate-200 bg-white' : 'border-blue-300 bg-blue-50'
                 }`}
               />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="block text-xs font-semibold text-stone-500 mb-1">Fecha</span>
+                <span className="block text-xs font-semibold text-slate-500 mb-1">Fecha</span>
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 focus:border-brand-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
                 />
               </label>
               <label className="block">
-                <span className="block text-xs font-semibold text-stone-500 mb-1">
-                  Total pagado <span className="text-red-500">*</span>
+                <span className="block text-xs font-semibold text-slate-500 mb-1">
+                  Total pagado <span className="text-blue-500">*</span>
                 </span>
                 <input
                   type="number"
@@ -262,8 +262,8 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                   value={total}
                   onChange={(e) => setTotal(e.target.value)}
                   placeholder="0.00"
-                  className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold text-stone-800 focus:outline-none focus:border-brand-500 ${
-                    totalValid ? 'border-stone-200 bg-white' : 'border-red-300 bg-red-50'
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:border-brand-500 ${
+                    totalValid ? 'border-slate-200 bg-white' : 'border-blue-300 bg-blue-50'
                   }`}
                 />
               </label>
@@ -271,12 +271,12 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
           </div>
         ) : (
           <>
-            <h1 className="text-2xl font-bold text-stone-800 mt-1">
+            <h1 className="text-2xl font-bold text-slate-800 mt-1">
               🏪 {trip.storeName ?? 'Sin tienda'}
             </h1>
-            <p className="text-sm text-stone-500 mt-1">{formatDate(trip.purchasedAt)}</p>
+            <p className="text-sm text-slate-500 mt-1">{formatDate(trip.purchasedAt)}</p>
             <div className="mt-3 flex items-center justify-between">
-              <p className="text-sm text-stone-500">
+              <p className="text-sm text-slate-500">
                 {trip.items.length} producto{trip.items.length === 1 ? '' : 's'}
               </p>
               <p className="text-2xl font-bold text-brand-700">
@@ -300,7 +300,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="flex items-center justify-center gap-2 rounded-xl border border-red-200 text-red-600 px-4 py-3 text-sm font-semibold hover:bg-red-50 active:scale-[0.98] transition"
+            className="flex items-center justify-center gap-2 rounded-xl border border-blue-200 text-blue-600 px-4 py-3 text-sm font-semibold hover:bg-blue-50 active:scale-[0.98] transition"
           >
             🗑️ Eliminar
           </button>
@@ -308,33 +308,33 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
       )}
 
       {/* ── Productos ─────────────────────────────────────────────────────── */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100">
-        <h2 className="font-semibold text-stone-800 mb-3">
+      <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
+        <h2 className="font-semibold text-slate-800 mb-3">
           Productos ({editing ? items.length : trip.items.length})
         </h2>
 
         {editing ? (
           <div className="space-y-2">
             {items.length === 0 && (
-              <p className="rounded-xl bg-stone-50 text-stone-400 text-sm px-3 py-4 text-center">
+              <p className="rounded-xl bg-slate-50 text-slate-400 text-sm px-3 py-4 text-center">
                 Sin productos — se guardará solo el total.
               </p>
             )}
             {items.map((it) => (
-              <div key={it.key} className="rounded-xl border border-stone-100 bg-stone-50/50 p-3">
+              <div key={it.key} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium text-stone-800 truncate">{it.name}</p>
+                  <p className="font-medium text-slate-800 truncate">{it.name}</p>
                   <button
                     type="button"
                     onClick={() => removeItem(it.key)}
-                    className="text-xs text-red-500 hover:text-red-700 shrink-0"
+                    className="text-xs text-blue-500 hover:text-blue-700 shrink-0"
                   >
                     Quitar
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-wide text-stone-400 mb-0.5">
+                    <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
                       Cantidad
                     </span>
                     <input
@@ -344,11 +344,11 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                       min="0"
                       value={it.quantity}
                       onChange={(e) => updateItem(it.key, { quantity: e.target.value })}
-                      className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
+                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                     />
                   </label>
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-wide text-stone-400 mb-0.5">
+                    <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
                       Precio unitario (opcional)
                     </span>
                     <input
@@ -359,7 +359,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                       placeholder="Foody lo estima"
                       value={it.price}
                       onChange={(e) => updateItem(it.key, { price: e.target.value })}
-                      className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
+                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                     />
                   </label>
                 </div>
@@ -373,10 +373,10 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 placeholder="＋ Buscar producto para agregar…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-dashed border-brand-300 bg-brand-50/40 px-3 py-2.5 text-sm text-stone-800 placeholder-brand-400 focus:border-brand-500 focus:outline-none"
+                className="w-full rounded-xl border border-dashed border-brand-300 bg-brand-50/40 px-3 py-2.5 text-sm text-slate-800 placeholder-brand-400 focus:border-brand-500 focus:outline-none"
               />
               {candidates.length > 0 && (
-                <div className="absolute z-10 left-0 right-0 mt-1 rounded-xl border border-stone-200 bg-white shadow-md max-h-44 overflow-auto">
+                <div className="absolute z-10 left-0 right-0 mt-1 rounded-xl border border-slate-200 bg-white shadow-md max-h-44 overflow-auto">
                   {candidates.map((p) => (
                     <button
                       key={p.id}
@@ -384,48 +384,48 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                       onClick={() => addProduct(p)}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-brand-50 flex items-center justify-between"
                     >
-                      <span className="font-medium text-stone-700 truncate">{p.name}</span>
-                      <span className="text-xs text-stone-400 ml-2 shrink-0">{p.unit}</span>
+                      <span className="font-medium text-slate-700 truncate">{p.name}</span>
+                      <span className="text-xs text-slate-400 ml-2 shrink-0">{p.unit}</span>
                     </button>
                   ))}
                 </div>
               )}
               {searchQ.length > 0 && candidates.length === 0 && (
-                <p className="mt-1 px-1 text-xs text-stone-400">Sin coincidencias en tu catálogo.</p>
+                <p className="mt-1 px-1 text-xs text-slate-400">Sin coincidencias en tu catálogo.</p>
               )}
             </div>
           </div>
         ) : (
           <ul className="space-y-2">
             {trip.items.length === 0 && (
-              <li className="rounded-xl bg-stone-50 text-stone-400 text-sm px-3 py-4 text-center">
+              <li className="rounded-xl bg-slate-50 text-slate-400 text-sm px-3 py-4 text-center">
                 Este ticket solo registra el total — edítalo para agregar productos.
               </li>
             )}
             {trip.items.map((item) => (
               <li
                 key={item.id}
-                className="flex items-center justify-between rounded-xl border border-stone-100 px-3 py-2"
+                className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="font-medium text-stone-800 truncate">
+                  <p className="font-medium text-slate-800 truncate">
                     {item.quantity} × {item.productName ?? 'Producto'}
                   </p>
-                  <p className="text-xs text-stone-500 flex items-center gap-1">
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
                     {item.unitPrice != null && (
                       <>
                         {formatCurrency(item.unitPrice, item.currency)} c/u
                         {item.priceSource === 'allocated' && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded">
                             est.
                           </span>
                         )}
                       </>
                     )}
-                    {item.unitPrice == null && <span className="text-stone-400">Sin precio</span>}
+                    {item.unitPrice == null && <span className="text-slate-400">Sin precio</span>}
                   </p>
                 </div>
-                <p className="font-semibold text-stone-700">
+                <p className="font-semibold text-slate-700">
                   {item.totalPrice == null ? '—' : formatCurrency(item.totalPrice, item.currency)}
                 </p>
               </li>
@@ -436,36 +436,36 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
       {/* ── Notas ─────────────────────────────────────────────────────────── */}
       {editing ? (
-        <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100">
-          <h2 className="font-semibold text-stone-800 mb-2">Notas</h2>
+        <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
+          <h2 className="font-semibold text-slate-800 mb-2">Notas</h2>
           <textarea
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notas opcionales…"
-            className="w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-800 placeholder-stone-300 focus:border-brand-500 focus:outline-none resize-none"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:border-brand-500 focus:outline-none resize-none"
           />
         </section>
       ) : (
         trip.notes && (
-          <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100">
-            <h2 className="font-semibold text-stone-800 mb-2">Notas</h2>
-            <p className="text-sm text-stone-600 whitespace-pre-wrap">{trip.notes}</p>
+          <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
+            <h2 className="font-semibold text-slate-800 mb-2">Notas</h2>
+            <p className="text-sm text-slate-600 whitespace-pre-wrap">{trip.notes}</p>
           </section>
         )
       )}
 
       {error && (
-        <p className="rounded-xl bg-red-50 text-red-700 text-sm px-3 py-2">{error}</p>
+        <p className="rounded-xl bg-blue-50 text-blue-700 text-sm px-3 py-2">{error}</p>
       )}
 
       {/* ── Barra fija de guardado (modo edición) ─────────────────────────── */}
       {editing && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-100 bg-white/95 backdrop-blur px-4 py-3">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-100 bg-white/95 backdrop-blur px-4 py-3">
           <div className="container mx-auto max-w-5xl flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs text-stone-500">Total</p>
-              <p className="text-lg font-bold text-stone-800">
+              <p className="text-xs text-slate-500">Total</p>
+              <p className="text-lg font-bold text-slate-800">
                 {totalValid ? formatCurrency(parsedTotal, trip.currency) : '—'}
               </p>
             </div>
@@ -474,7 +474,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 type="button"
                 onClick={cancelEdit}
                 disabled={saving}
-                className="rounded-xl border border-stone-200 text-stone-600 px-4 py-3 text-sm font-semibold hover:bg-stone-50 disabled:opacity-50 transition"
+                className="rounded-xl border border-slate-200 text-slate-600 px-4 py-3 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 transition"
               >
                 Cancelar
               </button>
@@ -482,7 +482,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 type="button"
                 onClick={handleSave}
                 disabled={!canSave}
-                className="rounded-xl bg-brand-600 text-white px-6 py-3 text-sm font-semibold shadow hover:bg-brand-700 disabled:bg-stone-300 disabled:cursor-not-allowed transition"
+                className="rounded-xl bg-brand-600 text-white px-6 py-3 text-sm font-semibold shadow hover:bg-brand-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition"
               >
                 {saving ? 'Guardando…' : '💾 Guardar cambios'}
               </button>
@@ -503,8 +503,8 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
           <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-fade-up">
             <div className="text-center">
               <span className="text-4xl">🗑️</span>
-              <h3 className="text-lg font-bold text-stone-800 mt-2">¿Eliminar este ticket?</h3>
-              <p className="text-sm text-stone-500 mt-1">
+              <h3 className="text-lg font-bold text-slate-800 mt-2">¿Eliminar este ticket?</h3>
+              <p className="text-sm text-slate-500 mt-1">
                 Se borrará el ticket de {trip.storeName ?? 'esta compra'} y sus{' '}
                 {trip.items.length} producto{trip.items.length === 1 ? '' : 's'} del historial.
                 Esta acción no se puede deshacer.
@@ -515,7 +515,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 type="button"
                 onClick={() => setConfirmingDelete(false)}
                 disabled={deleting}
-                className="rounded-xl border border-stone-200 text-stone-600 px-4 py-3 text-sm font-semibold hover:bg-stone-50 disabled:opacity-50 transition"
+                className="rounded-xl border border-slate-200 text-slate-600 px-4 py-3 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 transition"
               >
                 Cancelar
               </button>
@@ -523,7 +523,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="rounded-xl bg-red-600 text-white px-4 py-3 text-sm font-semibold shadow hover:bg-red-700 disabled:opacity-60 transition"
+                className="rounded-xl bg-blue-600 text-white px-4 py-3 text-sm font-semibold shadow hover:bg-blue-700 disabled:opacity-60 transition"
               >
                 {deleting ? 'Eliminando…' : 'Sí, eliminar'}
               </button>

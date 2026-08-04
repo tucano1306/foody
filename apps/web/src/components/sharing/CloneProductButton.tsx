@@ -34,7 +34,7 @@ export default function CloneProductButton({ shareId, productId }: Props) {
 
   if (done) {
     return (
-      <span className="block w-full py-1.5 text-center text-[11px] font-semibold rounded-xl bg-emerald-100 text-emerald-700">
+      <span className="block w-full py-1.5 text-center text-[11px] font-semibold rounded-xl bg-sky-100 text-sky-700">
         ✅ Añadido
       </span>
     );
@@ -42,12 +42,12 @@ export default function CloneProductButton({ shareId, productId }: Props) {
 
   return (
     <>
-      {error && <p className="text-[10px] text-rose-500 mb-1">{error}</p>}
+      {error && <p className="text-[10px] text-blue-500 mb-1">{error}</p>}
       <button
         type="button"
         disabled={isPending}
         onClick={handleClick}
-        className="w-full py-1.5 text-[11px] font-semibold rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 disabled:opacity-50 transition"
+        className="w-full py-1.5 text-[11px] font-semibold rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 disabled:opacity-50 transition"
       >
         {isPending ? '…' : '+ Agregar a mi despensa'}
       </button>

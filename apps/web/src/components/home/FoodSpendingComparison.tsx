@@ -16,9 +16,9 @@ function getMonthName(offsetMonths: number): string {
 }
 
 function getTrendCls(isDown: boolean, isUp: boolean): string {
-  if (isDown) return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
-  if (isUp) return 'bg-rose-50 text-rose-700 border border-rose-100';
-  return 'bg-stone-50 text-stone-600 border border-stone-100';
+  if (isDown) return 'bg-sky-50 text-sky-700 border border-sky-100';
+  if (isUp) return 'bg-blue-50 text-blue-700 border border-blue-100';
+  return 'bg-slate-50 text-slate-600 border border-slate-100';
 }
 
 function getTrendEmoji(isDown: boolean, isUp: boolean): string {
@@ -53,24 +53,24 @@ export default async function FoodSpendingComparison() {
   const isDown = diff < 0;
 
   return (
-    <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm flex flex-col gap-3">
+    <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col gap-3">
       <div>
-        <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
+        <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
           📊 Gastos de comida
         </h2>
-        <p className="text-xs text-stone-500 mt-0.5">Mes actual vs anterior</p>
+        <p className="text-xs text-slate-500 mt-0.5">Mes actual vs anterior</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-stone-50 rounded-xl p-3 border border-stone-100">
-          <p className="text-[10px] text-stone-400 capitalize tracking-wide">{currentMonthName}</p>
-          <p className="text-xl font-bold text-stone-900 mt-1 leading-none">{formatMoney(currentTotal)}</p>
-          <p className="text-[10px] text-stone-400 mt-1">este mes</p>
+        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+          <p className="text-[10px] text-slate-400 capitalize tracking-wide">{currentMonthName}</p>
+          <p className="text-xl font-bold text-slate-900 mt-1 leading-none">{formatMoney(currentTotal)}</p>
+          <p className="text-[10px] text-slate-400 mt-1">este mes</p>
         </div>
-        <div className="bg-stone-50 rounded-xl p-3 border border-stone-100">
-          <p className="text-[10px] text-stone-400 capitalize tracking-wide">{prevMonthName}</p>
-          <p className="text-xl font-bold text-stone-500 mt-1 leading-none">{formatMoney(previousTotal)}</p>
-          <p className="text-[10px] text-stone-400 mt-1">mes anterior</p>
+        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+          <p className="text-[10px] text-slate-400 capitalize tracking-wide">{prevMonthName}</p>
+          <p className="text-xl font-bold text-slate-500 mt-1 leading-none">{formatMoney(previousTotal)}</p>
+          <p className="text-[10px] text-slate-400 mt-1">mes anterior</p>
         </div>
       </div>
 

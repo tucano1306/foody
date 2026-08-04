@@ -41,10 +41,10 @@ export default async function ProductsPage() {
       {products.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-6xl mb-4">🛒</p>
-          <h2 className="text-xl font-semibold text-stone-600 mb-2">
+          <h2 className="text-xl font-semibold text-slate-600 mb-2">
             Tu despensa está vacía
           </h2>
-          <p className="text-stone-400 mb-6">
+          <p className="text-slate-400 mb-6">
             Agrega productos para empezar a gestionar tu inventario
           </p>
           <Link

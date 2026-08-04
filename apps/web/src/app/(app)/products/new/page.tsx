@@ -20,9 +20,9 @@ export default async function NewProductPage() {
         <Link href="/products" className="text-brand-500 hover:underline text-sm">
           ← Volver a productos
         </Link>
-        <h1 className="text-2xl font-bold text-stone-800 mt-2">Agregar Producto</h1>
+        <h1 className="text-2xl font-bold text-slate-800 mt-2">Agregar Producto</h1>
       </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <ProductForm inHousehold={inHousehold} />
       </div>
     </div>

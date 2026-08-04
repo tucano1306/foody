@@ -31,7 +31,7 @@ export default function ConfirmDialog({
   onCancel,
 }: Props) {
   const confirmCls = destructive
-    ? 'bg-rose-600 hover:bg-rose-700'
+    ? 'bg-blue-600 hover:bg-blue-700'
     : 'bg-brand-600 hover:bg-brand-700';
 
   return (
@@ -56,18 +56,18 @@ export default function ConfirmDialog({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 40, opacity: 0, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="relative w-full sm:max-w-sm bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6"
+            className="relative w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6"
           >
-            <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">{title}</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{title}</h2>
             {message && (
-              <p className="text-sm text-stone-500 dark:text-stone-400 mt-1.5">{message}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">{message}</p>
             )}
             <div className="flex gap-3 mt-6">
               <button
                 type="button"
                 onClick={onCancel}
                 disabled={busy}
-                className="flex-1 py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition disabled:opacity-50"
+                className="flex-1 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
               >
                 {cancelLabel}
               </button>

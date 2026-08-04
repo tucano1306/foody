@@ -109,7 +109,7 @@ export default function MemberSheet({
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 40, opacity: 0, scale: 0.97 }}
               transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-              className="relative w-full sm:max-w-sm bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6"
+              className="relative w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6"
             >
               {/* ─── Who ──────────────────────────────────────────────────── */}
               <div className="flex items-center gap-3">
@@ -121,13 +121,13 @@ export default function MemberSheet({
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="font-bold text-stone-800 dark:text-stone-100 truncate">
+                  <p className="font-bold text-slate-800 dark:text-slate-100 truncate">
                     {displayName}
                   </p>
-                  <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{member.email}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{member.email}</p>
                   <div className="flex gap-1.5 mt-1">
                     {isHouseholdOwner && (
-                      <span className="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="text-[10px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold">
                         👑 Dueño
                       </span>
                     )}
@@ -141,7 +141,7 @@ export default function MemberSheet({
               </div>
 
               {error && (
-                <p className="mt-4 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-sm px-3 py-2 rounded-xl border border-rose-100 dark:border-rose-800">
+                <p className="mt-4 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm px-3 py-2 rounded-xl border border-blue-100 dark:border-blue-800">
                   {error}
                 </p>
               )}
@@ -149,7 +149,7 @@ export default function MemberSheet({
               {/* ─── Rename ───────────────────────────────────────────────── */}
               {canEdit ? (
                 <div className="mt-5">
-                  <label htmlFor="member-name" className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1">
+                  <label htmlFor="member-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Nombre
                   </label>
                   <div className="flex gap-2">
@@ -160,7 +160,7 @@ export default function MemberSheet({
                       onChange={(e) => setName(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && dirty) void run(() => onRename(member.id, trimmed)); }}
                       placeholder="Ej: Mamá"
-                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 dark:bg-stone-800 dark:border-stone-700 text-stone-800 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-400 transition"
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-400 transition"
                     />
                     <button
                       type="button"
@@ -171,14 +171,14 @@ export default function MemberSheet({
                       {saving ? 'Guardando…' : 'Guardar'}
                     </button>
                   </div>
-                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
                     {isSelf
                       ? 'Así te verá el resto de tu hogar.'
                       : 'Este nombre se verá en toda la app, también en su teléfono.'}
                   </p>
                 </div>
               ) : (
-                <p className="mt-5 text-sm text-stone-500 dark:text-stone-400">
+                <p className="mt-5 text-sm text-slate-500 dark:text-slate-400">
                   Solo el dueño del hogar puede editar a los demás miembros.
                 </p>
               )}
@@ -189,7 +189,7 @@ export default function MemberSheet({
                   type="button"
                   disabled={saving}
                   onClick={() => setConfirmRemove(true)}
-                  className="mt-4 w-full py-3 rounded-2xl bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-semibold text-sm transition disabled:opacity-50"
+                  className="mt-4 w-full py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold text-sm transition disabled:opacity-50"
                 >
                   🚪 Sacar del hogar
                 </button>
@@ -202,12 +202,12 @@ export default function MemberSheet({
                     type="button"
                     disabled={saving}
                     onClick={() => setConfirmRemove(true)}
-                    className="mt-4 w-full py-3 rounded-2xl bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-semibold text-sm transition disabled:opacity-50"
+                    className="mt-4 w-full py-3 rounded-2xl bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold text-sm transition disabled:opacity-50"
                   >
                     {dissolves ? '💥 Disolver el hogar' : '🚪 Salir del hogar'}
                   </button>
                   {dissolves && (
-                    <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       Eres el dueño: sacarte a ti mismo cierra el hogar para todos.
                     </p>
                   )}
@@ -217,7 +217,7 @@ export default function MemberSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="mt-2 w-full py-3 rounded-2xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 font-semibold text-sm transition"
+                className="mt-2 w-full py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-sm transition"
               >
                 Cerrar
               </button>

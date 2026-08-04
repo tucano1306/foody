@@ -21,11 +21,11 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 function getUrgencyDot(daysUntilDue: number): string {
-  if (daysUntilDue < 0) return 'bg-red-600';
-  if (daysUntilDue === 0) return 'bg-red-500';
-  if (daysUntilDue <= 3) return 'bg-amber-400';
+  if (daysUntilDue < 0) return 'bg-blue-600';
+  if (daysUntilDue === 0) return 'bg-blue-500';
+  if (daysUntilDue <= 3) return 'bg-sky-400';
   if (daysUntilDue <= 7) return 'bg-blue-400';
-  return 'bg-indigo-400';
+  return 'bg-sky-400';
 }
 
 function getDaysLabel(daysUntilDue: number): string {
@@ -36,10 +36,10 @@ function getDaysLabel(daysUntilDue: number): string {
 }
 
 function getDaysLabelColor(daysUntilDue: number): string {
-  if (daysUntilDue <= 0) return 'text-red-500 dark:text-red-400 font-bold';
-  if (daysUntilDue <= 3) return 'text-amber-500 dark:text-amber-400 font-semibold';
+  if (daysUntilDue <= 0) return 'text-blue-500 dark:text-blue-400 font-bold';
+  if (daysUntilDue <= 3) return 'text-sky-500 dark:text-sky-400 font-semibold';
   if (daysUntilDue <= 7) return 'text-blue-500 dark:text-blue-400';
-  return 'text-stone-400 dark:text-stone-500';
+  return 'text-slate-400 dark:text-slate-500';
 }
 
 /** Same criteria the home page uses for its server-rendered props. */
@@ -71,23 +71,23 @@ export default function UpcomingPaymentsWidget({ payments: initialPayments }: Pr
   return (
     <Link
       href="/payments"
-      className="block bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-md active:scale-[0.99] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      className="block bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm hover:border-brand-300 dark:hover:border-brand-500/50 hover:shadow-md active:scale-[0.99] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       aria-label="Ver todos los pagos"
     >
       {/* ── Header (centered title, chevron pinned right) ── */}
       <div className="relative flex items-center justify-center gap-3">
-        <span className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+        <span className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           💳
         </span>
-        <h2 className="text-base sm:text-lg font-bold text-stone-800 dark:text-stone-100">Pagos próximos</h2>
-        <ChevronRightIcon className="w-4 h-4 text-stone-300 dark:text-stone-600 shrink-0 absolute right-0 top-1/2 -translate-y-1/2" aria-hidden="true" />
+        <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">Pagos próximos</h2>
+        <ChevronRightIcon className="w-4 h-4 text-slate-300 dark:text-slate-600 shrink-0 absolute right-0 top-1/2 -translate-y-1/2" aria-hidden="true" />
       </div>
 
       {/* ── Empty state ───────────────────────────────── */}
       {payments.length === 0 ? (
-        <p className="text-stone-400 dark:text-stone-500 text-sm pt-3 text-center">No hay pagos pendientes este mes 🎉</p>
+        <p className="text-slate-400 dark:text-slate-500 text-sm pt-3 text-center">No hay pagos pendientes este mes 🎉</p>
       ) : (
-        <ul className="divide-y divide-stone-100 dark:divide-stone-800 card-stagger mt-2">
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800 card-stagger mt-2">
           {displayed.map((p) => {
             const icon = CATEGORY_ICONS[p.category ?? 'other'] ?? '💰';
             return (
@@ -99,13 +99,13 @@ export default function UpcomingPaymentsWidget({ payments: initialPayments }: Pr
                 <span className="text-base shrink-0 leading-none">{icon}</span>
 
                 {/* Name */}
-                <span className="flex-1 text-sm text-stone-800 dark:text-stone-100 truncate font-medium">{p.name}</span>
+                <span className="flex-1 text-sm text-slate-800 dark:text-slate-100 truncate font-medium">{p.name}</span>
 
                 {/* Days until due */}
                 <span className={`text-xs shrink-0 ${getDaysLabelColor(p.daysUntilDue)}`}>{getDaysLabel(p.daysUntilDue)}</span>
 
                 {/* Amount */}
-                <span className="text-sm font-bold shrink-0 tabular-nums text-right text-stone-800 dark:text-stone-100">
+                <span className="text-sm font-bold shrink-0 tabular-nums text-right text-slate-800 dark:text-slate-100">
                   {p.currency} {p.amount.toFixed(2)}
                 </span>
               </li>

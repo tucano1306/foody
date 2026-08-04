@@ -100,9 +100,9 @@ interface ScanResults {
 }
 
 const STOCK_BADGE: Readonly<Record<StockLevel, { label: string; cls: string }>> = {
-  full: { label: 'OK', cls: 'bg-green-100 text-green-700' },
-  half: { label: 'Mitad', cls: 'bg-amber-100 text-amber-700' },
-  empty: { label: 'Sin stock', cls: 'bg-red-100 text-red-600' },
+  full: { label: 'OK', cls: 'bg-sky-100 text-sky-700' },
+  half: { label: 'Mitad', cls: 'bg-sky-100 text-sky-700' },
+  empty: { label: 'Sin stock', cls: 'bg-blue-100 text-blue-600' },
 };
 
 /** Current video frame → JPEG blob, scaled to the OCR sweet spot. */
@@ -461,7 +461,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
         {/* ─── Results sheet ──────────────────────────────────────────────── */}
         {scanState === 'results' && results && (
           <div className="absolute inset-x-0 bottom-0 max-h-[75%] flex flex-col bg-white rounded-t-3xl shadow-2xl">
-            <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-stone-200" aria-hidden />
+            <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-slate-200" aria-hidden />
             <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] overflow-y-auto space-y-3">
               <div className="flex items-start gap-3">
                 {preview && (
@@ -469,17 +469,17 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
                   <img
                     src={preview}
                     alt="Foto del producto"
-                    className="w-16 h-16 rounded-xl object-cover border border-stone-200 shrink-0"
+                    className="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0"
                   />
                 )}
                 <div className="min-w-0">
-                  <h3 className="font-bold text-stone-800 text-base">
+                  <h3 className="font-bold text-slate-800 text-base">
                     {results.candidates.length > 0
                       ? 'Coincidencias en tu despensa'
                       : 'Sin coincidencias'}
                   </h3>
                   {results.detectedLabel && (
-                    <p className="text-xs text-stone-400 mt-0.5 break-words">
+                    <p className="text-xs text-slate-400 mt-0.5 break-words">
                       {results.detectedLabel}
                     </p>
                   )}
@@ -495,26 +495,26 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
                         <button
                           type="button"
                           onClick={() => onSelect(product)}
-                          className="w-full flex items-center gap-3 p-2.5 rounded-2xl border border-stone-200 bg-white hover:bg-stone-50 active:scale-[0.98] transition text-left"
+                          className="w-full flex items-center gap-3 p-2.5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 active:scale-[0.98] transition text-left"
                         >
                           {product.photoUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={product.photoUrl}
                               alt=""
-                              className="w-11 h-11 rounded-xl object-cover border border-stone-100 shrink-0"
+                              className="w-11 h-11 rounded-xl object-cover border border-slate-100 shrink-0"
                             />
                           ) : (
-                            <span className="w-11 h-11 rounded-xl bg-stone-100 flex items-center justify-center text-xl shrink-0">
+                            <span className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
                               {categoryEmoji(product.category)}
                             </span>
                           )}
                           <span className="flex-1 min-w-0">
-                            <span className="block font-semibold text-stone-800 text-sm truncate">
+                            <span className="block font-semibold text-slate-800 text-sm truncate">
                               {product.name}
                             </span>
                             {product.category && (
-                              <span className="block text-xs text-stone-400 truncate">
+                              <span className="block text-xs text-slate-400 truncate">
                                 {product.category}
                               </span>
                             )}
@@ -528,7 +528,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
                   })}
                 </ul>
               ) : (
-                <p className="text-sm text-stone-500 leading-relaxed">{results.emptyHint}</p>
+                <p className="text-sm text-slate-500 leading-relaxed">{results.emptyHint}</p>
               )}
 
               <div className="flex gap-2 pt-1">
@@ -542,7 +542,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
                 <button
                   type="button"
                   onClick={onClose}
-                  className="py-2.5 px-4 rounded-xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+                  className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
                 >
                   Cerrar
                 </button>

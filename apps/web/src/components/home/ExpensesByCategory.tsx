@@ -15,12 +15,12 @@ export default async function ExpensesByCategory() {
   if (total === 0) return null;
 
   return (
-    <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
+    <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
+        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
           💸 Gastos por categoría
         </h2>
-        <p className="text-xs text-stone-500 mt-0.5">
+        <p className="text-xs text-slate-500 mt-0.5">
           Distribución de tus pagos mensuales activos
         </p>
       </div>

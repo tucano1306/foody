@@ -27,12 +27,12 @@ export default async function TopStoreCard() {
   const logo = getStoreLogo(top.storeName);
 
   return (
-    <section className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm flex flex-col gap-3">
+    <section className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex flex-col gap-3">
       <div>
-        <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
+        <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
           🏪 Súper más visitado
         </h2>
-        <p className="text-xs text-stone-500 mt-0.5">Donde compras con más frecuencia</p>
+        <p className="text-xs text-slate-500 mt-0.5">Donde compras con más frecuencia</p>
       </div>
 
       <div className="flex items-center gap-3">
@@ -44,8 +44,8 @@ export default async function TopStoreCard() {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-stone-900 text-lg leading-tight truncate">{top.storeName}</p>
-          <p className="text-xs text-stone-500 mt-0.5">
+          <p className="font-bold text-slate-900 text-lg leading-tight truncate">{top.storeName}</p>
+          <p className="text-xs text-slate-500 mt-0.5">
             {top.count} {top.count === 1 ? 'visita' : 'visitas'} · {formatMoney(top.total)} gastados
           </p>
         </div>
@@ -53,11 +53,11 @@ export default async function TopStoreCard() {
 
       {/* Bar showing dominance vs other stores */}
       <div>
-        <div className="flex justify-between text-[10px] text-stone-400 mb-1">
+        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
           <span>{pct}% de tus visitas</span>
           <span>{data.length} {data.length === 1 ? 'tienda' : 'tiendas'} en total</span>
         </div>
-        <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
             className="h-full bg-sky-400 rounded-full transition-all duration-700"
             style={{ width: `${pct}%` }}

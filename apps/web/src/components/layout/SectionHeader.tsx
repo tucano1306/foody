@@ -1,10 +1,10 @@
 /** Color accents so each dashboard zone reads as its own area at a glance. */
 const TONES = {
   neutral: {
-    pill: 'from-stone-100 via-white to-stone-100 dark:from-stone-800 dark:via-stone-900 dark:to-stone-800',
-    ring: 'ring-stone-200/80 dark:ring-stone-700/70',
-    text: 'text-stone-600 dark:text-stone-300',
-    bar: 'via-stone-300 dark:via-stone-700',
+    pill: 'from-slate-100 via-white to-slate-100 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800',
+    ring: 'ring-slate-200/80 dark:ring-slate-700/70',
+    text: 'text-slate-600 dark:text-slate-300',
+    bar: 'via-slate-300 dark:via-slate-700',
   },
   brand: {
     // The brand palette stops at 900 — no brand-950 to reach for here.
@@ -13,23 +13,23 @@ const TONES = {
     text: 'text-brand-600 dark:text-sky-300',
     bar: 'via-sky-300 dark:via-brand-700',
   },
-  green: {
-    pill: 'from-emerald-100 via-lime-50 to-emerald-100 dark:from-emerald-950/70 dark:via-lime-950/40 dark:to-emerald-950/70',
-    ring: 'ring-emerald-200/80 dark:ring-emerald-900/70',
-    text: 'text-emerald-700 dark:text-emerald-300',
-    bar: 'via-emerald-300 dark:via-emerald-800',
+  ok: {
+    pill: 'from-sky-100 via-sky-50 to-sky-100 dark:from-sky-950/70 dark:via-sky-950/40 dark:to-sky-950/70',
+    ring: 'ring-sky-200/80 dark:ring-sky-900/70',
+    text: 'text-sky-700 dark:text-sky-300',
+    bar: 'via-sky-300 dark:via-sky-800',
   },
-  amber: {
-    pill: 'from-amber-100 via-yellow-50 to-amber-100 dark:from-amber-950/70 dark:via-yellow-950/40 dark:to-amber-950/70',
-    ring: 'ring-amber-200/80 dark:ring-amber-900/70',
-    text: 'text-amber-700 dark:text-amber-300',
-    bar: 'via-amber-300 dark:via-amber-800',
+  warning: {
+    pill: 'from-sky-100 via-sky-50 to-sky-100 dark:from-sky-950/70 dark:via-sky-950/40 dark:to-sky-950/70',
+    ring: 'ring-sky-200/80 dark:ring-sky-900/70',
+    text: 'text-sky-700 dark:text-sky-300',
+    bar: 'via-sky-300 dark:via-sky-800',
   },
-  violet: {
-    pill: 'from-violet-100 via-indigo-50 to-violet-100 dark:from-violet-950/70 dark:via-indigo-950/40 dark:to-violet-950/70',
-    ring: 'ring-violet-200/80 dark:ring-violet-900/70',
-    text: 'text-violet-700 dark:text-violet-300',
-    bar: 'via-violet-300 dark:via-violet-800',
+  accent: {
+    pill: 'from-sky-100 via-sky-50 to-sky-100 dark:from-sky-950/70 dark:via-sky-950/40 dark:to-sky-950/70',
+    ring: 'ring-sky-200/80 dark:ring-sky-900/70',
+    text: 'text-sky-700 dark:text-sky-300',
+    bar: 'via-sky-300 dark:via-sky-800',
   },
 } as const;
 
@@ -67,7 +67,7 @@ export default function SectionHeader({
         >
           <span
             aria-hidden="true"
-            className={`grid place-items-center w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-full bg-white/90 dark:bg-stone-900/80 ring-1 ${t.ring} text-base sm:text-xl leading-none shadow-sm`}
+            className={`grid place-items-center w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-full bg-white/90 dark:bg-slate-900/80 ring-1 ${t.ring} text-base sm:text-xl leading-none shadow-sm`}
           >
             {emoji}
           </span>
@@ -82,7 +82,7 @@ export default function SectionHeader({
       </div>
 
       {subtitle && (
-        <p className="mt-2 text-xs sm:text-sm text-stone-500 dark:text-stone-400">{subtitle}</p>
+        <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
       )}
     </div>
   );

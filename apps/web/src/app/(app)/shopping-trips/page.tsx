@@ -71,16 +71,16 @@ export default async function ShoppingTripsPage() {
       {trips.length > 0 && (
         <div className="grid grid-cols-3 gap-3 card-stagger">
           <div className="stat-card" data-accent="brand">
-            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500">🧾 Compras</p>
-            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-stone-900">{trips.length}</p>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">🧾 Compras</p>
+            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900">{trips.length}</p>
           </div>
           <div className="stat-card" data-accent="energy">
-            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500">💰 Total</p>
-            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-stone-900 break-all">{formatCurrency(totalSpent, currency)}</p>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">💰 Total</p>
+            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900 break-all">{formatCurrency(totalSpent, currency)}</p>
           </div>
           <div className="stat-card" data-accent="warn">
-            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500">📊 Promedio</p>
-            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-stone-900 break-all">{formatCurrency(avgSpent, currency)}</p>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">📊 Promedio</p>
+            <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900 break-all">{formatCurrency(avgSpent, currency)}</p>
           </div>
         </div>
       )}
@@ -88,21 +88,21 @@ export default async function ShoppingTripsPage() {
       {/* Compare prices shortcut */}
       <Link
         href="/shopping-trips/compare"
-        className="flex items-center gap-3 rounded-2xl bg-indigo-50 border border-indigo-100 px-4 py-3 hover:bg-indigo-100 transition"
+        className="flex items-center gap-3 rounded-2xl bg-sky-50 border border-sky-100 px-4 py-3 hover:bg-sky-100 transition"
       >
         <span className="text-2xl">📊</span>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-indigo-800 text-sm">Comparar precios</p>
-          <p className="text-xs text-indigo-500">Ve qué supermercado tiene cada producto más barato</p>
+          <p className="font-semibold text-sky-800 text-sm">Comparar precios</p>
+          <p className="text-xs text-sky-500">Ve qué supermercado tiene cada producto más barato</p>
         </div>
-        <span className="text-indigo-400 text-sm">→</span>
+        <span className="text-sky-400 text-sm">→</span>
       </Link>
 
       {trips.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-10 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-5xl mb-3">🛒</p>
-          <p className="text-stone-700 font-semibold">Aún no registras compras</p>
-          <p className="text-sm text-stone-500 mt-1">
+          <p className="text-slate-700 font-semibold">Aún no registras compras</p>
+          <p className="text-sm text-slate-500 mt-1">
             Completa una sesión de supermercado y Foody guardará los precios automáticamente.
           </p>
           <Link
@@ -114,7 +114,7 @@ export default async function ShoppingTripsPage() {
         </div>
       ) : (
         <>
-          <p className="text-xs text-stone-400 px-1">
+          <p className="text-xs text-slate-400 px-1">
             👆 Toca un ticket para verlo, editarlo o borrarlo.
           </p>
           <ul className="space-y-2 card-stagger">
@@ -122,15 +122,15 @@ export default async function ShoppingTripsPage() {
               <li key={trip.id}>
                 <Link
                   href={`/shopping-trips/${trip.id}`}
-                  className="group block rounded-2xl bg-white border border-stone-100 px-4 py-3 shadow-sm hover:border-brand-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition"
+                  className="group block rounded-2xl bg-white border border-slate-100 px-4 py-3 shadow-sm hover:border-brand-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl shrink-0 transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12">🏪</span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-stone-800 truncate">
+                      <p className="font-semibold text-slate-800 truncate">
                         {trip.storeName ?? 'Sin tienda'}
                       </p>
-                      <p className="text-xs text-stone-500">
+                      <p className="text-xs text-slate-500">
                         {formatDate(trip.purchasedAt)}
                       </p>
                     </div>
@@ -139,19 +139,19 @@ export default async function ShoppingTripsPage() {
                         {formatCurrency(trip.totalAmount, trip.currency)}
                       </p>
                       {trip.id === cheapestId && (
-                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
                           🏆 Más ahorradora
                         </span>
                       )}
                       {trip.id === priciestId && (
-                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-600">
+                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">
                           💸 La más cara
                         </span>
                       )}
                     </div>
                     <span
                       aria-hidden="true"
-                      className="shrink-0 text-stone-300 group-hover:text-brand-400 transition text-lg"
+                      className="shrink-0 text-slate-300 group-hover:text-brand-400 transition text-lg"
                     >
                       ›
                     </span>

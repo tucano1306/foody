@@ -67,12 +67,12 @@ export default function PwaInstaller() {
   if (!visible || !deferred) return null;
 
   return (
-    <div className="fixed bottom-4 inset-x-4 md:left-auto md:right-4 md:w-80 z-50 bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border border-stone-100 p-4 animate-fade-up">
+    <div className="fixed bottom-4 inset-x-4 md:left-auto md:right-4 md:w-80 z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 p-4 animate-fade-up">
       <div className="flex items-start gap-3">
         <span className="text-3xl">🥑</span>
         <div className="flex-1">
-          <p className="font-bold text-stone-800 text-sm">Instala Foody</p>
-          <p className="text-xs text-stone-500 mt-0.5">
+          <p className="font-bold text-slate-800 text-sm">Instala Foody</p>
+          <p className="text-xs text-slate-500 mt-0.5">
             Accede rápido desde tu pantalla de inicio y úsalo sin conexión.
           </p>
           <div className="flex gap-2 mt-3">
@@ -85,7 +85,7 @@ export default function PwaInstaller() {
             <button
               type="button"
               onClick={dismiss}
-              className="px-3 text-sm text-stone-500 hover:text-stone-700 transition">
+              className="px-3 text-sm text-slate-500 hover:text-slate-700 transition">
               Después
             </button>
           </div>

@@ -39,7 +39,7 @@ export default function DashboardStats({
       value: runningLowCount,
       sublabel: runningLowCount === 0 ? 'todo en orden' : 'requieren reposición',
       icon: '⚠️',
-      color: runningLowCount > 0 ? '#f59e0b' : '#a7ce39',
+      color: runningLowCount > 0 ? '#3b82f6' : '#0ea5e9',
       href: '/products?filter=low',
     },
     {
@@ -47,7 +47,7 @@ export default function DashboardStats({
       value: upcomingPaymentsCount,
       sublabel: upcomingPaymentsCount === 0 ? 'sin vencimientos' : 'vencen este mes',
       icon: '💳',
-      color: upcomingPaymentsCount > 0 ? '#ef4444' : '#a7ce39',
+      color: upcomingPaymentsCount > 0 ? '#1d4ed8' : '#0ea5e9',
       href: '/payments',
     },
     {
@@ -77,7 +77,7 @@ export default function DashboardStats({
         >
           <Link
             href={stat.href}
-            className="flex flex-col items-center text-center bg-white rounded-2xl p-4 sm:p-5 border border-stone-100 shadow-sm hover:shadow-lg active:scale-95 transition-[box-shadow,transform] duration-150 focus-visible:outline-2 focus-visible:outline-brand-500"
+            className="flex flex-col items-center text-center bg-white rounded-2xl p-4 sm:p-5 border border-slate-100 shadow-sm hover:shadow-lg active:scale-95 transition-[box-shadow,transform] duration-150 focus-visible:outline-2 focus-visible:outline-brand-500"
           >
             <motion.div
               className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3 shadow-md"
@@ -94,13 +94,13 @@ export default function DashboardStats({
             >
               <span className="text-xl sm:text-2xl leading-none">{stat.icon}</span>
             </motion.div>
-            <h3 className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-500 leading-tight">
+            <h3 className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 leading-tight">
               {stat.label}
             </h3>
-            <p className="stat-value mt-2 text-2xl sm:text-3xl font-extrabold text-stone-900 leading-none break-all">
+            <p className="stat-value mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 leading-none break-all">
               {stat.value}
             </p>
-            <p className="mt-1.5 text-[10px] sm:text-xs text-stone-400 truncate max-w-full">
+            <p className="mt-1.5 text-[10px] sm:text-xs text-slate-400 truncate max-w-full">
               {stat.sublabel}
             </p>
           </Link>

@@ -158,8 +158,8 @@ export default function CommandPalette({ products }: Props) {
       className="m-0 w-full max-w-none h-full max-h-none bg-transparent backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
       <section className="fixed inset-x-0 top-20 mx-auto w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-fade-up">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-100">
-          <span className="text-stone-400 text-lg">🔍</span>
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+          <span className="text-slate-400 text-lg">🔍</span>
           <input
             ref={inputRef}
             value={query}
@@ -169,26 +169,26 @@ export default function CommandPalette({ products }: Props) {
             }}
             onKeyDown={handleKey}
             placeholder="Busca productos, acciones o navega..."
-            className="flex-1 bg-transparent outline-none text-stone-800 placeholder-stone-300"
+            className="flex-1 bg-transparent outline-none text-slate-800 placeholder-slate-300"
           />
           <button
             type="button"
             onClick={startVoice}
             aria-label="Buscar por voz"
             className={`px-2 py-1 rounded-lg text-lg transition ${
-              listening ? 'bg-rose-100 text-rose-600 animate-pulse' : 'text-stone-400 hover:bg-stone-100'
+              listening ? 'bg-blue-100 text-blue-600 animate-pulse' : 'text-slate-400 hover:bg-slate-100'
             }`}
           >
             🎤
           </button>
-          <kbd className="hidden sm:inline-block text-[10px] font-semibold px-1.5 py-0.5 bg-stone-100 text-stone-500 rounded">
+          <kbd className="hidden sm:inline-block text-[10px] font-semibold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
             ESC
           </kbd>
         </div>
 
         <ul className="max-h-80 overflow-y-auto py-1">
           {filtered.length === 0 && (
-            <li className="px-4 py-6 text-center text-sm text-stone-400">
+            <li className="px-4 py-6 text-center text-sm text-slate-400">
               Sin resultados para "{query}"
             </li>
           )}
@@ -199,25 +199,25 @@ export default function CommandPalette({ products }: Props) {
                 onClick={() => execute(c)}
                 onMouseEnter={() => setIndex(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
-                  i === index ? 'bg-brand-50 text-brand-700' : 'text-stone-700'
+                  i === index ? 'bg-brand-50 text-brand-700' : 'text-slate-700'
                 }`}
               >
                 <span className="text-lg">{c.emoji}</span>
                 <span className="flex-1 truncate">{c.label}</span>
                 {c.hint && (
-                  <span className="text-[11px] text-stone-400 truncate max-w-[40%]">{c.hint}</span>
+                  <span className="text-[11px] text-slate-400 truncate max-w-[40%]">{c.hint}</span>
                 )}
               </button>
             </li>
           ))}
         </ul>
 
-        <footer className="px-4 py-2 border-t border-stone-100 text-[11px] text-stone-400 flex justify-between">
+        <footer className="px-4 py-2 border-t border-slate-100 text-[11px] text-slate-400 flex justify-between">
           <span>
-            <kbd className="px-1 bg-stone-100 rounded">↑↓</kbd> navegar · <kbd className="px-1 bg-stone-100 rounded">⏎</kbd> elegir
+            <kbd className="px-1 bg-slate-100 rounded">↑↓</kbd> navegar · <kbd className="px-1 bg-slate-100 rounded">⏎</kbd> elegir
           </span>
           <span>
-            <kbd className="px-1 bg-stone-100 rounded">⌘K</kbd>
+            <kbd className="px-1 bg-slate-100 rounded">⌘K</kbd>
           </span>
         </footer>
       </section>

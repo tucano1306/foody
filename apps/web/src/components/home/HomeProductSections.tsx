@@ -60,7 +60,7 @@ export default function HomeProductSections({ empty: initialEmpty, low: initialL
     <>
       {empty.length > 0 && (
         <section>
-          <h2 className="text-xl font-semibold text-rose-700 mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-blue-700 mb-4 flex items-center gap-2">
             <span>🚨</span> Se acabó — prioridad ({empty.length})
           </h2>
           <ProductGrid items={empty} onLevelChange={handleLevelChange} />
@@ -69,7 +69,7 @@ export default function HomeProductSections({ empty: initialEmpty, low: initialL
 
       {low.length > 0 && (
         <section>
-          <h2 className="text-xl font-semibold text-amber-700 mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-sky-700 mb-4 flex items-center gap-2">
             <span>⚠️</span> Queda poco ({low.length})
           </h2>
           <ProductGrid items={low} onLevelChange={handleLevelChange} />

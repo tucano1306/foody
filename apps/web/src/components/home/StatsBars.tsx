@@ -63,7 +63,7 @@ export default function StatsBars(props: Readonly<Props>) {
               {/* Value above bar */}
               <span
                 className={`text-[11px] sm:text-sm font-bold tabular-nums transition-all duration-300 ${
-                  isActive ? 'text-brand-700 scale-110' : 'text-stone-700'
+                  isActive ? 'text-brand-700 scale-110' : 'text-slate-700'
                 }`}
                 style={{ opacity: isDimmed ? 0.4 : 1 }}
               >
@@ -87,13 +87,13 @@ export default function StatsBars(props: Readonly<Props>) {
 
               {/* Label */}
               <span
-                className="text-[10px] sm:text-xs text-stone-500 font-medium truncate max-w-full leading-tight text-center"
+                className="text-[10px] sm:text-xs text-slate-500 font-medium truncate max-w-full leading-tight text-center"
                 title={item.label}
               >
                 {displayLabel}
               </span>
               {item.sublabel && (
-                <span className="text-[10px] text-stone-400 truncate max-w-full leading-tight">
+                <span className="text-[10px] text-slate-400 truncate max-w-full leading-tight">
                   {item.sublabel}
                 </span>
               )}

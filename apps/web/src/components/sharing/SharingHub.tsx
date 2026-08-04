@@ -62,16 +62,16 @@ function Avatar({ src, name }: { readonly src?: string | null; readonly name?: s
 }
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  pending:  { label: 'Pendiente', cls: 'bg-amber-100 text-amber-700' },
-  accepted: { label: 'Aceptado',  cls: 'bg-emerald-100 text-emerald-700' },
-  rejected: { label: 'Rechazado', cls: 'bg-rose-100 text-rose-700' },
-  revoked:  { label: 'Revocado',  cls: 'bg-stone-100 text-stone-600' },
-  declined: { label: 'Rechazado', cls: 'bg-rose-100 text-rose-700' },
-  cancelled: { label: 'Cancelado', cls: 'bg-stone-100 text-stone-600' },
+  pending:  { label: 'Pendiente', cls: 'bg-sky-100 text-sky-700' },
+  accepted: { label: 'Aceptado',  cls: 'bg-sky-100 text-sky-700' },
+  rejected: { label: 'Rechazado', cls: 'bg-blue-100 text-blue-700' },
+  revoked:  { label: 'Revocado',  cls: 'bg-slate-100 text-slate-600' },
+  declined: { label: 'Rechazado', cls: 'bg-blue-100 text-blue-700' },
+  cancelled: { label: 'Cancelado', cls: 'bg-slate-100 text-slate-600' },
 };
 
 function StatusBadge({ status }: { readonly status: string }) {
-  const cfg = STATUS_LABEL[status] ?? { label: status, cls: 'bg-stone-100 text-stone-600' };
+  const cfg = STATUS_LABEL[status] ?? { label: status, cls: 'bg-slate-100 text-slate-600' };
   return <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>;
 }
 
@@ -115,7 +115,7 @@ function PantryInviteForm({ onSuccess }: { readonly onSuccess: () => void }) {
     <form onSubmit={handleSubmit} className="bg-brand-50 border border-brand-100 rounded-2xl p-4 space-y-3">
       <p className="text-sm font-semibold text-brand-800">Invitar a ver mi despensa</p>
       <div className="space-y-2">
-        <label htmlFor="pantry-email" className="block text-xs text-stone-600 font-medium">Email del usuario</label>
+        <label htmlFor="pantry-email" className="block text-xs text-slate-600 font-medium">Email del usuario</label>
         <input
           id="pantry-email"
           type="email"
@@ -123,21 +123,21 @@ function PantryInviteForm({ onSuccess }: { readonly onSuccess: () => void }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="amigo@email.com"
-          className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
       </div>
       <div className="space-y-2">
-        <label htmlFor="pantry-msg" className="block text-xs text-stone-600 font-medium">Mensaje (opcional)</label>
+        <label htmlFor="pantry-msg" className="block text-xs text-slate-600 font-medium">Mensaje (opcional)</label>
         <textarea
           id="pantry-msg"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={2}
           placeholder="Ej: ¡Hola! Te comparto mi despensa."
-          className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none"
+          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none"
         />
       </div>
-      {error && <p className="text-xs text-rose-600 font-medium">{error}</p>}
+      {error && <p className="text-xs text-blue-600 font-medium">{error}</p>}
       <button
         type="submit"
         disabled={isPending || !email}
@@ -190,24 +190,24 @@ function PantryCard({
   }
 
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
       <div className="flex items-start gap-3">
         <Avatar src={avatar} name={String(name)} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold text-stone-800 truncate">{name}</p>
+            <p className="text-sm font-semibold text-slate-800 truncate">{name}</p>
             <StatusBadge status={share.status} />
           </div>
-          <p className="text-xs text-stone-400 mt-0.5">{formatDate(share.created_at)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{formatDate(share.created_at)}</p>
           {share.message && (
-            <p className="mt-1 text-xs text-stone-600 italic bg-stone-50 rounded-lg px-3 py-2 border border-stone-100">
+            <p className="mt-1 text-xs text-slate-600 italic bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
               "{share.message}"
             </p>
           )}
         </div>
       </div>
 
-      {error && <p className="text-xs text-rose-600">{error}</p>}
+      {error && <p className="text-xs text-blue-600">{error}</p>}
 
       {/* Received pending → accept / reject */}
       {direction === 'received' && share.status === 'pending' && (
@@ -216,7 +216,7 @@ function PantryCard({
             type="button"
             disabled={isPending}
             onClick={() => doAction('accept')}
-            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition"
+            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-50 transition"
           >
             ✅ Aceptar
           </button>
@@ -224,7 +224,7 @@ function PantryCard({
             type="button"
             disabled={isPending}
             onClick={() => doAction('reject')}
-            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-50 transition"
+            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 transition"
           >
             Rechazar
           </button>
@@ -247,7 +247,7 @@ function PantryCard({
           type="button"
           disabled={isPending}
           onClick={() => doAction('revoke')}
-          className="py-2 text-sm font-semibold rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 disabled:opacity-50 transition"
+          className="py-2 text-sm font-semibold rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 disabled:opacity-50 transition"
         >
           Revocar acceso
         </button>
@@ -299,7 +299,7 @@ function GiftCard({
   }
 
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
       <div className="flex items-start gap-3">
         {gift.product_photo ? (
           <Image
@@ -310,29 +310,29 @@ function GiftCard({
             className="w-13 h-13 rounded-xl object-cover shrink-0"
           />
         ) : (
-          <div className="w-13 h-13 rounded-xl bg-stone-100 flex items-center justify-center text-2xl shrink-0">🥑</div>
+          <div className="w-13 h-13 rounded-xl bg-slate-100 flex items-center justify-center text-2xl shrink-0">🥑</div>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold text-stone-800 truncate">{gift.product_name}</p>
+            <p className="text-sm font-semibold text-slate-800 truncate">{gift.product_name}</p>
             <StatusBadge status={direction === 'sent' && gift.status === 'declined' ? 'cancelled' : gift.status} />
           </div>
           {gift.product_category && (
-            <p className="text-[10px] uppercase tracking-wide text-stone-400">{gift.product_category}</p>
+            <p className="text-[10px] uppercase tracking-wide text-slate-400">{gift.product_category}</p>
           )}
-          <p className="text-xs text-stone-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             {direction === 'sent' ? `Para: ${person}` : `De: ${person}`}
           </p>
-          <p className="text-xs text-stone-400">{formatDate(gift.created_at)}</p>
+          <p className="text-xs text-slate-400">{formatDate(gift.created_at)}</p>
           {gift.message && (
-            <p className="mt-1 text-xs text-stone-600 italic bg-stone-50 rounded-lg px-3 py-2 border border-stone-100">
+            <p className="mt-1 text-xs text-slate-600 italic bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
               "{gift.message}"
             </p>
           )}
         </div>
       </div>
 
-      {error && <p className="text-xs text-rose-600">{error}</p>}
+      {error && <p className="text-xs text-blue-600">{error}</p>}
 
       {/* Received pending → accept / decline */}
       {direction === 'received' && gift.status === 'pending' && (
@@ -341,7 +341,7 @@ function GiftCard({
             type="button"
             disabled={isPending}
             onClick={() => doAction('accept')}
-            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition"
+            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-50 transition"
           >
             ✅ Aceptar producto
           </button>
@@ -349,7 +349,7 @@ function GiftCard({
             type="button"
             disabled={isPending}
             onClick={() => doAction('decline')}
-            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-50 transition"
+            className="flex-1 py-2 text-sm font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 transition"
           >
             Rechazar
           </button>
@@ -362,7 +362,7 @@ function GiftCard({
           type="button"
           disabled={isPending}
           onClick={() => doAction('cancel')}
-          className="py-2 text-sm font-semibold rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 disabled:opacity-50 transition"
+          className="py-2 text-sm font-semibold rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 disabled:opacity-50 transition"
         >
           Cancelar envío
         </button>
@@ -375,7 +375,7 @@ function GiftCard({
 
 function EmptyState({ icon, text }: { readonly icon: string; readonly text: string }) {
   return (
-    <div className="text-center py-10 text-stone-400">
+    <div className="text-center py-10 text-slate-400">
       <div className="text-4xl mb-2"><span className="inline-block animate-bounce">{icon}</span></div>
       <p className="text-sm">{text}</p>
     </div>
@@ -421,25 +421,25 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
   return (
     <div className="space-y-5">
       {/* ─ Main tabs ─ */}
-      <div className="flex gap-2 bg-stone-100 p-1 rounded-2xl">
+      <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl">
         <button
           type="button"
           onClick={() => setTab('pantry')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'pantry' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-700'}`}
+          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'pantry' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
         >
           🏠 Despensa
           {pendingPantry > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
           )}
         </button>
         <button
           type="button"
           onClick={() => setTab('gifts')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'gifts' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-700'}`}
+          className={`flex-1 py-2 text-sm font-semibold rounded-xl transition ${tab === 'gifts' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
         >
           🎁 Productos
           {pendingGifts > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
           )}
         </button>
       </div>
@@ -449,17 +449,17 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
         <div className="space-y-4">
           <PantryInviteForm onSuccess={refresh} />
 
-          <div className="flex gap-2 border-b border-stone-200">
+          <div className="flex gap-2 border-b border-slate-200">
             {(['received', 'sent'] as SubTab[]).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSubTab(s)}
-                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-brand-500 text-brand-600' : 'border-transparent text-stone-500 hover:text-stone-700'}`}
+                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
               >
                 {s === 'received' ? 'Recibidas' : 'Enviadas'}
                 {s === 'received' && pendingPantry > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
                 )}
               </button>
             ))}
@@ -490,7 +490,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
       {/* ─ Gifts tab ─ */}
       {tab === 'gifts' && (
         <div className="space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
+          <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 text-sm text-sky-800">
             <p className="font-semibold mb-0.5">¿Cómo funciona?</p>
             <p className="text-xs leading-relaxed">
               Abre el producto que quieres compartir → toca <strong>"Enviar a alguien"</strong> → escribe el email del destinatario.
@@ -498,17 +498,17 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
             </p>
           </div>
 
-          <div className="flex gap-2 border-b border-stone-200">
+          <div className="flex gap-2 border-b border-slate-200">
             {(['received', 'sent'] as SubTab[]).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSubTab(s)}
-                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-brand-500 text-brand-600' : 'border-transparent text-stone-500 hover:text-stone-700'}`}
+                className={`pb-2 px-1 text-sm font-medium transition border-b-2 ${subTab === s ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
               >
                 {s === 'received' ? 'Recibidos' : 'Enviados'}
                 {s === 'received' && pendingGifts > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-rose-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
                 )}
               </button>
             ))}

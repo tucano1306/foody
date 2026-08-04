@@ -48,9 +48,9 @@ function getStoreEmoji(isCheapest: boolean, isMostExpensive: boolean): string {
 }
 
 function getPriceColor(isCheapest: boolean, isMostExpensive: boolean): string {
-  if (isCheapest) return 'text-emerald-700';
-  if (isMostExpensive) return 'text-rose-600';
-  return 'text-stone-700';
+  if (isCheapest) return 'text-sky-700';
+  if (isMostExpensive) return 'text-blue-600';
+  return 'text-slate-700';
 }
 
 function groupByProduct(rows: PriceEntry[]): ProductGroup[] {
@@ -89,29 +89,29 @@ export default async function PriceComparisonPage() {
         title="📊 Comparar precios"
         subtitle="Mismo producto, distintos supermercados — ve dónde sale más barato."
         action={
-          <Link href="/shopping-trips" className="text-sm text-stone-500 hover:text-stone-700 font-medium">
+          <Link href="/shopping-trips" className="text-sm text-slate-500 hover:text-slate-700 font-medium">
             ← Mis compras
           </Link>
         }
       />
 
       {groups.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-10 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-5xl mb-3">📊</p>
-          <p className="text-stone-700 font-semibold">Sin datos de comparación aún</p>
-          <p className="text-sm text-stone-500 mt-1">
+          <p className="text-slate-700 font-semibold">Sin datos de comparación aún</p>
+          <p className="text-sm text-slate-500 mt-1">
             Completa algunas compras en distintos supermercados y Foody comparará precios automáticamente.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {groups.map((group) => (
-            <div key={group.productId} className="rounded-2xl bg-white border border-stone-100 shadow-sm overflow-hidden">
+            <div key={group.productId} className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
               {/* Product header */}
-              <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between gap-3">
-                <p className="font-bold text-stone-800">{group.productName}</p>
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+                <p className="font-bold text-slate-800">{group.productName}</p>
                 {group.entries.length > 1 && (
-                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-sky-50 text-sky-700">
                     Ahorras {formatMoney(group.priceDiff)} comprando en {group.cheapest.storeName}
                   </span>
                 )}
@@ -125,14 +125,14 @@ export default async function PriceComparisonPage() {
                   return (
                     <li
                       key={`${entry.productId}-${entry.storeName}`}
-                      className={`flex items-center gap-3 px-4 py-3 border-b border-stone-50 last:border-0 ${isCheapest ? 'bg-emerald-50/60' : ''}`}
+                      className={`flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 ${isCheapest ? 'bg-sky-50/60' : ''}`}
                     >
                       <span className="text-lg w-6 shrink-0">
                         {getStoreEmoji(isCheapest, isMostExpensive)}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-stone-800 truncate">{entry.storeName}</p>
-                        <p className="text-[11px] text-stone-400">
+                        <p className="font-semibold text-slate-800 truncate">{entry.storeName}</p>
+                        <p className="text-[11px] text-slate-400">
                           {entry.purchaseCount} {entry.purchaseCount === 1 ? 'compra' : 'compras'} · último {formatDate(entry.lastSeenAt)}
                         </p>
                       </div>
@@ -141,7 +141,7 @@ export default async function PriceComparisonPage() {
                           {formatMoney(entry.minPrice)}
                         </p>
                         {entry.minPrice !== entry.maxPrice && (
-                          <p className="text-[11px] text-stone-400">
+                          <p className="text-[11px] text-slate-400">
                             hasta {formatMoney(entry.maxPrice)}
                           </p>
                         )}

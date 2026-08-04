@@ -61,34 +61,34 @@ const LEVEL_CONFIG: Record<
     label: 'Tengo',
     short: 'OK',
     emoji: '✅',
-    cls: 'text-emerald-600 hover:bg-emerald-50',
-    activeCls: 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30',
-    dot: 'bg-emerald-500',
+    cls: 'text-sky-600 hover:bg-sky-50',
+    activeCls: 'bg-sky-500 text-white shadow-sm shadow-sky-500/30',
+    dot: 'bg-sky-500',
   },
   half: {
     label: 'A la mitad',
     short: 'Bajo',
     emoji: '⚠️',
-    cls: 'text-amber-600 hover:bg-amber-50',
-    activeCls: 'bg-amber-500 text-white shadow-sm shadow-amber-500/30',
-    dot: 'bg-amber-500',
+    cls: 'text-sky-600 hover:bg-sky-50',
+    activeCls: 'bg-sky-500 text-white shadow-sm shadow-sky-500/30',
+    dot: 'bg-sky-500',
   },
   empty: {
     label: 'Se acabó',
     short: 'Vacío',
     emoji: '🚨',
-    cls: 'text-rose-600 hover:bg-rose-50',
-    activeCls: 'bg-rose-500 text-white shadow-sm shadow-rose-500/30',
-    dot: 'bg-rose-500',
+    cls: 'text-blue-600 hover:bg-blue-50',
+    activeCls: 'bg-blue-500 text-white shadow-sm shadow-blue-500/30',
+    dot: 'bg-blue-500',
   },
 };
 
 const LEVEL_ORDER: StockLevel[] = ['full', 'half', 'empty'];
 
 function getBorderCls(level: StockLevel): string {
-  if (level === 'empty') return 'border-2 border-rose-400 ring-2 ring-rose-200 shadow-rose-100';
-  if (level === 'half') return 'border-amber-200';
-  return 'border-stone-100';
+  if (level === 'empty') return 'border-2 border-blue-400 ring-2 ring-blue-200 shadow-blue-100';
+  if (level === 'half') return 'border-sky-200';
+  return 'border-slate-100';
 }
 
 function formatMoney(value: number, currency: string): string {
@@ -223,15 +223,15 @@ export default function ProductCard({ product, showActions = false, compact = fa
   }
 
   const photoSection = (
-    <div className="aspect-4/3 bg-stone-50 relative overflow-hidden rounded-t-2xl">
+    <div className="aspect-4/3 bg-slate-50 relative overflow-hidden rounded-t-2xl">
       {current.photoUrl ? (
         <ProductPhoto src={current.photoUrl} alt={current.name} />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100">
+        <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-slate-100">
           🥑
         </div>
       )}
-      <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-stone-700 shadow-sm">
+      <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-slate-700 shadow-sm">
         <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
         {cfg.short}
       </span>
@@ -241,33 +241,33 @@ export default function ProductCard({ product, showActions = false, compact = fa
         </span>
       )}
       {level === 'empty' && (
-        <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-linear-to-t from-blue-500/15 to-transparent pointer-events-none" />
       )}
     </div>
   );
 
   const infoSection = (
     <div className="p-2">
-      <p className="font-semibold text-stone-800 text-xs truncate">{current.name}</p>
+      <p className="font-semibold text-slate-800 text-xs truncate">{current.name}</p>
       {current.category && (
-        <p className="text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
+        <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5 truncate">
           {current.category}
         </p>
       )}
       {current.lastPurchasePrice != null && (
-        <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
+        <p className="mt-0.5 text-sm font-bold text-slate-900 leading-none">
           {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
         </p>
       )}
       {current.totalSpent > 0 && (
-        <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
-          <span className="text-stone-400">Total gastado</span>
+        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span className="text-slate-400">Total gastado</span>
           <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
         </div>
       )}
       {(lastPurchase || current.lastPurchaseDate) && (
-        <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
-          <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
+        <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-400">
+          <p className="text-slate-500 font-semibold mb-0.5">Última compra</p>
           <p className="flex items-center gap-1">
             <span>🕐</span>
             <span>{formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, current.lastPurchaseDate)!)}</span>
@@ -285,7 +285,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           <Link
             href={`/products/${current.id}`}
             onClick={(e) => e.stopPropagation()}
-            className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-stone-50 hover:bg-stone-100 active:bg-stone-200 text-stone-700 transition"
+            className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition"
           >
             <span className="text-base leading-none">✏️</span>
             <span className="text-[11px] font-semibold">Editar</span>
@@ -294,7 +294,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-              className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 transition"
+              className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-600 transition"
             >
               <span className="text-base leading-none">🗑️</span>
               <span className="text-[11px] font-semibold">Eliminar</span>
@@ -343,7 +343,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
   return (
     <div {...swipe} ref={rootRef} onAnimationEnd={handleAnimationEnd} className={sharedCls}>
       {/* ─── Photo ────────────────────────────────────────────────────── */}
-      <div className="aspect-4/3 bg-stone-50 relative overflow-hidden rounded-t-2xl">
+      <div className="aspect-4/3 bg-slate-50 relative overflow-hidden rounded-t-2xl">
         {current.photoUrl ? (
           <button
             ref={photoRef}
@@ -359,10 +359,10 @@ export default function ProductCard({ product, showActions = false, compact = fa
             type="button"
             aria-label={`Opciones de ${current.name}`}
             onClick={() => setSheetOpen(true)}
-            className="absolute inset-0 w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 focus:outline-none"
+            className="absolute inset-0 w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-slate-100 focus:outline-none"
           />
         )}
-        <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-stone-700 shadow-sm">
+        <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-slate-700 shadow-sm">
           <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
           {cfg.short}
         </span>
@@ -372,7 +372,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
           </span>
         )}
         {level === 'empty' && (
-          <div className="absolute inset-0 bg-linear-to-t from-rose-500/15 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-linear-to-t from-blue-500/15 to-transparent pointer-events-none" />
         )}
       </div>
 
@@ -382,26 +382,26 @@ export default function ProductCard({ product, showActions = false, compact = fa
         onClick={() => setSheetOpen(true)}
         className="w-full text-left p-2 focus:outline-none"
       >
-        <p className="font-semibold text-stone-800 text-xs truncate">{current.name}</p>
+        <p className="font-semibold text-slate-800 text-xs truncate">{current.name}</p>
         {current.category && (
-          <p className="text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5 truncate">
             {current.category}
           </p>
         )}
         {current.lastPurchasePrice != null && (
-          <p className="mt-0.5 text-sm font-bold text-stone-900 leading-none">
+          <p className="mt-0.5 text-sm font-bold text-slate-900 leading-none">
             {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
           </p>
         )}
         {current.totalSpent > 0 && (
-          <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
-            <span className="text-stone-400">Total gastado</span>
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <span className="text-slate-400">Total gastado</span>
             <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
           </div>
         )}
         {(lastPurchase || current.lastPurchaseDate) && (
-          <div className="mt-2 pt-2 border-t border-stone-100 text-[10px] text-stone-400">
-            <p className="text-stone-500 font-semibold mb-0.5">Última compra</p>
+          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-400">
+            <p className="text-slate-500 font-semibold mb-0.5">Última compra</p>
             <p className="flex items-center gap-1">
               <span>🕐</span>
               <span>{formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, current.lastPurchaseDate)!)}</span>

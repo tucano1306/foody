@@ -339,13 +339,13 @@ function MobileLightbox({ src, alt, onClose, originRect }: Props) {
       className="fixed inset-0 z-50 w-full h-full max-w-none max-h-none m-0 p-0 border-0 bg-white animate-[fadeIn_0.16s_ease-out] backdrop:hidden"
     >
       {/* ── Top bar — desktop only ───────────────────────────────────────── */}
-      <div className="hidden sm:flex absolute top-0 inset-x-0 z-20 items-center justify-between px-4 py-3 border-b border-stone-100">
-        <span className="text-stone-700 font-medium text-sm truncate max-w-[60%]">{alt}</span>
+      <div className="hidden sm:flex absolute top-0 inset-x-0 z-20 items-center justify-between px-4 py-3 border-b border-slate-100">
+        <span className="text-slate-700 font-medium text-sm truncate max-w-[60%]">{alt}</span>
         <button
           type="button"
           aria-label="Cerrar"
           onClick={onClose}
-          className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-stone-100 active:bg-stone-200 text-stone-500 text-lg transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-500 text-lg transition-colors"
         >
           ✕
         </button>
@@ -410,7 +410,7 @@ function MobileLightbox({ src, alt, onClose, originRect }: Props) {
               top: 0, left: 0,
               width:  LENS_SIZE,
               height: LENS_SIZE,
-              border: '2px solid #c8a951',
+              border: '2px solid #7dd3fc',
               borderRadius: '50%',
               pointerEvents: 'none',
               background: 'rgba(200,169,81,0.08)',
