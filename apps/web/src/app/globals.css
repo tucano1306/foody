@@ -9,6 +9,25 @@
   html {
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Objetivo táctil mínimo en móvil.
+     Medido en la app: casi la mitad de los botones y enlaces quedaban entre
+     34 y 38 px de alto — por debajo de los 44 px que necesita un dedo para
+     acertar sin fallar. Es `min-height`, así que solo crece lo que se queda
+     corto y nada se recorta. Los enlaces dentro de texto corrido se excluyen:
+     ahí estirar rompería el párrafo en vez de ayudar. */
+  @media (max-width: 640px) {
+    button,
+    a[href]:not(.prose a):not(p a) {
+      /* 46 y no 44: con el borde y el redondeo del navegador, 44 se queda en
+         43 reales y no llega al umbral. */
+      min-height: 46px;
+    }
+    /* Escape para casos donde 44 px desencaja de verdad (iconos en línea). */
+    .touch-auto-size {
+      min-height: 0;
+    }
+  }
 }
 
 @theme {

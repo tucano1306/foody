@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 
 interface Action {
   readonly label: string;
@@ -45,7 +46,18 @@ export default function ActionSheet({ open, onClose, title, actions }: Props) {
       className="m-0 w-full max-w-none h-full max-h-none bg-transparent backdrop:bg-black/50 backdrop:backdrop-blur-sm"
     >
       <div className="fixed inset-0 flex items-end sm:items-center justify-center pointer-events-none">
-        <section className="pointer-events-auto w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-4 shadow-2xl animate-fade-up">
+        {/* Bottom sheet arrastrable: bajarla con el dedo la cierra, como
+            espera cualquier app móvil. El asa lo dice sin una sola palabra. */}
+        <motion.section
+          drag="y"
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={{ top: 0, bottom: 0.4 }}
+          onDragEnd={(_, info) => {
+            if (info.offset.y > 110 || info.velocity.y > 500) onClose();
+          }}
+          className="pointer-events-auto w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-4 shadow-2xl animate-fade-up touch-pan-y"
+        >
+          <div className="sm:hidden mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-300" aria-hidden="true" />
           {title && (
             <p className="text-center text-sm font-semibold text-slate-500 pb-3 border-b border-slate-100 truncate">
               {title}
@@ -82,7 +94,7 @@ export default function ActionSheet({ open, onClose, title, actions }: Props) {
           >
             Cancelar
           </button>
-        </section>
+        </motion.section>
       </div>
     </dialog>
   );
