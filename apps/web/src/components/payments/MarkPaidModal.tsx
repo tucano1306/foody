@@ -159,22 +159,22 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
       className="m-0 w-full max-w-none h-full max-h-none bg-transparent backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
       <div className="fixed inset-0 flex items-end sm:items-center justify-center pointer-events-none">
-        <section className="pointer-events-auto w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-3xl shadow-2xl animate-fade-up overflow-y-auto max-h-[92dvh]">
+        <section className="pointer-events-auto w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl animate-fade-up overflow-y-auto max-h-[92dvh]">
           <form onSubmit={submit} className="p-5 flex flex-col gap-4">
             {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 flex items-center justify-center text-xl">✓</div>
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/15 text-sky-600 flex items-center justify-center text-xl">✓</div>
                 <div>
-                  <h2 className="text-stone-900 dark:text-white font-bold text-base leading-tight">Registrar pago</h2>
-                  <p className="text-stone-500 dark:text-gray-400 text-xs truncate max-w-50">{payment.name}</p>
+                  <h2 className="text-black font-bold text-base leading-tight">Registrar pago</h2>
+                  <p className="text-slate-500 text-xs truncate max-w-50">{payment.name}</p>
                 </div>
               </div>
               <button
                 type="button"
                 aria-label="Cerrar"
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-gray-400 hover:bg-stone-200 dark:hover:bg-white/20 transition"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/70 text-slate-500 hover:bg-slate-200 transition"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -182,45 +182,45 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
 
             {/* Which month this payment settles */}
             {isSettlingOldMonth ? (
-              <div className="px-3.5 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl">
-                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+              <div className="px-3.5 py-3 bg-sky-50 border border-sky-200 rounded-2xl">
+                <p className="text-xs font-semibold text-sky-800">
                   📅 Se abonará al mes más antiguo pendiente:{' '}
                   <span className="font-extrabold">{formatMonthLong(targetMonth.month, targetMonth.year)}</span>
                 </p>
-                <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                <p className="text-[11px] text-sky-700 mt-1">
                   {monthsLeftAfter > 0
                     ? `Después de este pago seguirás debiendo ${payment.currency} ${debtLeftAfter.toFixed(2)} (${monthsLeftAfter} ${monthsLeftAfter === 1 ? 'mes' : 'meses'}).`
                     : 'Con este pago quedas al día en los meses vencidos 🎉'}
                 </p>
               </div>
             ) : (
-              <div className="px-3.5 py-2.5 bg-stone-50 dark:bg-white/5 border border-stone-200 dark:border-white/10 rounded-2xl flex items-center gap-2">
+              <div className="px-3.5 py-2.5 bg-sky-50/70 border border-sky-200 rounded-2xl flex items-center gap-2">
                 <span aria-hidden="true">📅</span>
-                <p className="text-xs font-semibold text-stone-600 dark:text-gray-300">
+                <p className="text-xs font-semibold text-slate-600">
                   Se registrará para{' '}
-                  <span className="text-stone-900 dark:text-white">{formatMonthLong(targetMonth.month, targetMonth.year)}</span>
+                  <span className="text-black">{formatMonthLong(targetMonth.month, targetMonth.year)}</span>
                 </p>
               </div>
             )}
 
             {error && (
-              <div className="px-3 py-2 bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 rounded-xl text-rose-700 dark:text-rose-300 text-sm">
+              <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm">
                 {error}
               </div>
             )}
 
             {/* Amount */}
             <div>
-              <label htmlFor="mark-paid-amount" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
+              <label htmlFor="mark-paid-amount" className="block text-xs font-semibold text-slate-600 mb-1.5">
                 Monto pagado <span className="text-brand-500">*</span>
                 {payment.isVariableAmount && (
-                  <span className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                  <span className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
                     ⚡ Variable
                   </span>
                 )}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-gray-500 font-medium select-none">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium select-none">
                   {payment.currency}
                 </span>
                 <input
@@ -233,11 +233,11 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder={payment.isVariableAmount ? 'Ej: 87.50' : payment.amount.toFixed(2)}
-                  className="w-full pl-14 pr-4 py-3 rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 text-stone-900 dark:text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+                  className="w-full pl-14 pr-4 py-3 rounded-2xl border border-sky-200 bg-white text-black text-lg font-bold focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                 />
               </div>
               {payment.isVariableAmount && (
-                <p className="text-[11px] text-stone-500 dark:text-gray-400 mt-1.5">
+                <p className="text-[11px] text-slate-500 mt-1.5">
                   💡 Este pago es por consumo. Ingresa el monto exacto que aparece en el recibo.
                 </p>
               )}
@@ -245,7 +245,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
 
             {/* Method chips */}
             <fieldset>
-              <legend className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-2">
+              <legend className="block text-xs font-semibold text-slate-600 mb-2">
                 ¿Cómo pagaste? <span className="text-brand-500">*</span>
               </legend>
               <div className="grid grid-cols-2 gap-2">
@@ -260,7 +260,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                       className={`flex flex-col items-start gap-0.5 px-3 py-3 rounded-2xl border text-left transition active:scale-95 ${
                         selected
                           ? 'bg-brand-500 border-brand-500 text-white shadow-md'
-                          : 'bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 text-stone-700 dark:text-gray-200 hover:border-brand-300 dark:hover:border-brand-500/50'
+                          : 'bg-white border-sky-200 text-slate-700 hover:border-brand-300'
                       }`}
                     >
                       <span className="flex items-center gap-1.5 text-sm font-semibold">
@@ -268,7 +268,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                         <span>{m.shortLabel}</span>
                       </span>
                       {m.hint && (
-                        <span className={`text-[10px] ${selected ? 'text-white/80' : 'text-stone-400 dark:text-gray-500'}`}>
+                        <span className={`text-[10px] ${selected ? 'text-white/80' : 'text-slate-400'}`}>
                           {m.hint}
                         </span>
                       )}
@@ -283,7 +283,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
               <div className="flex flex-col gap-2">
                 {recentBanks.length > 0 && (
                   <div>
-                    <p className="text-[11px] font-semibold text-stone-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                       Bancos que ya usaste
                     </p>
                     <div className="flex flex-wrap gap-1.5">
@@ -298,7 +298,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                             className={`text-xs px-3 py-1.5 rounded-full border transition active:scale-95 ${
                               selected
                                 ? 'bg-brand-500 border-brand-500 text-white'
-                                : 'bg-stone-100 dark:bg-white/10 border-stone-200 dark:border-white/10 text-stone-700 dark:text-gray-200 hover:border-brand-300'
+                                : 'bg-white/70 border-sky-200 text-slate-700 hover:border-brand-300'
                             }`}
                           >
                             🏦 {b}
@@ -310,7 +310,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                 )}
                 <div className="grid grid-cols-[1fr_auto] gap-2">
                   <div>
-                    <label htmlFor="mark-paid-bank" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
+                    <label htmlFor="mark-paid-bank" className="block text-xs font-semibold text-slate-600 mb-1.5">
                       {isCard ? 'Emisor de la tarjeta' : 'Banco / entidad'} <span className="text-brand-500">*</span>
                     </label>
                     <input
@@ -322,16 +322,16 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                       list="recent-bank-accounts"
                       placeholder={isCard ? 'Ej: Visa Nu' : 'Ej: Bancolombia'}
                       maxLength={50}
-                      className="w-full px-4 py-3 rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
+                      className="w-full px-4 py-3 rounded-2xl border border-sky-200 bg-white text-black focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
                     />
                   </div>
                   <div className="min-w-24">
-                    <label htmlFor="mark-paid-account" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
+                    <label htmlFor="mark-paid-account" className="block text-xs font-semibold text-slate-600 mb-1.5">
                       {accountLabel}
                     </label>
                     <div className="relative">
                       {isCard && (
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-gray-500 text-sm font-mono select-none">•••</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-mono select-none">•••</span>
                       )}
                       <input
                         id="mark-paid-account"
@@ -342,13 +342,13 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                         onChange={handleAccountChange}
                         placeholder={accountPlaceholder}
                         maxLength={accountMaxLen}
-                        className={`w-full ${isCard ? 'pl-10' : 'pl-4'} pr-3 py-3 rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 text-stone-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm font-mono tracking-wider`}
+                        className={`w-full ${isCard ? 'pl-10' : 'pl-4'} pr-3 py-3 rounded-2xl border border-sky-200 bg-white text-black focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm font-mono tracking-wider`}
                       />
                     </div>
                   </div>
                 </div>
                 {isCard && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-300 flex items-start gap-1.5">
+                  <p className="text-[11px] text-sky-600 flex items-start gap-1.5">
                     <span>🔒</span>
                     <span>Por seguridad, solo guardamos los <strong>últimos 4 dígitos</strong>. Nunca ingreses el número completo.</span>
                   </p>
@@ -363,8 +363,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
 
             {/* Notes */}
             <div>
-              <label htmlFor="mark-paid-notes" className="block text-xs font-semibold text-stone-600 dark:text-gray-300 mb-1.5">
-                Nota <span className="text-stone-400 dark:text-gray-500 font-normal">(opcional)</span>
+              <label htmlFor="mark-paid-notes" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                Nota <span className="text-slate-400 font-normal">(opcional)</span>
               </label>
               <textarea
                 id="mark-paid-notes"
@@ -373,7 +373,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                 rows={2}
                 maxLength={500}
                 placeholder="Ej: Folio 123456"
-                className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 text-stone-900 dark:text-white placeholder-stone-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm resize-none"
+                className="w-full px-4 py-2.5 rounded-2xl border border-sky-200 bg-white text-black placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm resize-none"
               />
             </div>
 
@@ -382,14 +382,14 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-3 rounded-2xl bg-stone-100 dark:bg-white/10 text-stone-700 dark:text-gray-200 font-semibold text-sm hover:bg-stone-200 dark:hover:bg-white/20 transition"
+                className="flex-1 py-3 rounded-2xl bg-white/70 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 transition disabled:opacity-50"
+                className="flex-1 py-3 rounded-2xl bg-sky-500 text-white font-bold text-sm hover:bg-sky-600 transition disabled:opacity-50"
               >
                 {saving ? 'Guardando…' : '✓ Confirmar pago'}
               </button>

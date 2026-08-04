@@ -165,38 +165,38 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
   }
 
   return (
-    <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-sky-100 shadow-sm overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-stone-50 dark:hover:bg-stone-800/50 transition"
+        className="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-sky-50/70 transition"
         aria-expanded={open}
       >
         <div className="flex items-center gap-2">
           <span className="text-lg">🧪</span>
-          <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">
+          <span className="text-sm font-semibold text-slate-700">
             Probar notificaciones
           </span>
         </div>
-        <span className={`text-stone-400 text-sm transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+        <span className={`text-slate-400 text-sm transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
       </button>
 
       {open && (
-        <div className="px-5 pb-4 pt-1 space-y-3 border-t border-stone-100 dark:border-stone-800">
-          <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+        <div className="px-5 pb-4 pt-1 space-y-3 border-t border-sky-100">
+          <p className="text-xs text-slate-500 leading-relaxed">
             Los recordatorios automáticos se envían a las 9:00 UTC. Usa estos botones para probarlos sin esperar.
           </p>
 
           {needsResubscribe && (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 flex items-center justify-between gap-2">
-              <p className="text-xs text-amber-800 dark:text-amber-200">
+            <div className="rounded-xl border border-sky-300 bg-sky-50 px-3 py-2.5 flex items-center justify-between gap-2">
+              <p className="text-xs text-sky-800">
                 Tu suscripción no es válida. Re-suscríbete para volver a recibir notificaciones.
               </p>
               <button
                 type="button"
                 disabled={busy !== null}
                 onClick={handleResubscribe}
-                className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition disabled:opacity-50"
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold transition disabled:opacity-50"
               >
                 {busy === 'resubscribe' ? '…' : '🔄 Re-suscribir'}
               </button>
@@ -217,7 +217,7 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
               type="button"
               disabled={busy !== null}
               onClick={handleTrigger}
-              className="px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition active:scale-95 disabled:opacity-50"
+              className="px-3 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold transition active:scale-95 disabled:opacity-50"
             >
               {busy === 'trigger' ? '…' : '⚡ Disparar recordatorios'}
             </button>
@@ -226,14 +226,14 @@ export default function NotificationsTestPanel({ payments, onSnoozed }: Props) {
               type="button"
               disabled={busy !== null || activePending.length === 0}
               onClick={handleSnoozeAll5Min}
-              className="px-3 py-2.5 rounded-xl bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 text-sm font-semibold transition active:scale-95 disabled:opacity-50"
+              className="px-3 py-2.5 rounded-xl bg-white/70 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition active:scale-95 disabled:opacity-50"
             >
               {busy === 'snooze' ? '…' : `⏰ Posponer 5 min (${activePending.length})`}
             </button>
           </div>
 
-          <details className="text-[11px] text-stone-500 dark:text-stone-400">
-            <summary className="cursor-pointer hover:text-stone-700 dark:hover:text-stone-300">
+          <details className="text-[11px] text-slate-500">
+            <summary className="cursor-pointer hover:text-slate-700">
               ¿Cómo funciona cada botón?
             </summary>
             <ul className="mt-2 space-y-1 pl-4 list-disc">

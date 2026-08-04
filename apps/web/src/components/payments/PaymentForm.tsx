@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { CreatePaymentDto } from '@foody/types';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 
@@ -18,14 +18,20 @@ const CATEGORIES = [
 
 const CURRENCIES = ['USD', 'EUR', 'MXN', 'COP', 'ARS', 'CLP', 'PEN'];
 
+/** Categorías que los atajos de la lista vacía pueden preseleccionar. */
+const VALID_CATEGORIES = new Set(['utilities', 'subscriptions', 'rent', 'insurance', 'internet', 'phone', 'streaming', 'other']);
+
 export default function PaymentForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Los atajos abren /payments/new?category=rent para llegar ya encaminado.
+  const presetCategory = searchParams.get('category');
   const [form, setForm] = useState<CreatePaymentDto>({
     name: '',
     amount: 0,
     dueDay: 1,
     currency: 'USD',
-    category: 'other',
+    category: presetCategory && VALID_CATEGORIES.has(presetCategory) ? presetCategory : 'other',
     description: '',
     isVariableAmount: false,
     isAutoPay: false,
@@ -92,14 +98,14 @@ export default function PaymentForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm">
           {error}
         </div>
       )}
 
       {/* ─── Nombre ──────────────────────────────────────────────────────── */}
       <div>
-        <label htmlFor="payment-name" className="block text-sm font-semibold text-stone-700 mb-1.5">
+        <label htmlFor="payment-name" className="block text-sm font-semibold text-slate-700 mb-1.5">
           Nombre <span className="text-brand-500">*</span>
         </label>
         <input
@@ -108,18 +114,18 @@ export default function PaymentForm() {
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           placeholder="Ej: Netflix, Renta, Luz…"
-          className="w-full px-4 py-3 rounded-2xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
+          className="w-full px-4 py-3 rounded-2xl border border-sky-200 text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
         />
       </div>
 
       {/* ─── Monto + Moneda ──────────────────────────────────────────────── */}
       <div>
-        <label htmlFor="payment-amount" className="block text-sm font-semibold text-stone-700 mb-1.5">
+        <label htmlFor="payment-amount" className="block text-sm font-semibold text-slate-700 mb-1.5">
           {form.isVariableAmount ? 'Monto estimado' : 'Monto'} <span className="text-brand-500">*</span>
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 font-medium text-sm select-none">$</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm select-none">$</span>
             <input
               id="payment-amount"
               required
@@ -129,14 +135,14 @@ export default function PaymentForm() {
               value={form.amount === 0 ? '' : form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: Number.parseFloat(e.target.value) || 0 }))}
               placeholder="0.00"
-              className="w-full pl-8 pr-4 py-3 rounded-2xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
+              className="w-full pl-8 pr-4 py-3 rounded-2xl border border-sky-200 text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />
           </div>
           <select
             id="payment-currency"
             value={form.currency}
             onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-            className="px-3 py-3 rounded-2xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition bg-white font-medium text-sm min-w-20"
+            className="px-3 py-3 rounded-2xl border border-sky-200 text-black focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition bg-white font-medium text-sm min-w-20"
           >
             {CURRENCIES.map((c) => (
               <option key={c} value={c}>{c}</option>
@@ -152,22 +158,22 @@ export default function PaymentForm() {
           aria-pressed={form.isVariableAmount}
           className={`mt-2 w-full flex items-start gap-3 p-3 rounded-2xl border text-left transition ${
             form.isVariableAmount
-              ? 'bg-amber-50 border-amber-300'
-              : 'bg-white border-stone-200 hover:border-stone-300'
+              ? 'bg-sky-50 border-sky-300'
+              : 'bg-white border-sky-200 hover:border-slate-300'
           }`}
         >
           <div
             className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold shrink-0 transition ${
-              form.isVariableAmount ? 'bg-amber-500 text-white' : 'bg-stone-100 text-transparent border border-stone-300'
+              form.isVariableAmount ? 'bg-sky-500 text-white' : 'bg-white/70 text-transparent border border-slate-300'
             }`}
           >
             ✓
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-stone-800 flex items-center gap-1.5">
+            <p className="text-sm font-semibold text-black flex items-center gap-1.5">
               ⚡ Monto variable (por consumo)
             </p>
-            <p className="text-xs text-stone-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               Ej: luz, agua, gas. El monto del recibo cambia cada mes; al pagar te pediremos el valor exacto.
             </p>
           </div>
@@ -180,22 +186,22 @@ export default function PaymentForm() {
           aria-pressed={form.isAutoPay}
           className={`mt-2 w-full flex items-start gap-3 p-3 rounded-2xl border text-left transition ${
             form.isAutoPay
-              ? 'bg-emerald-50 border-emerald-300'
-              : 'bg-white border-stone-200 hover:border-stone-300'
+              ? 'bg-sky-50 border-sky-300'
+              : 'bg-white border-sky-200 hover:border-slate-300'
           }`}
         >
           <div
             className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold shrink-0 transition ${
-              form.isAutoPay ? 'bg-emerald-500 text-white' : 'bg-stone-100 text-transparent border border-stone-300'
+              form.isAutoPay ? 'bg-sky-500 text-white' : 'bg-white/70 text-transparent border border-slate-300'
             }`}
           >
             ✓
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-stone-800 flex items-center gap-1.5">
+            <p className="text-sm font-semibold text-black flex items-center gap-1.5">
               🤖 Pago automatizado
             </p>
-            <p className="text-xs text-stone-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               El pago se cobra automáticamente (domiciliación, débito). La app lo marcará como pagado el día de vencimiento y te avisará.
             </p>
           </div>
@@ -205,7 +211,7 @@ export default function PaymentForm() {
       {/* ─── Día vencimiento + Notificación ──────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="payment-due-day" className="block text-sm font-semibold text-stone-700 mb-1.5">
+          <label htmlFor="payment-due-day" className="block text-sm font-semibold text-slate-700 mb-1.5">
             Día de vencimiento
           </label>
           <div className="relative">
@@ -228,14 +234,14 @@ export default function PaymentForm() {
                 if (Number.isNaN(n)) return;
                 setForm((f) => ({ ...f, dueDay: Math.min(31, Math.max(0, n)) }));
               }}
-              className="w-full px-4 py-3 rounded-2xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
+              className="w-full px-4 py-3 rounded-2xl border border-sky-200 text-black focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 text-xs select-none">/ mes</span>
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs select-none">/ mes</span>
           </div>
-          <p className="text-xs text-stone-400 mt-1">Entre 1 y 31</p>
+          <p className="text-xs text-slate-400 mt-1">Entre 1 y 31</p>
         </div>
         <div>
-          <label htmlFor="payment-notify-value" className="block text-sm font-semibold text-stone-700 mb-1.5">
+          <label htmlFor="payment-notify-value" className="block text-sm font-semibold text-slate-700 mb-1.5">
             Avisar antes
           </label>
           <div className="flex gap-1.5">
@@ -246,12 +252,12 @@ export default function PaymentForm() {
               value={notifyValue}
               onChange={(e) => setNotifyValue(e.target.value)}
               placeholder="—"
-              className="w-full px-3 py-3 rounded-2xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base min-w-0"
+              className="w-full px-3 py-3 rounded-2xl border border-sky-200 text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base min-w-0"
             />
             <select
               value={notifyUnit}
               onChange={(e) => setNotifyUnit(e.target.value as 'days' | 'months')}
-              className="px-2 py-3 rounded-2xl border border-stone-200 text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition bg-white text-xs font-medium shrink-0"
+              className="px-2 py-3 rounded-2xl border border-sky-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition bg-white text-xs font-medium shrink-0"
             >
               <option value="days">días</option>
               <option value="months">meses</option>
@@ -262,7 +268,7 @@ export default function PaymentForm() {
 
       {/* ─── Categoría chips ─────────────────────────────────────────────── */}
       <div>
-        <span className="block text-sm font-semibold text-stone-700 mb-2">Categoría</span>
+        <span className="block text-sm font-semibold text-slate-700 mb-2">Categoría</span>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((cat) => (
             <button
@@ -273,7 +279,7 @@ export default function PaymentForm() {
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
                 form.category === cat.value
                   ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-                  : 'bg-white border-stone-200 text-stone-600 hover:border-brand-300 hover:bg-brand-50'
+                  : 'bg-white border-sky-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'
               }`}
             >
               <span>{cat.label}</span>
@@ -285,11 +291,11 @@ export default function PaymentForm() {
 
       {/* ─── Método de pago ──────────────────────────────────────────────── */}
       <div>
-        <span className="block text-sm font-semibold text-stone-700 mb-1.5">
+        <span className="block text-sm font-semibold text-slate-700 mb-1.5">
           Método de pago habitual{' '}
-          <span className="ml-1 text-xs font-normal text-stone-400">(opcional)</span>
+          <span className="ml-1 text-xs font-normal text-slate-400">(opcional)</span>
         </span>
-        <p className="text-xs text-stone-400 mb-2">Cómo pagas normalmente esta cuenta. Solo guardamos los últimos 4 dígitos.</p>
+        <p className="text-xs text-slate-400 mb-2">Cómo pagas normalmente esta cuenta. Solo guardamos los últimos 4 dígitos.</p>
         <PaymentMethodPicker
           method={form.paymentMethod ?? null}
           bankName={form.bankName ?? ''}
@@ -304,9 +310,9 @@ export default function PaymentForm() {
 
       {/* ─── Notas / Comentarios ─────────────────────────────────────────── */}
       <div>
-        <label htmlFor="payment-description" className="block text-sm font-semibold text-stone-700 mb-1.5">
+        <label htmlFor="payment-description" className="block text-sm font-semibold text-slate-700 mb-1.5">
           Notas{' '}
-          <span className="ml-1.5 text-xs font-normal text-stone-400">(opcional)</span>
+          <span className="ml-1.5 text-xs font-normal text-slate-400">(opcional)</span>
         </label>
         <textarea
           id="payment-description"
@@ -314,7 +320,7 @@ export default function PaymentForm() {
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="Ej: Incluye cuenta familiar, vence el día 15 cada mes…"
           rows={3}
-          className="w-full px-4 py-3 rounded-2xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-sm resize-none"
+          className="w-full px-4 py-3 rounded-2xl border border-sky-200 text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-sm resize-none"
         />
       </div>
 
