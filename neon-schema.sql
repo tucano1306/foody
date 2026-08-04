@@ -335,3 +335,74 @@ CREATE TABLE IF NOT EXISTS "finance_goal_contributions" (
 );
 
 CREATE INDEX IF NOT EXISTS "idx_contrib_goal" ON "finance_goal_contributions" ("goal_id", "created_at" DESC);
+
+-- ─── Deudas y Créditos: términos del crédito ──────────────────
+-- El saldo vive en "current_balance" solo como caché: la verdad está en el
+-- libro mayor "debt_movements", del que se recalcula en cada escritura.
+CREATE TABLE IF NOT EXISTS "debts" (
+  "id"              UUID          NOT NULL DEFAULT gen_random_uuid(),
+  "user_id"         UUID          NOT NULL,
+  "name"            VARCHAR(160)  NOT NULL,
+  "kind"            VARCHAR(20)   NOT NULL DEFAULT 'credit_card',
+  "issuer"          VARCHAR(100),
+  "account_last4"   VARCHAR(4),
+  "currency"        VARCHAR(10)   NOT NULL DEFAULT 'USD',
+  "original_amount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "current_balance" DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "rate"            DECIMAL(9,4)  NOT NULL DEFAULT 0,
+  "rate_period"     VARCHAR(20)   NOT NULL DEFAULT 'monthly',
+  "strategy"        VARCHAR(20)   NOT NULL DEFAULT 'fixed_installment',
+  "term_months"     SMALLINT,
+  "custom_payment"  DECIMAL(12,2),
+  "min_percent"     DECIMAL(5,2),
+  "min_floor"       DECIMAL(12,2),
+  "extra_monthly"   DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "credit_limit"    DECIMAL(12,2),
+  "due_day"         SMALLINT      NOT NULL DEFAULT 1,
+  "last_accrual_at" TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  "opened_at"       TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  "status"          VARCHAR(12)   NOT NULL DEFAULT 'active',
+  "note"            TEXT,
+  "created_at"      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  "updated_at"      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  CONSTRAINT "PK_debts" PRIMARY KEY ("id"),
+  CONSTRAINT "CK_debts_due_day" CHECK ("due_day" >= 1 AND "due_day" <= 31),
+  CONSTRAINT "FK_debts_user" FOREIGN KEY ("user_id")
+    REFERENCES "users"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_debts_user" ON "debts" ("user_id", "status");
+
+-- ─── Deudas y Créditos: libro mayor ───────────────────────────
+-- Una fila por evento. El signo lo da "kind": charge/interest/fee suben el
+-- saldo, payment lo baja, adjustment puede ir en cualquier dirección.
+-- Nada se edita: corregir es agregar un movimiento, y por eso es auditable.
+CREATE TABLE IF NOT EXISTS "debt_movements" (
+  "id"             UUID          NOT NULL DEFAULT gen_random_uuid(),
+  "debt_id"        UUID          NOT NULL,
+  "user_id"        UUID          NOT NULL,
+  "kind"           VARCHAR(20)   NOT NULL,
+  "amount"         DECIMAL(12,2) NOT NULL,
+  "interest_part"  DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "principal_part" DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "fees_part"      DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "balance_before" DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "balance_after"  DECIMAL(12,2) NOT NULL DEFAULT 0,
+  "payment_method" VARCHAR(20),
+  "period_key"     VARCHAR(7),
+  "note"           TEXT,
+  "occurred_at"    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  "created_at"     TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  CONSTRAINT "PK_debt_movements" PRIMARY KEY ("id"),
+  CONSTRAINT "FK_movements_debt" FOREIGN KEY ("debt_id")
+    REFERENCES "debts"("id") ON DELETE CASCADE,
+  CONSTRAINT "FK_movements_user" FOREIGN KEY ("user_id")
+    REFERENCES "users"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_debt_movements" ON "debt_movements" ("debt_id", "occurred_at" DESC);
+
+-- Idempotencia del devengo: un solo apunte de interés por deuda y mes, pase lo
+-- que pase con reintentos o pestañas simultáneas.
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_debt_interest_period"
+  ON "debt_movements" ("debt_id", "period_key") WHERE "kind" = 'interest';
