@@ -59,10 +59,10 @@ export default function OnboardingTour() {
       <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 animate-fade-up">
         <div className="text-center">
           <div className="text-6xl mb-3">{current.emoji}</div>
-          <h2 id="onboarding-title" className="text-xl font-bold text-stone-800 mb-2">
+          <h2 id="onboarding-title" className="text-xl font-bold text-slate-800 mb-2">
             {current.title}
           </h2>
-          <p className="text-stone-600 text-sm leading-relaxed">{current.text}</p>
+          <p className="text-slate-600 text-sm leading-relaxed">{current.text}</p>
         </div>
 
         {/* Dots */}
@@ -71,7 +71,7 @@ export default function OnboardingTour() {
             <span
               key={s.title}
               className={`h-1.5 rounded-full transition-all ${
-                i === step ? 'w-6 bg-brand-500' : 'w-1.5 bg-stone-200'
+                i === step ? 'w-6 bg-brand-500' : 'w-1.5 bg-slate-200'
               }`}
             />
           ))}
@@ -80,7 +80,7 @@ export default function OnboardingTour() {
         <div className="mt-6 flex gap-2">
           <button
             onClick={finish}
-            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-stone-500 hover:bg-stone-100 transition"
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100 transition"
           >
             Saltar
           </button>

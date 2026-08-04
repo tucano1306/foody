@@ -30,14 +30,14 @@ function getBannerContent(
   syncedCount: number,
 ): BannerContent {
   if (status === 'syncing') {
-    return { icon: '🔄', text: 'Sincronizando…', cls: 'bg-indigo-700' };
+    return { icon: '🔄', text: 'Sincronizando…', cls: 'bg-sky-700' };
   }
   if (status === 'synced') {
     const noun = syncedCount === 1 ? 'acción' : 'acciones';
     return {
       icon: '✓',
       text: `Sincronizado · ${syncedCount} ${noun} enviadas`,
-      cls: 'bg-green-700',
+      cls: 'bg-sky-700',
     };
   }
   return {

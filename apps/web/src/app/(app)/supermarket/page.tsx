@@ -42,27 +42,27 @@ export default async function SupermarketPage() {
 
       {/* ─── Quick stats ────────────────────────────────────────────────────── */}
       {topStore && (
-        <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 border border-stone-100 dark:border-stone-800 shadow-sm flex items-center gap-3">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
           {topStoreLogo ? (
-            <span className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-stone-100 shrink-0">
+            <span className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-slate-100 shrink-0">
               <Image src={topStoreLogo} alt={topStore.storeName} width={44} height={44} className="object-contain w-full h-full" />
             </span>
           ) : (
-            <span className="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-xl shrink-0" aria-hidden="true">
+            <span className="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-xl shrink-0" aria-hidden="true">
               🏪
             </span>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] text-stone-400 dark:text-stone-500 font-medium uppercase tracking-wide">
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">
               Tu súper favorito
             </p>
-            <p className="font-bold text-stone-800 dark:text-stone-100 truncate">{topStore.storeName}</p>
+            <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{topStore.storeName}</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="font-bold text-stone-800 dark:text-stone-100 tabular-nums">
+            <p className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">
               {topStore.count} {topStore.count === 1 ? 'visita' : 'visitas'}
             </p>
-            <p className="text-xs text-stone-400 dark:text-stone-500 tabular-nums">{fmt(topStore.total)} gastados</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 tabular-nums">{fmt(topStore.total)} gastados</p>
           </div>
         </div>
       )}

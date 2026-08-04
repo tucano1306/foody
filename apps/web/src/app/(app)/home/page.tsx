@@ -24,12 +24,12 @@ function ChartsSkeleton() {
   return (
     <div className="space-y-5" aria-hidden="true">
       {[0, 1].map((i) => (
-        <div key={i} className="bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+        <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-stone-100 dark:bg-stone-800 animate-pulse" />
-            <div className="h-4 w-48 bg-stone-100 dark:bg-stone-800 rounded animate-pulse" />
+            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            <div className="h-4 w-48 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
           </div>
-          <div className="mt-4 h-40 bg-stone-50 dark:bg-stone-800/50 rounded-xl animate-pulse" />
+          <div className="mt-4 h-40 bg-slate-50 dark:bg-slate-800/50 rounded-xl animate-pulse" />
         </div>
       ))}
     </div>
@@ -80,7 +80,7 @@ export default async function HomePage() {
           emoji="💰"
           title="Finanzas"
           subtitle="Tus pagos del mes y lo que viene"
-          tone="green"
+          tone="ok"
           centered
         />
         <UpcomingPaymentsWidget payments={upcomingPayments} />
@@ -92,7 +92,7 @@ export default async function HomePage() {
           emoji="📊"
           title="Resumen"
           subtitle="Tus números y gráficas del mes"
-          tone="violet"
+          tone="accent"
           centered
         />
         <DashboardStats

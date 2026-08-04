@@ -73,7 +73,7 @@ export default function SharingBadge() {
   if (count === 0) return null;
 
   return (
-    <span className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-bold shrink-0">
+    <span className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold shrink-0">
       {count > 9 ? '9+' : count}
     </span>
   );

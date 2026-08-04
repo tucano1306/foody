@@ -61,13 +61,13 @@ function ProductGrid({
 
 /** Tinted card treatment per urgency level so each pantry block reads as its own zone. */
 const SECTION_TONES = {
-  rose: {
-    card: 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/40',
-    toggle: 'border-rose-200 text-rose-500 hover:bg-rose-100/60 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/40',
+  urgent: {
+    card: 'bg-blue-50/70 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/40',
+    toggle: 'border-blue-200 text-blue-500 hover:bg-blue-100/60 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/40',
   },
-  amber: {
-    card: 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40',
-    toggle: 'border-amber-200 text-amber-600 hover:bg-amber-100/60 dark:border-amber-900/50 dark:text-amber-400 dark:hover:bg-amber-950/40',
+  warning: {
+    card: 'bg-sky-50/70 dark:bg-sky-950/20 border-sky-100 dark:border-sky-900/40',
+    toggle: 'border-sky-200 text-sky-600 hover:bg-sky-100/60 dark:border-sky-900/50 dark:text-sky-400 dark:hover:bg-sky-950/40',
   },
 } as const;
 
@@ -150,9 +150,9 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
           tone="brand"
           centered
         />
-        <section className="zone-card bg-white dark:bg-stone-900 rounded-2xl border border-stone-100 dark:border-stone-800 p-4 sm:p-5 shadow-sm">
+        <section className="zone-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 sm:p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="flex items-center gap-2 min-w-0 text-base sm:text-lg font-bold text-stone-700 dark:text-stone-200">
+          <h2 className="flex items-center gap-2 min-w-0 text-base sm:text-lg font-bold text-slate-700 dark:text-slate-200">
             <span
               aria-hidden="true"
               className="grid place-items-center w-8 h-8 shrink-0 rounded-xl bg-brand-50 dark:bg-brand-900/50 ring-1 ring-brand-100 dark:ring-brand-900/60 text-base"
@@ -160,7 +160,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
               🛒
             </span>
             <span className="truncate">Todos los productos</span>
-            <span className="shrink-0 rounded-full bg-stone-100 dark:bg-stone-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-stone-500 dark:text-stone-400">
+            <span className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">
               {products.length}
             </span>
           </h2>
@@ -174,7 +174,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
           </Link>
         </div>
         {products.length === 0 ? (
-          <div className="text-center py-16 text-stone-400">
+          <div className="text-center py-16 text-slate-400">
             <p className="text-5xl mb-4">🥑</p>
             <p className="text-lg font-medium">No hay productos todavía</p>
             <Link href="/products/new" className="mt-3 inline-block text-brand-500 hover:underline">
@@ -203,14 +203,14 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
             emoji="🥑"
             title="Mi despensa"
             subtitle="Lo que se acabó o está por acabarse"
-            tone="amber"
+            tone="warning"
             centered
           />
 
           {empty.length > 0 && (
             <CollapsibleSection
-              title={<><span className="text-rose-700 dark:text-rose-400">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-rose-400">({empty.length})</span></>}
-              tone="rose"
+              title={<><span className="text-blue-700 dark:text-blue-400">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-blue-400">({empty.length})</span></>}
+              tone="urgent"
               items={empty}
               onLevelChange={handleLevelChange}
               lastPurchaseMap={lastPurchaseMap}
@@ -220,8 +220,8 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
           {low.length > 0 && (
             <CollapsibleSection
-              title={<><span className="text-amber-700 dark:text-amber-400">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-amber-400">({low.length})</span></>}
-              tone="amber"
+              title={<><span className="text-sky-700 dark:text-sky-400">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-sky-400">({low.length})</span></>}
+              tone="warning"
               items={low}
               onLevelChange={handleLevelChange}
               lastPurchaseMap={lastPurchaseMap}

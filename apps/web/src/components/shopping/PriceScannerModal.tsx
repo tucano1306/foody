@@ -284,14 +284,14 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-stone-800 text-base">📷 Escanear precio</h3>
-            <p className="text-xs text-stone-400 mt-0.5 truncate max-w-55">{productName}</p>
+            <h3 className="font-bold text-slate-800 text-base">📷 Escanear precio</h3>
+            <p className="text-xs text-slate-400 mt-0.5 truncate max-w-55">{productName}</p>
           </div>
           <button
             type="button"
             onClick={handleClose}
             aria-label="Cerrar"
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 transition"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
           >
             ✕
           </button>
@@ -299,7 +299,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
 
         {/* Preview */}
         {preview && state !== 'idle' && (
-          <div className="relative w-full h-44 bg-stone-100 rounded-2xl overflow-hidden border border-stone-200">
+          <div className="relative w-full h-44 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={preview} alt="Captura del precio" className="w-full h-full object-cover" />
           </div>
@@ -308,31 +308,31 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
         {/* idle */}
         {state === 'idle' && (
           <div className="text-center space-y-3 py-1">
-            <p className="text-stone-500 text-sm leading-relaxed">
+            <p className="text-slate-500 text-sm leading-relaxed">
               Apunta la cámara al <strong>precio del producto</strong> y toma una foto.
               El sistema detectará el monto automáticamente.
             </p>
             <button
               type="button"
               onClick={startCamera}
-              className="w-full py-3.5 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-base transition active:scale-[0.97] shadow-md shadow-market-500/20"
+              className="w-full py-3.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-base transition active:scale-[0.97] shadow-md shadow-sky-500/20"
             >
               📷 Abrir cámara
             </button>
             <button
               type="button"
               onClick={() => openFile(false)}
-              className="w-full py-2.5 rounded-2xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+              className="w-full py-2.5 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
             >
               📁 Subir una foto
             </button>
             <div className="flex items-center gap-2">
-              <hr className="flex-1 border-stone-100" />
-              <span className="text-xs text-stone-300">o escribe el precio</span>
-              <hr className="flex-1 border-stone-100" />
+              <hr className="flex-1 border-slate-100" />
+              <span className="text-xs text-slate-300">o escribe el precio</span>
+              <hr className="flex-1 border-slate-100" />
             </div>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
               <input
                 id="price-idle-manual"
                 type="number"
@@ -341,14 +341,14 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                 value={manual}
                 onChange={(e) => setManual(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
               />
             </div>
             {manualNum !== null && manualNum > 0 && (
               <button
                 type="button"
                 onClick={confirm}
-                className="w-full py-3 rounded-2xl bg-market-600 text-white font-bold text-sm transition active:scale-[0.97]"
+                className="w-full py-3 rounded-2xl bg-sky-600 text-white font-bold text-sm transition active:scale-[0.97]"
               >
                 ✓ Usar ${manualNum.toFixed(2)}
               </button>
@@ -375,14 +375,14 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
               <button
                 type="button"
                 onClick={() => { stopCamera(); setState('idle'); }}
-                className="py-3 px-4 rounded-2xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+                className="py-3 px-4 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={capturePhoto}
-                className="flex-1 py-3 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-base transition active:scale-[0.97] shadow-md shadow-market-500/20"
+                className="flex-1 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-base transition active:scale-[0.97] shadow-md shadow-sky-500/20"
               >
                 📸 Capturar precio
               </button>
@@ -393,22 +393,22 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
         {/* processing */}
         {state === 'processing' && (
           <div className="text-center py-6 space-y-3">
-            <div className="w-10 h-10 border-[3px] border-market-400 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-stone-500 text-sm">{phase}</p>
+            <div className="w-10 h-10 border-[3px] border-sky-400 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-slate-500 text-sm">{phase}</p>
           </div>
         )}
 
         {/* error */}
         {state === 'error' && (
           <div className="space-y-3">
-            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-              <p className="text-red-700 text-sm">{errorMsg ?? 'No se pudo leer el precio.'}</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+              <p className="text-blue-700 text-sm">{errorMsg ?? 'No se pudo leer el precio.'}</p>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={startCamera} className="flex-1 py-2.5 rounded-xl bg-market-600 text-white font-semibold text-sm transition">
+              <button type="button" onClick={startCamera} className="flex-1 py-2.5 rounded-xl bg-sky-600 text-white font-semibold text-sm transition">
                 📷 Reintentar
               </button>
-              <button type="button" onClick={handleClose} className="flex-1 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-semibold text-sm transition">
+              <button type="button" onClick={handleClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition">
                 Cancelar
               </button>
             </div>
@@ -420,7 +420,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
           <div className="space-y-3">
             {quality === 'strong' && candidates.length > 0 && (
               <>
-                <p className="text-sm font-semibold text-stone-700">
+                <p className="text-sm font-semibold text-slate-700">
                   Precios detectados — toca el correcto:
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -431,8 +431,8 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                       onClick={() => { setSelected(c); setManual(''); }}
                       className={`px-4 py-2 rounded-xl font-bold text-sm border-2 transition ${
                         selected === c
-                          ? 'border-market-500 bg-market-50 text-market-700'
-                          : 'border-stone-200 bg-white text-stone-700 hover:border-market-300'
+                          ? 'border-sky-500 bg-sky-50 text-sky-700'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-sky-300'
                       }`}
                     >
                       ${c.toFixed(2)}
@@ -444,9 +444,9 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
 
             {quality === 'weak' && candidates.length > 0 && (
               <>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                  <p className="text-amber-800 text-sm font-semibold">⚠️ No vimos un precio claro</p>
-                  <p className="text-amber-700 text-xs mt-0.5">
+                <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+                  <p className="text-sky-800 text-sm font-semibold">⚠️ No vimos un precio claro</p>
+                  <p className="text-sky-700 text-xs mt-0.5">
                     Estos números podrían no ser precios. Confirma uno o escríbelo manualmente.
                   </p>
                 </div>
@@ -458,8 +458,8 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                       onClick={() => { setSelected(c); setManual(''); }}
                       className={`px-4 py-2 rounded-xl font-bold text-sm border-2 transition ${
                         selected === c
-                          ? 'border-amber-500 bg-amber-50 text-amber-800'
-                          : 'border-stone-200 bg-white text-stone-600 hover:border-amber-300'
+                          ? 'border-sky-500 bg-sky-50 text-sky-800'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'
                       }`}
                     >
                       ${c.toFixed(2)}?
@@ -470,11 +470,11 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
             )}
 
             {quality === 'none' && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-                <p className="text-red-800 text-sm font-semibold">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+                <p className="text-blue-800 text-sm font-semibold">
                   {hasDigits ? '⚠️ No parece un precio' : '⚠️ No se detectó texto'}
                 </p>
-                <p className="text-red-700 text-xs mt-0.5">
+                <p className="text-blue-700 text-xs mt-0.5">
                   {hasDigits
                     ? 'No encontramos un valor que parezca un precio. Toma otra foto enfocando solo el monto (ej. $12.99) o escríbelo abajo.'
                     : 'La foto está borrosa o no muestra números. Reintenta acercando la cámara al precio.'}
@@ -483,11 +483,11 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
             )}
 
             <div>
-              <label htmlFor="price-preview-manual" className="block text-xs text-stone-500 mb-1 font-medium">
+              <label htmlFor="price-preview-manual" className="block text-xs text-slate-500 mb-1 font-medium">
                 {candidates.length > 0 ? 'O ingresa manualmente:' : 'Precio:'}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
                 <input
                   id="price-preview-manual"
                   type="number"
@@ -496,7 +496,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                   value={manual}
                   onChange={(e) => { setManual(e.target.value); setSelected(null); }}
                   placeholder="0.00"
-                  className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                  className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
                 />
               </div>
             </div>
@@ -506,7 +506,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                 type="button"
                 onClick={startCamera}
                 aria-label="Escanear de nuevo"
-                className="py-2.5 px-4 rounded-xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+                className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
               >
                 📷
               </button>
@@ -514,7 +514,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                 type="button"
                 onClick={confirm}
                 disabled={!canConfirm}
-                className="flex-1 py-2.5 rounded-xl bg-market-600 text-white font-bold text-sm disabled:opacity-40 transition active:scale-[0.97]"
+                className="flex-1 py-2.5 rounded-xl bg-sky-600 text-white font-bold text-sm disabled:opacity-40 transition active:scale-[0.97]"
               >
                 ✓ Usar precio
               </button>

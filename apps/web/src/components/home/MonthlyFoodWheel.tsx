@@ -14,20 +14,20 @@ function EmptyState({ purchaseCount }: { readonly purchaseCount: number }) {
     return (
       <div className="flex flex-col items-center justify-center py-10">
         <span className="text-5xl mb-3">🏷️</span>
-        <p className="text-sm font-medium text-stone-500">
+        <p className="text-sm font-medium text-slate-500">
           {purchaseCount} {purchaseCount === 1 ? 'compra registrada' : 'compras registradas'} sin precio
         </p>
-        <p className="text-xs text-stone-400 mt-1 text-center max-w-55">
+        <p className="text-xs text-slate-400 mt-1 text-center max-w-55">
           Ingresa el monto total al completar tu próxima compra para ver el gasto
         </p>
       </div>
     );
   }
   return (
-    <div className="flex flex-col items-center justify-center py-10 text-stone-300">
+    <div className="flex flex-col items-center justify-center py-10 text-slate-300">
       <span className="text-5xl mb-3">📊</span>
-      <p className="text-sm font-medium text-stone-400">Sin compras registradas</p>
-      <p className="text-xs text-stone-300 mt-1">Registra compras de productos para ver el gasto</p>
+      <p className="text-sm font-medium text-slate-400">Sin compras registradas</p>
+      <p className="text-xs text-slate-300 mt-1">Registra compras de productos para ver el gasto</p>
     </div>
   );
 }
@@ -49,16 +49,16 @@ export default async function MonthlyFoodWheel() {
   const prevMonthName = getMonthName(-1);
 
   return (
-    <section className="relative bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm">
+    <section className="relative bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
       <div className="flex items-center justify-center gap-3 mb-4">
         <span className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
           📊
         </span>
         <div className="min-w-0 text-center">
-          <h2 className="text-base sm:text-lg font-bold text-stone-800 dark:text-stone-100">
+          <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">
             Gasto en comida
           </h2>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Comparativa mes actual vs anterior
           </p>
         </div>

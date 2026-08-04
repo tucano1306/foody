@@ -140,27 +140,27 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
               <p className="text-xs uppercase tracking-wide text-brand-600 font-semibold">
                 🛒 Registrar compra
               </p>
-              <h2 className="text-lg font-bold text-stone-800 truncate">{product.name}</h2>
+              <h2 className="text-lg font-bold text-slate-800 truncate">{product.name}</h2>
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Cerrar"
-              className="text-stone-400 hover:text-stone-600 text-xl leading-none px-2"
+              className="text-slate-400 hover:text-slate-600 text-xl leading-none px-2"
             >
               ✕
             </button>
           </div>
 
           {/* Quantity */}
-          <label className="block text-sm font-medium text-stone-700 mb-1">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
             Cantidad ({product.unit})
           </label>
           <div className="flex items-center gap-2 mb-4">
             <button
               type="button"
               onClick={() => setQuantity((q) => String(Math.max(0, (Number.parseFloat(q) || 0) - 1)))}
-              className="w-10 h-10 rounded-xl bg-stone-100 hover:bg-stone-200 text-lg font-bold text-stone-600"
+              className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-lg font-bold text-slate-600"
             >
               −
             </button>
@@ -171,19 +171,19 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
               step="0.01"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              className="flex-1 text-center text-xl font-semibold bg-stone-50 border border-stone-200 rounded-xl py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              className="flex-1 text-center text-xl font-semibold bg-slate-50 border border-slate-200 rounded-xl py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
             <button
               type="button"
               onClick={() => setQuantity((q) => String((Number.parseFloat(q) || 0) + 1))}
-              className="w-10 h-10 rounded-xl bg-stone-100 hover:bg-stone-200 text-lg font-bold text-stone-600"
+              className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-lg font-bold text-slate-600"
             >
               +
             </button>
           </div>
 
           {/* Price mode toggle */}
-          <div className="flex gap-1 p-1 bg-stone-100 rounded-xl mb-2">
+          <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-2">
             {(['unit', 'total'] as const).map((m) => (
               <button
                 key={m}
@@ -191,8 +191,8 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
                 onClick={() => setPriceMode(m)}
                 className={`flex-1 text-xs font-semibold py-2 rounded-lg transition ${
                   priceMode === m
-                    ? 'bg-white text-stone-800 shadow-sm'
-                    : 'text-stone-500'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500'
                 }`}
               >
                 {m === 'unit' ? 'Precio unitario' : 'Total pagado'}
@@ -200,11 +200,11 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
             ))}
           </div>
 
-          <label className="block text-sm font-medium text-stone-700 mb-1">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
             {priceMode === 'unit' ? `Precio por ${product.unit}` : 'Total pagado'}
           </label>
           <div className="relative mb-3">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 font-medium">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">
               $
             </span>
             <input
@@ -216,18 +216,18 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
               onChange={(e) => setPrice(e.target.value)}
               placeholder="0.00"
               autoFocus
-              className="w-full pl-8 pr-4 py-2.5 text-lg font-semibold bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              className="w-full pl-8 pr-4 py-2.5 text-lg font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
           </div>
 
           {/* Live preview */}
           {qtyValid && priceValid && (
             <div className="bg-brand-50 border border-brand-100 rounded-xl p-3 mb-3 text-sm">
-              <div className="flex justify-between text-stone-600">
+              <div className="flex justify-between text-slate-600">
                 <span>Unitario:</span>
                 <span className="font-medium">{formatCurrency(unitPreview, currency)}</span>
               </div>
-              <div className="flex justify-between text-stone-800 font-bold mt-1">
+              <div className="flex justify-between text-slate-800 font-bold mt-1">
                 <span>Total:</span>
                 <span className="text-brand-700">{formatCurrency(totalPreview, currency)}</span>
               </div>
@@ -235,20 +235,20 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
           )}
 
           {/* Store */}
-          <label className="block text-sm font-medium text-stone-700 mb-1">
-            <span>Tienda <span className="text-stone-400 font-normal">(opcional)</span></span>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            <span>Tienda <span className="text-slate-400 font-normal">(opcional)</span></span>
             <input
               type="text"
               value={store}
               onChange={(e) => setStore(e.target.value)}
               placeholder="Walmart, Soriana…"
-              className="mt-1 w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
           </label>
           <div className="mb-4" />
 
           {error && (
-            <p className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2 mb-3">
+            <p className="text-sm text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-3">
               {error}
             </p>
           )}
@@ -257,7 +257,7 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-stone-200 text-stone-600 font-medium hover:bg-stone-50"
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50"
             >
               Cancelar
             </button>
@@ -271,7 +271,7 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
             </button>
           </div>
 
-          <p className="text-center text-[11px] text-stone-400 mt-3">
+          <p className="text-center text-[11px] text-slate-400 mt-3">
             Se sumará al stock y al gasto total
           </p>
         </section>

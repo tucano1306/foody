@@ -30,10 +30,10 @@ export default function PullToRefresh() {
         transition: pull === 0 ? 'transform 0.25s, opacity 0.25s' : 'none',
       }}
     >
-      <div className="mt-2 w-10 h-10 rounded-full bg-white shadow-lg border border-stone-200 flex items-center justify-center">
+      <div className="mt-2 w-10 h-10 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center">
         <span
           className={`text-xl ${refreshing || spinning ? 'animate-spin' : ''} ${
-            ready ? 'text-brand-600' : 'text-stone-400'
+            ready ? 'text-brand-600' : 'text-slate-400'
           }`}
           style={{
             transform: refreshing || spinning ? undefined : `rotate(${pull * 3}deg)`,

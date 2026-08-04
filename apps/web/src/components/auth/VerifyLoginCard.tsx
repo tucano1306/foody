@@ -17,7 +17,7 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
   const { email, callbackUrl, error, name } = props;
   return (
     <div className="w-full max-w-md mx-4">
-      <div className="bg-white rounded-3xl shadow-xl border border-stone-100 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="bg-linear-to-br from-brand-500 to-brand-600 p-8 text-center text-white">
           <div className="text-6xl mb-3">🔐</div>
           <h1 className="text-3xl font-bold">Verifica tu acceso</h1>
@@ -26,7 +26,7 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
 
         <div className="p-8">
           {error && (
-            <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+            <div className="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm">
               {ERROR_MESSAGES[error] ?? 'No se pudo verificar el codigo.'}
             </div>
           )}
@@ -42,7 +42,7 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
               pattern="[0-9]{6}"
               maxLength={6}
               placeholder="123456"
-              className="w-full px-4 py-3 rounded-xl border-2 border-stone-200 focus:border-brand-500 focus:outline-none text-center text-2xl tracking-[0.4em] font-semibold"
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-brand-500 focus:outline-none text-center text-2xl tracking-[0.4em] font-semibold"
             />
             <button
               type="submit"
@@ -58,13 +58,13 @@ export default function VerifyLoginCard(props: Readonly<Props>) {
             {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
             <button
               type="submit"
-              className="w-full py-3 px-6 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold transition-all"
+              className="w-full py-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-all"
             >
               Reenviar codigo
             </button>
           </form>
 
-          <a href="/login" className="block text-center text-sm text-stone-500 hover:text-stone-700 mt-4">
+          <a href="/login" className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-4">
             Cambiar email
           </a>
         </div>

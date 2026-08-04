@@ -92,7 +92,7 @@ export default function GreetingToast({ firstName }: Props) {
             <motion.div
               className="flex items-center gap-3 text-white px-4 sm:px-5 py-3 rounded-2xl shadow-md border border-white/20"
               style={{
-                backgroundImage: 'linear-gradient(115deg, #0284c7, #0e7490, #1e40af, #0284c7)',
+                backgroundImage: 'linear-gradient(115deg, #0284c7, #0369a1, #1e40af, #0284c7)',
                 backgroundSize: '300% 300%',
               }}
               animate={{ backgroundPosition: ['0% 50%', '100% 50%'] }}

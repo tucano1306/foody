@@ -260,9 +260,9 @@ export default function VoiceAssistant() {
     void startRecognition();
   }
 
-  let buttonColor = '#6366F1';
-  if (state === 'listening') buttonColor = '#EF4444';
-  else if (state === 'processing') buttonColor = '#F59E0B';
+  let buttonColor = '#0ea5e9';
+  if (state === 'listening') buttonColor = '#1d4ed8';
+  else if (state === 'processing') buttonColor = '#3b82f6';
 
   return (
     <div className="fixed bottom-24 right-4 z-70 flex flex-col items-end gap-2 md:bottom-8 md:right-8">
@@ -293,7 +293,7 @@ export default function VoiceAssistant() {
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ duration: 1, repeat: Infinity }}
-              className="w-2 h-2 rounded-full bg-red-400 inline-block"
+              className="w-2 h-2 rounded-full bg-blue-400 inline-block"
             />
             {state === 'starting' ? 'Activando micrófono…' : 'Escuchando…'}
           </motion.div>

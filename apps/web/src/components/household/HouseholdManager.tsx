@@ -212,17 +212,17 @@ export default function HouseholdManager() {
   }
 
   const inputCls =
-    'flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-stone-200 bg-stone-50 dark:bg-stone-800 dark:border-stone-700 text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-400 transition';
+    'flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-400 transition';
 
   const cardCls =
-    'bg-white dark:bg-stone-900 rounded-2xl p-5 border border-stone-100 dark:border-stone-800 shadow-sm';
+    'bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm';
 
   // ─── No household ──────────────────────────────────────────────────────
   if (!state?.household) {
     return (
       <div className="space-y-5 card-stagger">
         {error && (
-          <p className="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-sm px-4 py-2.5 rounded-xl border border-rose-100 dark:border-rose-800">
+          <p className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm px-4 py-2.5 rounded-xl border border-blue-100 dark:border-blue-800">
             {error}
           </p>
         )}
@@ -230,15 +230,15 @@ export default function HouseholdManager() {
         {/* Hero */}
         <div className="text-center pt-2">
           <span className="text-6xl inline-block animate-bounce" aria-hidden="true">🏡</span>
-          <p className="text-sm text-stone-500 dark:text-stone-400 mt-2">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
             Aún no formas parte de un hogar compartido
           </p>
         </div>
 
         {/* Create */}
         <section className={cardCls}>
-          <h3 className="font-bold text-stone-800 dark:text-stone-100 mb-1">🏡 Crea tu hogar</h3>
-          <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-1">🏡 Crea tu hogar</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
             Invita a tu familia a compartir la despensa y la lista del súper.
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -261,16 +261,16 @@ export default function HouseholdManager() {
         </section>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 text-stone-300 dark:text-stone-600 text-xs font-semibold" aria-hidden="true">
-          <span className="flex-1 border-t border-stone-200 dark:border-stone-700" />
+        <div className="flex items-center gap-3 text-slate-300 dark:text-slate-600 text-xs font-semibold" aria-hidden="true">
+          <span className="flex-1 border-t border-slate-200 dark:border-slate-700" />
           o
-          <span className="flex-1 border-t border-stone-200 dark:border-stone-700" />
+          <span className="flex-1 border-t border-slate-200 dark:border-slate-700" />
         </div>
 
         {/* Join */}
         <section className={cardCls}>
-          <h3 className="font-bold text-stone-800 dark:text-stone-100 mb-1">🔑 Únete a un hogar</h3>
-          <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-1">🔑 Únete a un hogar</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
             Pide el código de invitación a alguien de tu familia.
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -286,7 +286,7 @@ export default function HouseholdManager() {
               type="button"
               disabled={working || joinCode.trim().length < 4}
               onClick={handleJoin}
-              className="bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 transition"
+              className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold px-4 py-2.5 rounded-xl disabled:opacity-50 transition"
             >
               {working ? 'Uniendo…' : 'Unirme'}
             </button>
@@ -302,7 +302,7 @@ export default function HouseholdManager() {
   return (
     <div className="space-y-6 card-stagger">
       {error && (
-        <p className="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-sm px-4 py-2.5 rounded-xl border border-rose-100 dark:border-rose-800">
+        <p className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm px-4 py-2.5 rounded-xl border border-blue-100 dark:border-blue-800">
           {error}
         </p>
       )}
@@ -310,8 +310,8 @@ export default function HouseholdManager() {
       <section className={cardCls}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-bold text-stone-800 dark:text-stone-100 text-lg">{household.name}</h3>
-            <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{household.name}</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
               {members.length} {members.length === 1 ? 'miembro' : 'miembros'}
               {isOwner && ' · Eres el propietario'}
             </p>
@@ -320,13 +320,13 @@ export default function HouseholdManager() {
             type="button"
             onClick={() => setConfirmLeave(true)}
             disabled={working}
-            className={`text-sm px-3 py-1.5 rounded-lg transition ${isOwner ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 font-semibold' : 'text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30'}`}
+            className={`text-sm px-3 py-1.5 rounded-lg transition ${isOwner ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-semibold' : 'text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30'}`}
           >
             {isOwner ? 'Disolver hogar' : 'Salir'}
           </button>
         </div>
 
-        <ul className="space-y-1 divide-y divide-stone-100 dark:divide-stone-800 card-stagger">
+        <ul className="space-y-1 divide-y divide-slate-100 dark:divide-slate-800 card-stagger">
           {members.map((m) => (
             <li key={m.id}>
               {/* Whole row is tappable → member sheet (rename / sacar del hogar) */}
@@ -334,7 +334,7 @@ export default function HouseholdManager() {
                 type="button"
                 onClick={() => { haptic(10); setSelectedMember(m); }}
                 aria-label={`Opciones de ${m.name ?? m.email}`}
-                className="group w-full flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl text-left hover:bg-stone-50 dark:hover:bg-stone-800 active:bg-stone-100 dark:active:bg-stone-700 transition"
+                className="group w-full flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-700 transition"
               >
                 {m.avatarUrl ? (
                   <Image
@@ -350,10 +350,10 @@ export default function HouseholdManager() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-stone-800 dark:text-stone-100 text-sm truncate">
+                  <p className="font-medium text-slate-800 dark:text-slate-100 text-sm truncate">
                     {m.name ?? m.email}
                     {m.id === household.ownerId && (
-                      <span className="ml-2 text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="ml-2 text-[10px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold">
                         👑 Dueño
                       </span>
                     )}
@@ -363,21 +363,21 @@ export default function HouseholdManager() {
                       </span>
                     )}
                   </p>
-                  {m.name && <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{m.email}</p>}
+                  {m.name && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{m.email}</p>}
                 </div>
-                <span aria-hidden="true" className="text-stone-300 dark:text-stone-600 group-hover:text-brand-500 transition">›</span>
+                <span aria-hidden="true" className="text-slate-300 dark:text-slate-600 group-hover:text-brand-500 transition">›</span>
               </button>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
+        <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
           Toca un miembro para cambiar su nombre o sacarlo del hogar.
         </p>
       </section>
 
       <section className={cardCls}>
-        <h3 className="font-bold text-stone-800 dark:text-stone-100 mb-1">📨 Invitar a alguien</h3>
-        <p className="text-sm text-stone-500 dark:text-stone-400 mb-3">
+        <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-1">📨 Invitar a alguien</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
           Genera un código. Válido 7 días, un solo uso.
         </p>
 
@@ -386,7 +386,7 @@ export default function HouseholdManager() {
             <div className="flex items-center gap-2">
               <div
                 key={inviteCode}
-                className="animate-pop flex-1 px-4 py-3 rounded-xl bg-stone-50 dark:bg-stone-800 border-2 border-dashed border-brand-300 dark:border-brand-600 font-mono text-center text-2xl font-bold tracking-[0.3em] text-brand-600 dark:text-brand-400 select-all"
+                className="animate-pop flex-1 px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-2 border-dashed border-brand-300 dark:border-brand-600 font-mono text-center text-2xl font-bold tracking-[0.3em] text-brand-600 dark:text-brand-400 select-all"
               >
                 {inviteCode}
               </div>
@@ -404,7 +404,7 @@ export default function HouseholdManager() {
                 <button
                   type="button"
                   onClick={shareCode}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition"
+                  className="flex-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold transition"
                 >
                   📤 Compartir código
                 </button>
@@ -413,7 +413,7 @@ export default function HouseholdManager() {
                 type="button"
                 onClick={handleGenerateInvite}
                 disabled={working}
-                className="text-xs text-stone-500 dark:text-stone-400 hover:text-brand-600 dark:hover:text-brand-400 underline underline-offset-2 px-2 py-2 transition disabled:opacity-50"
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 underline underline-offset-2 px-2 py-2 transition disabled:opacity-50"
               >
                 Generar otro
               </button>

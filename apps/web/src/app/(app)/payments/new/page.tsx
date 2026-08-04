@@ -15,7 +15,7 @@ export default function NewPaymentPage() {
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         {/* Header */}
         <div className="bg-linear-to-br from-brand-500 to-brand-600 px-6 py-7 text-white">
           <div className="text-4xl mb-2">💳</div>

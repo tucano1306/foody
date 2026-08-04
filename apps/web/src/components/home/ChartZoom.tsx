@@ -40,7 +40,7 @@ export default function ChartZoom({ title, children }: Props) {
         onClick={() => setOpen(true)}
         aria-label={`Ampliar ${title}`}
         title="Ampliar"
-        className="absolute top-3.5 right-3.5 z-10 w-8 h-8 rounded-lg bg-stone-100 dark:bg-white/10 text-stone-500 dark:text-stone-300 flex items-center justify-center hover:bg-stone-200 dark:hover:bg-white/20 active:scale-95 transition"
+        className="absolute top-3.5 right-3.5 z-10 w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/20 active:scale-95 transition"
       >
         <ArrowsPointingOutIcon className="w-4 h-4" />
       </button>
@@ -49,18 +49,18 @@ export default function ChartZoom({ title, children }: Props) {
       {children}
 
       {open && createPortal(
-        <div className="fixed inset-0 z-[100] bg-white dark:bg-stone-900 overflow-hidden">
+        <div className="fixed inset-0 z-[100] bg-white dark:bg-slate-900 overflow-hidden">
           {/* Portrait phones: rotate the panel 90° to use the screen in landscape.
               Tailwind v4 composes translate → rotate, so the box is centered
               first and then turned around its own center. */}
           <div className="w-full h-full flex flex-col portrait:fixed portrait:top-1/2 portrait:left-1/2 portrait:w-[100dvh] portrait:h-[100dvw] portrait:-translate-x-1/2 portrait:-translate-y-1/2 portrait:rotate-90">
             <header className="flex items-center justify-between gap-3 px-5 pt-4 pb-2 shrink-0">
-              <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100 truncate">{title}</h2>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate">{title}</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Cerrar"
-                className="w-9 h-9 rounded-full bg-stone-100 dark:bg-white/10 text-stone-600 dark:text-stone-300 flex items-center justify-center hover:bg-stone-200 dark:hover:bg-white/20 active:scale-95 transition shrink-0"
+                className="w-9 h-9 rounded-full bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/20 active:scale-95 transition shrink-0"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>

@@ -48,6 +48,9 @@ interface PriceEntry {
 }
 
 /** Effective money of one entry: quantity × per-unit price, regardless of mode. */
+/** Desplazamiento a partir del cual el gesto cuenta como acción. */
+const CART_SWIPE_THRESHOLD = 80;
+
 function entryTotal(e: PriceEntry): number {
   if (e.mode === 'lb') {
     return e.unitPrice != null && e.qty > 0 ? Math.round(e.qty * e.unitPrice * 100) / 100 : 0;
@@ -68,7 +71,7 @@ interface PersistedState {
 
 // localStorage (not sessionStorage): the in-progress shopping session must
 // survive the phone locking, the PWA being killed, or an accidental close.
-const STORAGE_KEY = 'foody-market-session-v2';
+const STORAGE_KEY = 'foody-sky-session-v2';
 
 function loadPersisted(): PersistedState {
   const empty: PersistedState = { entries: {}, cartTimes: {}, storeName: '', totalAmount: '' };
@@ -476,12 +479,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     return (
       <div className="text-center py-20">
         <p className="text-6xl mb-4"><span className="inline-block animate-bounce">🎉</span></p>
-        <h2 className="text-xl font-semibold text-stone-600 mb-2">¡Lista vacía!</h2>
-        <p className="text-stone-400">No tienes productos marcados para comprar.</p>
+        <h2 className="text-xl font-semibold text-slate-600 mb-2">¡Lista vacía!</h2>
+        <p className="text-slate-400">No tienes productos marcados para comprar.</p>
         <button
           type="button"
           onClick={() => setShowAddSheet(true)}
-          className="mt-5 px-5 py-2.5 rounded-xl bg-market-600 hover:bg-market-700 text-white text-sm font-bold transition active:scale-95 shadow-sm"
+          className="mt-5 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold transition active:scale-95 shadow-sm"
         >
           ＋ Agregar un producto a la lista
         </button>
@@ -504,20 +507,20 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   return (
     <div className="space-y-5 pb-32">
       {/* ─── Progress ────────────────────────────────────────────────────────── */}
-      <div ref={progressRef} className="bg-white dark:bg-stone-900 rounded-2xl p-4 border border-stone-100 dark:border-stone-800 shadow-sm">
+      <div ref={progressRef} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
         <div className="flex justify-between items-baseline mb-2">
-          <span className="text-sm font-semibold text-stone-700 dark:text-stone-200">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
             {progress === 100 ? (
               <span className="inline-block animate-pop">🎉 ¡Carrito completo!</span>
             ) : (
               `${inCart.length} / ${items.length} en el carrito`
             )}
           </span>
-          <span className={`text-xs ${progress === 100 ? 'font-bold text-market-600' : 'text-stone-400'}`}>
+          <span className={`text-xs ${progress === 100 ? 'font-bold text-sky-600' : 'text-slate-400'}`}>
             {Math.round(progress)}%
           </span>
         </div>
-        <div className="relative h-3 bg-stone-100 dark:bg-stone-800 rounded-full">
+        <div className="relative h-3 bg-slate-100 dark:bg-slate-800 rounded-full">
           <div
             className="progress-fun h-full rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
@@ -541,33 +544,33 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 420, damping: 22 }}
-            className="bg-linear-to-br from-market-50 to-emerald-50 border border-market-200 rounded-2xl px-4 py-3 shadow-sm overflow-hidden"
+            className="bg-linear-to-br from-sky-50 to-sky-50 border border-sky-200 rounded-2xl px-4 py-3 shadow-sm overflow-hidden"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-market-600 uppercase tracking-wider mb-0.5">
+                <p className="text-[11px] font-semibold text-sky-600 uppercase tracking-wider mb-0.5">
                   🧮 {hasEstimated ? 'Estimado en carrito' : 'Total en carrito'}
                 </p>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-base font-bold text-market-700">$</span>
+                  <span className="text-base font-bold text-sky-700">$</span>
                   <motion.span
                     key={Math.round(runningTotal * 100)}
                     initial={{ y: 6, opacity: 0.6 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 600, damping: 18 }}
-                    className="text-3xl font-black text-market-800 tabular-nums"
+                    className="text-3xl font-black text-sky-800 tabular-nums"
                   >
                     {runningTotal > 0 ? runningTotal.toFixed(2) : '0.00'}
                   </motion.span>
                 </div>
-                <p className="text-[11px] text-market-600/70 mt-0.5">
+                <p className="text-[11px] text-sky-600/70 mt-0.5">
                   {pricedCount === 0
                     ? `${inCart.length} en el carrito · toca 💵 en un producto para poner su precio`
                     : `${pricedCount} de ${inCart.length} con precio${hasEstimated ? ' · algunos estimados' : ''}`}
                 </p>
               </div>
 
-              <div className="flex flex-col items-center justify-center bg-market-600 text-white rounded-xl px-3 py-2 shrink-0 shadow-sm">
+              <div className="flex flex-col items-center justify-center bg-sky-600 text-white rounded-xl px-3 py-2 shrink-0 shadow-sm">
                 <motion.span
                   key={inCart.length}
                   initial={{ scale: 0.65, opacity: 0.5 }}
@@ -590,20 +593,20 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       <div className="space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1 min-w-0">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">🔍</span>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Busca un producto o categoría…"
               aria-label="Buscar producto o categoría"
-              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
             />
             {search && (
               <button
                 type="button"
                 aria-label="Limpiar búsqueda"
                 onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 text-xs"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs"
               >
                 ✕
               </button>
@@ -612,7 +615,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           <button
             type="button"
             onClick={() => setShowAddSheet(true)}
-            className="shrink-0 px-3.5 py-2.5 rounded-xl bg-market-600 hover:bg-market-700 text-white text-sm font-bold transition active:scale-95 shadow-sm"
+            className="shrink-0 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold transition active:scale-95 shadow-sm"
           >
             ＋ Agregar
           </button>
@@ -630,8 +633,8 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               aria-pressed={filter === k}
               className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${
                 filter === k
-                  ? 'bg-market-600 text-white shadow-sm'
-                  : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-market-300'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-sky-300'
               }`}
             >
               {label}
@@ -641,12 +644,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
         {availableCategories.length > 1 && (
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">📂</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">📂</span>
             <select
               value={categoryFilter ?? ''}
               onChange={(e) => setCategoryFilter(e.target.value || null)}
               aria-label="Filtrar por categoría"
-              className="w-full appearance-none pl-9 pr-9 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-market-300 transition cursor-pointer"
+              className="w-full appearance-none pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-300 transition cursor-pointer"
             >
               <option value="">Todas las categorías</option>
               {availableCategories.map((cat) => (
@@ -655,24 +658,24 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 </option>
               ))}
             </select>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">▾</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">▾</span>
           </div>
         )}
       </div>
 
       {/* ─── Search verdict: nothing pending, but maybe already bought ───────── */}
       {searching && visiblePending.length === 0 && visiblePurchased.length > 0 && (
-        <div className="flex items-center gap-2.5 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-2.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900 rounded-2xl px-4 py-3">
           <span className="text-xl shrink-0">✅</span>
-          <p className="text-sm text-green-800 dark:text-green-200 leading-snug">
+          <p className="text-sm text-sky-800 dark:text-sky-200 leading-snug">
             <strong>Ya está en tu carrito.</strong> Lo encontrarás abajo en «Comprados».
           </p>
         </div>
       )}
       {searching && visiblePending.length === 0 && visiblePurchased.length === 0 && (
-        <div className="text-center py-8 px-4 bg-white dark:bg-stone-900 rounded-2xl border border-dashed border-stone-200 dark:border-stone-700">
+        <div className="text-center py-8 px-4 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
           <p className="text-3xl mb-2">🔍</p>
-          <p className="text-sm text-stone-500 dark:text-stone-400">No está en la lista de hoy</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No está en la lista de hoy</p>
           {search.trim() && (
             <motion.button
               type="button"
@@ -681,7 +684,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               animate={{ scale: 1, opacity: 1 }}
               whileTap={{ scale: 0.96 }}
               transition={{ type: 'spring', stiffness: 400, damping: 18 }}
-              className="animate-glow mt-4 w-full flex flex-col items-center gap-1 px-5 py-4 rounded-2xl bg-linear-to-r from-market-500 to-emerald-600 hover:from-market-600 hover:to-emerald-700 text-white shadow-xl shadow-market-500/40 transition"
+              className="animate-glow mt-4 w-full flex flex-col items-center gap-1 px-5 py-4 rounded-2xl bg-linear-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white shadow-xl shadow-sky-500/40 transition"
             >
               <span className="flex items-center gap-2 text-base font-black">
                 <span className="text-xl" aria-hidden="true">🔎➕</span>
@@ -694,7 +697,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             <button
               type="button"
               onClick={() => { setSearch(''); setFilter('all'); setCategoryFilter(null); }}
-              className="px-4 py-1.5 rounded-full text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition"
+              className="px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
             >
               Limpiar filtros
             </button>
@@ -706,10 +709,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       {visiblePending.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3 px-1">
-            <h2 className="text-sm font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wide">
+            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
               🛒 Por comprar
             </h2>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
               {visiblePending.length} {pluralize(visiblePending.length, 'producto', 'productos')}
             </span>
           </div>
@@ -723,6 +726,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 lineQty={entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded))}
                 onOpen={() => setEditorItemId(item.id)}
                 onZoom={(src, origin) => setZoomItem({ src, alt: item.product.name, origin })}
+                onToggleCart={() => toggleItem(item.id)}
               />
             ))}
           </div>
@@ -730,10 +734,10 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       )}
 
       {notInCart.length === 0 && inCart.length > 0 && !searching && (
-        <div className="text-center py-8 bg-market-50/60 dark:bg-market-900/20 rounded-2xl border border-market-200 dark:border-market-800">
+        <div className="text-center py-8 bg-sky-50/60 dark:bg-sky-900/20 rounded-2xl border border-sky-200 dark:border-sky-800">
           <p className="text-3xl mb-2">🎉</p>
-          <p className="text-sm font-semibold text-market-700 dark:text-market-300">¡Todo está en el carrito!</p>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+          <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">¡Todo está en el carrito!</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Toca «Finalizar compra» abajo para registrarla
           </p>
         </div>
@@ -743,16 +747,16 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
       {visiblePurchased.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3 px-1">
-            <h2 className="text-sm font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wide">
+            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
               ✔️ Comprados
             </h2>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
               {visiblePurchasedTotal > 0
                 ? `${visiblePurchased.length} · ${visibleHasEstimated ? '≈' : ''}$${visiblePurchasedTotal.toFixed(2)}`
                 : `${visiblePurchased.length} ${pluralize(visiblePurchased.length, 'producto', 'productos')}`}
             </span>
           </div>
-          <p className="text-[11px] text-stone-400 dark:text-stone-500 px-1 mb-2">
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1 mb-2">
             El último que agarraste aparece primero · toca 💵 para ponerle precio
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -765,6 +769,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 lineQty={entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded))}
                 onOpen={() => setEditorItemId(item.id)}
                 onZoom={(src, origin) => setZoomItem({ src, alt: item.product.name, origin })}
+                onToggleCart={() => toggleItem(item.id)}
               />
             ))}
           </div>
@@ -777,7 +782,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           <motion.button
             onClick={openModal}
             disabled={completing}
-            className={`w-full bg-linear-to-r from-market-500 to-market-700 hover:from-market-600 hover:to-market-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-market-500/30 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2${notInCart.length === 0 ? ' animate-glow' : ''}`}
+            className={`w-full bg-linear-to-r from-sky-500 to-sky-700 hover:from-sky-600 hover:to-sky-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-sky-500/30 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2${notInCart.length === 0 ? ' animate-glow' : ''}`}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 400, damping: 18 }}
           >
@@ -876,12 +881,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
             onKeyDown={(e) => { if (e.key === 'Escape') setShowModal(false); }}
           />
 
-          <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
+          <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">🛒 Finalizar compra</h2>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">🛒 Finalizar compra</h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500 transition"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition"
               >
                 ✕
               </button>
@@ -889,7 +894,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
             <label
               htmlFor="modal-store-name"
-              className="block text-sm font-semibold text-stone-700 dark:text-stone-200 mb-1.5"
+              className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1.5"
             >
               ¿En qué supermercado compraste?
             </label>
@@ -899,7 +904,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
               placeholder="Ej. Walmart, Soriana, HEB…"
-              className="w-full px-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition mb-4"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-300 transition mb-4"
             />
             {pastStoreNames && pastStoreNames.length > 0 && (
               <datalist id="store-suggestions">
@@ -911,12 +916,12 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
 
             <label
               htmlFor="modal-total-amount"
-              className="block text-sm font-semibold text-stone-700 dark:text-stone-200 mb-1.5"
+              className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1.5"
             >
               ¿Cuánto gastaste en total?
             </label>
             <div className="relative mb-1.5">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
               <input
                 id="modal-total-amount"
                 type="number"
@@ -926,20 +931,20 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 value={totalAmount}
                 onChange={(e) => setTotalAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
               />
             </div>
             {runningTotal > 0 && (
-              <div className="flex items-center justify-between bg-market-50 border border-market-200 rounded-xl px-3 py-2 mb-3 mt-2">
-                <span className="text-sm text-market-700 font-medium">
+              <div className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-xl px-3 py-2 mb-3 mt-2">
+                <span className="text-sm text-sky-700 font-medium">
                   💰 Suma de tus precios ({pricedCount}/{inCart.length})
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-market-700">${runningTotal.toFixed(2)}</span>
+                  <span className="font-bold text-sky-700">${runningTotal.toFixed(2)}</span>
                   <button
                     type="button"
                     onClick={() => setTotalAmount(runningTotal.toFixed(2))}
-                    className="text-xs px-2.5 py-0.5 rounded-full bg-market-600 text-white font-semibold transition hover:bg-market-700"
+                    className="text-xs px-2.5 py-0.5 rounded-full bg-sky-600 text-white font-semibold transition hover:bg-sky-700"
                   >
                     Usar
                   </button>
@@ -947,7 +952,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               </div>
             )}
 
-            <p className="text-sm font-semibold text-stone-700 dark:text-stone-200 mb-2">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
               Resumen · toca un producto para ajustar
             </p>
             <div className="flex-1 overflow-y-auto space-y-2 mb-5 pr-1">
@@ -960,17 +965,17 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                     key={item.id}
                     type="button"
                     onClick={() => setEditorItemId(item.id)}
-                    className="w-full text-left bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5 border border-stone-100 dark:border-stone-700 hover:border-market-300 transition"
+                    className="w-full text-left bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-slate-700 hover:border-sky-300 transition"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-stone-700 dark:text-stone-200 truncate min-w-0">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate min-w-0">
                         {item.product.name}
                       </span>
-                      <span className={`text-xs font-bold shrink-0 ${lineTotal > 0 ? 'text-market-700' : 'text-stone-400'}`}>
+                      <span className={`text-xs font-bold shrink-0 ${lineTotal > 0 ? 'text-sky-700' : 'text-slate-400'}`}>
                         {lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : 'sin precio'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-stone-400 mt-0.5">
+                    <p className="text-[11px] text-slate-400 mt-0.5">
                       {fmtQty(qty)} {item.product.unit || 'unid.'}
                       {list.filter(entryHasPrice).length > 1 && (
                         <> · {list
@@ -992,7 +997,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="flex-1 py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition"
+                className="flex-1 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition"
               >
                 Cancelar
               </button>
@@ -1000,7 +1005,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
                 type="button"
                 onClick={confirmShopping}
                 disabled={completing}
-                className="flex-1 py-3 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-sm transition disabled:opacity-50 active:scale-[0.98]"
+                className="flex-1 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm transition disabled:opacity-50 active:scale-[0.98]"
               >
                 {completing ? 'Guardando…' : '✓ Confirmar'}
               </button>
@@ -1021,6 +1026,7 @@ function ProductPurchaseCard({
   lineQty,
   onOpen,
   onZoom,
+  onToggleCart,
 }: {
   readonly item: ShoppingListItem;
   readonly inCart: boolean;
@@ -1029,17 +1035,36 @@ function ProductPurchaseCard({
   /** Tapping anywhere on the card opens the product's action sheet. */
   readonly onOpen: () => void;
   readonly onZoom: (src: string, origin?: DOMRect) => void;
+  /** Deslizar hacia los lados mete o saca del carrito sin abrir nada. */
+  readonly onToggleCart: () => void;
 }) {
   const product = item.product;
   const urgent = !inCart && product.stockLevel === 'empty';
   const photoRef = useRef<HTMLButtonElement>(null);
 
-  let borderCls = 'border-stone-100 dark:border-stone-800';
-  if (inCart) borderCls = 'border-market-300 ring-2 ring-market-200/70 dark:border-market-700 dark:ring-market-900';
-  else if (urgent) borderCls = 'border-rose-300 ring-1 ring-rose-200 dark:border-rose-800';
+  let borderCls = 'border-slate-100 dark:border-slate-800';
+  if (inCart) borderCls = 'border-sky-300 ring-2 ring-sky-200/70 dark:border-sky-700 dark:ring-sky-900';
+  else if (urgent) borderCls = 'border-blue-300 ring-1 ring-blue-200 dark:border-blue-800';
 
   return (
-    <div className={`group relative bg-white dark:bg-stone-900 rounded-2xl border shadow-md transition-all duration-200 flex flex-col overflow-hidden ${borderCls}`}>
+    /* En la tienda se compra con una mano: deslizar la tarjeta la mete o la
+       saca del carrito, sin abrir la hoja de opciones. Debajo asoma la acción
+       para que el gesto se descubra solo la primera vez. */
+    <div className="relative rounded-2xl overflow-hidden">
+      <div className="absolute inset-0 flex items-center justify-center bg-linear-to-r from-sky-200 to-blue-200" aria-hidden="true">
+        <span className="text-xs font-black text-black text-center px-2">
+          {inCart ? '↩︎ Sacar del carrito' : '✓ Al carrito'}
+        </span>
+      </div>
+    <motion.div
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.5}
+      onDragEnd={(_, info) => {
+        if (Math.abs(info.offset.x) > CART_SWIPE_THRESHOLD) onToggleCart();
+      }}
+      className={`group relative bg-white dark:bg-slate-900 rounded-2xl border shadow-md transition-all duration-200 flex flex-col overflow-hidden touch-pan-y ${borderCls}`}
+    >
       {/* Whole card = one tap target that opens the action sheet. Nothing
           happens by accident: buying, pricing and removing live in the sheet. */}
       <button
@@ -1049,7 +1074,7 @@ function ProductPurchaseCard({
         onClick={onOpen}
         className="w-full text-left focus:outline-none flex-1 flex flex-col"
       >
-        <span className="relative aspect-4/3 bg-stone-50 dark:bg-stone-800 w-full overflow-hidden block">
+        <span className="relative aspect-4/3 bg-slate-50 dark:bg-slate-800 w-full overflow-hidden block">
           {product.photoUrl ? (
             <Image
               src={product.photoUrl}
@@ -1059,20 +1084,20 @@ function ProductPurchaseCard({
               sizes="(max-width: 640px) 50vw, 25vw"
             />
           ) : (
-            <span className="absolute inset-0 flex items-center justify-center text-4xl opacity-40 bg-linear-to-br from-sky-50 to-stone-100 dark:from-stone-800 dark:to-stone-900">
+            <span className="absolute inset-0 flex items-center justify-center text-4xl opacity-40 bg-linear-to-br from-sky-50 to-slate-100 dark:from-slate-800 dark:to-slate-900">
               {categoryEmoji(product.category)}
             </span>
           )}
 
           {/* Status badge */}
           {inCart ? (
-            <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-market-500 text-white flex items-center justify-center text-sm font-bold shadow">
+            <span className="absolute top-2 right-2 w-7 h-7 rounded-full bg-sky-500 text-white flex items-center justify-center text-sm font-bold shadow">
               ✓
             </span>
           ) : (
             <span
               className={`absolute top-2 right-2 text-[9px] font-bold tracking-wide uppercase px-2 py-1 rounded-full bg-white/95 backdrop-blur-sm shadow-sm ${
-                urgent ? 'text-rose-600' : 'text-amber-600'
+                urgent ? 'text-blue-600' : 'text-sky-600'
               }`}
             >
               {urgent ? '🚨 Urgente' : '⚠️ Bajo'}
@@ -1081,7 +1106,7 @@ function ProductPurchaseCard({
 
           {/* Line total captured so far */}
           {inCart && lineTotal > 0 && (
-            <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-market-600 text-white shadow tabular-nums">
+            <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-600 text-white shadow tabular-nums">
               ${lineTotal.toFixed(2)}
             </span>
           )}
@@ -1089,20 +1114,20 @@ function ProductPurchaseCard({
 
         {/* Info */}
         <span className="block p-2">
-          <span className={`block font-semibold text-xs truncate ${inCart ? 'text-stone-400 line-through' : 'text-stone-800 dark:text-stone-100'}`}>
+          <span className={`block font-semibold text-xs truncate ${inCart ? 'text-slate-400 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
             {product.name}
           </span>
           {product.category && (
-            <span className="block text-[10px] text-stone-400 uppercase tracking-wide mt-0.5 truncate">{product.category}</span>
+            <span className="block text-[10px] text-slate-400 uppercase tracking-wide mt-0.5 truncate">{product.category}</span>
           )}
-          <span className="block text-[10px] text-stone-400 mt-0.5 tabular-nums">
+          <span className="block text-[10px] text-slate-400 mt-0.5 tabular-nums">
             {fmtQty(lineQty)} {product.unit || 'unid.'}
             {!inCart && product.lastPurchasePrice != null && ` · últ. $${product.lastPurchasePrice.toFixed(2)}`}
           </span>
           <span className={`mt-1.5 mb-0.5 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold ${
             inCart
-              ? 'bg-market-50 text-market-700 dark:bg-market-900/30 dark:text-market-300'
-              : 'bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+              ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+              : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
           }`}>
             {inCart ? '✓ Comprado · toca para opciones' : 'Toca para comprar / precio'}
           </span>
@@ -1120,6 +1145,7 @@ function ProductPurchaseCard({
           🔍
         </button>
       )}
+    </motion.div>
     </div>
   );
 }
@@ -1179,7 +1205,7 @@ function PriceEditorSheet({
         onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
       />
 
-      <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <button
@@ -1188,7 +1214,7 @@ function PriceEditorSheet({
             aria-label={product.photoUrl ? `Ver foto de ${product.name}` : undefined}
             disabled={!product.photoUrl}
             onClick={() => product.photoUrl && onZoom(product.photoUrl, sheetPhotoRef.current?.getBoundingClientRect())}
-            className="w-14 h-14 rounded-xl overflow-hidden bg-stone-100 dark:bg-stone-800 shrink-0 relative focus:outline-none active:scale-95 transition"
+            className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 relative focus:outline-none active:scale-95 transition"
           >
             {product.photoUrl ? (
               <>
@@ -1202,24 +1228,24 @@ function PriceEditorSheet({
             )}
           </button>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-bold text-stone-800 dark:text-stone-100 truncate">{product.name}</h2>
-            <p className="text-[11px] text-stone-400">
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 truncate">{product.name}</h2>
+            <p className="text-[11px] text-slate-400">
               {byWeight ? `Se vende por peso (${unitLabel})` : `Se vende por ${unitLabel}`}
               {product.lastPurchasePrice != null && ` · última vez $${product.lastPurchasePrice.toFixed(2)}`}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500 transition shrink-0"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition shrink-0"
           >
             ✕
           </button>
         </div>
 
         {/* Hint */}
-        <div className="flex items-start gap-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 rounded-xl px-3 py-2 mb-3">
+        <div className="flex items-start gap-2 bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900 rounded-xl px-3 py-2 mb-3">
           <span className="text-sm shrink-0">💡</span>
-          <p className="text-[11px] text-indigo-700 dark:text-indigo-300 leading-snug">
+          <p className="text-[11px] text-sky-700 dark:text-sky-300 leading-snug">
             {byWeight
               ? `Pesa y anota lo que dice la balanza: cuántas ${unitLabel} y cuánto costó ese paquete. Si llevas varios paquetes, agrega una línea por cada uno.`
               : 'Cada línea es un empaque con su precio. ¿Dos bandejas de carne, o un aceite grande y uno pequeño con precios distintos? Agrega una línea para cada uno y ponle una nota para distinguirlos.'}
@@ -1230,7 +1256,7 @@ function PriceEditorSheet({
         <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-1">
           {entries.map((entry, index) => (
             // eslint-disable-next-line react/no-array-index-key
-            <div key={index} className="bg-stone-50 dark:bg-stone-800 rounded-xl px-3 py-2.5 border border-stone-100 dark:border-stone-700">
+            <div key={index} className="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2 gap-2">
                 {entries.length > 1 ? (
                   <input
@@ -1240,10 +1266,10 @@ function PriceEditorSheet({
                     placeholder={`${byWeight ? 'Paquete' : 'Empaque'} ${index + 1} · nota (ej. grande)`}
                     maxLength={30}
                     onChange={(e) => setEntry(index, { label: e.target.value })}
-                    className="flex-1 min-w-0 text-[11px] font-bold text-stone-600 dark:text-stone-300 uppercase tracking-wide bg-transparent border-b border-dashed border-stone-200 dark:border-stone-700 focus:outline-none focus:border-market-400 placeholder:normal-case placeholder:font-normal placeholder:text-stone-400 pb-0.5"
+                    className="flex-1 min-w-0 text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-200 dark:border-slate-700 focus:outline-none focus:border-sky-400 placeholder:normal-case placeholder:font-normal placeholder:text-slate-400 pb-0.5"
                   />
                 ) : (
-                  <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wide">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
                     Cantidad y precio
                   </span>
                 )}
@@ -1252,7 +1278,7 @@ function PriceEditorSheet({
                     type="button"
                     aria-label="Quitar esta línea"
                     onClick={() => removeEntry(index)}
-                    className="text-[11px] text-stone-400 hover:text-rose-500 transition font-semibold"
+                    className="text-[11px] text-slate-400 hover:text-blue-500 transition font-semibold"
                   >
                     ✕ quitar
                   </button>
@@ -1273,8 +1299,8 @@ function PriceEditorSheet({
                         onClick={() => setEntry(index, { mode: 'unit' })}
                         className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition active:scale-95 ${
                           mode === 'unit'
-                            ? 'bg-market-600 text-white shadow-sm'
-                            : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-500'
+                            ? 'bg-sky-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500'
                         }`}
                       >
                         📦 Por unidad
@@ -1285,8 +1311,8 @@ function PriceEditorSheet({
                         onClick={() => setEntry(index, { mode: 'lb' })}
                         className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition active:scale-95 ${
                           mode === 'lb'
-                            ? 'bg-market-600 text-white shadow-sm'
-                            : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-500'
+                            ? 'bg-sky-600 text-white shadow-sm'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500'
                         }`}
                       >
                         ⚖️ Por libra
@@ -1295,12 +1321,12 @@ function PriceEditorSheet({
 
                     <div className="flex items-center gap-2">
                       {/* Quantity (units or pounds) */}
-                      <div className="flex items-center gap-0.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl p-0.5">
+                      <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-0.5">
                         <button
                           type="button"
                           aria-label="Menos"
                           onClick={() => setEntry(index, { qty: Math.max(step, Math.round((entry.qty - step) * 100) / 100) })}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition text-lg font-bold"
                         >
                           −
                         </button>
@@ -1316,22 +1342,22 @@ function PriceEditorSheet({
                             const n = e.target.value === '' ? 0 : Number(e.target.value);
                             if (Number.isFinite(n) && n >= 0) setEntry(index, { qty: n });
                           }}
-                          className="w-12 text-center text-sm font-bold text-stone-800 dark:text-stone-100 bg-transparent focus:outline-none tabular-nums"
+                          className="w-12 text-center text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none tabular-nums"
                         />
                         <button
                           type="button"
                           aria-label="Más"
                           onClick={() => setEntry(index, { qty: Math.round((entry.qty + step) * 100) / 100 })}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-90 transition text-lg font-bold"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition text-lg font-bold"
                         >
                           ＋
                         </button>
-                        <span className="text-[10px] text-stone-400 pr-1.5">{qtyLabel}</span>
+                        <span className="text-[10px] text-slate-400 pr-1.5">{qtyLabel}</span>
                       </div>
 
                       {/* Price per unit (unit) or price per pound (lb) — both × qty */}
                       <div className="relative flex-1 min-w-0">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 font-semibold text-sm">$</span>
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
                         {mode === 'lb' ? (
                           <input
                             type="number"
@@ -1347,7 +1373,7 @@ function PriceEditorSheet({
                               const n = Number(raw);
                               if (Number.isFinite(n) && n >= 0) setEntry(index, { unitPrice: n });
                             }}
-                            className="w-full pl-6 pr-2 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-sm font-bold text-stone-800 dark:text-stone-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                            className="w-full pl-6 pr-2 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
                           />
                         ) : (
                           <input
@@ -1364,7 +1390,7 @@ function PriceEditorSheet({
                               const n = Number(raw);
                               if (Number.isFinite(n) && n >= 0) setEntry(index, { total: n });
                             }}
-                            className="w-full pl-6 pr-2 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-sm font-bold text-stone-800 dark:text-stone-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+                            className="w-full pl-6 pr-2 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
                           />
                         )}
                       </div>
@@ -1374,7 +1400,7 @@ function PriceEditorSheet({
                         type="button"
                         aria-label="Escanear precio con la cámara"
                         onClick={() => onScan(index)}
-                        className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-market-300 transition active:scale-95 text-base"
+                        className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-sky-300 transition active:scale-95 text-base"
                       >
                         📷
                       </button>
@@ -1382,7 +1408,7 @@ function PriceEditorSheet({
 
                     {/* The app does the math: lbs × $/lb */}
                     {mode === 'lb' && (
-                      <p className="mt-1.5 text-[11px] font-semibold text-market-700 dark:text-market-300 tabular-nums">
+                      <p className="mt-1.5 text-[11px] font-semibold text-sky-700 dark:text-sky-300 tabular-nums">
                         {entry.unitPrice != null && entry.qty > 0
                           ? `${fmtQty(entry.qty)} lb × $${entry.unitPrice.toFixed(2)}/lb = $${computed.toFixed(2)}`
                           : 'Pon las libras y el precio por libra — la app calcula el total.'}
@@ -1391,7 +1417,7 @@ function PriceEditorSheet({
 
                     {/* The app does the math: units × $/unit */}
                     {mode === 'unit' && (
-                      <p className="mt-1.5 text-[11px] font-semibold text-market-700 dark:text-market-300 tabular-nums">
+                      <p className="mt-1.5 text-[11px] font-semibold text-sky-700 dark:text-sky-300 tabular-nums">
                         {entry.total != null && entry.qty > 0
                           ? `${fmtQty(entry.qty)} ${qtyLabel} × $${entry.total.toFixed(2)} = $${computed.toFixed(2)}`
                           : `Pon la cantidad y el precio por ${qtyLabel} — la app calcula el total.`}
@@ -1406,18 +1432,18 @@ function PriceEditorSheet({
           <button
             type="button"
             onClick={addEntry}
-            className="w-full py-2.5 rounded-xl border-2 border-dashed border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400 text-xs font-bold hover:border-market-300 hover:text-market-600 transition active:scale-[0.99]"
+            className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-bold hover:border-sky-300 hover:text-sky-600 transition active:scale-[0.99]"
           >
             ＋ Agregar otro {byWeight ? 'paquete pesado' : 'empaque con distinto precio'}
           </button>
         </div>
 
         {/* Running line summary */}
-        <div className="flex items-center justify-between bg-market-50 dark:bg-market-900/20 border border-market-200 dark:border-market-800 rounded-xl px-3 py-2 mb-3">
-          <span className="text-sm text-market-700 dark:text-market-300 font-medium">
+        <div className="flex items-center justify-between bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl px-3 py-2 mb-3">
+          <span className="text-sm text-sky-700 dark:text-sky-300 font-medium">
             {fmtQty(totalQty)} {unitLabel} en total
           </span>
-          <span className="font-bold text-market-700 dark:text-market-300 tabular-nums">
+          <span className="font-bold text-sky-700 dark:text-sky-300 tabular-nums">
             {lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : 'sin precio'}
           </span>
         </div>
@@ -1428,7 +1454,7 @@ function PriceEditorSheet({
             <button
               type="button"
               onClick={() => { onMarkBought(); onClose(); }}
-              className="w-full py-3 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-sm transition active:scale-[0.98]"
+              className="w-full py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm transition active:scale-[0.98]"
             >
               🛒 Marcar como comprado
             </button>
@@ -1437,7 +1463,7 @@ function PriceEditorSheet({
             <button
               type="button"
               onClick={() => { onReturnToPending(); onClose(); }}
-              className="w-full py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition active:scale-[0.98]"
+              className="w-full py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-[0.98]"
             >
               ↩ Devolver a «Por comprar»
             </button>
@@ -1445,7 +1471,7 @@ function PriceEditorSheet({
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3 rounded-2xl border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold text-sm hover:bg-stone-50 dark:hover:bg-stone-800 transition"
+            className="w-full py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition"
           >
             ✓ Listo
           </button>
@@ -1453,7 +1479,7 @@ function PriceEditorSheet({
             <button
               type="button"
               onClick={onRemoveFromList}
-              className="w-full py-2.5 rounded-2xl text-rose-500 font-semibold text-xs hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+              className="w-full py-2.5 rounded-2xl text-blue-500 font-semibold text-xs hover:bg-blue-50 dark:hover:bg-blue-950/30 transition"
             >
               🚫 No estaba en el súper — quitar de la lista
             </button>
@@ -1599,9 +1625,9 @@ function AddProductSheet({
   }
 
   function stockBadge(level: PantryPick['stockLevel']) {
-    if (level === 'empty') return <span className="text-[9px] font-bold uppercase text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full shrink-0">🚨 Se acabó</span>;
-    if (level === 'half') return <span className="text-[9px] font-bold uppercase text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">⚠️ Bajo</span>;
-    return <span className="text-[9px] font-bold uppercase text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full shrink-0">✅ Tengo</span>;
+    if (level === 'empty') return <span className="text-[9px] font-bold uppercase text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full shrink-0">🚨 Se acabó</span>;
+    if (level === 'half') return <span className="text-[9px] font-bold uppercase text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full shrink-0">⚠️ Bajo</span>;
+    return <span className="text-[9px] font-bold uppercase text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full shrink-0">✅ Tengo</span>;
   }
 
   return (
@@ -1614,34 +1640,34 @@ function AddProductSheet({
         onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
       />
 
-      <div className="relative w-full sm:max-w-md bg-white dark:bg-stone-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 h-[80dvh] flex flex-col">
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 h-[80dvh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">➕ Agregar a la lista</h2>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">➕ Agregar a la lista</h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500 transition"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition"
           >
             ✕
           </button>
         </div>
 
         <div className="relative mb-3">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none select-none">🔍</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">🔍</span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Busca en tu despensa…"
             aria-label="Buscar en tu despensa"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-100 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
           />
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-1.5 pb-[env(safe-area-inset-bottom)]">
           {loading && (
-            <p className="text-center text-sm text-stone-400 py-10">Cargando tu despensa…</p>
+            <p className="text-center text-sm text-slate-400 py-10">Cargando tu despensa…</p>
           )}
           {!loading && visible.length === 0 && (
-            <p className="text-center text-sm text-stone-400 py-10">
+            <p className="text-center text-sm text-slate-400 py-10">
               {query ? 'Nada coincide con tu búsqueda.' : 'Todos tus productos ya están en la lista.'}
             </p>
           )}
@@ -1651,9 +1677,9 @@ function AddProductSheet({
               type="button"
               disabled={addingId !== null}
               onClick={() => addProduct(p)}
-              className="w-full flex items-center gap-3 p-2 rounded-xl border border-stone-100 dark:border-stone-800 bg-white dark:bg-stone-900 hover:border-market-300 hover:bg-market-50/40 dark:hover:bg-stone-800/60 transition text-left disabled:opacity-60"
+              className="w-full flex items-center gap-3 p-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-300 hover:bg-sky-50/40 dark:hover:bg-slate-800/60 transition text-left disabled:opacity-60"
             >
-              <span className="w-11 h-11 rounded-lg overflow-hidden bg-stone-100 dark:bg-stone-800 shrink-0 relative">
+              <span className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 relative">
                 {p.photoUrl ? (
                   <Image src={p.photoUrl} alt={p.name} fill className="object-cover" sizes="44px" />
                 ) : (
@@ -1663,13 +1689,13 @@ function AddProductSheet({
                 )}
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block text-sm font-semibold text-stone-800 dark:text-stone-100 truncate">{p.name}</span>
+                <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{p.name}</span>
                 {p.category && (
-                  <span className="block text-[10px] text-stone-400 uppercase tracking-wide truncate">{p.category}</span>
+                  <span className="block text-[10px] text-slate-400 uppercase tracking-wide truncate">{p.category}</span>
                 )}
               </span>
               {stockBadge(p.stockLevel)}
-              <span className="shrink-0 w-8 h-8 rounded-full bg-market-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">
+              <span className="shrink-0 w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">
                 {addingId === p.id ? '…' : '＋'}
               </span>
             </button>

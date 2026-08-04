@@ -302,8 +302,8 @@ export default function NewTripForm({ products }: Readonly<Props>) {
 
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-stone-800">🧾 Nueva compra</h1>
-          <p className="text-sm text-stone-500">
+          <h1 className="text-2xl font-bold text-slate-800">🧾 Nueva compra</h1>
+          <p className="text-sm text-slate-500">
             Captura tu ticket, pon precios donde recuerdes y Foody estima el resto.
           </p>
         </div>
@@ -320,7 +320,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           </button>
           <Link
             href="/shopping-trips"
-            className="text-sm text-stone-500 hover:text-stone-700"
+            className="text-sm text-slate-500 hover:text-slate-700"
           >
             Cancelar
           </Link>
@@ -328,43 +328,43 @@ export default function NewTripForm({ products }: Readonly<Props>) {
       </header>
 
       {/* Store + date */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100 space-y-3">
+      <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100 space-y-3">
         <label className="block">
-          <span className="block text-xs font-semibold text-stone-500 mb-1">
-            Tienda <span className="text-red-500">*</span>
+          <span className="block text-xs font-semibold text-slate-500 mb-1">
+            Tienda <span className="text-blue-500">*</span>
           </span>
           <input
             type="text"
             placeholder="Ej. Walmart, Publix, Soriana…"
             value={storeName}
             onChange={(e) => setStoreName(e.target.value)}
-            className={`w-full rounded-xl border px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:border-brand-500 ${
-              storeNameValid ? 'border-stone-200 bg-white' : 'border-red-300 bg-red-50'
+            className={`w-full rounded-xl border px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-brand-500 ${
+              storeNameValid ? 'border-slate-200 bg-white' : 'border-blue-300 bg-blue-50'
             }`}
           />
           {!storeNameValid && (
-            <p className="text-xs text-red-500 mt-1">Escribe el nombre de la tienda para continuar</p>
+            <p className="text-xs text-blue-500 mt-1">Escribe el nombre de la tienda para continuar</p>
           )}
         </label>
         <label className="block">
-          <span className="block text-xs font-semibold text-stone-500 mb-1">Fecha</span>
+          <span className="block text-xs font-semibold text-slate-500 mb-1">Fecha</span>
           <input
             type="date"
             value={purchasedAt}
             onChange={(e) => setPurchasedAt(e.target.value)}
-            className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
           />
         </label>
       </section>
 
       {/* Total */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100">
+      <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
         <label className="block">
-          <span className="block text-xs font-semibold text-stone-500 mb-1">
+          <span className="block text-xs font-semibold text-slate-500 mb-1">
             Total pagado
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-stone-400">{currency}</span>
+            <span className="text-sm text-slate-400">{currency}</span>
             <input
               type="number"
               inputMode="decimal"
@@ -373,11 +373,11 @@ export default function NewTripForm({ products }: Readonly<Props>) {
               min="0"
               value={totalAmount}
               onChange={(e) => setTotalAmount(e.target.value)}
-              className="flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-lg font-semibold text-stone-800 focus:border-brand-500 focus:outline-none"
+              className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-lg font-semibold text-slate-800 focus:border-brand-500 focus:outline-none"
             />
           </div>
         </label>
-        <p className="text-xs text-stone-400 mt-1">
+        <p className="text-xs text-slate-400 mt-1">
           El monto total del ticket. Foody reparte entre tus productos.
         </p>
       </section>
@@ -385,13 +385,13 @@ export default function NewTripForm({ products }: Readonly<Props>) {
       {/* Strategy */}
 
       {/* Items */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm border border-stone-100 space-y-3">
+      <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100 space-y-3">
         {/* Smart suggestions — predictive */}
         {smartSuggestions.length > 0 && (
           <div className="rounded-xl bg-brand-50/50 border border-brand-100 p-3">
             <p className="text-[11px] uppercase tracking-wide font-semibold text-brand-700 mb-2 flex items-center gap-1">
               ✨ Sugerencias para ti{' '}
-              <span className="text-stone-400 font-normal normal-case tracking-normal ml-1">
+              <span className="text-slate-400 font-normal normal-case tracking-normal ml-1">
                 (productos bajos o agotados)
               </span>
             </p>
@@ -410,7 +410,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                 >
                   <span>{p.stockLevel === 'empty' ? '🚨' : '⚠️'}</span>
                   <span className="truncate max-w-36">{p.name}</span>
-                  <span className="text-[10px] text-stone-400">+</span>
+                  <span className="text-[10px] text-slate-400">+</span>
                 </button>
               ))}
             </div>
@@ -424,13 +424,13 @@ export default function NewTripForm({ products }: Readonly<Props>) {
               return (
                 <li
                   key={it.id}
-                  className={`rounded-xl border p-3 ${isUnlinked ? 'border-amber-200 bg-amber-50/50' : 'border-stone-100 bg-stone-50/50'}`}
+                  className={`rounded-xl border p-3 ${isUnlinked ? 'border-sky-200 bg-sky-50/50' : 'border-slate-100 bg-slate-50/50'}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-stone-800 truncate">{it.name}</p>
+                      <p className="font-medium text-slate-800 truncate">{it.name}</p>
                       {isUnlinked && (
-                        <p className="text-[10px] text-amber-700 mt-0.5">
+                        <p className="text-[10px] text-sky-700 mt-0.5">
                           Del recibo — vincula a un producto de tu catálogo
                         </p>
                       )}
@@ -438,7 +438,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                     <button
                       type="button"
                       onClick={() => removeItem(idx)}
-                      className="text-xs text-red-500 hover:text-red-700 shrink-0"
+                      className="text-xs text-blue-500 hover:text-blue-700 shrink-0"
                     >
                       Quitar
                     </button>
@@ -452,10 +452,10 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                         onChange={(e) =>
                           setLinkSearch((prev) => ({ ...prev, [it.id]: e.target.value }))
                         }
-                        className="w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
+                        className="w-full rounded-lg border border-sky-300 bg-white px-2.5 py-1.5 text-xs focus:border-brand-500 focus:outline-none"
                       />
                       {(linkSearch[it.id] ?? '').trim().length > 0 && (
-                        <div className="absolute z-10 left-0 right-0 mt-1 rounded-xl border border-stone-200 bg-white shadow-md max-h-40 overflow-auto">
+                        <div className="absolute z-10 left-0 right-0 mt-1 rounded-xl border border-slate-200 bg-white shadow-md max-h-40 overflow-auto">
                           {products
                             .filter(
                               (p) =>
@@ -470,8 +470,8 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                                 onClick={() => linkItemToProduct(idx, p)}
                                 className="w-full text-left px-3 py-2 text-xs hover:bg-brand-50 flex items-center justify-between"
                               >
-                                <span className="font-medium text-stone-700 truncate">{p.name}</span>
-                                <span className="text-stone-400 ml-2 shrink-0">{p.unit}</span>
+                                <span className="font-medium text-slate-700 truncate">{p.name}</span>
+                                <span className="text-slate-400 ml-2 shrink-0">{p.unit}</span>
                               </button>
                             ))}
                           {products.filter(
@@ -479,7 +479,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                               !addedIds.has(p.id) &&
                               p.name.toLowerCase().includes((linkSearch[it.id] ?? '').trim().toLowerCase()),
                           ).length === 0 && (
-                            <p className="px-3 py-2 text-xs text-stone-400">Sin coincidencias</p>
+                            <p className="px-3 py-2 text-xs text-slate-400">Sin coincidencias</p>
                           )}
                         </div>
                       )}
@@ -487,7 +487,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                   )}
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <label className="block">
-                      <span className="block text-[10px] uppercase tracking-wide text-stone-400 mb-0.5">
+                      <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
                         Cantidad ({it.unit})
                       </span>
                       <input
@@ -499,11 +499,11 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                         onChange={(e) =>
                           updateItem(idx, { quantity: e.target.value })
                         }
-                        className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                       />
                     </label>
                     <label className="block">
-                      <span className="block text-[10px] uppercase tracking-wide text-stone-400 mb-0.5">
+                      <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
                         Precio unitario (opcional)
                       </span>
                       <input
@@ -514,7 +514,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                         placeholder="—"
                         value={it.price}
                         onChange={(e) => updateItem(idx, { price: e.target.value })}
-                        className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
+                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                       />
                     </label>
                   </div>
@@ -531,12 +531,12 @@ export default function NewTripForm({ products }: Readonly<Props>) {
             placeholder="Buscar producto para agregar…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
           />
           {search && (
-            <div className="mt-2 rounded-xl border border-stone-200 bg-white max-h-56 overflow-auto">
+            <div className="mt-2 rounded-xl border border-slate-200 bg-white max-h-56 overflow-auto">
               {candidates.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-stone-400">
+                <p className="px-3 py-2 text-xs text-slate-400">
                   Sin coincidencias. Crea primero el producto desde la pestaña Productos.
                 </p>
               ) : (
@@ -547,8 +547,8 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                     onClick={() => addProduct(p)}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-brand-50 flex items-center justify-between"
                   >
-                    <span className="font-medium text-stone-700 truncate">{p.name}</span>
-                    <span className="text-xs text-stone-400">{p.unit}</span>
+                    <span className="font-medium text-slate-700 truncate">{p.name}</span>
+                    <span className="text-xs text-slate-400">{p.unit}</span>
                   </button>
                 ))
               )}
@@ -558,7 +558,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
       </section>
 
       {unlinkedCount > 0 && (
-        <p className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2">
+        <p className="rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs px-3 py-2">
           {linkedItems.length === 0
             ? 'Ningún artículo del recibo está vinculado a tu catálogo: al guardar se registrará solo el total. Vincula los que quieras contar en tus estadísticas.'
             : `${unlinkedCount} artículo${unlinkedCount === 1 ? '' : 's'} del recibo sin vincular se omitirá${unlinkedCount === 1 ? '' : 'n'} al guardar.`}
@@ -566,15 +566,15 @@ export default function NewTripForm({ products }: Readonly<Props>) {
       )}
 
       {error && (
-        <p className="rounded-xl bg-red-50 text-red-700 text-sm px-3 py-2">{error}</p>
+        <p className="rounded-xl bg-blue-50 text-blue-700 text-sm px-3 py-2">{error}</p>
       )}
 
       {/* Sticky submit */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-100 bg-white/95 backdrop-blur px-4 py-3">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-100 bg-white/95 backdrop-blur px-4 py-3">
         <div className="container mx-auto max-w-5xl flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs text-stone-500">Total</p>
-            <p className="text-lg font-bold text-stone-800">
+            <p className="text-xs text-slate-500">Total</p>
+            <p className="text-lg font-bold text-slate-800">
               {totalValid
                 ? formatCurrency(parsedTotal, currency)
                 : '—'}
@@ -584,7 +584,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
             type="button"
             disabled={!canSubmit}
             onClick={handleSubmit}
-            className="rounded-xl bg-brand-600 text-white px-6 py-3 text-sm font-semibold shadow hover:bg-brand-700 disabled:bg-stone-300 disabled:cursor-not-allowed transition"
+            className="rounded-xl bg-brand-600 text-white px-6 py-3 text-sm font-semibold shadow hover:bg-brand-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition"
           >
             {submitting ? 'Guardando…' : 'Guardar compra'}
           </button>

@@ -43,11 +43,11 @@ export default function StoreRankList({ data, metric, maxRows = 5 }: Props) {
   const grandTotal = sorted.reduce((sum, d) => sum + valueOf(d), 0) || 1;
   const max = valueOf(rows[0]) || 1;
 
-  const barColor = metric === 'visits' ? 'bg-sky-400' : 'bg-emerald-400';
+  const barColor = metric === 'visits' ? 'bg-sky-400' : 'bg-sky-400';
   const leaderRing =
     metric === 'visits'
       ? 'border-sky-200 dark:border-sky-500/40 bg-sky-50/70 dark:bg-sky-500/10'
-      : 'border-emerald-200 dark:border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-500/10';
+      : 'border-sky-200 dark:border-sky-500/40 bg-sky-50/70 dark:bg-sky-500/10';
 
   const primary = (d: StoreDatum) => (metric === 'visits' ? visitsLabel(d.count) : formatMoney(d.total));
   const secondary = (d: StoreDatum) =>
@@ -65,13 +65,13 @@ export default function StoreRankList({ data, metric, maxRows = 5 }: Props) {
           <div
             key={d.storeName}
             className={`rounded-2xl p-3 border transition-colors ${
-              isLeader ? leaderRing : 'border-stone-100 dark:border-stone-800'
+              isLeader ? leaderRing : 'border-slate-100 dark:border-slate-800'
             }`}
           >
             <div className="flex items-center gap-3">
               {/* Logo / rank badge */}
               <div className="relative shrink-0">
-                <div className="w-10 h-10 rounded-xl bg-white border border-stone-100 flex items-center justify-center overflow-hidden">
+                <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center overflow-hidden">
                   {logo ? (
                     <Image src={logo} alt={d.storeName} width={40} height={40} className="object-contain w-full h-full" />
                   ) : (
@@ -80,7 +80,7 @@ export default function StoreRankList({ data, metric, maxRows = 5 }: Props) {
                 </div>
                 <span
                   className={`absolute -top-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold shadow-sm ${
-                    isLeader ? 'bg-amber-400 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-200'
+                    isLeader ? 'bg-sky-400 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200'
                   }`}
                 >
                   {isLeader ? '👑' : i + 1}
@@ -90,20 +90,20 @@ export default function StoreRankList({ data, metric, maxRows = 5 }: Props) {
               {/* Name + bar + numbers */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-bold text-stone-800 dark:text-stone-100 text-sm truncate">{d.storeName}</p>
-                  <p className="font-extrabold text-stone-900 dark:text-white text-sm tabular-nums shrink-0">
+                  <p className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{d.storeName}</p>
+                  <p className="font-extrabold text-slate-900 dark:text-white text-sm tabular-nums shrink-0">
                     {primary(d)}
                   </p>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <div className="flex-1 h-2 rounded-full bg-stone-100 dark:bg-white/10 overflow-hidden">
+                  <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
                     <div className={`h-full rounded-full ${barColor}`} style={{ width: `${barPct}%` }} />
                   </div>
-                  <span className="w-9 text-right text-[11px] font-bold text-stone-500 dark:text-stone-400 tabular-nums shrink-0">
+                  <span className="w-9 text-right text-[11px] font-bold text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
                     {sharePct}%
                   </span>
                 </div>
-                <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1">{secondary(d)}</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{secondary(d)}</p>
               </div>
             </div>
           </div>
@@ -111,7 +111,7 @@ export default function StoreRankList({ data, metric, maxRows = 5 }: Props) {
       })}
 
       {hidden > 0 && (
-        <p className="text-[11px] text-stone-400 dark:text-stone-500 text-center pt-0.5">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center pt-0.5">
           +{hidden} {hidden === 1 ? 'tienda más' : 'tiendas más'}
         </p>
       )}

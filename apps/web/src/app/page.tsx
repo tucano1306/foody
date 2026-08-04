@@ -150,8 +150,8 @@ export default async function Home() {
             <div className="relative rounded-2xl bg-white text-navy-800 p-6 shadow-2xl border border-navy-100">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-bold uppercase tracking-widest text-brand-600">Panel en vivo</span>
-                <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="flex items-center gap-1 text-[11px] text-sky-600 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
                   <span>actualizado</span>
                 </span>
               </div>
@@ -164,13 +164,13 @@ export default async function Home() {
                   <p className="text-[11px] uppercase tracking-wider text-brand-700 font-semibold">Productos OK</p>
                   <p className="text-3xl font-black text-brand-700 mt-1">87%</p>
                 </div>
-                <div className="rounded-xl bg-emerald-50 p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-emerald-700 font-semibold">Tickets</p>
-                  <p className="text-3xl font-black text-emerald-700 mt-1">24</p>
+                <div className="rounded-xl bg-sky-50 p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-sky-700 font-semibold">Tickets</p>
+                  <p className="text-3xl font-black text-sky-700 mt-1">24</p>
                 </div>
-                <div className="rounded-xl bg-amber-50 p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-amber-700 font-semibold">Por acabarse</p>
-                  <p className="text-3xl font-black text-amber-700 mt-1">3</p>
+                <div className="rounded-xl bg-sky-50 p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-sky-700 font-semibold">Por acabarse</p>
+                  <p className="text-3xl font-black text-sky-700 mt-1">3</p>
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between text-xs text-navy-500">

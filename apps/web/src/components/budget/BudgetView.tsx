@@ -35,10 +35,10 @@ function monthLabel(yyyymm: string): string {
 }
 
 function getBudgetStatus(pct: number | null): { label: string; color: string; bg: string; arc: string } {
-  if (pct === null) return { label: 'Sin límite', color: 'text-stone-500', bg: 'bg-stone-100', arc: '#a8a29e' };
-  if (pct >= 100) return { label: '¡Excedido!', color: 'text-red-600', bg: 'bg-red-50', arc: '#ef4444' };
-  if (pct >= 80) return { label: 'Atención', color: 'text-amber-600', bg: 'bg-amber-50', arc: '#f59e0b' };
-  return { label: 'Bajo control', color: 'text-market-700', bg: 'bg-market-50', arc: '#16a34a' };
+  if (pct === null) return { label: 'Sin límite', color: 'text-slate-500', bg: 'bg-slate-100', arc: '#94a3b8' };
+  if (pct >= 100) return { label: '¡Excedido!', color: 'text-blue-600', bg: 'bg-blue-50', arc: '#1d4ed8' };
+  if (pct >= 80) return { label: 'Atención', color: 'text-sky-600', bg: 'bg-sky-50', arc: '#3b82f6' };
+  return { label: 'Bajo control', color: 'text-sky-700', bg: 'bg-sky-50', arc: '#0284c7' };
 }
 
 /** Game-face for the gauge: relaxed → nervous → on fire. */
@@ -59,7 +59,7 @@ function RadialArc({ pct, color }: { readonly pct: number; readonly color: strin
   return (
     <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90" aria-hidden="true">
       {/* Track */}
-      <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e7e5e4" strokeWidth="16" />
+      <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e2e8f0" strokeWidth="16" />
       {/* Progress */}
       <motion.circle
         cx="100"
@@ -82,7 +82,7 @@ function RadialArc({ pct, color }: { readonly pct: number; readonly color: strin
 function HistoryBars({ history, budgetLine, currentKey }: { readonly history: MonthEntry[]; readonly budgetLine: number; readonly currentKey: string }) {
   if (history.length === 0) {
     return (
-      <p className="text-center text-xs text-stone-400 py-4">
+      <p className="text-center text-xs text-slate-400 py-4">
         Aún no hay historial de compras en meses anteriores
       </p>
     );
@@ -96,14 +96,14 @@ function HistoryBars({ history, budgetLine, currentKey }: { readonly history: Mo
         const isCurrent = h.month === currentKey;
         return (
           <div key={h.month} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-            <span className={`text-[10px] tabular-nums ${isCurrent ? 'font-bold text-stone-700' : 'font-semibold text-stone-500'}`}>{fmt(h.total)}</span>
+            <span className={`text-[10px] tabular-nums ${isCurrent ? 'font-bold text-slate-700' : 'font-semibold text-slate-500'}`}>{fmt(h.total)}</span>
             <motion.div
-              className={`w-full rounded-t-md ${overBudget ? 'bg-red-400' : isCurrent ? 'bg-market-500' : 'bg-market-400'}`}
+              className={`w-full rounded-t-md ${overBudget ? 'bg-blue-400' : isCurrent ? 'bg-sky-500' : 'bg-sky-400'}`}
               style={{ height: 0 }}
               animate={{ height: `${Math.max(heightPct, 4)}%` }}
               transition={{ duration: 0.7, delay: 0.05 * history.indexOf(h), ease: 'easeOut' }}
             />
-            <span className={`text-[10px] ${isCurrent ? 'font-bold text-market-700' : 'text-stone-400'}`}>
+            <span className={`text-[10px] ${isCurrent ? 'font-bold text-sky-700' : 'text-slate-400'}`}>
               {monthLabel(h.month)}{isCurrent ? ' ✦' : ''}
             </span>
           </div>
@@ -112,7 +112,7 @@ function HistoryBars({ history, budgetLine, currentKey }: { readonly history: Mo
       {/* budget line marker */}
       {budgetLine > 0 && (
         <div className="absolute inset-x-4" style={{ bottom: `${(budgetLine / max) * 96}px` }}>
-          <div className="border-t border-dashed border-amber-400 w-full" />
+          <div className="border-t border-dashed border-sky-400 w-full" />
         </div>
       )}
     </div>
@@ -170,16 +170,16 @@ function EditBudgetDialog({
         transition={{ type: 'spring', stiffness: 380, damping: 28 }}
         className="relative w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-6"
       >
-        <h2 className="text-lg font-bold text-stone-800 mb-1">🎯 Presupuesto mensual</h2>
-        <p className="text-sm text-stone-500 mb-5">
+        <h2 className="text-lg font-bold text-slate-800 mb-1">🎯 Presupuesto mensual</h2>
+        <p className="text-sm text-slate-500 mb-5">
           Establece cuánto quieres gastar en el supermercado cada mes.
         </p>
 
-        <label htmlFor="budget-limit" className="block text-sm font-semibold text-stone-700 mb-1.5">
+        <label htmlFor="budget-limit" className="block text-sm font-semibold text-slate-700 mb-1.5">
           Límite mensual
         </label>
         <div className="relative mb-3">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 font-bold">$</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
           <input
             ref={inputRef}
             id="budget-limit"
@@ -190,7 +190,7 @@ function EditBudgetDialog({
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void handleSave(); }}
             placeholder="Ej. 3000"
-            className="w-full pl-7 pr-3 py-3 rounded-xl border border-stone-200 bg-stone-50 text-stone-800 text-lg font-bold placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-market-300 transition"
+            className="w-full pl-7 pr-3 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-lg font-bold placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
           />
         </div>
 
@@ -198,7 +198,7 @@ function EditBudgetDialog({
           <button
             type="button"
             onClick={useSuggestion}
-            className="w-full text-sm text-market-700 bg-market-50 border border-market-200 rounded-xl px-3 py-2 mb-5 hover:bg-market-100 transition text-left flex items-center gap-2"
+            className="w-full text-sm text-sky-700 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2 mb-5 hover:bg-sky-100 transition text-left flex items-center gap-2"
           >
             <span>💡</span>
             <span>
@@ -211,7 +211,7 @@ function EditBudgetDialog({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-stone-200 text-stone-600 font-semibold text-sm hover:bg-stone-50 transition"
+            className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
           >
             Cancelar
           </button>
@@ -219,7 +219,7 @@ function EditBudgetDialog({
             type="button"
             onClick={() => void handleSave()}
             disabled={saving || value === ''}
-            className="flex-1 py-3 rounded-2xl bg-market-600 hover:bg-market-700 text-white font-bold text-sm transition disabled:opacity-50"
+            className="flex-1 py-3 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm transition disabled:opacity-50"
           >
             {saving ? 'Guardando…' : '✓ Guardar'}
           </button>
@@ -307,13 +307,13 @@ export default function BudgetView({ initialData }: Props) {
       </Link>
 
       {/* ─── Radial gauge ────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <div className="flex items-center gap-5">
           {/* Arc */}
           <div className="relative w-36 h-36 shrink-0">
             {data.percentUsed === null ? (
               <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90" aria-hidden="true">
-                <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e7e5e4" strokeWidth="16" />
+                <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e2e8f0" strokeWidth="16" />
               </svg>
             ) : (
               <RadialArc pct={data.percentUsed} color={status.arc} />
@@ -336,11 +336,11 @@ export default function BudgetView({ initialData }: Props) {
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-                className="text-xl font-black text-stone-800 tabular-nums leading-none"
+                className="text-xl font-black text-slate-800 tabular-nums leading-none"
               >
                 {fmt(data.spentThisMonth)}
               </motion.span>
-              <span className="text-[11px] text-stone-400 mt-1">gastado</span>
+              <span className="text-[11px] text-slate-400 mt-1">gastado</span>
               {data.percentUsed !== null && (
                 <span className={`text-xs font-bold mt-1 ${status.color}`}>
                   {Math.round(data.percentUsed)}%
@@ -361,26 +361,26 @@ export default function BudgetView({ initialData }: Props) {
             {data.monthlyLimit > 0 ? (
               <>
                 <div>
-                  <p className="text-[11px] text-stone-400 uppercase tracking-wide">Límite mensual</p>
-                  <p className="text-base font-bold text-stone-700">{fmt(data.monthlyLimit)}</p>
+                  <p className="text-[11px] text-slate-400 uppercase tracking-wide">Límite mensual</p>
+                  <p className="text-base font-bold text-slate-700">{fmt(data.monthlyLimit)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-stone-400 uppercase tracking-wide">
+                  <p className="text-[11px] text-slate-400 uppercase tracking-wide">
                     {(data.remaining ?? 0) >= 0 ? 'Disponible' : 'Exceso'}
                   </p>
-                  <p className={`text-base font-bold ${(data.remaining ?? 0) >= 0 ? 'text-market-700' : 'text-red-600'}`}>
+                  <p className={`text-base font-bold ${(data.remaining ?? 0) >= 0 ? 'text-sky-700' : 'text-blue-600'}`}>
                     {data.remaining === null ? '—' : fmt(Math.abs(data.remaining))}
                   </p>
                 </div>
               </>
             ) : (
               <div className="space-y-1">
-                <p className="text-sm text-stone-500">
+                <p className="text-sm text-slate-500">
                   Sin límite establecido. Toca <strong>Establecer límite</strong> para activar el seguimiento.
                 </p>
                 {data.avgMonthly > 0 && (
-                  <p className="text-xs text-stone-400">
-                    Tu promedio histórico: <strong className="text-stone-600">{fmt(data.avgMonthly)}</strong>/mes
+                  <p className="text-xs text-slate-400">
+                    Tu promedio histórico: <strong className="text-slate-600">{fmt(data.avgMonthly)}</strong>/mes
                   </p>
                 )}
               </div>
@@ -391,7 +391,7 @@ export default function BudgetView({ initialData }: Props) {
         {/* Progress bar — game meter with money riding the tip (fire when over) */}
         {data.percentUsed !== null && (
           <div className="mt-4">
-            <div className="relative h-3 bg-stone-100 rounded-full">
+            <div className="relative h-3 bg-slate-100 rounded-full">
               <motion.div
                 className="progress-fun h-full rounded-full"
                 style={{
@@ -411,8 +411,8 @@ export default function BudgetView({ initialData }: Props) {
               </span>
             </div>
             <div className="flex justify-between mt-1">
-              <span className="text-[11px] text-stone-400">$0</span>
-              <span className="text-[11px] text-stone-400">{fmt(data.monthlyLimit)}</span>
+              <span className="text-[11px] text-slate-400">$0</span>
+              <span className="text-[11px] text-slate-400">{fmt(data.monthlyLimit)}</span>
             </div>
           </div>
         )}
@@ -420,33 +420,33 @@ export default function BudgetView({ initialData }: Props) {
 
       {/* ─── Quick stats row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-          <p className="text-[11px] text-stone-400 uppercase tracking-wide mb-1">Este mes</p>
-          <p className="text-xl font-black text-stone-800 tabular-nums">{fmt(data.spentThisMonth)}</p>
-          <p className="text-xs text-stone-400 mt-0.5">en supermercado</p>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Este mes</p>
+          <p className="text-xl font-black text-slate-800 tabular-nums">{fmt(data.spentThisMonth)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">en supermercado</p>
         </div>
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
-          <p className="text-[11px] text-stone-400 uppercase tracking-wide mb-1">Promedio</p>
-          <p className="text-xl font-black text-stone-800 tabular-nums">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Promedio</p>
+          <p className="text-xl font-black text-slate-800 tabular-nums">
             {data.avgMonthly > 0 ? fmt(data.avgMonthly) : '—'}
           </p>
-          <p className="text-xs text-stone-400 mt-0.5">meses anteriores</p>
+          <p className="text-xs text-slate-400 mt-0.5">meses anteriores</p>
         </div>
       </div>
 
       {/* ─── History bars ──────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-stone-700">📊 Historial de gasto</h2>
+          <h2 className="text-sm font-bold text-slate-700">📊 Historial de gasto</h2>
           {loading && (
-            <span className="text-xs text-stone-400 animate-pulse">Actualizando…</span>
+            <span className="text-xs text-slate-400 animate-pulse">Actualizando…</span>
           )}
         </div>
         <div className="relative">
           <HistoryBars history={historyWithCurrent} budgetLine={data.monthlyLimit} currentKey={currentKey} />
         </div>
         {data.monthlyLimit > 0 && historyWithCurrent.some((h) => h.total > 0) && (
-          <p className="text-[11px] text-stone-400 mt-2 text-center">
+          <p className="text-[11px] text-slate-400 mt-2 text-center">
             Barras rojas = meses que superaron el límite de {fmt(data.monthlyLimit)}
           </p>
         )}
@@ -483,11 +483,11 @@ function BudgetTip({
 }) {
   if (pct >= 100) {
     return (
-      <div className="flex gap-3 bg-red-50 border border-red-200 rounded-2xl p-4">
+      <div className="flex gap-3 bg-blue-50 border border-blue-200 rounded-2xl p-4">
         <span className="text-2xl shrink-0">🚨</span>
         <div>
-          <p className="text-sm font-bold text-red-700">Presupuesto excedido</p>
-          <p className="text-xs text-red-600 mt-0.5">
+          <p className="text-sm font-bold text-blue-700">Presupuesto excedido</p>
+          <p className="text-xs text-blue-600 mt-0.5">
             Ya superaste tu límite mensual. Considera revisar qué productos puedes priorizar el próximo viaje.
           </p>
         </div>
@@ -496,11 +496,11 @@ function BudgetTip({
   }
   if (pct >= 80) {
     return (
-      <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+      <div className="flex gap-3 bg-sky-50 border border-sky-200 rounded-2xl p-4">
         <span className="text-2xl shrink-0">⚠️</span>
         <div>
-          <p className="text-sm font-bold text-amber-700">Cerca del límite</p>
-          <p className="text-xs text-amber-600 mt-0.5">
+          <p className="text-sm font-bold text-sky-700">Cerca del límite</p>
+          <p className="text-xs text-sky-600 mt-0.5">
             Te quedan {remaining === null ? '—' : fmt(remaining)}. Revisa la lista antes de tu próxima compra.
           </p>
         </div>
@@ -509,11 +509,11 @@ function BudgetTip({
   }
   if (pct < 50 && avgMonthly > 0) {
     return (
-      <div className="flex gap-3 bg-market-50 border border-market-200 rounded-2xl p-4">
+      <div className="flex gap-3 bg-sky-50 border border-sky-200 rounded-2xl p-4">
         <span className="text-2xl shrink-0">✅</span>
         <div>
-          <p className="text-sm font-bold text-market-700">¡Vas muy bien!</p>
-          <p className="text-xs text-market-600 mt-0.5">
+          <p className="text-sm font-bold text-sky-700">¡Vas muy bien!</p>
+          <p className="text-xs text-sky-600 mt-0.5">
             Solo llevas el {Math.round(pct)}% de tu presupuesto. Sigues a buen ritmo para el mes.
           </p>
         </div>

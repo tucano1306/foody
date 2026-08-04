@@ -94,7 +94,7 @@ export default function StatsWheel(props: Readonly<Props>) {
             fill="transparent"
             stroke="currentColor"
             strokeWidth={thickness}
-            className="text-stone-200 dark:text-stone-700"
+            className="text-slate-200 dark:text-slate-700"
           />
           {slices.map((s) => {
             const isActive = activeIndex === s.index;
@@ -128,19 +128,19 @@ export default function StatsWheel(props: Readonly<Props>) {
               <span className="text-[9px] uppercase tracking-wide text-sky-500 font-bold text-center leading-tight line-clamp-1 w-full">
                 {active.label}
               </span>
-              <span className="text-base font-extrabold text-stone-800 dark:text-stone-100 tabular-nums leading-tight">
+              <span className="text-base font-extrabold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">
                 {formatValue ? formatValue(active.value) : active.value}
               </span>
-              <span className="text-[10px] text-stone-500 dark:text-stone-400 font-medium tabular-nums">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
                 {active.pct.toFixed(0)}%
               </span>
             </>
           ) : (
             <>
-              <span className="text-[9px] uppercase tracking-wide text-stone-400 dark:text-stone-500 font-semibold">
+              <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-semibold">
                 {totalLabel}
               </span>
-              <span className="text-lg font-extrabold text-stone-800 dark:text-stone-100 tabular-nums leading-tight">
+              <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">
                 {totalValue}
               </span>
             </>
@@ -163,7 +163,7 @@ export default function StatsWheel(props: Readonly<Props>) {
               onTouchStart={() => setActiveIndex((prev) => prev === s.index ? null : s.index)}
             >
               {s.logo ? (
-                <span className="w-5 h-5 rounded-sm shrink-0 overflow-hidden flex items-center justify-center bg-white border border-stone-100">
+                <span className="w-5 h-5 rounded-sm shrink-0 overflow-hidden flex items-center justify-center bg-white border border-slate-100">
                   <Image src={s.logo} alt={s.label} width={20} height={20} className="object-contain w-full h-full" />
                 </span>
               ) : (
@@ -172,10 +172,10 @@ export default function StatsWheel(props: Readonly<Props>) {
                   style={{ backgroundColor: s.color }}
                 />
               )}
-              <span className="flex-1 text-xs text-stone-700 dark:text-stone-200 truncate font-medium">
+              <span className="flex-1 text-xs text-slate-700 dark:text-slate-200 truncate font-medium">
                 {s.label}
               </span>
-              <span className="text-xs tabular-nums font-semibold text-stone-500 dark:text-stone-400 shrink-0">
+              <span className="text-xs tabular-nums font-semibold text-slate-500 dark:text-slate-400 shrink-0">
                 {formatValue ? formatValue(s.value) : s.value}
               </span>
               <span className="w-8 text-right text-[11px] font-bold text-sky-600 dark:text-sky-400 tabular-nums shrink-0">
@@ -185,7 +185,7 @@ export default function StatsWheel(props: Readonly<Props>) {
           );
         })}
         {hiddenCount > 0 && (
-          <li className="text-[11px] text-stone-400 dark:text-stone-600 px-1.5">
+          <li className="text-[11px] text-slate-400 dark:text-slate-600 px-1.5">
             +{hiddenCount} más
           </li>
         )}

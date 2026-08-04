@@ -83,7 +83,7 @@ export default function StoreSelector(props: Readonly<Props>) {
     <div ref={wrapRef} className="relative">
       <input
         type="text"
-        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 focus:border-brand-500 focus:outline-none"
+        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-brand-500 focus:outline-none"
         placeholder={placeholder}
         value={query}
         onChange={(e) => {
@@ -96,9 +96,9 @@ export default function StoreSelector(props: Readonly<Props>) {
       />
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full rounded-xl border border-stone-200 bg-white shadow-lg max-h-64 overflow-auto">
+        <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-64 overflow-auto">
           {filtered.length === 0 && !q && (
-            <p className="px-3 py-2 text-xs text-stone-400">
+            <p className="px-3 py-2 text-xs text-slate-400">
               No tienes tiendas guardadas todavía.
             </p>
           )}
@@ -106,7 +106,7 @@ export default function StoreSelector(props: Readonly<Props>) {
             <button
               key={s.id}
               type="button"
-              className="w-full text-left px-3 py-2 text-sm hover:bg-stone-50 flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
               onClick={() => {
                 setQuery(s.name);
                 onChange({ storeId: s.id, storeName: s.name });
@@ -114,16 +114,16 @@ export default function StoreSelector(props: Readonly<Props>) {
               }}
             >
               <span>{s.icon ?? '🏪'}</span>
-              <span className="font-medium text-stone-700">{s.name}</span>
+              <span className="font-medium text-slate-700">{s.name}</span>
               {s.chain && (
-                <span className="ml-auto text-xs text-stone-400">{s.chain}</span>
+                <span className="ml-auto text-xs text-slate-400">{s.chain}</span>
               )}
             </button>
           ))}
           {q && !exactMatch && (
             <button
               type="button"
-              className="w-full text-left px-3 py-2 text-sm hover:bg-brand-50 text-brand-700 font-medium border-t border-stone-100"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-brand-50 text-brand-700 font-medium border-t border-slate-100"
               disabled={creating}
               onClick={() => {
                 void createStore(query);

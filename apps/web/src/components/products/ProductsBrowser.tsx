@@ -44,10 +44,10 @@ const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
 ];
 
 function healthConfig(pct: number): { emoji: string; label: string; from: string; to: string } {
-  if (pct >= 80) return { emoji: '😄', label: '¡Despensa saludable!', from: '#4ade80', to: '#16a34a' };
-  if (pct >= 50) return { emoji: '🙂', label: 'Vas bien, ojo con lo que falta', from: '#a7ce39', to: '#739931' };
-  if (pct >= 25) return { emoji: '😟', label: 'Varios productos por reponer', from: '#fbbf24', to: '#d97706' };
-  return { emoji: '😱', label: '¡Tu despensa pide auxilio!', from: '#f87171', to: '#dc2626' };
+  if (pct >= 80) return { emoji: '😄', label: '¡Despensa saludable!', from: '#38bdf8', to: '#0284c7' };
+  if (pct >= 50) return { emoji: '🙂', label: 'Vas bien, ojo con lo que falta', from: '#0ea5e9', to: '#0284c7' };
+  if (pct >= 25) return { emoji: '😟', label: 'Varios productos por reponer', from: '#60a5fa', to: '#2563eb' };
+  return { emoji: '😱', label: '¡Tu despensa pide auxilio!', from: '#60a5fa', to: '#1e40af' };
 }
 
 /** Game-style meter: % of the pantry that's fully stocked. */
@@ -58,9 +58,9 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
   const pct = Math.round((fullCount / total) * 100);
   const cfg = healthConfig(pct);
   return (
-    <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-4">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
       <div className="flex justify-between items-baseline mb-2">
-        <span className="text-sm font-semibold text-stone-700">
+        <span className="text-sm font-semibold text-slate-700">
           <motion.span
             key={cfg.emoji}
             initial={{ scale: 0.3, rotate: -20 }}
@@ -74,7 +74,7 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
         </span>
         <span className="text-xs font-bold tabular-nums" style={{ color: cfg.to }}>{pct}%</span>
       </div>
-      <div className="relative h-3 bg-stone-100 rounded-full">
+      <div className="relative h-3 bg-slate-100 rounded-full">
         <div
           className="progress-fun h-full rounded-full transition-all duration-700 ease-out"
           style={{
@@ -84,7 +84,7 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
           }}
         />
       </div>
-      <p className="text-[11px] text-stone-400 mt-1.5">
+      <p className="text-[11px] text-slate-400 mt-1.5">
         {cfg.label}
         {emptyCount > 0 && ` · ${emptyCount} agotado${emptyCount === 1 ? '' : 's'}`}
       </p>
@@ -115,12 +115,12 @@ function CategoryChips({
     `shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm whitespace-nowrap transition ${
       active
         ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-        : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 hover:border-stone-300'
+        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 hover:border-slate-300'
     }`;
 
   const badge = (active: boolean) =>
     `text-[11px] font-semibold tabular-nums px-1.5 py-px rounded-full ${
-      active ? 'bg-white/25 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+      active ? 'bg-white/25 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
     }`;
 
   const allActive = value === ALL_CATEGORIES;
@@ -259,7 +259,7 @@ function renderGrid({
 
   if (filtered.length === 0) {
     return (
-      <div className="text-center py-8 text-stone-400">
+      <div className="text-center py-8 text-slate-400">
         {emptyState ?? (
           <>
             <p className="text-3xl mb-2">🤷</p>
@@ -286,7 +286,7 @@ function renderGrouped({
 }: Omit<GridOptions, 'visible' | 'trimmedQuery' | 'searchOnly' | 'categoryActive'>): React.ReactNode {
   if (filtered.length === 0) {
     return (
-      <div className="text-center py-12 text-stone-400">
+      <div className="text-center py-12 text-slate-400">
         {emptyState ?? <p>No hay productos que coincidan</p>}
       </div>
     );
@@ -313,8 +313,8 @@ function renderGrouped({
           <section key={cat}>
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xl">{emoji}</span>
-              <h3 className="font-semibold text-stone-700 text-base">{cat}</h3>
-              <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">
+              <h3 className="font-semibold text-slate-700 text-base">{cat}</h3>
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                 {items.length} {items.length === 1 ? 'producto' : 'productos'}
               </span>
             </div>
@@ -466,7 +466,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <motion.span
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
             whileHover={{ scale: 1.3, rotate: -15 }}
             animate={
               query
@@ -486,7 +486,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Buscar productos…"
-            className={`w-full pl-11 py-3 bg-white border border-stone-200 rounded-2xl text-stone-700 placeholder:text-stone-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition ${query ? 'pr-20' : 'pr-14'}`}
+            className={`w-full pl-11 py-3 bg-white border border-slate-200 rounded-2xl text-slate-700 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition ${query ? 'pr-20' : 'pr-14'}`}
           />
 
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
@@ -494,7 +494,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
               <button
                 type="button"
                 onClick={() => onQueryChange('')}
-                className="w-8 h-8 grid place-items-center rounded-full text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition"
+                className="w-8 h-8 grid place-items-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
                 aria-label="Limpiar búsqueda"
               >
                 ✕
@@ -506,7 +506,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
               onClick={() => setScanOpen(true)}
               aria-label="Buscar producto con la cámara"
               title="Buscar producto con la cámara"
-              className="w-9 h-9 grid place-items-center rounded-full text-base text-stone-500 hover:bg-stone-100 active:scale-95 transition"
+              className="w-9 h-9 grid place-items-center rounded-full text-base text-slate-500 hover:bg-slate-100 active:scale-95 transition"
             >
               📷
             </button>
@@ -515,12 +515,12 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
         {/* View mode toggle */}
         {!searchOnly && (
-          <div className="flex rounded-2xl border border-stone-200 overflow-hidden bg-white shadow-sm shrink-0">
+          <div className="flex rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm shrink-0">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
               aria-label="Vista cuadrícula"
-              className={`px-3 py-3 text-base transition ${viewMode === 'grid' ? 'bg-brand-500 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
+              className={`px-3 py-3 text-base transition ${viewMode === 'grid' ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               ⊞
             </button>
@@ -528,7 +528,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
               type="button"
               onClick={() => setViewMode('categories')}
               aria-label="Vista por categorías"
-              className={`px-3 py-3 text-base transition ${viewMode === 'categories' ? 'bg-brand-500 text-white' : 'text-stone-500 hover:bg-stone-50'}`}
+              className={`px-3 py-3 text-base transition ${viewMode === 'categories' ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               📂
             </button>
@@ -563,7 +563,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
                 className={`px-3 py-1 rounded-full text-sm border transition ${
                   active
                     ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                    : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-100'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 {f.label}
@@ -575,7 +575,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
 
       {/* Results meta + escape hatch — only when a flat grid is on screen */}
       {gridMode && (!searchOnly || anyFilterActive) && (
-        <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
+        <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
           <p className="truncate">
             {filtered.length === 0
               ? 'Sin resultados'
@@ -609,18 +609,18 @@ export default function ProductsBrowser(props: Readonly<Props>) {
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-600 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 transition"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition"
           >
             ← Anterior
           </button>
-          <span className="text-sm text-stone-500">
+          <span className="text-sm text-slate-500">
             Página {currentPage} de {totalPages}
           </span>
           <button
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-600 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 transition"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition"
           >
             Siguiente →
           </button>

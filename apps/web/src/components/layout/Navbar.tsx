@@ -108,7 +108,7 @@ function NavItem({
         </motion.div>
         <span>{label}</span>
         {active && !showBadge && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-energy-500 shrink-0" />
+          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
         )}
         {showBadge && <SharingBadge />}
       </Link>
@@ -155,12 +155,12 @@ export default function Navbar({ user }: Props) {
   }
 
   const logoTextCls =
-    'bg-linear-to-r from-brand-600 to-sky-500 dark:from-indigo-400 dark:to-cyan-400 bg-clip-text text-transparent';
+    'bg-linear-to-r from-brand-600 to-sky-500 dark:from-sky-400 dark:to-cyan-400 bg-clip-text text-transparent';
 
   return (
     <>
       {/* ─── Desktop sidebar (pastel blue) ──────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-64 shrink-0 h-screen sticky top-0 bg-linear-to-b from-sky-100 via-blue-50 to-indigo-100 dark:from-navy-800 dark:via-navy-900 dark:to-navy-900 border-r border-sky-200/70 dark:border-navy-700 shadow-xl z-40 overflow-y-auto">
+      <aside className="hidden md:flex flex-col w-64 shrink-0 h-screen sticky top-0 bg-linear-to-b from-sky-100 via-blue-50 to-sky-100 dark:from-navy-800 dark:via-navy-900 dark:to-navy-900 border-r border-sky-200/70 dark:border-navy-700 shadow-xl z-40 overflow-y-auto">
         <div className="flex items-center gap-4 px-6 pt-8 pb-3">
           <Image src="/logo.png" alt="Foody" width={52} height={52} className="object-contain drop-shadow-md" priority />
           <h1 className={`text-3xl font-black tracking-tight ${logoTextCls}`}>
@@ -183,10 +183,10 @@ export default function Navbar({ user }: Props) {
                   alt={user.name ?? user.email}
                   width={38}
                   height={38}
-                  className="rounded-full ring-2 ring-brand-300/50 dark:ring-indigo-500/30 shrink-0"
+                  className="rounded-full ring-2 ring-brand-300/50 dark:ring-sky-500/30 shrink-0"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-linear-to-r from-brand-500 to-sky-400 flex items-center justify-center text-white text-base font-bold ring-2 ring-brand-300/50 dark:ring-indigo-500/30 shrink-0">
+                <div className="w-10 h-10 rounded-full bg-linear-to-r from-brand-500 to-sky-400 flex items-center justify-center text-white text-base font-bold ring-2 ring-brand-300/50 dark:ring-sky-500/30 shrink-0">
                   {initial}
                 </div>
               )}
@@ -202,7 +202,7 @@ export default function Navbar({ user }: Props) {
                 <motion.button
                   type="submit"
                   title="Cerrar sesión"
-                  className="text-navy-400 hover:text-rose-500 dark:text-navy-300 dark:hover:text-rose-400 transition-colors"
+                  className="text-navy-400 hover:text-blue-500 dark:text-navy-300 dark:hover:text-blue-400 transition-colors"
                   whileHover={{ scale: 1.15, x: 3 }}
                   whileTap={{ scale: 0.85 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 17 }}
@@ -252,7 +252,7 @@ export default function Navbar({ user }: Props) {
         )}
 
         <div
-          className={`fixed top-0 left-0 z-50 h-full w-72 bg-linear-to-b from-sky-100 via-blue-50 to-indigo-100 dark:from-navy-800 dark:via-navy-900 dark:to-navy-900 border-r border-sky-200 dark:border-navy-700 shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+          className={`fixed top-0 left-0 z-50 h-full w-72 bg-linear-to-b from-sky-100 via-blue-50 to-sky-100 dark:from-navy-800 dark:via-navy-900 dark:to-navy-900 border-r border-sky-200 dark:border-navy-700 shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
@@ -291,7 +291,7 @@ export default function Navbar({ user }: Props) {
                     alt={user.name ?? user.email}
                     width={38}
                     height={38}
-                    className="rounded-full ring-2 ring-brand-300/50 dark:ring-indigo-500/30 shrink-0"
+                    className="rounded-full ring-2 ring-brand-300/50 dark:ring-sky-500/30 shrink-0"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-linear-to-r from-brand-500 to-sky-400 flex items-center justify-center text-white font-bold shrink-0">
@@ -307,7 +307,7 @@ export default function Navbar({ user }: Props) {
                 <motion.button
                   type="submit"
                   title="Cerrar sesión"
-                  className="text-navy-400 hover:text-rose-500 dark:text-navy-300 dark:hover:text-rose-400 transition-colors shrink-0"
+                  className="text-navy-400 hover:text-blue-500 dark:text-navy-300 dark:hover:text-blue-400 transition-colors shrink-0"
                   whileHover={{ scale: 1.15, x: 3 }}
                   whileTap={{ scale: 0.85 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 17 }}

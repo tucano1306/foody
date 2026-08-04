@@ -41,14 +41,14 @@ export default async function EditProductPage({
         <a href="/products" className="text-brand-500 hover:underline text-sm">
           ← Volver a productos
         </a>
-        <h1 className="text-2xl font-bold text-stone-800 mt-2">Editar {product.name}</h1>
+        <h1 className="text-2xl font-bold text-slate-800 mt-2">Editar {product.name}</h1>
         {!isOwner && (
           <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-50 text-brand-700">
             🤝 Producto compartido de tu hogar
           </p>
         )}
       </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <ProductForm product={product} inHousehold={inHousehold} isOwner={isOwner} />
       </div>
     </div>

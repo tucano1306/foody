@@ -29,7 +29,7 @@ const MARKDOWN_COMPONENTS = {
 export default function Markdown({ children, className }: Props) {
   return (
     <div
-      className={`prose prose-sm prose-stone max-w-none prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline prose-p:my-1 prose-headings:mt-2 prose-headings:mb-1 ${className ?? ''}`}
+      className={`prose prose-sm prose-slate max-w-none prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline prose-p:my-1 prose-headings:mt-2 prose-headings:mb-1 ${className ?? ''}`}
     >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
         {children}

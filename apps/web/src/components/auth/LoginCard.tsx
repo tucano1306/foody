@@ -20,7 +20,7 @@ export default function LoginCard(props: Readonly<Props>) {
 
   return (
     <div className="w-full max-w-md mx-4">
-      <div className="overflow-hidden rounded-3xl border border-stone-100 bg-white shadow-xl">
+      <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl">
         <div className="bg-linear-to-br from-brand-500 to-brand-600 p-8 text-center">
           <div className="mb-3 text-6xl">🥑</div>
           <h1 className="text-3xl font-bold text-white">Foody</h1>
@@ -29,12 +29,12 @@ export default function LoginCard(props: Readonly<Props>) {
 
         <div className="p-8">
           {error ? (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
               {ERROR_MESSAGES[error] ?? 'Error desconocido.'}
             </div>
           ) : null}
 
-          <p className="mb-6 text-center text-sm text-stone-600">
+          <p className="mb-6 text-center text-sm text-slate-600">
             Ingresa tu email y te enviaremos un codigo de acceso.
           </p>
 
@@ -44,14 +44,14 @@ export default function LoginCard(props: Readonly<Props>) {
               type="text"
               name="name"
               placeholder="Tu nombre (opcional)"
-              className="w-full rounded-xl border-2 border-stone-200 px-4 py-3 focus:border-brand-500 focus:outline-none"
+              className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 focus:border-brand-500 focus:outline-none"
             />
             <input
               type="email"
               name="email"
               required
               placeholder="tu@email.com"
-              className="w-full rounded-xl border-2 border-stone-200 px-4 py-3 focus:border-brand-500 focus:outline-none"
+              className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 focus:border-brand-500 focus:outline-none"
             />
             <button
               type="submit"
@@ -61,17 +61,17 @@ export default function LoginCard(props: Readonly<Props>) {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-stone-400">
+          <p className="mt-6 text-center text-xs text-slate-400">
             Tu cuenta queda protegida con un codigo temporal de acceso.
           </p>
 
-          <p className="mt-4 text-center text-xs text-stone-300">
+          <p className="mt-4 text-center text-xs text-slate-300">
             Al continuar aceptas los{' '}
-            <Link href="/legal/terminos" className="underline hover:text-stone-500">
+            <Link href="/legal/terminos" className="underline hover:text-slate-500">
               Términos de Uso
             </Link>{' '}
             y la{' '}
-            <Link href="/legal/privacidad" className="underline hover:text-stone-500">
+            <Link href="/legal/privacidad" className="underline hover:text-slate-500">
               Política de Privacidad
             </Link>
             .

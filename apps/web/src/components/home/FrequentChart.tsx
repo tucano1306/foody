@@ -47,14 +47,14 @@ export default function FrequentChart({ items }: Readonly<Props>) {
           <li key={item.productId} className="flex items-center gap-3">
             {/* Label */}
             <span
-              className="w-24 sm:w-32 shrink-0 text-xs font-medium text-stone-600 truncate"
+              className="w-24 sm:w-32 shrink-0 text-xs font-medium text-slate-600 truncate"
               title={item.name}
             >
               {item.name}
             </span>
 
             {/* Bar track */}
-            <div className="flex-1 h-5 rounded-full bg-stone-100 overflow-hidden relative">
+            <div className="flex-1 h-5 rounded-full bg-slate-100 overflow-hidden relative">
               <div
                 className="h-full rounded-full transition-all duration-500 ease-out"
                 style={{ width: `${pct}%`, backgroundColor: color }}
@@ -63,8 +63,8 @@ export default function FrequentChart({ items }: Readonly<Props>) {
 
             {/* Count + recency */}
             <span className="shrink-0 text-right tabular-nums">
-              <span className="text-sm font-bold text-stone-700">{item.purchases}x</span>
-              <span className="block text-[10px] text-stone-400 leading-none">
+              <span className="text-sm font-bold text-slate-700">{item.purchases}x</span>
+              <span className="block text-[10px] text-slate-400 leading-none">
                 {formatRelative(item.lastPurchasedAt)}
               </span>
             </span>

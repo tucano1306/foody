@@ -16,9 +16,9 @@ interface Product {
 }
 
 const STOCK_CONFIG = {
-  full:  { dot: 'bg-emerald-500', label: 'Completo' },
-  half:  { dot: 'bg-amber-500',   label: 'Bajo' },
-  empty: { dot: 'bg-rose-500',    label: 'Vacío' },
+  full:  { dot: 'bg-sky-500', label: 'Completo' },
+  half:  { dot: 'bg-sky-500',   label: 'Bajo' },
+  empty: { dot: 'bg-blue-500',    label: 'Vacío' },
 };
 
 export default async function SharedPantryPage({ params }: { readonly params: Promise<{ id: string }> }) {
@@ -62,7 +62,7 @@ export default async function SharedPantryPage({ params }: { readonly params: Pr
         {owner.owner_avatar ? (
           <Image src={owner.owner_avatar} alt={ownerLabel} width={48} height={48} className="w-12 h-12 rounded-full object-cover" />
         ) : (
-          <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg">
+          <div className="w-12 h-12 rounded-full bg-sky-600 flex items-center justify-center text-white font-bold text-lg">
             {ownerLabel.charAt(0).toUpperCase()}
           </div>
         )}
@@ -85,7 +85,7 @@ export default async function SharedPantryPage({ params }: { readonly params: Pr
             const cfg = STOCK_CONFIG[lvl] ?? STOCK_CONFIG.full;
             return (
               <div key={p.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition">
-                <div className="aspect-4/3 bg-stone-50 relative overflow-hidden">
+                <div className="aspect-4/3 bg-slate-50 relative overflow-hidden">
                   {p.photo_url ? (
                     <Image src={p.photo_url} alt={p.name} fill className="object-cover" sizes="25vw" />
                   ) : (

@@ -84,7 +84,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
           <section className="pointer-events-auto w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl animate-fade-up overflow-hidden">
 
             {/* ── Photo area ─────────────────────────────── */}
-            <div className="relative aspect-video bg-stone-100">
+            <div className="relative aspect-video bg-slate-100">
               {product.photoUrl ? (
                 <button
                   ref={photoButtonRef}
@@ -105,7 +105,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                   </span>
                 </button>
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-6xl bg-linear-to-br from-sky-50 to-stone-100 opacity-60">
+                <div className="w-full h-full flex items-center justify-center text-6xl bg-linear-to-br from-sky-50 to-slate-100 opacity-60">
                   🥑
                 </div>
               )}
@@ -124,12 +124,12 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
             {/* ── Info ───────────────────────────────────── */}
             <div className="px-4 pt-4 pb-6 space-y-4">
               <div>
-                <h2 className="text-lg font-bold text-stone-900 truncate">{product.name}</h2>
+                <h2 className="text-lg font-bold text-slate-900 truncate">{product.name}</h2>
                 {product.category && (
-                  <p className="text-xs text-stone-400 uppercase tracking-wide mt-0.5">{product.category}</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide mt-0.5">{product.category}</p>
                 )}
                 {product.lastPurchasePrice != null && (
-                  <p className="mt-1 text-2xl font-extrabold text-stone-900">
+                  <p className="mt-1 text-2xl font-extrabold text-slate-900">
                     {formatMoney(product.lastPurchasePrice, product.currency ?? 'USD')}
                   </p>
                 )}
@@ -139,19 +139,19 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
               {(product.totalSpent > 0 || lastPurchase || product.lastPurchaseDate) && (
                 <div className="flex gap-3">
                   {product.totalSpent > 0 && (
-                    <div className="flex-1 rounded-xl bg-stone-50 p-3">
-                      <p className="text-[10px] text-stone-400 uppercase tracking-wide">Total gastado</p>
+                    <div className="flex-1 rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Total gastado</p>
                       <p className="text-sm font-bold text-brand-700 mt-0.5">{formatMoney(product.totalSpent, product.currency ?? 'USD')}</p>
                     </div>
                   )}
                   {(lastPurchase || product.lastPurchaseDate) && (
-                    <div className="flex-1 rounded-xl bg-stone-50 p-3">
-                      <p className="text-[10px] text-stone-400 uppercase tracking-wide">Última compra</p>
-                      <p className="text-sm font-semibold text-stone-700 mt-0.5">
+                    <div className="flex-1 rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Última compra</p>
+                      <p className="text-sm font-semibold text-slate-700 mt-0.5">
                         {formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, product.lastPurchaseDate)!)}
                       </p>
                       {lastPurchase?.storeName && (
-                        <p className="text-[10px] text-stone-400 truncate mt-0.5">🏪 {lastPurchase.storeName}</p>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">🏪 {lastPurchase.storeName}</p>
                       )}
                     </div>
                   )}
@@ -161,7 +161,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
               {/* ── Edit link ──────────────────────────── */}
               <a
                 href={`/products/${product.id}`}
-                className="block text-center w-full py-3 rounded-xl bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-stone-700 font-semibold transition text-sm"
+                className="block text-center w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-semibold transition text-sm"
               >
                 ✏️ Editar producto
               </a>

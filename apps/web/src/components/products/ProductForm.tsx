@@ -439,21 +439,21 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <div className="px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm">
           {error}
         </div>
       )}
 
       {/* ─── Photo upload ──────────────────────────────────────────────────── */}
       <div>
-        <span className="block text-sm font-medium text-stone-700 mb-2">
+        <span className="block text-sm font-medium text-slate-700 mb-2">
           Foto del producto
         </span>
-        <div className="border-2 border-dashed border-stone-200 rounded-2xl p-4">
+        <div className="border-2 border-dashed border-slate-200 rounded-2xl p-4">
           {uploading ? (
             <div className="py-6 text-center" aria-live="polite">
               <div className="w-8 h-8 mx-auto rounded-full border-4 border-brand-200 border-t-brand-500 animate-spin" />
-              <p className="text-sm text-stone-400 mt-3">Optimizando foto…</p>
+              <p className="text-sm text-slate-400 mt-3">Optimizando foto…</p>
             </div>
           ) : photoPreview ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -465,7 +465,7 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
           ) : (
             <div className="py-6 text-center">
               <span className="text-3xl">📷</span>
-              <p className="text-sm text-stone-400 mt-2">Agrega una foto</p>
+              <p className="text-sm text-slate-400 mt-2">Agrega una foto</p>
             </div>
           )}
 
@@ -503,7 +503,7 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
             className="hidden"
             onChange={handlePhotoChange}
           />
-          <p className="mt-3 text-xs text-stone-400 text-center">
+          <p className="mt-3 text-xs text-slate-400 text-center">
             Formatos: {ACCEPTED_IMAGE_TYPES}. La app los optimiza y los guarda como JPEG.
           </p>
         </div>
@@ -511,7 +511,7 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
 
       {/* ─── Name ─────────────────────────────────────────────────────────── */}
       <div>
-        <label htmlFor="product-name" className="block text-sm font-medium text-stone-700 mb-1">
+        <label htmlFor="product-name" className="block text-sm font-medium text-slate-700 mb-1">
           Nombre *
         </label>
         <input
@@ -520,13 +520,13 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           placeholder="Ej: Leche"
-          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
+          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
         />
       </div>
 
       {/* ─── Category ─────────────────────────────────────────────────────── */}
       <div>
-        <label htmlFor="product-category" className="block text-sm font-medium text-stone-700 mb-1">Categoría</label>
+        <label htmlFor="product-category" className="block text-sm font-medium text-slate-700 mb-1">Categoría</label>
         <select
           id="product-category"
           value={CATEGORIES.includes(form.category ?? '') ? (form.category ?? '') : '__other__'}
@@ -537,7 +537,7 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
               setForm((f) => ({ ...f, category: e.target.value }));
             }
           }}
-          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-300 transition bg-white"
+          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-300 transition bg-white"
         >
           <option value="">— Sin categoría —</option>
           {CATEGORIES.map((c) => (
@@ -551,21 +551,21 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
             value={form.category}
             onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
             placeholder="Escribe la categoría…"
-            className="mt-2 w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
+            className="mt-2 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
           />
         )}
       </div>
 
       {/* ─── Description ──────────────────────────────────────────────────── */}
       <div>
-        <label htmlFor="product-desc" className="block text-sm font-medium text-stone-700 mb-1">Descripción</label>
+        <label htmlFor="product-desc" className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
         <textarea
           id="product-desc"
           rows={2}
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="Descripción opcional..."
-          className="w-full px-3 py-2.5 rounded-xl border border-stone-200 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition resize-none"
+          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition resize-none"
         />
       </div>
 
@@ -577,21 +577,21 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
           className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition ${
             isPrivate
               ? 'border-brand-400 bg-brand-50 dark:bg-brand-900/20'
-              : 'border-stone-200 bg-stone-50 dark:bg-stone-800'
+              : 'border-slate-200 bg-slate-50 dark:bg-slate-800'
           }`}
         >
           <div className="flex items-center gap-3">
             <span className="text-xl">{isPrivate ? '🔒' : '👨‍👩‍👧'}</span>
             <div className="text-left">
-              <p className={`text-sm font-semibold ${ isPrivate ? 'text-brand-600 dark:text-brand-400' : 'text-stone-700 dark:text-stone-200' }`}>
+              <p className={`text-sm font-semibold ${ isPrivate ? 'text-brand-600 dark:text-brand-400' : 'text-slate-700 dark:text-slate-200' }`}>
                 {isPrivate ? 'Solo para mí' : 'Compartido con el hogar'}
               </p>
-              <p className="text-xs text-stone-400">
+              <p className="text-xs text-slate-400">
                 {isPrivate ? 'Tu familia no verá este producto' : 'Visible para todos en tu hogar'}
               </p>
             </div>
           </div>
-          <div className={`w-11 h-6 rounded-full transition-colors ${ isPrivate ? 'bg-brand-500' : 'bg-stone-300 dark:bg-stone-600' }`}>
+          <div className={`w-11 h-6 rounded-full transition-colors ${ isPrivate ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600' }`}>
             <div className={`w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform ${ isPrivate ? 'translate-x-5' : 'translate-x-0.5' }`} />
           </div>
         </button>

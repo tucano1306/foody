@@ -304,7 +304,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
         {statusText.length > 0 && (
           <p
             className={`text-sm text-center font-medium ${
-              state === 'error' ? 'text-red-400' : 'text-white/80'
+              state === 'error' ? 'text-blue-400' : 'text-white/80'
             }`}
           >
             {statusText}
@@ -334,22 +334,22 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
             </button>
 
             {/* Torch tip — prominent callout */}
-            <div className="flex items-start gap-2.5 rounded-xl bg-yellow-400/15 border border-yellow-400/30 px-3.5 py-2.5">
+            <div className="flex items-start gap-2.5 rounded-xl bg-sky-400/15 border border-sky-400/30 px-3.5 py-2.5">
               <span className="text-lg leading-none mt-0.5" aria-hidden="true">🔦</span>
-              <p className="text-xs text-yellow-200 leading-relaxed">
+              <p className="text-xs text-sky-200 leading-relaxed">
                 <strong className="font-semibold">Enciende la linterna antes de tomar la foto.</strong>
                 {' '}Los recibos se leen mucho mejor con buena iluminación.
               </p>
             </div>
 
             {state === 'error' && errorMsg && (
-              <p className="text-xs text-red-400 text-center">{errorMsg}</p>
+              <p className="text-xs text-blue-400 text-center">{errorMsg}</p>
             )}
           </div>
         )}
 
         {state === 'done' && (
-          <p className="text-green-400 font-semibold text-sm text-center">
+          <p className="text-sky-400 font-semibold text-sm text-center">
             ✅ Recibo procesado — revisa los productos detectados
           </p>
         )}
