@@ -5,8 +5,12 @@ const CSP = [
   // unsafe-inline for Next.js; wasm-unsafe-eval for Tesseract.js WebAssembly; cdn.jsdelivr.net for Tesseract
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline'",
-  // blob.vercel-storage.com: fotos de productos (antes iban embebidas en la BD)
-  "img-src 'self' data: blob: https://*.amazonaws.com https://*.blob.vercel-storage.com",
+  // Fotos de productos (antes embebidas en la BD). El host real tiene DOS
+  // niveles —"<store>.public.blob.vercel-storage.com"— y el comodín de CSP
+  // cubre un solo nivel: con `*.blob.vercel-storage.com` la miniatura se veía
+  // (va por /_next/image, mismo origen) pero el zoom, que usa la URL directa,
+  // salía roto. Se listan ambas formas por si el host cambia de estructura.
+  "img-src 'self' data: blob: https://*.amazonaws.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.vercel-storage.com",
   "font-src 'self'",
   // cdn.jsdelivr.net: Tesseract.js WASM core + traineddata downloads
   "connect-src 'self' https://*.neon.tech https://cdn.jsdelivr.net",
@@ -27,8 +31,10 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
+        // `**` y no `*`: el host tiene dos niveles antes del dominio
+        // (<store>.public.blob.vercel-storage.com).
         protocol: 'https',
-        hostname: '*.blob.vercel-storage.com',
+        hostname: '**.blob.vercel-storage.com',
         pathname: '/**',
       },
     ],
