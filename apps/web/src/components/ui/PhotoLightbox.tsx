@@ -31,13 +31,39 @@ function getDist(touches: TouchList) {
   );
 }
 
+/**
+ * Sirve cualquier foto remota a través del optimizador de Next, es decir,
+ * desde el MISMO origen que la app.
+ *
+ * El zoom cargaba la URL del almacenamiento tal cual y el navegador la
+ * bloqueaba: el host de las fotos tiene dos niveles de subdominio
+ * (<store>.public.blob.vercel-storage.com) y el comodín de `img-src` cubre
+ * uno. Resultado: la miniatura se veía —va por /_next/image— y el zoom salía
+ * roto. En vez de pelear con el comodín, el visor usa la misma vía que ya
+ * funciona, y así deja de depender de la lista de dominios permitidos.
+ *
+ * Las data URLs y las rutas propias se devuelven intactas.
+ */
+export function sameOriginPhoto(src: string, width = 1920, quality = 75): string {
+  if (!src) return src;
+  if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+  if (src.startsWith('/')) return src;
+  // La calidad debe estar declarada en `images.qualities` (next.config.ts).
+  // Pedir una que no lo esté devuelve 400: «"q" parameter (quality) of 90 is
+  // not allowed», y la imagen sale rota sin decir por qué.
+  return `/_next/image?url=${encodeURIComponent(src)}&w=${width}&q=${quality}`;
+}
+
 export default function PhotoLightbox(props: Props) {
   // ProductCard already guards against desktop via `pointer: fine` check,
   // so here we always render the mobile lightbox.
   return <MobileLightbox {...props} />;
 }
 
-function MobileLightbox({ src, alt, onClose, originRect }: Props) {
+function MobileLightbox({ src: rawSrc, alt, onClose, originRect }: Props) {
+  // Todo lo que pinte este visor —la imagen y el fondo de la lupa— pasa por
+  // el mismo origen, para no depender de la lista de dominios permitidos.
+  const src = sameOriginPhoto(rawSrc);
   const dialogRef    = useRef<HTMLDialogElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef       = useRef<HTMLDivElement>(null);
