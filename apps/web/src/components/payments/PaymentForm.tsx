@@ -295,7 +295,6 @@ export default function PaymentForm() {
           Método de pago habitual{' '}
           <span className="ml-1 text-xs font-normal text-slate-400">(opcional)</span>
         </span>
-        <p className="text-xs text-slate-400 mb-2">Cómo pagas normalmente esta cuenta. Solo guardamos los últimos 4 dígitos.</p>
         <PaymentMethodPicker
           method={form.paymentMethod ?? null}
           bankName={form.bankName ?? ''}
