@@ -87,7 +87,7 @@ export default async function PriceComparisonPage() {
     <div className="space-y-4">
       <ModernTitle
         title="📊 Comparar precios"
-        subtitle="Mismo producto, distintos supermercados — ve dónde sale más barato."
+        subtitle="Dónde sale más barato"
         action={
           <Link href="/shopping-trips" className="text-sm text-slate-500 hover:text-slate-700 font-medium">
             ← Mis compras

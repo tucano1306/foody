@@ -53,7 +53,7 @@ export default async function SharingPage() {
     <div className="space-y-6">
       <ModernTitle
         title="🤝 Compartir"
-        subtitle="Comparte tu despensa o envía productos a otros usuarios de Foody."
+        subtitle="Despensa compartida y regalos"
       />
       <SharingHub
         initialPantrySent={pantrySentRaw as never}

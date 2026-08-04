@@ -54,7 +54,7 @@ export default async function SharedPantryPage({ params }: { readonly params: Pr
     <div className="space-y-6">
       <ModernTitle
         title={`🏠 Despensa de ${ownerLabel}`}
-        subtitle="Vista de solo lectura — puedes clonar productos a tu despensa"
+        subtitle="Solo lectura"
       />
 
       {/* Owner card */}
