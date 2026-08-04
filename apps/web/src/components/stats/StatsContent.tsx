@@ -147,7 +147,6 @@ export default function StatsContent({
             emoji="💵"
             chipClass="bg-sky-50 dark:bg-sky-950/40"
             title="Gasto mensual"
-            subtitle={monthlySpending.length > 0 ? 'Toca un mes para ver el detalle' : undefined}
             trailing={
               totalThisMonth > 0 ? (
                 <span className="text-slate-500 dark:text-slate-400 text-sm shrink-0">
@@ -210,7 +209,6 @@ export default function StatsContent({
               emoji="🏆"
               chipClass="bg-sky-50 dark:bg-sky-950/40"
               title="Productos más comprados"
-              subtitle="Toca un producto para ver su historial"
             />
             <div className="space-y-3">
               {topProducts.map((p, i) => {
@@ -388,7 +386,7 @@ export default function StatsContent({
             emoji="🛒"
             chipClass="bg-sky-50 dark:bg-sky-950/40"
             title="Supermercados más usados"
-            subtitle={topStores.length > 0 ? 'Toca una tienda para ver las compras' : 'Basado en tus compras registradas'}
+            subtitle={topStores.length > 0 ? undefined : 'Basado en tus compras registradas'}
           />
           {topStores.length === 0 ? (
             <p className="text-slate-500 dark:text-slate-400 text-sm text-center py-4">

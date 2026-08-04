@@ -370,9 +370,6 @@ export default function HouseholdManager() {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-          Toca un miembro para cambiar su nombre o sacarlo del hogar.
-        </p>
       </section>
 
       <section className={cardCls}>

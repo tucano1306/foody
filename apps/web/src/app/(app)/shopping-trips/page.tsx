@@ -54,7 +54,7 @@ export default async function ShoppingTripsPage() {
     <div className="space-y-4">
       <ModernTitle
         title="🧾 Compras"
-        subtitle="Historial de tickets y comparación de precios por supermercado."
+        subtitle="Tickets y precios"
         action={
           <Link
             href="/shopping-trips/new"
@@ -114,9 +114,6 @@ export default async function ShoppingTripsPage() {
         </div>
       ) : (
         <>
-          <p className="text-xs text-slate-400 px-1">
-            👆 Toca un ticket para verlo, editarlo o borrarlo.
-          </p>
           <ul className="space-y-2 card-stagger">
             {trips.map((trip) => (
               <li key={trip.id}>

@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { sql } from '@/lib/db';
+import { buildStatsSummary } from '@/lib/stats-engine';
 import ModernTitle from '@/components/layout/ModernTitle';
 import StatsContent from '@/components/stats/StatsContent';
 import type { Metadata } from 'next';
@@ -130,25 +131,6 @@ async function getStats(userId: string): Promise<StatsData> {
   };
 }
 
-function buildInsights(categorySpend: CategorySpend[], totalThisMonth: number, totalLastMonth: number): string[] {
-  const insights: string[] = [];
-
-  if (totalLastMonth > 0 && totalThisMonth > 0) {
-    const pct = Math.round(((totalThisMonth - totalLastMonth) / totalLastMonth) * 100);
-    if (pct < -5) insights.push(`💚 Gastaste ${Math.abs(pct)}% menos en total este mes`);
-    else if (pct > 5) insights.push(`🔴 Gastaste ${pct}% más en total este mes`);
-  }
-
-  for (const cat of categorySpend) {
-    if (cat.prevMonth <= 0 || cat.currentMonth <= 0) continue;
-    const pct = Math.round(((cat.currentMonth - cat.prevMonth) / cat.prevMonth) * 100);
-    if (pct <= -15) insights.push(`💚 Gastaste ${Math.abs(pct)}% menos en ${cat.category} este mes`);
-    else if (pct >= 20) insights.push(`🔴 Gastaste ${pct}% más en ${cat.category} vs el mes pasado`);
-  }
-
-  return insights.slice(0, 4);
-}
-
 export default async function StatsPage() {
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect('/login');
@@ -165,13 +147,18 @@ export default async function StatsPage() {
   }
 
   const { stock, topStores, monthlySpending, totalProducts, topProducts, categorySpend, totalThisMonth, totalLastMonth } = data;
-  const totalStockCount = stock.full + stock.half + stock.empty || 1;
-  const fullPct = Math.round((stock.full / totalStockCount) * 100);
-  const halfPct = Math.round((stock.half / totalStockCount) * 100);
-  const emptyPct = Math.round((stock.empty / totalStockCount) * 100);
-  const maxTrips = topStores.length > 0 ? topStores[0].trips : 1;
-  const maxSpend = monthlySpending.length > 0 ? Math.max(...monthlySpending.map((m) => m.total)) || 1 : 1;
-  const insights = buildInsights(categorySpend, totalThisMonth, totalLastMonth);
+  // Los cálculos viven en stats-engine.ts, probado aparte: porcentajes que
+  // suman 100 exactos, divisores que nunca son 0 y conclusiones ordenadas por
+  // magnitud (con tope de 4, que salgan las que más se movieron).
+  const summary = buildStatsSummary({
+    stock,
+    months: monthlySpending,
+    categories: categorySpend,
+    stores: topStores,
+  });
+  const { fullPct, halfPct, emptyPct } = summary.stock;
+  const { maxTrips, maxSpend } = summary;
+  const insights = summary.insights.map((i) => `${i.icon} ${i.text}`);
 
   return (
     <div className="space-y-6">

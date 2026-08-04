@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import { playSound } from '@/lib/sound';
@@ -60,6 +61,9 @@ function Avatar({ src, name }: { readonly src?: string | null; readonly name?: s
     </div>
   );
 }
+
+/** Desplazamiento a partir del cual el gesto cuenta como acción. */
+const SHARE_SWIPE_THRESHOLD = 90;
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   pending:  { label: 'Pendiente', cls: 'bg-sky-100 text-sky-700' },
@@ -189,8 +193,28 @@ function PantryCard({
     });
   }
 
+  // Una invitación pendiente se resuelve deslizando: derecha acepta, izquierda
+  // rechaza. Los botones siguen ahí; el gesto es el atajo para quien ya sabe.
+  const swipeable = direction === 'received' && share.status === 'pending' && !isPending;
+
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
+    <div className="relative rounded-2xl overflow-hidden">
+      {swipeable && (
+        <div className="absolute inset-0 flex items-center justify-between px-5 bg-linear-to-r from-sky-200 to-blue-200" aria-hidden="true">
+          <span className="text-xs font-black text-black">✅ Aceptar</span>
+          <span className="text-xs font-black text-black">Rechazar</span>
+        </div>
+      )}
+    <motion.div
+      drag={swipeable ? 'x' : false}
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.5}
+      onDragEnd={(_, info) => {
+        if (info.offset.x > SHARE_SWIPE_THRESHOLD) doAction('accept');
+        else if (info.offset.x < -SHARE_SWIPE_THRESHOLD) doAction('reject');
+      }}
+      className="relative bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm touch-pan-y"
+    >
       <div className="flex items-start gap-3">
         <Avatar src={avatar} name={String(name)} />
         <div className="flex-1 min-w-0">
@@ -252,6 +276,7 @@ function PantryCard({
           Revocar acceso
         </button>
       )}
+    </motion.div>
     </div>
   );
 }
