@@ -86,10 +86,16 @@ let scopeEnsured = false;
  * exactamente lo que era y ningún gasto se muda de lado sin que el usuario lo
  * diga. Los ingresos llevan la misma columna porque separar gastos sin separar
  * ingresos dejaría un negocio que solo pierde dinero.
+ *
+ * `ALTER TABLE IF EXISTS` no es adorno: esta función la llama /api/payments, y
+ * ahí se toca `finance_income_sources`, que es de otro módulo. Sin el IF EXISTS,
+ * una tabla de finanzas todavía sin crear tumbaría la API de pagos entera con un
+ * «relation does not exist» — el IF NOT EXISTS de la columna no cubre eso. Así
+ * la migración deja de depender del orden en que se visiten las secciones.
  */
 export async function ensureExpenseScopeSchema(): Promise<void> {
   if (scopeEnsured) return;
-  await sql`ALTER TABLE monthly_payments ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
-  await sql`ALTER TABLE finance_income_sources ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE IF EXISTS finance_income_sources ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
   scopeEnsured = true;
 }
