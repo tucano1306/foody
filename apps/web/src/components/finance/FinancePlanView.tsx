@@ -221,7 +221,11 @@ export default function FinancePlanView({ initialData }: Props) {
         return setModal({ kind: 'goal', goal: goal ?? null });
       }
       case 'contribute': {
-        const projection = data.goals.find((g) => g.goalId === action.goalId);
+        // `view` y no `data`: el consejo que se acaba de tocar se generó con la
+        // vista actual, así que el modal tiene que abrirse con esa misma
+        // proyección. Con `data` mostraría los números del plan completo aunque
+        // el usuario tenga el negocio excluido.
+        const projection = view.goals.find((g) => g.goalId === action.goalId);
         if (projection) setModal({ kind: 'contribute', goal: projection });
         return;
       }

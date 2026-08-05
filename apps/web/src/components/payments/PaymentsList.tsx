@@ -88,20 +88,36 @@ export default function PaymentsList({ initialPayments }: Props) {
   const snoozedIds = new Set(snoozed.map((p) => p.id));
   const pending = payments.filter((p) => !p.isPaidThisMonth && !snoozedIds.has(p.id));
   const paid = payments.filter((p) => p.isPaidThisMonth);
-  // Los totales cuentan solo la PARTE del ámbito que se está mirando: en la
-  // vista de negocio, un móvil al 60 % suma sus $60, no los $100 enteros.
-  const scoped = (list: MonthlyPayment[]) =>
+  /**
+   * TODA cifra de dinero de esta pantalla pasa por aquí, para que no pueda
+   * ocurrir que unos totales se repartan por ámbito y otros no: en la vista de
+   * negocio, un móvil al 60 % suma sus $78, nunca los $130 enteros — y eso vale
+   * igual para el total del mes que para el acumulado histórico.
+   *
+   * Al histórico se le aplica el reparto de HOY. Es una aproximación (el
+   * porcentaje pudo cambiar), pero es el único dato que existe y es el mismo
+   * criterio que ya usa la deuda acumulada, que multiplica meses por el importe
+   * actual.
+   */
+  const scopedSum = (list: MonthlyPayment[], valueOf: (p: MonthlyPayment) => number) =>
     totalForFilter(
-      list.map((p) => ({ id: p.id, name: p.name, amount: p.amount, businessShare: p.businessShare ?? 0 })),
+      list.map((p) => ({
+        id: p.id,
+        name: p.name,
+        amount: valueOf(p),
+        businessShare: p.businessShare ?? 0,
+      })),
       scope,
     );
-  const totalExpenses = scoped(payments);
-  const totalPaid = scoped(paid);
-  const totalSnoozed = scoped(snoozed);
-  // Total accumulated debt across ALL payments with missed months
-  const totalAccumulated = payments.reduce((sum, p) => sum + (p.accumulatedDebt ?? 0), 0);
-  // All-time paid totals (running history across every payment)
-  const totalPaidAllTime = payments.reduce((sum, p) => sum + (p.totalPaidAllTime ?? 0), 0);
+
+  const amountOf = (p: MonthlyPayment) => p.amount;
+  const totalExpenses = scopedSum(payments, amountOf);
+  const totalPaid = scopedSum(paid, amountOf);
+  const totalSnoozed = scopedSum(snoozed, amountOf);
+  const totalAccumulated = scopedSum(payments, (p) => p.accumulatedDebt ?? 0);
+  const totalPaidAllTime = scopedSum(payments, (p) => p.totalPaidAllTime ?? 0);
+  // El CONTEO de pagos no se reparte: medio pago no existe. Un pago mixto
+  // cuenta como uno en las dos vistas, que es lo que de verdad ocurrió.
   const paidCountAllTime = payments.reduce((sum, p) => sum + (p.paidCountAllTime ?? 0), 0);
   const paidBreakdown = payments
     .filter((p) => (p.totalPaidAllTime ?? 0) > 0)
@@ -307,7 +323,10 @@ export default function PaymentsList({ initialPayments }: Props) {
                     </span>
                     <span className="text-white text-xs font-bold shrink-0 flex items-center gap-1.5">
                       <span>
-                        {p.currency} {(p.totalPaidAllTime ?? 0).toFixed(2)}
+                        {/* La fila también muestra su parte, o la suma de arriba
+                            no cuadraría con el desglose que tiene debajo. */}
+                        {p.currency}{' '}
+                        {scopedSum([p], (x) => x.totalPaidAllTime ?? 0).toFixed(2)}
                         <span className="text-white/60 font-medium">
                           {' '}· {p.paidCountAllTime ?? 0} {(p.paidCountAllTime ?? 0) === 1 ? 'pago' : 'pagos'}
                         </span>
