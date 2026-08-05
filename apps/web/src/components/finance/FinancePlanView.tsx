@@ -11,6 +11,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { FinancePlanPayload } from '@/lib/finance-data';
 import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
 import AdviceFeed from './AdviceFeed';
+import BusinessPanel from './BusinessPanel';
 import CashFlowCard from './CashFlowCard';
 import ContributeModal from './ContributeModal';
 import DebtPanel from './DebtPanel';
@@ -314,6 +315,9 @@ export default function FinancePlanView({ initialData }: Props) {
 
       {/* ─── Consejero ───────────────────────────────────────────────────── */}
       <AdviceFeed advice={data.advice} onAction={runAdviceAction} />
+
+      {/* ─── Negocio ─────────────────────────────────────────────────────── */}
+      <BusinessPanel scopes={data.scopes} />
 
       {/* ─── Deuda ───────────────────────────────────────────────────────── */}
       <DebtPanel debts={data.debts} />

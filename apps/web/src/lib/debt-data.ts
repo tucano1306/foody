@@ -33,6 +33,7 @@ import {
   type PortfolioDebt,
   type RatePeriod,
 } from './debt-engine';
+import { normalizeShare } from './expense-scope';
 
 // ─── Tipos expuestos ──────────────────────────────────────────────────────────
 
@@ -56,6 +57,8 @@ export interface Debt {
   minPercent: number | null;
   minFloor: number | null;
   extraMonthly: number;
+  /** 0-100: qué parte de este crédito corresponde al negocio. */
+  businessShare: number;
   creditLimit: number | null;
   dueDay: number;
   openedAt: string;
@@ -122,6 +125,7 @@ export interface CreateDebtInput {
   minPercent?: number | null;
   minFloor?: number | null;
   extraMonthly?: number;
+  businessShare?: number;
   creditLimit?: number | null;
   dueDay?: number;
   note?: string | null;
@@ -192,6 +196,10 @@ export async function ensureDebtSchema(): Promise<void> {
     )
   `;
 
+  // Un crédito también puede ser del negocio (préstamo comercial, tarjeta de
+  // la empresa). Mismo criterio que el resto de gastos: un solo número 0–100.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+
   await sql`CREATE INDEX IF NOT EXISTS idx_debts_user ON debts (user_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_debt_movements ON debt_movements (debt_id, occurred_at DESC)`;
   // Un solo apunte de interés por deuda y mes: la idempotencia del devengo.
@@ -242,6 +250,7 @@ function mapDebt(row: Record<string, unknown>): Debt {
     minPercent: numOrNull(row.min_percent),
     minFloor: numOrNull(row.min_floor),
     extraMonthly: num(row.extra_monthly),
+    businessShare: normalizeShare(row.business_share),
     creditLimit: numOrNull(row.credit_limit),
     dueDay: Math.trunc(num(row.due_day, 1)),
     openedAt: iso(row.opened_at),
@@ -532,6 +541,8 @@ export interface CreditForPlan {
   monthlyInterest: number;
   monthsToPayoff: number | null;
   neverPaysOff: boolean;
+  /** 0-100: qué parte de la cuota corresponde al negocio. */
+  businessShare: number;
 }
 
 /**
@@ -549,7 +560,7 @@ export async function listCreditsForPlan(
   await ensureDebtSchema();
   const rows = await sql`
     SELECT id, name, current_balance, rate, rate_period, strategy,
-           term_months, custom_payment, min_percent, min_floor, extra_monthly
+           term_months, custom_payment, min_percent, min_floor, extra_monthly, business_share
     FROM debts
     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
   `;
@@ -577,6 +588,7 @@ export async function listCreditsForPlan(
       monthlyInterest: projection.monthlyInterest,
       monthsToPayoff: projection.monthsToPayoff,
       neverPaysOff: projection.neverPaysOff,
+      businessShare: normalizeShare(row.business_share),
     };
   });
 }
@@ -645,7 +657,7 @@ export async function createDebt(
     INSERT INTO debts (
       user_id, name, kind, issuer, account_last4, currency,
       original_amount, current_balance, rate, rate_period, strategy,
-      term_months, custom_payment, min_percent, min_floor, extra_monthly,
+      term_months, custom_payment, min_percent, min_floor, extra_monthly, business_share,
       credit_limit, due_day, last_accrual_at, opened_at, status, note, created_at, updated_at
     ) VALUES (
       ${userId}, ${input.name}, ${input.kind ?? 'credit_card'}, ${input.issuer ?? null},
@@ -653,7 +665,8 @@ export async function createDebt(
       ${balance}, ${balance}, ${safeAmount(input.rate)}, ${input.ratePeriod ?? 'monthly'},
       ${strategy}, ${input.termMonths ?? null},
       ${lockedPayment}, ${input.minPercent ?? null}, ${input.minFloor ?? null},
-      ${safeAmount(input.extraMonthly)}, ${input.creditLimit ?? null}, ${input.dueDay ?? 1},
+      ${safeAmount(input.extraMonthly)}, ${normalizeShare(input.businessShare)},
+      ${input.creditLimit ?? null}, ${input.dueDay ?? 1},
       ${nowIso}, ${nowIso}, 'active', ${input.note ?? null}, now(), now()
     ) RETURNING *
   `;
@@ -717,6 +730,7 @@ export async function updateDebt(
       min_percent    = ${input.minPercent === undefined ? current.minPercent : input.minPercent},
       min_floor      = ${input.minFloor === undefined ? current.minFloor : input.minFloor},
       extra_monthly  = ${input.extraMonthly === undefined ? current.extraMonthly : safeAmount(input.extraMonthly)},
+      business_share = ${input.businessShare === undefined ? current.businessShare : normalizeShare(input.businessShare)},
       credit_limit   = ${input.creditLimit === undefined ? current.creditLimit : input.creditLimit},
       due_day        = ${input.dueDay ?? current.dueDay},
       status         = ${input.status ?? current.status},

@@ -4,6 +4,7 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensureFinanceSchema, mapIncomeRow } from '@/lib/finance-data';
 import { isError, validateIncomeBody } from '@/lib/finance-input';
+import { normalizeShare } from '@/lib/expense-scope';
 
 // GET /api/finance/income
 export async function GET(request: NextRequest) {
@@ -34,8 +35,8 @@ export async function POST(request: NextRequest) {
 
   await ensureFinanceSchema();
   const rows = await sql`
-    INSERT INTO finance_income_sources (id, user_id, name, amount, frequency, is_active, note, created_at, updated_at)
-    VALUES (${randomUUID()}, ${user.userId}, ${input.name}, ${input.amount}, ${input.frequency}, ${input.isActive}, ${input.note}, NOW(), NOW())
+    INSERT INTO finance_income_sources (id, user_id, name, amount, frequency, is_active, note, business_share, created_at, updated_at)
+    VALUES (${randomUUID()}, ${user.userId}, ${input.name}, ${input.amount}, ${input.frequency}, ${input.isActive}, ${input.note}, ${normalizeShare(body.businessShare)}, NOW(), NOW())
     RETURNING *
   `;
   return NextResponse.json(mapIncomeRow(rows[0] as Record<string, unknown>), { status: 201 });

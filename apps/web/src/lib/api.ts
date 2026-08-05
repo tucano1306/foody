@@ -2,7 +2,8 @@ import { getSession } from './session';
 import { sql } from './db';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
-import { ensureProductSharingSchema } from './ensure-schema';
+import { ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
+import { normalizeShare } from './expense-scope';
 import { randomUUID } from 'node:crypto';
 
 interface PushSubscriptionJSON {
@@ -174,6 +175,7 @@ function mapMonthlyPayment(
     notificationDaysBefore: asInteger(row.notification_days_before, 1),
     isVariableAmount: Boolean(row.is_variable_amount),
     isAutoPay: Boolean(row.is_auto_pay),
+    businessShare: normalizeShare(row.business_share),
     paymentMethod: (row.payment_method as MonthlyPayment['paymentMethod'] | null | undefined) ?? null,
     bankName: (row.bank_name as string | null | undefined) ?? null,
     accountLast4: (row.account_last4 as string | null | undefined) ?? null,

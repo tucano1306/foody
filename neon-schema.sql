@@ -406,3 +406,12 @@ CREATE INDEX IF NOT EXISTS "idx_debt_movements" ON "debt_movements" ("debt_id", 
 -- que pase con reintentos o pestañas simultáneas.
 CREATE UNIQUE INDEX IF NOT EXISTS "uq_debt_interest_period"
   ON "debt_movements" ("debt_id", "period_key") WHERE "kind" = 'interest';
+
+-- ─── Gastos personales vs del negocio ─────────────────────────
+-- Un solo número 0–100 (% que corresponde al negocio). El ámbito
+-- —personal / negocio / mixto— se DERIVA de él, así que no puede existir
+-- el estado contradictorio que sí permitiría un enum aparte.
+-- DEFAULT 0 = personal: nada de lo ya existente cambia de lado solo.
+ALTER TABLE "monthly_payments"       ADD COLUMN IF NOT EXISTS "business_share" DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE "debts"                  ADD COLUMN IF NOT EXISTS "business_share" DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE "finance_income_sources" ADD COLUMN IF NOT EXISTS "business_share" DECIMAL(5,2) NOT NULL DEFAULT 0;

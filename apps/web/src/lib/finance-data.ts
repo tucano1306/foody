@@ -11,6 +11,8 @@
 import { sql } from '@/lib/db';
 import { getBudgetData } from '@/lib/budget-data';
 import { listCreditsForPlan } from '@/lib/debt-data';
+import { normalizeShare } from '@/lib/expense-scope';
+import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 import { buildPaymentAggregates, type PaidRecordInput } from '@/lib/payment-aggregates';
 import {
   computeGroceryInsight,
@@ -109,6 +111,10 @@ export async function ensureFinanceSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_contrib_goal ON finance_goal_contributions (goal_id, created_at DESC)`;
 
+  // Los ingresos también se reparten personal/negocio: sin esto el negocio
+  // solo tendría gastos y siempre parecería estar en pérdidas.
+  await ensureExpenseScopeSchema();
+
   schemaReady = true;
 }
 
@@ -170,6 +176,7 @@ export function mapIncomeRow(row: Record<string, unknown>): IncomeSource {
     frequency: INCOME_FREQUENCIES.includes(frequency) ? frequency : 'monthly',
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     note: (row.note as string | null) ?? null,
+    businessShare: normalizeShare(row.business_share),
   };
 }
 
@@ -187,7 +194,7 @@ function mapContributionRow(row: Record<string, unknown>): GoalContribution {
 
 async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
   const [rows, paidRows] = await Promise.all([
-    sql`SELECT id, name, amount, due_day, created_at FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`,
+    sql`SELECT id, name, amount, due_day, created_at, business_share FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`,
     sql`SELECT payment_id, month, year, amount, actual_amount, paid_at FROM payment_records WHERE user_id = ${userId} AND status = 'paid'`,
   ]);
 
@@ -223,6 +230,7 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
       isPaidThisMonth: aggregates.isPaidThisMonth,
       missedMonths: aggregates.missedMonths,
       accumulatedDebt: aggregates.accumulatedDebt,
+      businessShare: normalizeShare(row.business_share),
     };
   });
 }

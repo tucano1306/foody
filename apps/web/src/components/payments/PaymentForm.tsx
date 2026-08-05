@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { CreatePaymentDto } from '@foody/types';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
+import ScopePicker from '@/components/ui/ScopePicker';
 
 const CATEGORIES = [
   { value: 'utilities', label: '💡', name: 'Servicios' },
@@ -35,6 +36,7 @@ export default function PaymentForm() {
     description: '',
     isVariableAmount: false,
     isAutoPay: false,
+    businessShare: 0,
     paymentMethod: null,
     bankName: '',
     accountLast4: '',
@@ -178,6 +180,17 @@ export default function PaymentForm() {
             </p>
           </div>
         </button>
+
+        {/* Personal o del negocio. Viene en «Personal», así que quien no tenga
+            negocio no tiene que tocar nada. */}
+        <div className="mt-4">
+          <ScopePicker
+            value={form.businessShare ?? 0}
+            onChange={(businessShare) => setForm((f) => ({ ...f, businessShare }))}
+            amount={form.amount}
+            currency={form.currency ?? 'USD'}
+          />
+        </div>
 
         {/* Auto-pay toggle */}
         <button

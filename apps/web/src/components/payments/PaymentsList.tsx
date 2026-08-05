@@ -6,6 +6,8 @@ import Link from 'next/link';
 import type { MonthlyPayment } from '@foody/types';
 import { BanknotesIcon, CheckCircleIcon, ChevronDownIcon, ClockIcon } from '@heroicons/react/24/solid';
 import PaymentCard from '@/components/payments/PaymentCard';
+import { haptic } from '@/lib/haptic';
+import { matchesFilter, summarizeByScope, totalForFilter, type ScopeFilter } from '@/lib/expense-scope';
 
 interface Props {
   readonly initialPayments: MonthlyPayment[];
@@ -35,7 +37,8 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function PaymentsList({ initialPayments }: Props) {
-  const [payments, setPayments] = useState<MonthlyPayment[]>(initialPayments);
+  const [allPayments, setAllPayments] = useState<MonthlyPayment[]>(initialPayments);
+  const [scope, setScope] = useState<ScopeFilter>('all');
   const [filter, setFilter] = useState<Filter>('all');
   const [historyOpen, setHistoryOpen] = useState(false);
   const router = useRouter();
@@ -54,20 +57,29 @@ export default function PaymentsList({ initialPayments }: Props) {
   // ── Callbacks ────────────────────────────────────────────────────────────
 
   const handleDeleted = useCallback((id: string) => {
-    setPayments((prev) => prev.filter((p) => p.id !== id));
+    setAllPayments((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   const handleUpdated = useCallback((updated: MonthlyPayment) => {
-    setPayments((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setAllPayments((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   }, []);
 
   const handleSnoozed = useCallback((id: string, snoozedUntil: string) => {
-    setPayments((prev) =>
+    setAllPayments((prev) =>
       prev.map((p) => (p.id === id ? { ...p, snoozedUntil } : p)),
     );
   }, []);
 
   // ── Derived values ───────────────────────────────────────────────────────
+
+  // El ámbito filtra ANTES que nada: todo lo de abajo —listas, totales,
+  // historial— habla del lado que el usuario está mirando. Un pago mixto sale
+  // en las dos vistas, con su parte correspondiente en cada total.
+  const scopeSummary = summarizeByScope(
+    allPayments.map((p) => ({ id: p.id, name: p.name, amount: p.amount, businessShare: p.businessShare ?? 0 })),
+  );
+  const hasBusiness = scopeSummary.businessCount + scopeSummary.mixedCount > 0;
+  const payments = allPayments.filter((p) => matchesFilter(p.businessShare ?? 0, scope));
 
   const now = new Date();
   const snoozed = payments.filter(
@@ -76,9 +88,16 @@ export default function PaymentsList({ initialPayments }: Props) {
   const snoozedIds = new Set(snoozed.map((p) => p.id));
   const pending = payments.filter((p) => !p.isPaidThisMonth && !snoozedIds.has(p.id));
   const paid = payments.filter((p) => p.isPaidThisMonth);
-  const totalExpenses = payments.reduce((sum, p) => sum + p.amount, 0);
-  const totalPaid = paid.reduce((sum, p) => sum + p.amount, 0);
-  const totalSnoozed = snoozed.reduce((sum, p) => sum + p.amount, 0);
+  // Los totales cuentan solo la PARTE del ámbito que se está mirando: en la
+  // vista de negocio, un móvil al 60 % suma sus $60, no los $100 enteros.
+  const scoped = (list: MonthlyPayment[]) =>
+    totalForFilter(
+      list.map((p) => ({ id: p.id, name: p.name, amount: p.amount, businessShare: p.businessShare ?? 0 })),
+      scope,
+    );
+  const totalExpenses = scoped(payments);
+  const totalPaid = scoped(paid);
+  const totalSnoozed = scoped(snoozed);
   // Total accumulated debt across ALL payments with missed months
   const totalAccumulated = payments.reduce((sum, p) => sum + (p.accumulatedDebt ?? 0), 0);
   // All-time paid totals (running history across every payment)
@@ -112,6 +131,39 @@ export default function PaymentsList({ initialPayments }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* ─── Personal / Negocio ───────────────────────────────────────────
+          Solo aparece cuando hay algo marcado como negocio. Quien no lo use no
+          se entera de que existe, y quien lo use lo encuentra sin buscarlo. */}
+      {hasBusiness && (
+        <div className="flex gap-1.5 rounded-2xl bg-sky-100/70 p-1.5">
+          {([
+            { id: 'all', emoji: '📊', label: 'Todo', total: scopeSummary.total },
+            { id: 'personal', emoji: '🏠', label: 'Personal', total: scopeSummary.personal },
+            { id: 'business', emoji: '🏢', label: 'Negocio', total: scopeSummary.business },
+          ] as const).map((tab) => {
+            const active = scope === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => { haptic(); setScope(tab.id); }}
+                aria-pressed={active}
+                className={`flex-1 rounded-xl px-2 py-2.5 transition-all duration-150 active:scale-95 ${
+                  active ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-600 hover:bg-white/60'
+                }`}
+              >
+                <span className="block text-xs font-bold leading-tight">
+                  <span aria-hidden="true">{tab.emoji}</span> {tab.label}
+                </span>
+                <span className={`block text-[11px] font-semibold ${active ? 'text-white/80' : 'text-slate-400'}`}>
+                  {formatTotal(tab.total)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ─── Accumulated debt alert ──────────────────────────────────────── */}
       {totalAccumulated > 0 && (
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
