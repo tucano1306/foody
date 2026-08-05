@@ -14,6 +14,12 @@
  */
 
 import type { BaselineSource, GroceryInsight } from './grocery-insights';
+import {
+  buildBusinessResult,
+  normalizeShare,
+  splitAmount,
+  type BusinessResult,
+} from './expense-scope';
 
 // ─── Tipos de entrada ─────────────────────────────────────────────────────────
 
@@ -28,6 +34,13 @@ export interface IncomeSource {
   frequency: IncomeFrequency;
   isActive: boolean;
   note: string | null;
+  /**
+   * 0-100: qué parte de este ingreso es facturación del negocio.
+   *
+   * Existe porque separar los GASTOS sin separar los INGRESOS dejaría un
+   * negocio que solo pierde dinero. Ver expense-scope.ts.
+   */
+  businessShare?: number;
 }
 
 export interface FinanceGoal {
@@ -57,6 +70,8 @@ export interface FixedPaymentInput {
   isPaidThisMonth: boolean;
   missedMonths: number;
   accumulatedDebt: number;
+  /** 0-100: qué parte de este pago corresponde al negocio. */
+  businessShare?: number;
 }
 
 /**
@@ -82,6 +97,8 @@ export interface CreditInput {
   monthsToPayoff: number | null;
   /** La cuota no cubre el interés: el saldo nunca baja. */
   neverPaysOff: boolean;
+  /** 0-100: qué parte de la cuota corresponde al negocio. */
+  businessShare?: number;
 }
 
 export interface PlanInput {
@@ -212,10 +229,40 @@ export interface Advice {
   action?: AdviceAction;
 }
 
+/** Un lado del reparto: lo que entra y lo que sale de ese ámbito. */
+export interface ScopeSide {
+  income: number;
+  fixedPayments: number;
+  creditPayments: number;
+  groceries: number;
+  /** Todo lo que sale de este lado. */
+  expenses: number;
+}
+
+/**
+ * El mismo mes visto por partida doble: qué es tuyo y qué es del negocio.
+ *
+ * Es ADITIVO: no altera `cashFlow.available`, que sigue siendo el total real.
+ * Para quien factura por su cuenta todo sale del mismo bolsillo, y cambiar el
+ * significado de «te queda libre» a espaldas del usuario sería peor que no
+ * separar nada. Esto responde a otra pregunta —*¿cuánto me cuesta el negocio y
+ * cuánto rinde?*— sin tocar la primera.
+ */
+export interface ScopeBreakdown {
+  personal: ScopeSide;
+  business: ScopeSide;
+  /** Ingresos del negocio − gastos del negocio. */
+  businessResult: BusinessResult;
+  /** Hay algo marcado como negocio: sin esto la sección ni se muestra. */
+  hasBusiness: boolean;
+}
+
 export interface FinancePlan {
   cashFlow: CashFlow;
   goals: GoalProjection[];
   debts: DebtOverview;
+  /** Reparto personal / negocio del mismo mes. */
+  scopes: ScopeBreakdown;
   advice: Advice[];
   /** Salud general 0–100: mezcla de flujo libre, deuda y metas en riesgo. */
   healthScore: number;
@@ -471,6 +518,63 @@ function buildDebtOverview(
 }
 
 /**
+ * Reparte ingresos, pagos fijos y cuotas de crédito entre lo personal y lo del
+ * negocio, cada cosa por su propio porcentaje.
+ *
+ * El super va ENTERO a personal: la despensa no tiene ámbito en la app, y
+ * atribuirle una parte al negocio sería inventarse un dato que el usuario nunca
+ * declaró.
+ */
+function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdown {
+  const personal: ScopeSide = { income: 0, fixedPayments: 0, creditPayments: 0, groceries, expenses: 0 };
+  const business: ScopeSide = { income: 0, fixedPayments: 0, creditPayments: 0, groceries: 0, expenses: 0 };
+  let anyBusiness = false;
+
+  for (const inc of input.incomes) {
+    if (!inc.isActive) continue;
+    const share = normalizeShare(inc.businessShare);
+    if (share > 0) anyBusiness = true;
+    const split = splitAmount(monthlyEquivalent(inc.amount, inc.frequency), share);
+    personal.income += split.personal;
+    business.income += split.business;
+  }
+
+  for (const p of input.fixedPayments) {
+    const share = normalizeShare(p.businessShare);
+    if (share > 0) anyBusiness = true;
+    const split = splitAmount(Math.max(0, p.amount), share);
+    personal.fixedPayments += split.personal;
+    business.fixedPayments += split.business;
+  }
+
+  for (const c of input.credits ?? []) {
+    const share = normalizeShare(c.businessShare);
+    if (share > 0) anyBusiness = true;
+    const split = splitAmount(Math.max(0, c.installment), share);
+    personal.creditPayments += split.personal;
+    business.creditPayments += split.business;
+  }
+
+  const close = (side: ScopeSide): ScopeSide => ({
+    income: round2(side.income),
+    fixedPayments: round2(side.fixedPayments),
+    creditPayments: round2(side.creditPayments),
+    groceries: round2(side.groceries),
+    expenses: round2(side.fixedPayments + side.creditPayments + side.groceries),
+  });
+
+  const personalSide = close(personal);
+  const businessSide = close(business);
+
+  return {
+    personal: personalSide,
+    business: businessSide,
+    businessResult: buildBusinessResult(businessSide.income, businessSide.expenses),
+    hasBusiness: anyBusiness,
+  };
+}
+
+/**
  * Salud financiera 0–100. Tres tercios: flujo libre sobre el ingreso, ausencia
  * de deuda vencida y metas que van a tiempo.
  */
@@ -587,6 +691,45 @@ function adviceForCredits(debts: DebtOverview, out: Advice[]): void {
       title: `Tus créditos te cuestan ${money(debts.creditMonthlyInterest)} al mes en intereses`,
       body: `Son ${money(debts.creditMonthlyInterest * 12)} al año que no compran nada. La más cara es ${worst.name}: ${money(worst.monthlyInterest)} al mes sobre un saldo de ${money(worst.balance)}. Abonar de más ahí rinde más que en cualquier meta.`,
       action: { label: 'Ver mis deudas', kind: 'open_debts' },
+    });
+  }
+}
+
+/**
+ * Consejos sobre el negocio. Solo aparecen si hay algo marcado como negocio —
+ * quien no lo use no se entera de que esto existe.
+ */
+function adviceForScopes(scopes: ScopeBreakdown, out: Advice[]): void {
+  if (!scopes.hasBusiness) return;
+  const r = scopes.businessResult;
+
+  if (r.expensesWithoutIncome) {
+    out.push({
+      id: 'business-no-income',
+      tone: 'warning',
+      icon: '🏢',
+      title: `Tu negocio gasta ${money(r.expenses)} al mes y no tiene ingresos declarados`,
+      body: 'Sin la facturación cargada, ese gasto sale entero de tu bolsillo en el plan. Agrega el ingreso del negocio y marca qué parte es suya para ver el resultado real.',
+      action: { label: 'Agregar ingreso', kind: 'add_income' },
+    });
+    return;
+  }
+
+  if (r.result < 0) {
+    out.push({
+      id: 'business-loss',
+      tone: 'critical',
+      icon: '📉',
+      title: `Tu negocio pierde ${money(Math.abs(r.result))} al mes`,
+      body: `Factura ${money(r.income)} y gasta ${money(r.expenses)}. Esa diferencia la estás cubriendo con tu dinero personal todos los meses.`,
+    });
+  } else if (r.income > 0) {
+    out.push({
+      id: 'business-result',
+      tone: 'good',
+      icon: '🏢',
+      title: `Tu negocio deja ${money(r.result)} al mes`,
+      body: `Factura ${money(r.income)} y gasta ${money(r.expenses)} — un margen del ${r.margin.toFixed(0)} %.`,
     });
   }
 }
@@ -884,10 +1027,12 @@ export function buildAdvice(
   cash: CashFlow,
   goals: GoalProjection[],
   debts: DebtOverview,
+  scopes?: ScopeBreakdown,
 ): Advice[] {
   const out: Advice[] = [];
 
   adviceForCashFlow(cash, out);
+  if (scopes) adviceForScopes(scopes, out);
   adviceForCredits(debts, out);
   adviceForDebt(cash, debts, out);
 
@@ -946,13 +1091,15 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     extraMonthly: round2(extraMonthly),
   };
 
-  const advice = buildAdvice(input, cashFlow, projections, debts);
+  const scopes = buildScopeBreakdown(input, cashFlow.groceriesEstimate);
+  const advice = buildAdvice(input, cashFlow, projections, debts, scopes);
   const healthScore = computeHealthScore(cashFlow, projections, debts);
 
   return {
     cashFlow,
     goals: projections,
     debts,
+    scopes,
     advice,
     healthScore,
     currency: 'USD',

@@ -369,6 +369,131 @@ describe('buildFinancePlan — tarjetas y créditos', () => {
   });
 });
 
+describe('buildFinancePlan — personal vs negocio', () => {
+  it('sin nada marcado, todo es personal y la sección ni existe', () => {
+    const { scopes } = buildFinancePlan(plan());
+    expect(scopes.hasBusiness).toBe(false);
+    expect(scopes.business.expenses).toBe(0);
+    expect(scopes.business.income).toBe(0);
+  });
+
+  it('reparte ingresos y gastos por su propio porcentaje', () => {
+    const { scopes } = buildFinancePlan(
+      plan({
+        incomes: [
+          income({ id: 'sueldo', amount: 2000, businessShare: 0 }),
+          income({ id: 'factura', amount: 3000, businessShare: 100 }),
+        ],
+        fixedPayments: [
+          payment({ id: 'renta', amount: 900, businessShare: 0 }),
+          payment({ id: 'local', amount: 600, businessShare: 100 }),
+          payment({ id: 'movil', amount: 100, businessShare: 60 }),
+        ],
+      }),
+    );
+    expect(scopes.hasBusiness).toBe(true);
+    expect(scopes.personal.income).toBe(2000);
+    expect(scopes.business.income).toBe(3000);
+    expect(scopes.personal.fixedPayments).toBe(940); // 900 + 40
+    expect(scopes.business.fixedPayments).toBe(660); // 600 + 60
+  });
+
+  it('el super va entero a personal: la despensa no tiene ámbito', () => {
+    const { scopes, cashFlow } = buildFinancePlan(
+      plan({ fixedPayments: [payment({ amount: 900, businessShare: 100 })] }),
+    );
+    expect(scopes.personal.groceries).toBe(cashFlow.groceriesEstimate);
+    expect(scopes.business.groceries).toBe(0);
+  });
+
+  it('reparte también las cuotas de crédito', () => {
+    const { scopes } = buildFinancePlan(
+      plan({ credits: [credit({ installment: 200, businessShare: 75 })] }),
+    );
+    expect(scopes.business.creditPayments).toBe(150);
+    expect(scopes.personal.creditPayments).toBe(50);
+  });
+
+  it('los dos lados suman siempre el total del mes', () => {
+    const p = buildFinancePlan(
+      plan({
+        incomes: [income({ amount: 3000, businessShare: 40 })],
+        fixedPayments: [payment({ amount: 900, businessShare: 33.33 })],
+        credits: [credit({ installment: 137.77, businessShare: 61.5 })],
+      }),
+    );
+    const { scopes, cashFlow } = p;
+    expect(scopes.personal.income + scopes.business.income).toBeCloseTo(cashFlow.monthlyIncome, 2);
+    expect(scopes.personal.fixedPayments + scopes.business.fixedPayments).toBeCloseTo(cashFlow.fixedPayments, 2);
+    expect(scopes.personal.creditPayments + scopes.business.creditPayments).toBeCloseTo(cashFlow.creditPayments, 2);
+  });
+
+  it('NO altera el dinero libre: el reparto es aditivo', () => {
+    const sinMarcar = buildFinancePlan(plan());
+    const marcado = buildFinancePlan(
+      plan({ fixedPayments: [payment({ amount: 900, businessShare: 100 })] }),
+    );
+    expect(marcado.cashFlow.available).toBe(sinMarcar.cashFlow.available);
+  });
+
+  it('calcula el resultado del negocio con su margen', () => {
+    const { scopes } = buildFinancePlan(
+      plan({
+        incomes: [income({ amount: 4000, businessShare: 100 })],
+        fixedPayments: [payment({ amount: 1000, businessShare: 100 })],
+        credits: [],
+      }),
+    );
+    expect(scopes.businessResult.income).toBe(4000);
+    expect(scopes.businessResult.expenses).toBe(1000);
+    expect(scopes.businessResult.result).toBe(3000);
+    expect(scopes.businessResult.margin).toBe(75);
+  });
+
+  it('avisa cuando el negocio gasta sin ingresos declarados', () => {
+    const { scopes, advice } = buildFinancePlan(
+      plan({ fixedPayments: [payment({ amount: 600, businessShare: 100 })] }),
+    );
+    expect(scopes.businessResult.expensesWithoutIncome).toBe(true);
+    expect(advice.find((a) => a.id === 'business-no-income')?.tone).toBe('warning');
+  });
+
+  it('avisa en crítico cuando el negocio pierde dinero', () => {
+    const { advice } = buildFinancePlan(
+      plan({
+        incomes: [income({ amount: 1000, businessShare: 100 })],
+        fixedPayments: [payment({ amount: 1500, businessShare: 100 })],
+      }),
+    );
+    const aviso = advice.find((a) => a.id === 'business-loss');
+    expect(aviso?.tone).toBe('critical');
+    expect(aviso?.title).toContain('500');
+  });
+
+  it('celebra el negocio que deja dinero', () => {
+    const { advice } = buildFinancePlan(
+      plan({
+        incomes: [income({ amount: 5000, businessShare: 100 })],
+        fixedPayments: [payment({ amount: 2000, businessShare: 100 })],
+      }),
+    );
+    expect(advice.find((a) => a.id === 'business-result')?.tone).toBe('good');
+  });
+
+  it('sin negocio no emite ningún consejo de negocio', () => {
+    const { advice } = buildFinancePlan(plan());
+    expect(advice.some((a) => a.id.startsWith('business-'))).toBe(false);
+  });
+
+  it('un ingreso inactivo no cuenta en ninguno de los dos lados', () => {
+    const { scopes } = buildFinancePlan(
+      plan({ incomes: [income({ amount: 3000, businessShare: 100, isActive: false })] }),
+    );
+    expect(scopes.business.income).toBe(0);
+    expect(scopes.personal.income).toBe(0);
+  });
+});
+
 describe('buildFinancePlan — consejos', () => {
   it('no repite el "registra tus ingresos" que ya pide la cabecera', () => {
     const { advice } = buildFinancePlan(plan({ incomes: [] }));

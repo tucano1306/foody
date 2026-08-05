@@ -503,7 +503,19 @@
     "cuántas",
     "cuantas",
     "piezas",
-    "unidad"
+    "unidad",
+    "Porcentaje",
+    "porcentaje",
+    "corresponde",
+    "negocio",
+    "ámbito",
+    "ambito",
+    "DERIVA",
+    "deriva",
+    "número",
+    "numero",
+    "nunca",
+    "aparte"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -73,3 +73,23 @@ export async function ensureProductSharingSchema(): Promise<void> {
   await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT true`;
   sharingEnsured = true;
 }
+
+let scopeEnsured = false;
+
+/**
+ * Añade `business_share` a todo lo que puede ser personal o del negocio.
+ *
+ * Es UN SOLO número (0–100) y no un enum aparte: el ámbito se deriva de él, así
+ * que no puede existir la contradicción «marcado personal, pero 60 % negocio».
+ *
+ * DEFAULT 0 = personal. Al desplegar, todo lo que ya existía sigue siendo
+ * exactamente lo que era y ningún gasto se muda de lado sin que el usuario lo
+ * diga. Los ingresos llevan la misma columna porque separar gastos sin separar
+ * ingresos dejaría un negocio que solo pierde dinero.
+ */
+export async function ensureExpenseScopeSchema(): Promise<void> {
+  if (scopeEnsured) return;
+  await sql`ALTER TABLE monthly_payments ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE finance_income_sources ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  scopeEnsured = true;
+}

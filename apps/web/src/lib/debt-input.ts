@@ -12,6 +12,7 @@ import type {
   RatePeriod,
 } from './debt-engine';
 import type { CreateDebtInput, UpdateDebtInput } from './debt-data';
+import { normalizeShare } from './expense-scope';
 
 export const DEBT_KINDS: readonly DebtKind[] = [
   'credit_card', 'loan', 'personal', 'mortgage', 'auto', 'store', 'other',
@@ -129,6 +130,7 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
     minPercent,
     minFloor: body.minFloor == null ? null : money(body.minFloor),
     extraMonthly: money(body.extraMonthly) ?? 0,
+    businessShare: normalizeShare(body.businessShare),
     creditLimit: body.creditLimit == null ? null : money(body.creditLimit),
     dueDay,
     note: text(body.note, 1000),
@@ -182,6 +184,7 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
   }
   if (body.minFloor !== undefined) out.minFloor = body.minFloor == null ? null : money(body.minFloor);
   if (body.extraMonthly !== undefined) out.extraMonthly = money(body.extraMonthly) ?? 0;
+  if (body.businessShare !== undefined) out.businessShare = normalizeShare(body.businessShare);
   if (body.creditLimit !== undefined) out.creditLimit = body.creditLimit == null ? null : money(body.creditLimit);
   if (body.status !== undefined) {
     const s = oneOf(body.status, ['active', 'paid_off', 'archived'] as const);

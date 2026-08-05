@@ -4,6 +4,8 @@ import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { methodNeedsBank, normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaymentAggregates } from '@/lib/payment-aggregates';
+import { normalizeShare } from '@/lib/expense-scope';
+import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -49,6 +51,7 @@ function mapPayment(row: Record<string, unknown>, aggregates: PaymentAggregates 
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     isVariableAmount: Boolean(row.is_variable_amount),
     isAutoPay: Boolean(row.is_auto_pay),
+    businessShare: normalizeShare(row.business_share),
     paymentMethod: (row.payment_method as string | null | undefined) ?? null,
     bankName: (row.bank_name as string | null | undefined) ?? null,
     accountLast4: (row.account_last4 as string | null | undefined) ?? null,
@@ -136,6 +139,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
+  await ensureExpenseScopeSchema();
 
   let rawBody: Record<string, unknown>;
   try {
@@ -174,6 +178,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
         is_variable_amount = COALESCE(${body.isVariableAmount === undefined ? null : Boolean(body.isVariableAmount)}, is_variable_amount),
         is_auto_pay = COALESCE(${body.isAutoPay === undefined ? null : Boolean(body.isAutoPay)}, is_auto_pay),
+        business_share = COALESCE(${body.businessShare === undefined ? null : normalizeShare(body.businessShare)}, business_share),
         payment_method = CASE WHEN ${methodProvided} THEN ${newMethod} ELSE payment_method END,
         bank_name = CASE WHEN ${methodProvided} THEN ${newBankName} ELSE bank_name END,
         account_last4 = CASE WHEN ${methodProvided} THEN ${newLast4} ELSE account_last4 END,

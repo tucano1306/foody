@@ -8,6 +8,7 @@ import { projectDebt } from '@/lib/debt-engine';
 import { haptic } from '@/lib/haptic';
 import { confettiRain } from '@/lib/fx';
 import ModalShell from '@/components/finance/ModalShell';
+import ScopePicker from '@/components/ui/ScopePicker';
 import SplitBar from './SplitBar';
 import {
   BTN_PRIMARY,
@@ -52,6 +53,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
   const [termMonths, setTermMonths] = useState<number | null>(12);
   const [customPayment, setCustomPayment] = useState('');
   const [dueDay, setDueDay] = useState(1);
+  const [businessShare, setBusinessShare] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,6 +108,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
           termMonths: strategy === 'fixed_installment' ? termMonths : null,
           customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
           dueDay,
+          businessShare,
         }),
       });
       if (!res.ok) {
@@ -389,6 +392,16 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                   />
                 </div>
               )}
+
+              {/* Un crédito también puede ser del negocio: préstamo comercial,
+                  tarjeta de la empresa, o la mixta que se usa para las dos cosas. */}
+              <ScopePicker
+                value={businessShare}
+                onChange={setBusinessShare}
+                amount={projection?.installment}
+                currency={currency}
+                label="¿De quién es esta deuda?"
+              />
 
               {/* Día de corte */}
               <div>

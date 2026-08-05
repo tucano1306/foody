@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
+import { normalizeShare } from '@/lib/expense-scope';
+import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from '@/lib/payment-aggregates';
 import { randomUUID } from 'node:crypto';
@@ -54,6 +56,7 @@ function mapPayment(
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
     isVariableAmount: Boolean(row.is_variable_amount),
     isAutoPay: Boolean(row.is_auto_pay),
+    businessShare: normalizeShare(row.business_share),
     paymentMethod: (row.payment_method as string | null | undefined) ?? null,
     bankName: (row.bank_name as string | null | undefined) ?? null,
     accountLast4: (row.account_last4 as string | null | undefined) ?? null,
@@ -78,6 +81,7 @@ export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
+  await ensureExpenseScopeSchema();
   const [rows, allRecords] = await Promise.all([
     sql`SELECT * FROM monthly_payments WHERE user_id = ${user.userId} AND is_active = true ORDER BY due_day ASC`,
     // All paid records for this user: accumulated debt + all-time totals
@@ -159,9 +163,10 @@ export async function POST(request: NextRequest) {
     typeof body.accountLast4 === 'string' && toLast4(body.accountLast4) ? toLast4(body.accountLast4) : null;
 
   try {
+    await ensureExpenseScopeSchema();
     const id = randomUUID();
     const rows = await sql`
-      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, is_variable_amount, is_auto_pay, payment_method, bank_name, account_last4, user_id, created_at, updated_at)
+      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, is_variable_amount, is_auto_pay, business_share, payment_method, bank_name, account_last4, user_id, created_at, updated_at)
       VALUES (
         ${id},
         ${name},
@@ -174,6 +179,7 @@ export async function POST(request: NextRequest) {
         ${notifyDays},
         ${Boolean(body.isVariableAmount)},
         ${Boolean(body.isAutoPay)},
+        ${normalizeShare(body.businessShare)},
         ${paymentMethod},
         ${bankName},
         ${accountLast4},

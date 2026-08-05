@@ -207,6 +207,12 @@ export interface MonthlyPayment {
   isVariableAmount: boolean;
   /** Payment is handled automatically (e.g. direct debit). App marks it paid on the due date. */
   isAutoPay: boolean;
+  /**
+   * Porcentaje 0-100 del gasto que corresponde al negocio.
+   * El ámbito (personal / negocio / mixto) se DERIVA de este número, nunca se
+   * guarda aparte — ver `expense-scope.ts`.
+   */
+  businessShare: number;
   /** Preferred/default way this bill is normally paid */
   paymentMethod: PaymentMethod | null;
   /** Bank or card issuer name for the default payment method */
@@ -251,6 +257,8 @@ export interface CreatePaymentDto {
   notificationDaysBefore?: number;
   isVariableAmount?: boolean;
   isAutoPay?: boolean;
+  /** 0-100: qué parte del gasto es del negocio. 0 = personal. */
+  businessShare?: number;
   paymentMethod?: PaymentMethod | null;
   bankName?: string | null;
   accountLast4?: string | null;
