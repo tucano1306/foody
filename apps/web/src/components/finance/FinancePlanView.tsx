@@ -9,6 +9,7 @@ import { playSound } from '@/lib/sound';
 import { burstAt, confettiRain } from '@/lib/fx';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { FinancePlanPayload } from '@/lib/finance-data';
+import { buildFinancePlan, personalOnlyInput } from '@/lib/finance-engine';
 import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
 import AdviceFeed from './AdviceFeed';
 import BusinessPanel from './BusinessPanel';
@@ -84,6 +85,15 @@ function HealthRing({ score }: { readonly score: number }) {
 export default function FinancePlanView({ initialData }: Props) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
+  /**
+   * Si el dinero del negocio cuenta para las metas.
+   *
+   * Empieza en `true` —el plan completo, como siempre— y solo tiene sentido
+   * para quien haya marcado algo como negocio. No es una preferencia guardada:
+   * es una pregunta que se responde mirando, y la respuesta cambia según la
+   * meta que se esté evaluando.
+   */
+  const [includeBusiness, setIncludeBusiness] = useState(true);
   const [modal, setModal] = useState<Modal>({ kind: 'none' });
   const [deleting, setDeleting] = useState<GoalProjection | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -222,17 +232,15 @@ export default function FinancePlanView({ initialData }: Props) {
 
   // ── Derivados ──────────────────────────────────────────────────────────────
 
-  const activeGoals = data.goals.filter((g) => g.status === 'active');
-  const doneGoals = data.goals.filter((g) => g.status === 'done');
-  const cash = data.cashFlow;
-  /** Sin ingreso no hay plan que calcular: la cabecera cambia de prioridad. */
-  const needsIncome = cash.monthlyIncome <= 0;
-
-  const planInput: PlanInput = useMemo(
+  /** La foto completa del mes, tal cual la trajo el servidor. */
+  const fullInput: PlanInput = useMemo(
     () => ({
       incomes: data.incomes,
       goals: data.rawGoals,
       fixedPayments: data.payments,
+      // Las cuotas de crédito faltaban aquí: el simulador calculaba con más
+      // dinero libre del que hay y prometía metas antes de tiempo.
+      credits: data.credits,
       groceriesMonthly: data.groceries.baseline,
       groceriesSource: data.groceries.baselineSource,
       groceriesSpentThisMonth: data.groceries.spentThisMonth,
@@ -241,16 +249,37 @@ export default function FinancePlanView({ initialData }: Props) {
     [data],
   );
 
+  /**
+   * Lo que se está mirando. Con el negocio excluido el plan se RECALCULA con el
+   * MISMO motor puro que usa el servidor, así que las dos vistas son igual de
+   * fiables: no hay una versión «de verdad» y otra aproximada.
+   */
+  const planInput = useMemo(
+    () => (includeBusiness || !data.scopes.hasBusiness ? fullInput : personalOnlyInput(fullInput)),
+    [fullInput, includeBusiness, data.scopes.hasBusiness],
+  );
+
+  const view = useMemo(
+    () => (planInput === fullInput ? data : { ...data, ...buildFinancePlan(planInput) }),
+    [data, planInput, fullInput],
+  );
+
+  const activeGoals = view.goals.filter((g) => g.status === 'active');
+  const doneGoals = view.goals.filter((g) => g.status === 'done');
+  const cash = view.cashFlow;
+  /** Sin ingreso no hay plan que calcular: la cabecera cambia de prioridad. */
+  const needsIncome = cash.monthlyIncome <= 0;
+
   return (
     <div className="space-y-5 pb-24">
       {/* ─── Hero: salud financiera ──────────────────────────────────────── */}
       <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-sky-100 via-blue-100 to-sky-50 border border-sky-200 p-5 shadow-sm">
         <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/40 blur-2xl" aria-hidden="true" />
         <div className="relative flex items-center gap-5">
-          <HealthRing score={data.healthScore} />
+          <HealthRing score={view.healthScore} />
           <div className="min-w-0 flex-1">
             <p className={`text-[11px] uppercase tracking-widest font-bold ${LABEL}`}>Salud financiera</p>
-            <h2 className={`text-2xl font-black leading-tight ${NUM}`}>{healthLabel(data.healthScore)}</h2>
+            <h2 className={`text-2xl font-black leading-tight ${NUM}`}>{healthLabel(view.healthScore)}</h2>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
                 <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>Ingreso</p>
@@ -298,6 +327,41 @@ export default function FinancePlanView({ initialData }: Props) {
             <ArrowPathIcon className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
+
+        {/* ¿El dinero del negocio cuenta para las metas?
+            Solo aparece si hay negocio. La respuesta no es fija —depende de si
+            el usuario piensa financiar ESA meta con dinero del negocio— así que
+            es un interruptor a la vista y no un ajuste enterrado. */}
+        {data.scopes.hasBusiness && (
+          <button
+            type="button"
+            onClick={() => { haptic(10); setIncludeBusiness((v) => !v); }}
+            aria-pressed={includeBusiness}
+            className="relative mt-2 flex w-full items-center gap-3 rounded-2xl bg-white/70 px-3.5 py-2.5 text-left transition active:scale-[0.99] hover:bg-white"
+          >
+            <span
+              className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+                includeBusiness ? 'bg-sky-500' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  includeBusiness ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-black text-black">
+                🏢 Contar el negocio en el plan
+              </span>
+              <span className={`block text-[11px] ${LABEL}`}>
+                {includeBusiness
+                  ? `Incluye ${fmtMoney(data.scopes.business.income)} que factura y ${fmtMoney(data.scopes.business.expenses)} que gasta`
+                  : 'Solo tu dinero personal cuenta para las metas'}
+              </span>
+            </span>
+          </button>
+        )}
       </section>
 
       {/* ─── Flujo del mes ───────────────────────────────────────────────── */}
@@ -314,13 +378,13 @@ export default function FinancePlanView({ initialData }: Props) {
       <GrocerySpendCard groceries={data.groceries} history={data.history} />
 
       {/* ─── Consejero ───────────────────────────────────────────────────── */}
-      <AdviceFeed advice={data.advice} onAction={runAdviceAction} />
+      <AdviceFeed advice={view.advice} onAction={runAdviceAction} />
 
       {/* ─── Negocio ─────────────────────────────────────────────────────── */}
       <BusinessPanel scopes={data.scopes} />
 
       {/* ─── Deuda ───────────────────────────────────────────────────────── */}
-      <DebtPanel debts={data.debts} />
+      <DebtPanel debts={view.debts} />
 
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
       <section className="space-y-3">

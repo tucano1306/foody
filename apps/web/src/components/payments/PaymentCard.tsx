@@ -7,6 +7,7 @@ import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
 import MarkPaidModal, { type AppliedPayment } from '@/components/payments/MarkPaidModal';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
+import { scopeOf } from '@/lib/expense-scope';
 import { formatMonthShort } from '@/lib/payment-aggregates';
 interface Props {
   readonly payment: MonthlyPayment;
@@ -130,6 +131,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
   }, [autoOpen]);
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
+  const scope = scopeOf(currentPayment.businessShare ?? 0);
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
   const circleColor = getCircleColor(urgency, isPaid);
   const showQuickActions = !isPaid && !isSnoozed;
@@ -299,6 +301,17 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
           >
             {currentPayment.isAutoPay ? '🤖 Automático' : '✋ Manual'}
           </span>
+
+          {/* El ámbito solo se anuncia cuando NO es personal: marcar cada gasto
+              con «🏠 Personal» llenaría la pantalla de una etiqueta que se
+              cumple casi siempre y no dice nada. */}
+          {scope !== 'personal' && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+              {scope === 'business'
+                ? '🏢 Negocio'
+                : `⚖️ ${Math.round(currentPayment.businessShare ?? 0)} % negocio`}
+            </span>
+          )}
         </div>
 
         {/* Accumulated debt banner */}
