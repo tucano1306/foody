@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TrashIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { haptic } from '@/lib/haptic';
 import ModalShell from './ModalShell';
+import ScopePicker from '@/components/ui/ScopePicker';
 import { monthlyEquivalent, type IncomeFrequency, type IncomeSource } from '@/lib/finance-engine';
 import { FREQUENCY_LABEL, fmtMoney } from './finance-ui';
 
@@ -13,6 +14,8 @@ export interface IncomePayload {
   amount: number;
   frequency: IncomeFrequency;
   isActive: boolean;
+  /** 0-100: qué parte de este ingreso es facturación del negocio. */
+  businessShare: number;
 }
 
 interface Props {
@@ -32,6 +35,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<IncomeFrequency>('monthly');
+  const [businessShare, setBusinessShare] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,9 +51,10 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
     setError(null);
     setBusy(true);
     try {
-      await onCreate({ name: name.trim(), amount: value, frequency, isActive: true });
+      await onCreate({ name: name.trim(), amount: value, frequency, isActive: true, businessShare });
       setName('');
       setAmount('');
+      setBusinessShare(0);
       haptic([10, 20, 10]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar');
@@ -178,6 +183,16 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
               </button>
             ))}
           </div>
+
+          {/* De dónde sale este dinero. Importa para las metas: si la
+              facturación del negocio va a financiarlas o no es una decisión del
+              usuario, y el plan la respeta con su interruptor. */}
+          <ScopePicker
+            value={businessShare}
+            onChange={setBusinessShare}
+            amount={Number.parseFloat(amount) || undefined}
+            label="¿De dónde viene?"
+          />
 
           <button
             type="button"

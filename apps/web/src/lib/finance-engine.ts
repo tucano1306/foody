@@ -575,6 +575,41 @@ function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdow
 }
 
 /**
+ * La misma foto del mes, pero SOLO con la parte personal de cada cosa.
+ *
+ * Sirve para responder «¿me alcanza para esta meta sin contar con el negocio?».
+ * Quien factura por su cuenta puede querer las dos respuestas: una si piensa
+ * financiar la meta con dinero del negocio y otra si no, y ninguna es más
+ * correcta que la otra — depende de una decisión que solo el usuario puede
+ * tomar.
+ *
+ * Se reparten ingresos, pagos fijos y cuotas; el super se queda entero porque
+ * nunca tuvo ámbito. Las metas y el resto de la foto no se tocan.
+ */
+export function personalOnlyInput(input: PlanInput): PlanInput {
+  return {
+    ...input,
+    incomes: input.incomes.map((i) => ({
+      ...i,
+      // El importe se reparte en su propia frecuencia: como el paso a mensual
+      // es lineal, repartir antes o después da lo mismo.
+      amount: splitAmount(i.amount, normalizeShare(i.businessShare)).personal,
+      businessShare: 0,
+    })),
+    fixedPayments: input.fixedPayments.map((p) => ({
+      ...p,
+      amount: splitAmount(p.amount, normalizeShare(p.businessShare)).personal,
+      businessShare: 0,
+    })),
+    credits: (input.credits ?? []).map((c) => ({
+      ...c,
+      installment: splitAmount(c.installment, normalizeShare(c.businessShare)).personal,
+      businessShare: 0,
+    })),
+  };
+}
+
+/**
  * Salud financiera 0–100. Tres tercios: flujo libre sobre el ingreso, ausencia
  * de deuda vencida y metas que van a tiempo.
  */

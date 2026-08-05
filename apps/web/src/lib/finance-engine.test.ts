@@ -5,6 +5,7 @@ import {
   daysUntil,
   monthlyEquivalent,
   monthsToReach,
+  personalOnlyInput,
   simulatePlan,
   type CreditInput,
   type FinanceGoal,
@@ -491,6 +492,73 @@ describe('buildFinancePlan — personal vs negocio', () => {
     );
     expect(scopes.business.income).toBe(0);
     expect(scopes.personal.income).toBe(0);
+  });
+});
+
+describe('personalOnlyInput', () => {
+  it('deja solo la parte personal de ingresos, pagos y cuotas', () => {
+    const entrada = plan({
+      incomes: [income({ amount: 3000, businessShare: 60 })],
+      fixedPayments: [payment({ amount: 1000, businessShare: 40 })],
+      credits: [credit({ installment: 200, businessShare: 25 })],
+    });
+    const solo = personalOnlyInput(entrada);
+    expect(solo.incomes[0].amount).toBe(1200);
+    expect(solo.fixedPayments[0].amount).toBe(600);
+    expect(solo.credits![0].installment).toBe(150);
+  });
+
+  it('deja el ámbito en 0: ya no queda nada de negocio que repartir', () => {
+    const solo = personalOnlyInput(
+      plan({ fixedPayments: [payment({ amount: 500, businessShare: 100 })] }),
+    );
+    expect(solo.fixedPayments[0].businessShare).toBe(0);
+    expect(buildFinancePlan(solo).scopes.hasBusiness).toBe(false);
+  });
+
+  it('no toca el super, que nunca tuvo ámbito', () => {
+    const entrada = plan();
+    expect(personalOnlyInput(entrada).groceriesMonthly).toBe(entrada.groceriesMonthly);
+  });
+
+  it('sin negocio marcado, el plan sale idéntico', () => {
+    const entrada = plan();
+    const a = buildFinancePlan(entrada);
+    const b = buildFinancePlan(personalOnlyInput(entrada));
+    expect(b.cashFlow.available).toBe(a.cashFlow.available);
+    expect(b.cashFlow.goalsBudget).toBe(a.cashFlow.goalsBudget);
+  });
+
+  it('excluir el negocio cambia lo que hay para metas', () => {
+    const entrada = plan({
+      incomes: [income({ amount: 3000, businessShare: 0 })],
+      fixedPayments: [payment({ amount: 1200, businessShare: 100 })],
+    });
+    const con = buildFinancePlan(entrada);
+    const sin = buildFinancePlan(personalOnlyInput(entrada));
+    // Sin el gasto del negocio queda MÁS dinero personal para la meta.
+    expect(sin.cashFlow.available).toBe(con.cashFlow.available + 1200);
+  });
+
+  it('quitar un ingreso del negocio deja MENOS para la meta', () => {
+    const entrada = plan({
+      incomes: [
+        income({ id: 'sueldo', amount: 2000, businessShare: 0 }),
+        income({ id: 'factura', amount: 4000, businessShare: 100 }),
+      ],
+    });
+    const con = buildFinancePlan(entrada);
+    const sin = buildFinancePlan(personalOnlyInput(entrada));
+    expect(sin.cashFlow.monthlyIncome).toBe(2000);
+    expect(sin.cashFlow.available).toBe(con.cashFlow.available - 4000);
+  });
+
+  it('respeta la frecuencia del ingreso al repartir', () => {
+    const solo = personalOnlyInput(
+      plan({ incomes: [income({ amount: 1000, frequency: 'biweekly', businessShare: 50 })] }),
+    );
+    expect(solo.incomes[0].amount).toBe(500);
+    expect(solo.incomes[0].frequency).toBe('biweekly');
   });
 });
 
