@@ -1,7 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { BanknotesIcon } from '@heroicons/react/24/solid';
 import type { DebtWithProjection } from '@/lib/debt-data';
 import { haptic } from '@/lib/haptic';
 import ProgressRing from './ProgressRing';
@@ -42,32 +40,15 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
   const { firstSplit, installment, monthsToPayoff, payoffDate } = debt.projection;
 
   return (
-    <div className="relative overflow-hidden rounded-3xl">
-      {/* Lo que asoma bajo la tarjeta al deslizar: la acción se anuncia sola. */}
-      <div
-        className="absolute inset-0 flex items-center bg-linear-to-r from-sky-200 to-blue-200 px-6"
-        aria-hidden="true"
-      >
-        <span className="flex items-center gap-2 text-sm font-black text-black">
-          <BanknotesIcon className="h-6 w-6" />
-          Abonar
-        </span>
-      </div>
-
-      <motion.button
+    <div className="relative rounded-3xl">
+      {/* Tocar la tarjeta abre el detalle; para abonar está el botón de abajo,
+          siempre visible. Aquí había el mismo gesto de deslizar que en Pagos, y
+          se quitó por lo mismo: con ratón solo hacía bailar la tarjeta, y
+          escondía tras un gesto una acción que ya tiene su propio botón. */}
+      <button
         type="button"
-        drag={isPaid ? false : 'x'}
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.5}
-        onDragEnd={(_, info) => {
-          if (info.offset.x > 90) {
-            haptic([12, 30, 12]);
-            onPay();
-          }
-        }}
         onClick={onOpen}
-        whileTap={{ scale: 0.98 }}
-        className="relative flex w-full flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 text-left shadow-sm transition-shadow duration-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 touch-pan-y"
+        className="relative flex w-full flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
       >
         {/* Identidad + saldo */}
         <div className="flex items-center gap-4">
@@ -158,7 +139,7 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
             </span>
           </div>
         )}
-      </motion.button>
+      </button>
 
       {/* Acción principal siempre alcanzable con el pulgar */}
       {!isPaid && (

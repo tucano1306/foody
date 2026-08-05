@@ -6,9 +6,6 @@ import type { MonthlyPayment } from '@foody/types';
 import Markdown from '@/components/ui/Markdown';
 import PaymentDetailSheet from '@/components/payments/PaymentDetailSheet';
 import MarkPaidModal, { type AppliedPayment } from '@/components/payments/MarkPaidModal';
-import { motion } from 'framer-motion';
-import { CheckCircleIcon } from '@heroicons/react/24/solid';
-import { haptic } from '@/lib/haptic';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { formatMonthShort } from '@/lib/payment-aggregates';
 interface Props {
@@ -20,9 +17,6 @@ interface Props {
 }
 
 type Urgency = 'overdue' | 'today' | 'urgent' | 'upcoming' | 'normal';
-
-/** Desplazamiento a partir del cual el gesto cuenta como acción. */
-const SWIPE_THRESHOLD = 90;
 
 const CATEGORY_ICONS: Record<string, string> = {
   utilities: '💡',
@@ -247,27 +241,22 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
   return (
     <div ref={cardRef}>
-      {/* La acción principal —marcar pagado— también se hace deslizando la
-          tarjeta a la derecha. Debajo asoma la confirmación, y el arrastre es
-          elástico: si no se cruza el umbral, vuelve sola. */}
-      <div className="relative rounded-2xl overflow-hidden">
-        <div className="absolute inset-0 flex items-center px-6 bg-linear-to-r from-sky-200 to-blue-200" aria-hidden="true">
-          <span className="flex items-center gap-2 text-sm font-black text-black">
-            <CheckCircleIcon className="w-6 h-6" />
-            {isPaid ? 'Marcar pendiente' : 'Marcar pagado'}
-          </span>
-        </div>
-      <motion.button
+      {/* Tocar la tarjeta abre el detalle. Marcar pagado se hace con el botón
+          «✅ Pagado» de abajo, que está siempre a la vista.
+
+          Aquí había un gesto de deslizar la tarjeta para marcarla pagada, con una
+          capa detrás que decía «Marcar pagado». Se quitó por dos motivos. Uno: la
+          tarjeta es translúcida (`bg-sky-50/70`), así que esa capa se
+          transparentaba SIEMPRE —no solo al arrastrar— y dejaba un texto fantasma
+          encima del nombre de cada pago. Dos: con ratón, `drag="x"` solo hacía
+          bailar la tarjeta de lado a lado sin que eso significara nada. Y el
+          gesto no aportaba capacidad alguna: duplicaba, escondido, un botón que
+          ya está visible justo debajo. */}
+      <button
         type="button"
-        drag={isSnoozed ? false : 'x'}
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.5}
-        onDragEnd={(_, info) => {
-          if (info.offset.x > SWIPE_THRESHOLD) { haptic([12, 30, 12]); void togglePaid(); }
-        }}
         onClick={() => setSheetOpen(true)}
         onAnimationEnd={(e) => { if (e.animationName === 'foody-pop') setJustPaid(false); }}
-        className={`relative w-full text-left flex flex-col bg-sky-50/70 border border-sky-100 rounded-2xl p-5 shadow-sm hover:bg-white/70 active:scale-[0.98] transition-all duration-200 touch-pan-y focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${justPaid ? ' animate-pop' : ''}`}
+        className={`relative w-full text-left flex flex-col bg-sky-50/70 border border-sky-100 rounded-2xl p-5 shadow-sm hover:bg-white/70 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${justPaid ? ' animate-pop' : ''}`}
       >
         {/* Top row: icon + name + amount */}
         <div className="flex items-center gap-4">
@@ -347,8 +336,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
             </span>
           </div>
         )}
-      </motion.button>
-      </div>
+      </button>
 
       {/* Quick actions for urgent payments */}
       {showQuickActions && !isSnoozed && (
