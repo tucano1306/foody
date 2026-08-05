@@ -18,6 +18,7 @@ interface Props {
   readonly onOpenIncome: () => void;
   readonly onOpenPayments: () => void;
   readonly onOpenBudget: () => void;
+  readonly onOpenDebts: () => void;
 }
 
 interface Row {
@@ -34,8 +35,12 @@ interface Row {
  * La cascada del mes: de lo que entra a lo que queda libre. Cada barra es
  * proporcional al ingreso, así se ve de un vistazo qué se está comiendo el sueldo.
  */
-export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget }: Props) {
-  const base = Math.max(cash.monthlyIncome, cash.fixedPayments + cash.groceriesEstimate, 1);
+export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget, onOpenDebts }: Props) {
+  const base = Math.max(
+    cash.monthlyIncome,
+    cash.fixedPayments + cash.groceriesEstimate + cash.creditPayments,
+    1,
+  );
 
   const rows: Row[] = [
     {
@@ -66,6 +71,20 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       onClick: onOpenBudget,
     },
   ];
+
+  // Las cuotas de tarjetas y créditos: dinero ya comprometido, con su propia
+  // fila para que no se confunda con los recibos fijos.
+  if (cash.creditPayments > 0) {
+    rows.push({
+      key: 'credits',
+      emoji: '💳',
+      label: 'Tarjetas y créditos',
+      hint: 'cuotas de tus deudas',
+      amount: -cash.creditPayments,
+      bar: 'from-blue-400 to-blue-500',
+      onClick: onOpenDebts,
+    });
+  }
 
   if (cash.debtCatchUp > 0) {
     rows.push({

@@ -59,10 +59,37 @@ export interface FixedPaymentInput {
   accumulatedDebt: number;
 }
 
+/**
+ * Una línea de crédito de la sección Deudas y Créditos: tarjeta, préstamo,
+ * hipoteca.
+ *
+ * NO confundir con las otras dos "deudas" que ya maneja el plan:
+ * - `FixedPaymentInput` es un recibo recurrente (renta, internet).
+ * - `DebtOverview.overdueTotal` son meses de un recibo sin registrar.
+ *
+ * Lo que distingue a un crédito es que su SALDO GENERA INTERÉS cada mes, así
+ * que su cuota es un compromiso mensual real que hay que restar del dinero
+ * libre, y su interés es dinero que se evapora sin comprar nada.
+ */
+export interface CreditInput {
+  id: string;
+  name: string;
+  balance: number;
+  /** Cuota mensual según la estrategia elegida por el usuario. */
+  installment: number;
+  /** Lo que ese saldo cuesta al mes solo en intereses. */
+  monthlyInterest: number;
+  monthsToPayoff: number | null;
+  /** La cuota no cubre el interés: el saldo nunca baja. */
+  neverPaysOff: boolean;
+}
+
 export interface PlanInput {
   incomes: readonly IncomeSource[];
   goals: readonly FinanceGoal[];
   fixedPayments: readonly FixedPaymentInput[];
+  /** Tarjetas y créditos de la sección Deudas y Créditos. */
+  credits?: readonly CreditInput[];
   /**
    * Estimado mensual de super que resta el plan. Sale de las compras reales
    * (`groceries.baseline`); solo cae al límite del presupuesto cuando todavía
@@ -84,7 +111,9 @@ export interface CashFlow {
   monthlyIncome: number;
   fixedPayments: number;
   groceriesEstimate: number;
-  /** Ingreso − pagos fijos − super (+ extra simulado). Puede ser negativo. */
+  /** Suma de las cuotas de tarjetas y créditos — compromiso mensual real. */
+  creditPayments: number;
+  /** Ingreso − pagos fijos − super − cuotas de crédito (+ extra simulado). Puede ser negativo. */
   available: number;
   /** Parte de `available` que el plan reserva para ponerse al día con deudas. */
   debtCatchUp: number;
@@ -146,13 +175,31 @@ export interface DebtOverview {
   monthsToClear: number | null;
   /** Metas de tipo deuda registradas a mano. */
   goalDebtTotal: number;
+  /** Saldo total de tarjetas y créditos (el que genera interés). */
+  creditBalance: number;
+  /** Lo que esos créditos cuestan cada mes solo en intereses. */
+  creditMonthlyInterest: number;
+  /** Suma de sus cuotas mensuales. */
+  creditPayments: number;
+  /** Créditos ordenados por lo que cuestan al mes — el más caro primero. */
+  creditOrder: {
+    id: string;
+    name: string;
+    balance: number;
+    installment: number;
+    monthlyInterest: number;
+    monthsToPayoff: number | null;
+    neverPaysOff: boolean;
+  }[];
+  /** Créditos que con su cuota actual no se liquidan nunca. */
+  creditsStuck: { id: string; name: string; monthlyInterest: number }[];
 }
 
 export type AdviceTone = 'critical' | 'warning' | 'good' | 'idea' | 'info';
 
 export interface AdviceAction {
   label: string;
-  kind: 'add_income' | 'add_goal' | 'open_payments' | 'open_budget' | 'open_trips' | 'edit_goal' | 'contribute';
+  kind: 'add_income' | 'add_goal' | 'open_payments' | 'open_budget' | 'open_trips' | 'open_debts' | 'edit_goal' | 'contribute';
   goalId?: string;
 }
 
@@ -367,6 +414,7 @@ function finishProjection(p: GoalProjection, now: Date, goalsBudget: number): vo
 function buildDebtOverview(
   fixedPayments: readonly FixedPaymentInput[],
   goals: readonly FinanceGoal[],
+  credits: readonly CreditInput[],
   available: number,
 ): DebtOverview {
   const overdue = fixedPayments.filter((p) => p.accumulatedDebt > 0);
@@ -390,6 +438,21 @@ function buildDebtOverview(
       .reduce((s, g) => s + Math.max(0, g.targetAmount - g.savedAmount), 0),
   );
 
+  // Los créditos se ordenan por lo que CUESTAN al mes, no por saldo: una
+  // tarjeta chica al 8 % puede sangrar más que una hipoteca grande al 0.5 %.
+  const creditOrder = [...credits]
+    .filter((c) => c.balance > 0)
+    .sort((a, b) => b.monthlyInterest - a.monthlyInterest || b.balance - a.balance)
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      balance: round2(c.balance),
+      installment: round2(c.installment),
+      monthlyInterest: round2(c.monthlyInterest),
+      monthsToPayoff: c.monthsToPayoff,
+      neverPaysOff: c.neverPaysOff,
+    }));
+
   return {
     overdueTotal,
     overdueCount: overdue.length,
@@ -397,6 +460,13 @@ function buildDebtOverview(
     monthlyCatchUp,
     monthsToClear,
     goalDebtTotal,
+    creditBalance: round2(creditOrder.reduce((s, c) => s + c.balance, 0)),
+    creditMonthlyInterest: round2(creditOrder.reduce((s, c) => s + c.monthlyInterest, 0)),
+    creditPayments: round2(creditOrder.reduce((s, c) => s + c.installment, 0)),
+    creditOrder,
+    creditsStuck: creditOrder
+      .filter((c) => c.neverPaysOff)
+      .map((c) => ({ id: c.id, name: c.name, monthlyInterest: c.monthlyInterest })),
   };
 }
 
@@ -457,7 +527,7 @@ function adviceForCashFlow(cash: CashFlow, out: Advice[]): void {
       tone: 'critical',
       icon: '🚨',
       title: `Gastas ${money(deficit)} más de lo que ingresas`,
-      body: `Tus pagos fijos (${money(cash.fixedPayments)}) más el super (${money(cash.groceriesEstimate)}) superan tu ingreso mensual de ${money(cash.monthlyIncome)}. Antes de ahorrar para cualquier meta hay que cerrar ese hueco: revisa qué pago fijo puedes bajar o cancelar, y recorta el super.`,
+      body: `Tus pagos fijos (${money(cash.fixedPayments)})${cash.creditPayments > 0 ? `, las cuotas de tus créditos (${money(cash.creditPayments)})` : ''} más el super (${money(cash.groceriesEstimate)}) superan tu ingreso mensual de ${money(cash.monthlyIncome)}. Antes de ahorrar para cualquier meta hay que cerrar ese hueco: revisa qué pago fijo puedes bajar o cancelar, y recorta el super.`,
       action: { label: 'Revisar pagos fijos', kind: 'open_payments' },
     });
     return;
@@ -479,6 +549,44 @@ function adviceForCashFlow(cash: CashFlow, out: Advice[]): void {
       icon: '🌱',
       title: `Tu tasa de ahorro es del ${Math.round(cash.savingsRate * 100)}%`,
       body: `Te quedan ${money(cash.available)} libres cada mes — por encima del 20% recomendado. Ese margen es justo lo que hace que tus metas lleguen a tiempo.`,
+    });
+  }
+}
+
+/**
+ * Consejos sobre tarjetas y créditos.
+ *
+ * El interés es el único gasto del plan que no compra nada: se va en mantener
+ * viva una deuda. Por eso se nombra en dinero al mes y al año — «te cuesta $90
+ * al mes» pesa mucho más que «tienes un 3 % mensual».
+ */
+function adviceForCredits(debts: DebtOverview, out: Advice[]): void {
+  if (debts.creditBalance <= 0) return;
+
+  if (debts.creditsStuck.length > 0) {
+    const names = debts.creditsStuck.map((c) => c.name).join(', ');
+    out.push({
+      id: 'credits-stuck',
+      tone: 'critical',
+      icon: '🛑',
+      title:
+        debts.creditsStuck.length === 1
+          ? `${debts.creditsStuck[0].name} no se termina de pagar nunca`
+          : `${debts.creditsStuck.length} créditos no se terminan de pagar nunca`,
+      body: `Con la cuota actual, ${names} solo cubre${debts.creditsStuck.length === 1 ? '' : 'n'} intereses: el saldo no baja. Subir un poco la cuota es lo único que cambia eso.`,
+      action: { label: 'Ver mis deudas', kind: 'open_debts' },
+    });
+  }
+
+  if (debts.creditMonthlyInterest > 0) {
+    const worst = debts.creditOrder[0];
+    out.push({
+      id: 'credit-interest',
+      tone: debts.creditMonthlyInterest >= 50 ? 'warning' : 'info',
+      icon: '📈',
+      title: `Tus créditos te cuestan ${money(debts.creditMonthlyInterest)} al mes en intereses`,
+      body: `Son ${money(debts.creditMonthlyInterest * 12)} al año que no compran nada. La más cara es ${worst.name}: ${money(worst.monthlyInterest)} al mes sobre un saldo de ${money(worst.balance)}. Abonar de más ahí rinde más que en cualquier meta.`,
+      action: { label: 'Ver mis deudas', kind: 'open_debts' },
     });
   }
 }
@@ -780,6 +888,7 @@ export function buildAdvice(
   const out: Advice[] = [];
 
   adviceForCashFlow(cash, out);
+  adviceForCredits(debts, out);
   adviceForDebt(cash, debts, out);
 
   // Sin metas no se emite consejo: la sección "Tus metas" ya muestra su propio
@@ -804,9 +913,16 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   const fixedPayments = input.fixedPayments.reduce((s, p) => s + Math.max(0, p.amount), 0);
   const groceriesEstimate = Math.max(0, input.groceriesMonthly);
 
-  const available = monthlyIncome - fixedPayments - groceriesEstimate + extraMonthly;
+  // La cuota de una tarjeta o un crédito es dinero comprometido igual que la
+  // renta: si no se resta aquí, el plan cree que hay más libre del que hay y
+  // promete metas con dinero que ya tiene dueño.
+  const credits = input.credits ?? [];
+  const creditPayments = credits.reduce((s, c) => s + Math.max(0, c.installment), 0);
 
-  const debts = buildDebtOverview(input.fixedPayments, input.goals, available);
+  const available =
+    monthlyIncome - fixedPayments - groceriesEstimate - creditPayments + extraMonthly;
+
+  const debts = buildDebtOverview(input.fixedPayments, input.goals, credits, available);
   const goalsBudget = Math.max(0, available - debts.monthlyCatchUp);
 
   const projections = input.goals.map((g) => projectGoal(g, now)).sort(compareGoals);
@@ -820,6 +936,7 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     monthlyIncome: round2(monthlyIncome),
     fixedPayments: round2(fixedPayments),
     groceriesEstimate: round2(groceriesEstimate),
+    creditPayments: round2(creditPayments),
     available: round2(available),
     debtCatchUp: debts.monthlyCatchUp,
     goalsBudget: round2(goalsBudget),

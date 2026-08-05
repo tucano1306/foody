@@ -6,6 +6,7 @@ import {
   monthlyEquivalent,
   monthsToReach,
   simulatePlan,
+  type CreditInput,
   type FinanceGoal,
   type FixedPaymentInput,
   type IncomeSource,
@@ -46,6 +47,19 @@ function payment(over: Partial<FixedPaymentInput> = {}): FixedPaymentInput {
     isPaidThisMonth: true,
     missedMonths: 0,
     accumulatedDebt: 0,
+    ...over,
+  };
+}
+
+function credit(over: Partial<CreditInput> = {}): CreditInput {
+  return {
+    id: 'c1',
+    name: 'Visa',
+    balance: 1000,
+    installment: 100,
+    monthlyInterest: 30,
+    monthsToPayoff: 12,
+    neverPaysOff: false,
     ...over,
   };
 }
@@ -262,6 +276,96 @@ describe('buildFinancePlan — deudas atrasadas', () => {
     expect(deuda?.tone).toBe('critical');
     expect(deuda?.body).toContain('3 meses');
     expect(advice.some((a) => a.id === 'snowball-order')).toBe(true);
+  });
+});
+
+describe('buildFinancePlan — tarjetas y créditos', () => {
+  it('resta las cuotas del dinero libre: no se reparte lo que ya tiene dueño', () => {
+    const sin = buildFinancePlan(plan({ credits: [] }));
+    const con = buildFinancePlan(plan({ credits: [credit({ installment: 250 })] }));
+    expect(con.cashFlow.creditPayments).toBe(250);
+    expect(con.cashFlow.available).toBe(sin.cashFlow.available - 250);
+    expect(con.cashFlow.goalsBudget).toBeLessThan(sin.cashFlow.goalsBudget);
+  });
+
+  it('sin créditos el flujo no cambia (retrocompatible)', () => {
+    const p = buildFinancePlan(plan());
+    expect(p.cashFlow.creditPayments).toBe(0);
+    expect(p.debts.creditBalance).toBe(0);
+    expect(p.debts.creditOrder).toEqual([]);
+  });
+
+  it('suma saldo, interés mensual y compromiso de toda la cartera', () => {
+    const { debts } = buildFinancePlan(
+      plan({
+        credits: [
+          credit({ id: 'a', balance: 1000, monthlyInterest: 30, installment: 100 }),
+          credit({ id: 'b', balance: 500, monthlyInterest: 40, installment: 60 }),
+        ],
+      }),
+    );
+    expect(debts.creditBalance).toBe(1500);
+    expect(debts.creditMonthlyInterest).toBe(70);
+    expect(debts.creditPayments).toBe(160);
+  });
+
+  it('ordena por lo que CUESTA al mes, no por saldo', () => {
+    // La deuda chica al 8 % sangra más que la grande al 0.5 %.
+    const { debts } = buildFinancePlan(
+      plan({
+        credits: [
+          credit({ id: 'hipoteca', balance: 90_000, monthlyInterest: 45 }),
+          credit({ id: 'tarjeta', balance: 1200, monthlyInterest: 96 }),
+        ],
+      }),
+    );
+    expect(debts.creditOrder.map((c) => c.id)).toEqual(['tarjeta', 'hipoteca']);
+  });
+
+  it('ignora los créditos ya liquidados', () => {
+    const { debts } = buildFinancePlan(
+      plan({ credits: [credit({ balance: 0, monthlyInterest: 0, installment: 0 })] }),
+    );
+    expect(debts.creditOrder).toEqual([]);
+    expect(debts.creditBalance).toBe(0);
+  });
+
+  it('señala en crítico los créditos que no se liquidan nunca', () => {
+    const { debts, advice } = buildFinancePlan(
+      plan({ credits: [credit({ name: 'Tienda', neverPaysOff: true, monthsToPayoff: null })] }),
+    );
+    expect(debts.creditsStuck.map((c) => c.name)).toEqual(['Tienda']);
+    const aviso = advice.find((a) => a.id === 'credits-stuck');
+    expect(aviso?.tone).toBe('critical');
+    expect(aviso?.action?.kind).toBe('open_debts');
+  });
+
+  it('nombra el interés en dinero al mes y al año, no en porcentaje', () => {
+    const { advice } = buildFinancePlan(
+      plan({ credits: [credit({ name: 'Visa', monthlyInterest: 60 })] }),
+    );
+    const aviso = advice.find((a) => a.id === 'credit-interest');
+    expect(aviso?.title).toContain('$60');
+    expect(aviso?.body).toContain('$720'); // 60 × 12 al año
+    expect(aviso?.body).toContain('Visa');
+  });
+
+  it('sin créditos no emite consejos de crédito', () => {
+    const { advice } = buildFinancePlan(plan({ credits: [] }));
+    expect(advice.some((a) => a.id === 'credit-interest')).toBe(false);
+    expect(advice.some((a) => a.id === 'credits-stuck')).toBe(false);
+  });
+
+  it('las cuotas pueden por sí solas poner el mes en negativo', () => {
+    const { cashFlow, advice } = buildFinancePlan(
+      plan({
+        incomes: [income({ amount: 1500 })],
+        credits: [credit({ installment: 400 })],
+      }),
+    );
+    expect(cashFlow.available).toBe(1500 - 900 - 400 - 400);
+    const deficit = advice.find((a) => a.id === 'negative-flow');
+    expect(deficit?.body).toContain('créditos');
   });
 });
 
