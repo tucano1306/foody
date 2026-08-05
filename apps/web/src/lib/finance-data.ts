@@ -10,6 +10,7 @@
  */
 import { sql } from '@/lib/db';
 import { getBudgetData } from '@/lib/budget-data';
+import { listCreditsForPlan } from '@/lib/debt-data';
 import { buildPaymentAggregates, type PaidRecordInput } from '@/lib/payment-aggregates';
 import {
   computeGroceryInsight,
@@ -20,6 +21,7 @@ import {
 } from '@/lib/grocery-insights';
 import {
   buildFinancePlan,
+  type CreditInput,
   type FinanceGoal,
   type FinancePlan,
   type FixedPaymentInput,
@@ -51,6 +53,8 @@ export interface FinancePlanPayload extends FinancePlan {
   /** Totales de super por mes (para la mini gráfica de tendencia). */
   history: MonthTotal[];
   payments: FixedPaymentInput[];
+  /** Tarjetas y créditos que alimentan el plan. */
+  credits: CreditInput[];
 }
 
 let schemaReady = false;
@@ -290,14 +294,18 @@ async function loadGroceryBreakdown(userId: string): Promise<{
 export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<FinancePlanPayload> {
   await ensureFinanceSchema();
 
-  const [incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown] = await Promise.all([
-    sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
-    sql`SELECT * FROM finance_goals WHERE user_id = ${userId} ORDER BY priority ASC, target_date ASC NULLS LAST, created_at ASC`,
-    sql`SELECT * FROM finance_goal_contributions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`,
-    loadFixedPayments(userId),
-    getBudgetData(userId),
-    loadGroceryBreakdown(userId),
-  ]);
+  const [incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits] =
+    await Promise.all([
+      sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
+      sql`SELECT * FROM finance_goals WHERE user_id = ${userId} ORDER BY priority ASC, target_date ASC NULLS LAST, created_at ASC`,
+      sql`SELECT * FROM finance_goal_contributions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`,
+      loadFixedPayments(userId),
+      getBudgetData(userId),
+      loadGroceryBreakdown(userId),
+      // Las cuotas de tarjetas y créditos son compromiso mensual: sin ellas el
+      // plan repartiría entre metas un dinero que ya está comprometido.
+      listCreditsForPlan(userId).catch(() => [] as CreditInput[]),
+    ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
   const goals = goalRows.map((r) => mapGoalRow(r as Record<string, unknown>));
@@ -316,6 +324,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     incomes,
     goals,
     fixedPayments,
+    credits,
     groceriesMonthly: groceries.baseline,
     groceriesSource: groceries.baselineSource,
     groceriesSpentThisMonth: groceries.spentThisMonth,
@@ -333,5 +342,6 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     groceries,
     history: budget.history,
     payments: fixedPayments,
+    credits,
   };
 }

@@ -523,6 +523,64 @@ export async function getDebtsSummary(userId: string): Promise<DebtsSummary> {
   };
 }
 
+/** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
+export interface CreditForPlan {
+  id: string;
+  name: string;
+  balance: number;
+  installment: number;
+  monthlyInterest: number;
+  monthsToPayoff: number | null;
+  neverPaysOff: boolean;
+}
+
+/**
+ * Créditos activos proyectados, para el Plan Financiero.
+ *
+ * Deliberadamente NO devenga intereses ni consulta el libro mayor: es una sola
+ * consulta y el resto es cálculo puro. `listDebts` hace una consulta por deuda
+ * para el desglose, y el plan no necesita ese detalle — solo la cuota y lo que
+ * cuesta al mes.
+ */
+export async function listCreditsForPlan(
+  userId: string,
+  now: Date = new Date(),
+): Promise<CreditForPlan[]> {
+  await ensureDebtSchema();
+  const rows = await sql`
+    SELECT id, name, current_balance, rate, rate_period, strategy,
+           term_months, custom_payment, min_percent, min_floor, extra_monthly
+    FROM debts
+    WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
+  `;
+
+  return rows.map((raw) => {
+    const row = raw as Record<string, unknown>;
+    const balance = num(row.current_balance);
+    const projection = projectDebt({
+      balance,
+      rate: num(row.rate),
+      ratePeriod: (row.rate_period as RatePeriod) ?? 'monthly',
+      strategy: (row.strategy as PayoffStrategy) ?? 'fixed_installment',
+      termMonths: numOrNull(row.term_months),
+      customPayment: numOrNull(row.custom_payment),
+      minPercent: numOrNull(row.min_percent),
+      minFloor: numOrNull(row.min_floor),
+      extraMonthly: num(row.extra_monthly),
+      now,
+    });
+    return {
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      balance,
+      installment: projection.installment,
+      monthlyInterest: projection.monthlyInterest,
+      monthsToPayoff: projection.monthsToPayoff,
+      neverPaysOff: projection.neverPaysOff,
+    };
+  });
+}
+
 export async function getDebt(
   userId: string,
   debtId: string,

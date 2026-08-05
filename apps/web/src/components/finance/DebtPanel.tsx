@@ -14,11 +14,85 @@ interface Props {
  * (el más pequeño primero) con el abono mensual sugerido y el mes de liquidación.
  */
 export default function DebtPanel({ debts }: Props) {
-  if (debts.overdueTotal <= 0) return null;
+  if (debts.overdueTotal <= 0 && debts.creditBalance <= 0) return null;
 
   const max = Math.max(...debts.payoffOrder.map((d) => d.debt), 1);
 
   return (
+    <div className="space-y-4">
+      {/* ─── Tarjetas y créditos ───────────────────────────────────────────
+          Van primero porque son la deuda que CUESTA: mientras exista el saldo
+          genera interés cada mes, cosa que un recibo atrasado no hace. */}
+      {debts.creditBalance > 0 && (
+        <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-100 to-blue-100 p-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wide text-black">
+                💳 Tarjetas y créditos
+              </h2>
+              <p className="mt-1 text-xs text-slate-600">
+                {debts.creditMonthlyInterest > 0
+                  ? `Te cuestan ${fmtMoney(debts.creditMonthlyInterest)} al mes solo en intereses`
+                  : 'Sin intereses este mes'}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Saldo</p>
+              <p className="text-xl font-black tabular-nums text-black">
+                {fmtMoney(debts.creditBalance)}
+              </p>
+            </div>
+          </div>
+
+          <ul className="space-y-2.5">
+            {debts.creditOrder.map((c) => (
+              <li key={c.id} className="rounded-2xl bg-white/70 px-3 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-black">{c.name}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {c.neverPaysOff
+                        ? '🛑 Con esta cuota no termina nunca'
+                        : `Cuota ${fmtMoney(c.installment)}/mes · ${
+                            c.monthsToPayoff === null ? '—' : `libre en ${c.monthsToPayoff} ${c.monthsToPayoff === 1 ? 'mes' : 'meses'}`
+                          }`}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-black tabular-nums text-black">{fmtMoney(c.balance)}</p>
+                    {c.monthlyInterest > 0 && (
+                      <p className="text-[11px] font-semibold text-blue-700">
+                        +{fmtMoney(c.monthlyInterest)} interés
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Comprometido al mes
+              </p>
+              <p className="text-lg font-black tabular-nums text-black">
+                {fmtMoney(debts.creditPayments)}
+                <span className="text-xs font-medium text-slate-400">/mes</span>
+              </p>
+              <p className="text-[11px] text-slate-500">Ya restado de tu dinero libre</p>
+            </div>
+            <Link
+              href="/payments/debts"
+              className="shrink-0 rounded-2xl bg-blue-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-600"
+            >
+              Ver deudas →
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {debts.overdueTotal > 0 && (
     <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-100 to-blue-100 p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
@@ -94,5 +168,7 @@ export default function DebtPanel({ debts }: Props) {
         </Link>
       </div>
     </section>
+      )}
+    </div>
   );
 }
