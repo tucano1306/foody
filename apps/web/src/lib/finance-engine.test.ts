@@ -266,10 +266,17 @@ describe('buildFinancePlan — deudas atrasadas', () => {
 });
 
 describe('buildFinancePlan — consejos', () => {
-  it('pide ingresos cuando no hay ninguno', () => {
+  it('no repite el "registra tus ingresos" que ya pide la cabecera', () => {
     const { advice } = buildFinancePlan(plan({ incomes: [] }));
-    expect(advice[0].id).toBe('no-income');
-    expect(advice[0].action?.kind).toBe('add_income');
+    expect(advice.some((a) => a.id === 'no-income')).toBe(false);
+    expect(advice.some((a) => a.action?.kind === 'add_income')).toBe(false);
+  });
+
+  it('sin ingresos tampoco emite los consejos de flujo, que saldrían de dividir entre cero', () => {
+    const { advice } = buildFinancePlan(plan({ incomes: [] }));
+    expect(advice.some((a) => a.id === 'negative-flow')).toBe(false);
+    expect(advice.some((a) => a.id === 'low-savings-rate')).toBe(false);
+    expect(advice.some((a) => a.id === 'healthy-savings-rate')).toBe(false);
   });
 
   it('no repite el "crea tu primera meta" que ya muestra la sección vacía', () => {

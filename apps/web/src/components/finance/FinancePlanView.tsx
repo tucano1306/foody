@@ -222,6 +222,8 @@ export default function FinancePlanView({ initialData }: Props) {
   const activeGoals = data.goals.filter((g) => g.status === 'active');
   const doneGoals = data.goals.filter((g) => g.status === 'done');
   const cash = data.cashFlow;
+  /** Sin ingreso no hay plan que calcular: la cabecera cambia de prioridad. */
+  const needsIncome = cash.monthlyIncome <= 0;
 
   const planInput: PlanInput = useMemo(
     () => ({
@@ -259,11 +261,17 @@ export default function FinancePlanView({ initialData }: Props) {
           </div>
         </div>
 
+        {/* Sin ingresos cargados, «Ingresos» es LA acción: se lleva el ancho y el
+            color, y «Nueva meta» pasa a segundo plano. Es el mismo mensaje que
+            antes repetía el consejero más abajo, pero dicho con la jerarquía en
+            vez de con un párrafo de instrucciones. */}
         <div className="relative flex gap-2 mt-4">
           <button
             type="button"
             onClick={() => { haptic(12); setModal({ kind: 'goal', goal: null }); }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-sm font-black shadow-sm transition ${BTN_PRIMARY}`}
+            className={`flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-sm shadow-sm transition ${
+              needsIncome ? `px-4 font-bold ${BTN_SOFT}` : `flex-1 font-black ${BTN_PRIMARY}`
+            }`}
           >
             <PlusIcon className="w-4 h-4" />
             Nueva meta
@@ -271,7 +279,9 @@ export default function FinancePlanView({ initialData }: Props) {
           <button
             type="button"
             onClick={() => { haptic(10); setModal({ kind: 'income' }); }}
-            className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition ${BTN_SOFT}`}
+            className={`flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-sm transition ${
+              needsIncome ? `flex-1 font-black shadow-sm ${BTN_PRIMARY}` : `px-4 font-bold ${BTN_SOFT}`
+            }`}
           >
             <BriefcaseIcon className="w-4 h-4" />
             Ingresos

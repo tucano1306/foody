@@ -439,18 +439,16 @@ function prettyDate(key: string): string {
   return `${d.getDate()} de ${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function adviceForCashFlow(input: PlanInput, cash: CashFlow, out: Advice[]): void {
-  if (cash.monthlyIncome <= 0) {
-    out.push({
-      id: 'no-income',
-      tone: 'warning',
-      icon: '💼',
-      title: 'Registra tus ingresos para empezar',
-      body: 'Sin ingresos cargados no puedo calcular cuánto te queda libre ni si tus metas son alcanzables. Agrega tu sueldo y cualquier entrada extra (freelance, renta, bonos).',
-      action: { label: 'Agregar ingreso', kind: 'add_income' },
-    });
-    return;
-  }
+function adviceForCashFlow(cash: CashFlow, out: Advice[]): void {
+  // Sin ingresos no se emite consejo: la cabecera ya pide lo mismo con su botón
+  // «Ingresos», que se vuelve la acción principal justo en este caso. Un consejo
+  // aquí pedía el dato por segunda vez, con instrucciones, a media pantalla de
+  // distancia del botón que de verdad lo resuelve. Mismo criterio que con las
+  // metas más abajo.
+  //
+  // El corte SÍ se queda: sin ingreso, «gastas de más» y «te queda poco libre»
+  // saldrían de dividir entre cero y solo confundirían.
+  if (cash.monthlyIncome <= 0) return;
 
   if (cash.available < 0) {
     const deficit = Math.abs(cash.available);
@@ -483,7 +481,6 @@ function adviceForCashFlow(input: PlanInput, cash: CashFlow, out: Advice[]): voi
       body: `Te quedan ${money(cash.available)} libres cada mes — por encima del 20% recomendado. Ese margen es justo lo que hace que tus metas lleguen a tiempo.`,
     });
   }
-
 }
 
 function adviceForDebt(cash: CashFlow, debts: DebtOverview, out: Advice[]): void {
@@ -782,7 +779,7 @@ export function buildAdvice(
 ): Advice[] {
   const out: Advice[] = [];
 
-  adviceForCashFlow(input, cash, out);
+  adviceForCashFlow(cash, out);
   adviceForDebt(cash, debts, out);
 
   // Sin metas no se emite consejo: la sección "Tus metas" ya muestra su propio
