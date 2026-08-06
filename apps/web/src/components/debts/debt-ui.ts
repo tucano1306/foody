@@ -61,6 +61,19 @@ export function fmtDateKey(key: string | null): string {
   return `${MONTHS_ES[m - 1] ?? ''} ${y}`;
 }
 
+/**
+ * "14 feb 2027" — con el día.
+ *
+ * Una fecha límite necesita el día exacto: "feb 2027" no sirve para saber si
+ * quedan tres días o treinta.
+ */
+export function fmtDateFull(key: string | null): string {
+  if (!key) return '—';
+  const [y, m, d] = key.split('-').map(Number);
+  if (!y || !m || !d) return key;
+  return `${d} ${MONTHS_ES[m - 1] ?? ''} ${y}`;
+}
+
 // ─── Tokens compartidos ───────────────────────────────────────────────────────
 
 export const NUM = 'text-black';
