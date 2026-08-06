@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { ChevronLeftIcon } from '@heroicons/react/24/solid';
 import type { DebtWithProjection } from '@/lib/debt-data';
 import type { DebtKind, PayoffStrategy, RatePeriod } from '@/lib/debt-engine';
-import { projectDebt } from '@/lib/debt-engine';
+import { monthsUntilDate, projectDebt, toDateKey } from '@/lib/debt-engine';
 import { haptic } from '@/lib/haptic';
 import { confettiRain } from '@/lib/fx';
 import ModalShell from '@/components/finance/ModalShell';
@@ -54,6 +54,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
   const [customPayment, setCustomPayment] = useState('');
   const [dueDay, setDueDay] = useState(1);
   const [businessShare, setBusinessShare] = useState(0);
+  const [payoffDate, setPayoffDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,14 +72,17 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
       ratePeriod,
       strategy,
       termMonths,
+      payoffDate: payoffDate || null,
       customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
     });
-  }, [hasMoney, hasRate, balanceNum, rateNum, ratePeriod, strategy, termMonths, customNum]);
+  }, [hasMoney, hasRate, balanceNum, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum]);
 
   const stepValid = [
     true,
     hasMoney && hasRate && name.trim().length > 0,
-    strategy !== 'fixed_installment' || termMonths !== null || (Number.isFinite(customNum) && customNum > 0),
+    strategy === 'by_date'
+      ? payoffDate !== ''
+      : strategy !== 'fixed_installment' || termMonths !== null || (Number.isFinite(customNum) && customNum > 0),
   ];
   const canAdvance = stepValid[step];
   const isLast = step === 2;
@@ -106,6 +110,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
           ratePeriod,
           strategy,
           termMonths: strategy === 'fixed_installment' ? termMonths : null,
+          payoffDate: strategy === 'by_date' ? payoffDate : null,
           customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
           dueDay,
           businessShare,
@@ -374,6 +379,32 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                 </div>
               )}
 
+              {/* Fecha exacta: el caso de la tarjeta que hay que liquidar antes
+                  de que empiecen a cobrar intereses. La cuota se recalcula sola
+                  según los meses que queden. */}
+              {strategy === 'by_date' && (
+                <div>
+                  <label htmlFor="debt-payoff-date" className="mb-2 block text-xs font-bold text-slate-600">
+                    Debe estar pagada el
+                  </label>
+                  <input
+                    id="debt-payoff-date"
+                    type="date"
+                    value={payoffDate}
+                    min={toDateKey(new Date())}
+                    onChange={(e) => setPayoffDate(e.target.value)}
+                    className="w-full rounded-2xl border-2 border-sky-200 bg-white px-4 py-3.5 text-base font-bold text-black transition focus:border-sky-400 focus:outline-none"
+                  />
+                  {payoffDate && projection && (
+                    <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
+                      Quedan {monthsUntilDate(payoffDate)}{' '}
+                      {monthsUntilDate(payoffDate) === 1 ? 'mes' : 'meses'} · si un mes abonas de
+                      menos, la cuota sube sola al siguiente
+                    </p>
+                  )}
+                </div>
+              )}
+
               {strategy === 'custom' && (
                 <div className="relative">
                   <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base font-bold text-slate-400">
@@ -403,9 +434,26 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                 label="¿De quién es esta deuda?"
               />
 
-              {/* Día de corte */}
+              {/* Día de corte. Los atajos son eso —atajos—: el campo de al lado
+                  acepta cualquier día del 1 al 31, porque los cortes reales no
+                  caen solo en números redondos. */}
               <div>
-                <p className="mb-2 text-xs font-bold text-slate-600">Día de pago</p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-slate-600">Día de pago</p>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={31}
+                    value={dueDay}
+                    onChange={(e) => {
+                      const n = Math.trunc(Number(e.target.value));
+                      if (Number.isFinite(n)) setDueDay(Math.min(31, Math.max(1, n)));
+                    }}
+                    aria-label="Día de pago del mes"
+                    className="w-20 rounded-xl border-2 border-sky-200 bg-white px-3 py-2 text-center text-base font-bold text-black transition focus:border-sky-400 focus:outline-none"
+                  />
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {[1, 5, 10, 15, 20, 25, 28, 30].map((d) => {
                     const selected = dueDay === d;

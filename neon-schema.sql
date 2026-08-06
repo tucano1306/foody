@@ -416,3 +416,4 @@ ALTER TABLE "monthly_payments"       ADD COLUMN IF NOT EXISTS "business_share" D
 ALTER TABLE "debts"                  ADD COLUMN IF NOT EXISTS "business_share" DECIMAL(5,2) NOT NULL DEFAULT 0;
 ALTER TABLE "finance_income_sources" ADD COLUMN IF NOT EXISTS "business_share" DECIMAL(5,2) NOT NULL DEFAULT 0;
 ALTER TABLE "shopping_trips" ADD COLUMN IF NOT EXISTS "business_share" DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE "debts" ADD COLUMN IF NOT EXISTS "payoff_date" DATE;

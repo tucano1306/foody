@@ -40,6 +40,15 @@ export type DebtKind =
 export type PayoffStrategy =
   /** Cuota fija a N meses (sistema francés) — el clásico crédito bancario. */
   | 'fixed_installment'
+  /**
+   * Pagada antes de una FECHA concreta.
+   *
+   * No es lo mismo que la cuota fija: aquí lo pactado es el día, no el importe.
+   * La cuota se recalcula cada mes con los meses que QUEDAN, así que si un mes
+   * se abona de menos, al siguiente sube sola. Es el caso de la tarjeta que hay
+   * que liquidar antes de que empiecen a cobrar intereses.
+   */
+  | 'by_date'
   /** Pago mínimo de tarjeta: % del saldo (con piso), nunca menos que el interés. */
   | 'minimum'
   /** Solo intereses: el saldo NO baja jamás. */
@@ -554,6 +563,8 @@ export interface DebtInput {
   strategy: PayoffStrategy;
   /** Plazo pactado en meses (estrategia de cuota fija). */
   termMonths?: number | null;
+  /** Fecha límite YYYY-MM-DD (estrategia `by_date`). */
+  payoffDate?: string | null;
   /** Cuota elegida a mano (custom) o cuota pactada del crédito. */
   customPayment?: number | null;
   /** % del saldo que exige la tarjeta como mínimo. */
@@ -590,6 +601,23 @@ export interface DebtProjection {
   status: ProjectionStatus;
 }
 
+/**
+ * Meses que faltan hasta una fecha límite, contando el mes en curso.
+ *
+ * Nunca devuelve menos de 1: si la fecha ya pasó o es este mismo mes, lo que
+ * queda es pagarlo todo ahora, y devolver 0 haría explotar la división.
+ */
+export function monthsUntilDate(payoffDate: string, now: Date = new Date()): number {
+  const [y, m, d] = payoffDate.split('-').map(Number);
+  if (!y || !m || !d) return 1;
+  const target = new Date(y, m - 1, d);
+  const months =
+    (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth());
+  // El mes cuenta entero solo si el día límite aún no llegó.
+  const adjusted = target.getDate() >= now.getDate() ? months + 1 : months;
+  return Math.max(1, Math.min(adjusted, MAX_SCHEDULE_MONTHS));
+}
+
 /** Cuota que impone la estrategia, antes de sumar el abono extra. */
 export function installmentFor(input: DebtInput): number {
   const balance = safeAmount(input.balance);
@@ -603,6 +631,14 @@ export function installmentFor(input: DebtInput): number {
       if (agreed > 0) return round2(agreed);
       const term = Math.trunc(safeAmount(input.termMonths));
       return frenchInstallment(balance, monthlyRate, term);
+    }
+    case 'by_date': {
+      // La cuota NO se congela: se recalcula con los meses que quedan hasta la
+      // fecha. Si un mes se abona de menos, al siguiente sube sola — que es lo
+      // que de verdad hace falta para llegar a una fecha tope.
+      if (!input.payoffDate) return 0;
+      const months = monthsUntilDate(input.payoffDate, input.now ?? new Date());
+      return frenchInstallment(balance, monthlyRate, months);
     }
     case 'minimum':
       return minimumPayment(
