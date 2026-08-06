@@ -17,6 +17,7 @@ const ReceiptScanner = dynamic(
   { ssr: false },
 );
 import { useToast } from '@/components/ui/Toast';
+import ScopePicker from '@/components/ui/ScopePicker';
 import { notifyGoalImpact } from '@/lib/notify-goal-impact';
 
 interface Props {
@@ -59,6 +60,10 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const [totalAmount, setTotalAmount] = useState<string>('');
   const [currency] = useState<string>('USD');
   const [items, setItems] = useState<LineItem[]>([]);
+  /** El detalle del ticket empieza plegado: total y tienda son lo que importa. */
+  const [itemsExpanded, setItemsExpanded] = useState(false);
+  /** 0-100: qué parte de esta compra es del negocio. Empieza en personal. */
+  const [businessShare, setBusinessShare] = useState(0);
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,13 +124,9 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     // can auto-match are pre-linked; the rest stay "unlinked" for the user to
     // confirm. Receipt unit prices are carried over so per-product price data is
     // accurate (not just an even split of the total).
-    if (data.items.length === 0) {
-      toast.show(
-        'No detecté productos en el recibo. Revisa el total y agrégalos a mano.',
-        'info',
-      );
-      return;
-    }
+    // Sin productos legibles NO es un fallo: con el total y la tienda el
+    // ticket ya sirve para el presupuesto y el plan, que es lo que se pidió.
+    if (data.items.length === 0) return;
 
     const used = new Set(items.map((it) => it.productId).filter((id) => id !== ''));
     const additions: LineItem[] = [];
@@ -168,14 +169,15 @@ export default function NewTripForm({ products }: Readonly<Props>) {
       haptic([15, 40, 20]);
     }
 
-    const summary: string[] = [];
-    if (matched > 0) summary.push(`${matched} vinculado${matched === 1 ? '' : 's'} ✨`);
-    if (unmatched > 0) summary.push(`${unmatched} por vincular`);
+    // El aviso dice lo que el usuario vino a saber —cuánto y dónde—, no cuántas
+    // líneas se vincularon. Ese detalle está plegado para quien lo quiera.
+    const donde = data.storeName ?? storeName.trim();
+    const cuanto = data.total ?? Number.parseFloat(totalAmount);
     toast.show(
-      summary.length > 0
-        ? `Recibo leído: ${summary.join(' · ')}`
-        : 'Recibo leído',
-      matched > 0 ? 'success' : 'info',
+      Number.isFinite(cuanto) && cuanto > 0
+        ? `Listo: $${cuanto.toFixed(2)}${donde ? ` en ${donde}` : ''}`
+        : 'Recibo leído — revisa el total',
+      Number.isFinite(cuanto) && cuanto > 0 ? 'success' : 'info',
     );
   }
 
@@ -243,6 +245,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         purchasedAt: new Date(purchasedAt).toISOString(),
         totalAmount: totalValid ? parsedTotal : 0,
         currency,
+        businessShare,
         allocationStrategy: 'manual_partial',
         items: linkedItems.map((it) => {
           const qty = Number.parseFloat(it.quantity);
@@ -417,7 +420,45 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           </div>
         )}
 
+        {/* Una compra también puede ser del negocio: insumos, material de
+            oficina, o el carrito mixto de quien pasa por el super para las dos
+            cosas. Viene en «Personal», así que no estorba a quien no lo use. */}
+        <ScopePicker
+          value={businessShare}
+          onChange={setBusinessShare}
+          amount={totalValid ? parsedTotal : undefined}
+          currency={currency}
+          label="¿De quién es esta compra?"
+        />
+
+        {/* El detalle del ticket va PLEGADO. Lo que importa al registrar una
+            compra es cuánto y dónde; los productos se siguen guardando igual
+            —alimentan «Comparar precios» y el desglose por categoría— pero ya
+            no piden atención ni bloquean el guardado. Quien quiera vincularlos
+            toca y los ve. */}
         {items.length > 0 && (
+          <button
+            type="button"
+            onClick={() => { haptic(); setItemsExpanded((v) => !v); }}
+            aria-expanded={itemsExpanded}
+            className="w-full flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3.5 py-3 text-left transition active:scale-[0.99]"
+          >
+            <span className="text-lg shrink-0" aria-hidden="true">🧾</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-800">
+                {items.length} {items.length === 1 ? 'producto del ticket' : 'productos del ticket'}
+              </span>
+              <span className="block text-[11px] text-slate-500">
+                {unlinkedCount > 0
+                  ? `${items.length - unlinkedCount} vinculados · ${unlinkedCount} sin vincular`
+                  : 'Todos vinculados a tu catálogo'}
+              </span>
+            </span>
+            <span className={`shrink-0 text-slate-400 transition-transform ${itemsExpanded ? 'rotate-180' : ''}`} aria-hidden="true">⌄</span>
+          </button>
+        )}
+
+        {items.length > 0 && itemsExpanded && (
           <ul className="space-y-2">
             {items.map((it, idx) => {
               const isUnlinked = it.productId === '';

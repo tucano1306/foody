@@ -244,6 +244,26 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
  * unidos a products) y las visitas combinan tickets formales con compras sueltas
  * sin ticket, agrupadas por sesión para no contar cada línea como una visita.
  */
+/**
+ * Porcentaje del super que corresponde al negocio, PONDERADO por importe.
+ *
+ * No es la media de los porcentajes: una compra de $500 al 100 % pesa mucho más
+ * que una de $10 al 100 %. Se calcula sobre las compras del mes en curso, que es
+ * el período que el plan resta.
+ */
+async function loadGroceryBusinessShare(userId: string): Promise<number> {
+  const rows = await sql`
+    SELECT
+      COALESCE(SUM(COALESCE(total_spent, 0) * COALESCE(business_share, 0) / 100), 0) AS business,
+      COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
+    FROM shopping_trips
+    WHERE user_id = ${userId} AND date >= DATE_TRUNC('month', NOW())
+  `;
+  const r = (rows[0] ?? {}) as Record<string, unknown>;
+  const total = num(r.total);
+  return total > 0 ? normalizeShare((num(r.business) / total) * 100) : 0;
+}
+
 async function loadGroceryBreakdown(userId: string): Promise<{
   categories: CategorySpendInput[];
   stores: StoreSpend[];
@@ -305,7 +325,7 @@ async function loadGroceryBreakdown(userId: string): Promise<{
 export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<FinancePlanPayload> {
   await ensureFinanceSchema();
 
-  const [incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits] =
+  const [incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits, groceriesBusinessShare] =
     await Promise.all([
       sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
       sql`SELECT * FROM finance_goals WHERE user_id = ${userId} ORDER BY priority ASC, target_date ASC NULLS LAST, created_at ASC`,
@@ -316,6 +336,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
       // Las cuotas de tarjetas y créditos son compromiso mensual: sin ellas el
       // plan repartiría entre metas un dinero que ya está comprometido.
       listCreditsForPlan(userId).catch(() => [] as CreditInput[]),
+      loadGroceryBusinessShare(userId).catch(() => 0),
     ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
@@ -339,6 +360,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     groceriesMonthly: groceries.baseline,
     groceriesSource: groceries.baselineSource,
     groceriesSpentThisMonth: groceries.spentThisMonth,
+    groceriesBusinessShare,
     groceries,
     extraMonthly,
   };

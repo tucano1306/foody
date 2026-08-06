@@ -97,5 +97,7 @@ export async function ensureExpenseScopeSchema(): Promise<void> {
   if (scopeEnsured) return;
   await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE IF EXISTS finance_income_sources ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  // Una compra también puede ser del negocio (insumos, material de oficina).
+  await sql`ALTER TABLE IF EXISTS shopping_trips ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
   scopeEnsured = true;
 }

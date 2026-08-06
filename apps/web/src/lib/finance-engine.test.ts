@@ -399,12 +399,36 @@ describe('buildFinancePlan — personal vs negocio', () => {
     expect(scopes.business.fixedPayments).toBe(660); // 600 + 60
   });
 
-  it('el super va entero a personal: la despensa no tiene ámbito', () => {
+  it('sin compras marcadas, el super va entero a personal', () => {
     const { scopes, cashFlow } = buildFinancePlan(
       plan({ fixedPayments: [payment({ amount: 900, businessShare: 100 })] }),
     );
     expect(scopes.personal.groceries).toBe(cashFlow.groceriesEstimate);
     expect(scopes.business.groceries).toBe(0);
+  });
+
+  it('reparte el super con el porcentaje ponderado de las compras', () => {
+    const { scopes } = buildFinancePlan(
+      plan({ groceriesMonthly: 400, groceriesBusinessShare: 25 }),
+    );
+    expect(scopes.business.groceries).toBe(100);
+    expect(scopes.personal.groceries).toBe(300);
+  });
+
+  it('un super marcado como del negocio basta para activar la sección', () => {
+    const { scopes } = buildFinancePlan(
+      plan({ groceriesMonthly: 200, groceriesBusinessShare: 100 }),
+    );
+    expect(scopes.hasBusiness).toBe(true);
+    expect(scopes.businessResult.expenses).toBe(200);
+  });
+
+  it('al excluir el negocio, el super del negocio deja de restar', () => {
+    const entrada = plan({ groceriesMonthly: 400, groceriesBusinessShare: 25 });
+    const con = buildFinancePlan(entrada);
+    const sin = buildFinancePlan(personalOnlyInput(entrada));
+    expect(sin.cashFlow.groceriesEstimate).toBe(300);
+    expect(sin.cashFlow.available).toBe(con.cashFlow.available + 100);
   });
 
   it('reparte también las cuotas de crédito', () => {

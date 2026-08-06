@@ -149,6 +149,8 @@ export interface CreateShoppingTripDto {
   allocationStrategy?: AllocationStrategy;
   receiptPhotoUrl?: string;
   notes?: string;
+  /** 0-100: qué parte de esta compra es del negocio. 0 = personal. */
+  businessShare?: number;
   items: ShoppingTripItemDto[];
 }
 
