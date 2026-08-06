@@ -53,6 +53,8 @@ export interface Debt {
   ratePeriod: RatePeriod;
   strategy: PayoffStrategy;
   termMonths: number | null;
+  /** Fecha límite YYYY-MM-DD de la estrategia `by_date`. */
+  payoffDate: string | null;
   customPayment: number | null;
   minPercent: number | null;
   minFloor: number | null;
@@ -121,6 +123,7 @@ export interface CreateDebtInput {
   ratePeriod?: RatePeriod;
   strategy?: PayoffStrategy;
   termMonths?: number | null;
+  payoffDate?: string | null;
   customPayment?: number | null;
   minPercent?: number | null;
   minFloor?: number | null;
@@ -199,6 +202,9 @@ export async function ensureDebtSchema(): Promise<void> {
   // Un crédito también puede ser del negocio (préstamo comercial, tarjeta de
   // la empresa). Mismo criterio que el resto de gastos: un solo número 0–100.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  // Fecha tope de la estrategia `by_date`: la tarjeta que hay que liquidar
+  // antes de que empiecen a cobrar intereses.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS payoff_date DATE`;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_debts_user ON debts (user_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_debt_movements ON debt_movements (debt_id, occurred_at DESC)`;
@@ -225,6 +231,23 @@ function numOrNull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Las columnas DATE llegan como Date o "YYYY-MM-DD…"; siempre salen YYYY-MM-DD.
+ * Se usa UTC a propósito: una fecha sin hora no debe correrse un día según la
+ * zona horaria de quien la lea.
+ */
+function dateKey(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const text = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
 function iso(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
   const d = new Date(String(value ?? ''));
@@ -246,6 +269,7 @@ function mapDebt(row: Record<string, unknown>): Debt {
     ratePeriod: (row.rate_period as RatePeriod) ?? 'monthly',
     strategy: (row.strategy as PayoffStrategy) ?? 'fixed_installment',
     termMonths: numOrNull(row.term_months),
+    payoffDate: dateKey(row.payoff_date),
     customPayment: numOrNull(row.custom_payment),
     minPercent: numOrNull(row.min_percent),
     minFloor: numOrNull(row.min_floor),
@@ -411,6 +435,7 @@ function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjecti
     ratePeriod: debt.ratePeriod,
     strategy: debt.strategy,
     termMonths: debt.termMonths,
+    payoffDate: debt.payoffDate,
     customPayment: debt.customPayment,
     minPercent: debt.minPercent,
     minFloor: debt.minFloor,
@@ -560,7 +585,7 @@ export async function listCreditsForPlan(
   await ensureDebtSchema();
   const rows = await sql`
     SELECT id, name, current_balance, rate, rate_period, strategy,
-           term_months, custom_payment, min_percent, min_floor, extra_monthly, business_share
+           term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share
     FROM debts
     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
   `;
@@ -574,6 +599,7 @@ export async function listCreditsForPlan(
       ratePeriod: (row.rate_period as RatePeriod) ?? 'monthly',
       strategy: (row.strategy as PayoffStrategy) ?? 'fixed_installment',
       termMonths: numOrNull(row.term_months),
+      payoffDate: dateKey(row.payoff_date),
       customPayment: numOrNull(row.custom_payment),
       minPercent: numOrNull(row.min_percent),
       minFloor: numOrNull(row.min_floor),
@@ -657,13 +683,13 @@ export async function createDebt(
     INSERT INTO debts (
       user_id, name, kind, issuer, account_last4, currency,
       original_amount, current_balance, rate, rate_period, strategy,
-      term_months, custom_payment, min_percent, min_floor, extra_monthly, business_share,
+      term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share,
       credit_limit, due_day, last_accrual_at, opened_at, status, note, created_at, updated_at
     ) VALUES (
       ${userId}, ${input.name}, ${input.kind ?? 'credit_card'}, ${input.issuer ?? null},
       ${input.accountLast4 ?? null}, ${input.currency ?? 'USD'},
       ${balance}, ${balance}, ${safeAmount(input.rate)}, ${input.ratePeriod ?? 'monthly'},
-      ${strategy}, ${input.termMonths ?? null},
+      ${strategy}, ${input.termMonths ?? null}, ${input.payoffDate || null},
       ${lockedPayment}, ${input.minPercent ?? null}, ${input.minFloor ?? null},
       ${safeAmount(input.extraMonthly)}, ${normalizeShare(input.businessShare)},
       ${input.creditLimit ?? null}, ${input.dueDay ?? 1},
@@ -726,6 +752,7 @@ export async function updateDebt(
       rate_period    = ${input.ratePeriod ?? current.ratePeriod},
       strategy       = ${strategy},
       term_months    = ${term},
+      payoff_date    = ${input.payoffDate === undefined ? current.payoffDate : (input.payoffDate || null)},
       custom_payment = ${nextPayment},
       min_percent    = ${input.minPercent === undefined ? current.minPercent : input.minPercent},
       min_floor      = ${input.minFloor === undefined ? current.minFloor : input.minFloor},

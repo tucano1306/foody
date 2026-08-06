@@ -28,6 +28,7 @@ interface Props {
   readonly onChanged: (debt: DebtWithProjection) => void;
   readonly onDeleted: (id: string) => void;
   readonly onPay: () => void;
+  readonly onEdit: () => void;
 }
 
 type Tab = 'summary' | 'plan' | 'ledger';
@@ -55,12 +56,57 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
  * dónde vas (Plan, con la tabla de amortización) y de dónde vienes (Historial,
  * el libro mayor completo con cada interés y cada abono).
  */
-export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, onPay }: Props) {
+export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, onPay, onEdit }: Props) {
   const [tab, setTab] = useState<Tab>('summary');
   const [movements, setMovements] = useState<DebtMovement[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [realBalance, setRealBalance] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Corregir el saldo sin romper la invariante: en vez de sobrescribir la
+   * cifra, se asienta la DIFERENCIA como un ajuste. Así el libro mayor sigue
+   * explicando de dónde sale cada dólar del saldo.
+   */
+  async function adjustBalance() {
+    const target = Number.parseFloat(realBalance);
+    if (!Number.isFinite(target) || target < 0) {
+      setError('Escribe cuánto debes en realidad');
+      return;
+    }
+    const delta = Math.round((target - debt.currentBalance) * 100) / 100;
+    if (delta === 0) { setAdjusting(false); return; }
+
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/debts/${debt.id}/movements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          kind: 'adjustment',
+          amount: delta,
+          note: `Corrección de saldo a ${target.toFixed(2)}`,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? 'No se pudo ajustar');
+      }
+      onChanged((await res.json()) as DebtWithProjection);
+      setAdjusting(false);
+      setRealBalance('');
+      setMovements(null); // el historial se recarga con el ajuste dentro
+      haptic();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const kind = KIND_META[debt.kind] ?? KIND_META.other;
   const status = STATUS_META[debt.projection.status];
@@ -232,6 +278,65 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
           </div>
 
           <PayoffSimulator debt={debt} />
+
+          {/* Editar y corregir saldo. El saldo NO se edita como un campo: se
+              corrige con un ajuste en el libro mayor, para que el historial
+              siga explicando la cifra en vez de contradecirla. */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => { haptic(); onEdit(); }}
+              className={`rounded-2xl py-3 text-sm ${BTN_SOFT}`}
+            >
+              ✏️ Editar datos
+            </button>
+            <button
+              type="button"
+              onClick={() => { haptic(); setAdjusting(true); }}
+              className={`rounded-2xl py-3 text-sm ${BTN_SOFT}`}
+            >
+              🔧 Corregir saldo
+            </button>
+          </div>
+
+          {adjusting && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4">
+              <label htmlFor="debt-real-balance" className="mb-2 block text-xs font-bold text-slate-600">
+                ¿Cuánto debes en realidad?
+              </label>
+              <input
+                id="debt-real-balance"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={realBalance}
+                onChange={(e) => setRealBalance(e.target.value)}
+                placeholder={debt.currentBalance.toFixed(2)}
+                className="w-full rounded-2xl border-2 border-sky-200 bg-white px-4 py-3 text-right text-xl font-extrabold text-black focus:border-sky-400 focus:outline-none"
+              />
+              <p className="mt-2 text-[11px] text-slate-500">
+                Se anota como un ajuste en el historial — nada se borra.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setAdjusting(false); setRealBalance(''); }}
+                  className={`flex-1 rounded-2xl py-2.5 text-sm ${BTN_SOFT}`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={adjustBalance}
+                  className={`flex-1 rounded-2xl py-2.5 text-sm ${BTN_PRIMARY} disabled:opacity-40`}
+                >
+                  Ajustar
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Borrar: escondido tras confirmación, nunca a un toque de distancia */}
           {confirmDelete ? (

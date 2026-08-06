@@ -14,6 +14,7 @@ import {
   minimumPayment,
   monthlyInterestOf,
   monthsToPayoff,
+  monthsUntilDate,
   projectDebt,
   round2,
   simulateExtra,
@@ -433,6 +434,74 @@ describe('installmentFor', () => {
 
   it('sin saldo no hay cuota', () => {
     expect(installmentFor({ ...base, balance: 0, customPayment: 250 })).toBe(0);
+  });
+});
+
+describe('monthsUntilDate', () => {
+  // NOW = 4 de agosto de 2026
+  it('cuenta el mes en curso cuando el día límite aún no llegó', () => {
+    expect(monthsUntilDate('2026-08-25', NOW)).toBe(1);
+  });
+
+  it('no cuenta el mes en curso si el día ya pasó', () => {
+    // 1 de agosto ya pasó el día 4 → solo quedan los meses siguientes
+    expect(monthsUntilDate('2026-09-01', NOW)).toBe(1);
+    expect(monthsUntilDate('2026-10-01', NOW)).toBe(2);
+  });
+
+  it('cuenta los meses hasta una fecha lejana', () => {
+    expect(monthsUntilDate('2027-01-25', NOW)).toBe(6);
+  });
+
+  it('nunca baja de 1: una fecha pasada significa pagarlo ya', () => {
+    expect(monthsUntilDate('2026-01-01', NOW)).toBe(1);
+    expect(monthsUntilDate('2020-05-05', NOW)).toBe(1);
+  });
+
+  it('aguanta una fecha inválida', () => {
+    expect(monthsUntilDate('', NOW)).toBe(1);
+    expect(monthsUntilDate('no-es-fecha', NOW)).toBe(1);
+  });
+});
+
+describe('estrategia por fecha límite', () => {
+  const base: DebtInput = {
+    balance: 1200,
+    rate: 0,
+    ratePeriod: 'monthly',
+    strategy: 'by_date',
+    now: NOW,
+  };
+
+  it('reparte el saldo entre los meses que faltan', () => {
+    // 1200 sin interés a 6 meses → 200 al mes
+    expect(installmentFor({ ...base, payoffDate: '2027-01-25' })).toBe(200);
+  });
+
+  it('aplica interés cuando la tarjeta lo cobra', () => {
+    const cuota = installmentFor({ ...base, rate: 3, payoffDate: '2027-01-25' });
+    expect(cuota).toBeGreaterThan(200);
+  });
+
+  it('la cuota SUBE al acercarse la fecha: es lo que la distingue de la fija', () => {
+    const lejos = installmentFor({ ...base, payoffDate: '2027-01-25' });
+    const cerca = installmentFor({ ...base, payoffDate: '2026-10-25' });
+    expect(cerca).toBeGreaterThan(lejos);
+  });
+
+  it('con la fecha encima exige el saldo entero', () => {
+    expect(installmentFor({ ...base, payoffDate: '2026-08-25' })).toBe(1200);
+  });
+
+  it('sin fecha no hay cuota que calcular', () => {
+    expect(installmentFor({ ...base, payoffDate: null })).toBe(0);
+  });
+
+  it('la proyección liquida justo en la fecha pedida', () => {
+    const p = projectDebt({ ...base, rate: 2, payoffDate: '2027-01-25' });
+    expect(p.monthsToPayoff).toBe(6);
+    expect(p.neverPaysOff).toBe(false);
+    expect(p.payoffDate).toBe('2027-01-04');
   });
 });
 

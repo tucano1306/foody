@@ -19,8 +19,20 @@ export const DEBT_KINDS: readonly DebtKind[] = [
 ];
 export const RATE_PERIODS: readonly RatePeriod[] = ['monthly', 'annual_nominal', 'annual_effective'];
 export const PAYOFF_STRATEGIES: readonly PayoffStrategy[] = [
-  'fixed_installment', 'minimum', 'interest_only', 'custom',
+  'fixed_installment', 'by_date', 'minimum', 'interest_only', 'custom',
 ];
+
+/** Fecha YYYY-MM-DD válida de verdad — rechaza "2026-02-31". */
+function isoDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const [y, m, d] = text.split('-').map(Number);
+  const parsed = new Date(y, m - 1, d);
+  const real =
+    parsed.getFullYear() === y && parsed.getMonth() === m - 1 && parsed.getDate() === d;
+  return real ? text : null;
+}
 
 /** Tope de tasa aceptado: 200 % mensual ya es absurdo, pero cabe en DECIMAL(9,4). */
 const MAX_RATE = 200;
@@ -72,9 +84,13 @@ function checkStrategy(
   strategy: PayoffStrategy,
   termMonths: number | null,
   customPayment: number | null,
+  payoffDate: string | null = null,
 ): ValidationError | null {
   if (strategy === 'fixed_installment' && !termMonths && !customPayment) {
     return { error: 'Una cuota fija necesita el plazo en meses o la cuota pactada', status: 422 };
+  }
+  if (strategy === 'by_date' && !payoffDate) {
+    return { error: 'Indica la fecha en que debe estar pagada', status: 422 };
   }
   if (strategy === 'custom' && (customPayment === null || customPayment <= 0)) {
     return { error: 'Indica cuánto vas a pagar cada mes', status: 422 };
@@ -105,8 +121,9 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
   const rawTerm = Math.trunc(Number(body.termMonths ?? 0));
   const termMonths = Number.isFinite(rawTerm) && rawTerm > 0 ? Math.min(rawTerm, 600) : null;
   const customPayment = body.customPayment == null ? null : money(body.customPayment);
+  const payoffDate = isoDate(body.payoffDate);
 
-  const strategyError = checkStrategy(strategy, termMonths, customPayment);
+  const strategyError = checkStrategy(strategy, termMonths, customPayment, payoffDate);
   if (strategyError) return strategyError;
 
   const rawMinPercent = body.minPercent == null ? null : Number(body.minPercent);
@@ -126,6 +143,7 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
     ratePeriod: oneOf(body.ratePeriod, RATE_PERIODS) ?? 'monthly',
     strategy,
     termMonths,
+    payoffDate,
     customPayment,
     minPercent,
     minFloor: body.minFloor == null ? null : money(body.minFloor),
@@ -177,6 +195,7 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
     const t = Math.trunc(Number(body.termMonths));
     out.termMonths = Number.isFinite(t) && t > 0 ? Math.min(t, 600) : null;
   }
+  if (body.payoffDate !== undefined) out.payoffDate = isoDate(body.payoffDate);
   if (body.customPayment !== undefined) out.customPayment = body.customPayment == null ? null : money(body.customPayment);
   if (body.minPercent !== undefined) {
     const p = Number(body.minPercent);
@@ -197,10 +216,21 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
       out.strategy,
       out.termMonths ?? null,
       out.customPayment ?? null,
+      out.payoffDate ?? null,
     );
     // Solo se rechaza si el propio cuerpo trae la estrategia Y le faltan datos
     // que tampoco venían antes; si no, se confía en lo ya guardado.
-    if (err && (body.termMonths !== undefined || body.customPayment !== undefined)) return err;
+    if (
+      err &&
+      (body.termMonths !== undefined || body.customPayment !== undefined || body.payoffDate !== undefined)
+    ) {
+      return err;
+    }
+    // Cambiar A «fecha límite» sin dar fecha sí es un error siempre: no hay
+    // dato anterior en el que apoyarse para calcular la cuota.
+    if (out.strategy === 'by_date' && !out.payoffDate && body.payoffDate === undefined) {
+      return { error: 'Indica la fecha en que debe estar pagada', status: 422 };
+    }
   }
 
   return out;

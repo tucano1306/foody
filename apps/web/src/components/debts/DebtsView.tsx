@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, type PortfolioDebt } from '@/lib/debt-engine';
 import { haptic } from '@/lib/haptic';
 import DebtCard from './DebtCard';
 import DebtDetailSheet from './DebtDetailSheet';
+import DebtEditModal from './DebtEditModal';
 import DebtPaymentModal from './DebtPaymentModal';
 import DebtWizardModal from './DebtWizardModal';
 import { fmtDateKey, fmtMoney, fmtMoneyShort, KIND_META } from './debt-ui';
@@ -22,12 +23,13 @@ interface Props {
  * La cartera va arriba porque la primera pregunta siempre es la misma —*¿cuánto
  * debo y cuánto me está costando?*— y la respuesta no debería requerir sumar
  * tarjetas mentalmente. Debajo, una tarjeta por deuda ordenada de mayor a menor
- * saldo, y el botón de alta flotando donde llega el pulgar.
+ * saldo, y el alta al final, sin tapar nada.
  */
 export default function DebtsView({ initial }: Props) {
   const [debts, setDebts] = useState<DebtWithProjection[]>(initial.debts);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [payId, setPayId] = useState<string | null>(null);
 
   // La cartera se recalcula en el cliente para que los totales se muevan en el
@@ -52,6 +54,7 @@ export default function DebtsView({ initial }: Props) {
   const currency = debts[0]?.currency ?? 'USD';
   const detail = debts.find((d) => d.id === detailId) ?? null;
   const paying = debts.find((d) => d.id === payId) ?? null;
+  const editing = debts.find((d) => d.id === editId) ?? null;
   const target = portfolio.avalanche[0] ?? null;
 
   const upsert = useCallback((updated: DebtWithProjection) => {
@@ -168,19 +171,21 @@ export default function DebtsView({ initial }: Props) {
         </div>
       )}
 
-      {/* ─── Alta ────────────────────────────────────────────────────────── */}
-      <motion.button
+      {/* El alta vivía en un botón flotante fijo que TAPABA el contenido de las
+          tarjetas —la cuota quedaba debajo del círculo—. Ahora es un botón
+          ancho al final de la lista: nada se solapa, y al ir en el flujo del
+          documento sigue quedando a mano del pulgar. */}
+      <button
         type="button"
         onClick={() => {
           haptic();
           setWizardOpen(true);
         }}
-        whileTap={{ scale: 0.92 }}
-        aria-label="Agregar deuda"
-        className="fixed bottom-24 right-5 z-40 flex h-16 w-16 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg shadow-sky-500/40 transition-colors hover:bg-sky-600"
+        className="flex w-full items-center justify-center gap-2 rounded-3xl bg-sky-500 py-4 text-sm font-bold text-white shadow-sm transition-all duration-150 hover:bg-sky-600 active:scale-95"
       >
-        <PlusIcon className="h-8 w-8" />
-      </motion.button>
+        <PlusIcon className="h-5 w-5" />
+        Agregar deuda
+      </button>
 
       <AnimatePresence>
         {wizardOpen && (
@@ -202,6 +207,18 @@ export default function DebtsView({ initial }: Props) {
               setPayId(detail.id);
               setDetailId(null);
             }}
+            onEdit={() => {
+              setEditId(detail.id);
+              setDetailId(null);
+            }}
+          />
+        )}
+        {editing && (
+          <DebtEditModal
+            key="edit"
+            debt={editing}
+            onClose={() => setEditId(null)}
+            onSaved={upsert}
           />
         )}
         {paying && (

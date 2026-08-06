@@ -118,13 +118,14 @@ export interface StrategyMeta {
 
 export const STRATEGY_META: Record<PayoffStrategy, StrategyMeta> = {
   fixed_installment: { label: 'Cuota fija', emoji: '📆', hint: 'A plazo, misma cuota' },
+  by_date: { label: 'Fecha límite', emoji: '🗓️', hint: 'Pagada antes de…' },
   minimum: { label: 'Pago mínimo', emoji: '🪙', hint: 'Lo que exige el banco' },
   interest_only: { label: 'Solo intereses', emoji: '♾️', hint: 'La deuda no baja' },
   custom: { label: 'Yo decido', emoji: '✍️', hint: 'Un monto fijo' },
 };
 
 export const STRATEGY_ORDER: readonly PayoffStrategy[] = [
-  'fixed_installment', 'minimum', 'custom', 'interest_only',
+  'fixed_installment', 'by_date', 'minimum', 'custom', 'interest_only',
 ];
 
 // ─── Salud de la deuda ────────────────────────────────────────────────────────
