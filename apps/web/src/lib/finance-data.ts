@@ -251,7 +251,10 @@ async function loadGroceryBreakdown(userId: string): Promise<{
   const [categoryRows, storeRows] = await Promise.all([
     sql`
       SELECT
-        COALESCE(p.category, 'Sin categoría') AS category,
+        -- NULLIF además de COALESCE: había productos con la categoría en
+        -- cadena VACÍA, que COALESCE deja pasar. Se colaban en el desglose
+        -- como una fila con importe y sin nombre.
+        COALESCE(NULLIF(TRIM(p.category), ''), 'Sin categoría') AS category,
         SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW())
                  THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS current_month,
         SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month')
@@ -260,7 +263,7 @@ async function loadGroceryBreakdown(userId: string): Promise<{
       JOIN products p ON p.id = pp.product_id
       WHERE pp.user_id = ${userId}
         AND pp.purchased_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
-      GROUP BY COALESCE(p.category, 'Sin categoría')
+      GROUP BY COALESCE(NULLIF(TRIM(p.category), ''), 'Sin categoría')
       ORDER BY current_month DESC
     `,
     sql`

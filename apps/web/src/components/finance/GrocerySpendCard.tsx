@@ -141,17 +141,28 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
           <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
             Gasto por mes
           </p>
-          <div className="flex items-end gap-1.5 h-16">
+          {/* Las barras NO se veían. Su altura iba en % contra un padre de
+              altura automática —la columna del mes—, y un porcentaje contra
+              `auto` no resuelve: quedaban en cero. Ahora el % se mide contra un
+              contenedor de altura fija (`h-16`), que sí es una referencia real.
+
+              Y va en `style` con transición CSS, no en un `initial` de framer:
+              el dato correcto queda pintado desde el primer fotograma aunque la
+              animación no llegue a correr. */}
+          <div className="flex items-end gap-1.5">
             {history.map((h, i) => (
               <div key={h.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                <motion.div
-                  className={`w-full rounded-t-md ${
-                    i === history.length - 1 ? 'bg-linear-to-t from-sky-400 to-sky-300' : 'bg-sky-100'
-                  }`}
-                  initial={{ height: 0 }}
-                  animate={{ height: `${Math.max(6, (h.total / maxMonth) * 100)}%` }}
-                  transition={{ duration: 0.6, delay: i * 0.06 }}
-                />
+                <div className="flex h-16 w-full items-end">
+                  <div
+                    className={`w-full rounded-t-md transition-[height] duration-700 ease-out ${
+                      i === history.length - 1 ? 'bg-linear-to-t from-sky-400 to-sky-300' : 'bg-sky-200'
+                    }`}
+                    style={{ height: `${Math.max(6, (h.total / maxMonth) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-bold text-slate-500 tabular-nums">
+                  {fmtMoney(h.total)}
+                </span>
                 <span className="text-[9px] text-slate-400 truncate">{monthLabel(h.month)}</span>
               </div>
             ))}
