@@ -115,6 +115,12 @@ export interface PlanInput {
   groceriesMonthly: number;
   groceriesSource: BaselineSource;
   groceriesSpentThisMonth: number;
+  /**
+   * 0-100: qué parte del super es del negocio, ponderada por el importe de
+   * cada compra del mes. Un solo número basta porque el plan resta el super
+   * como un bloque, no compra a compra.
+   */
+  groceriesBusinessShare?: number;
   /** Análisis de las compras registradas — alimenta los consejos de super. */
   groceries?: GroceryInsight;
   /** Dinero extra mensual para simular escenarios ("¿y si aporto $200 más?"). */
@@ -521,14 +527,20 @@ function buildDebtOverview(
  * Reparte ingresos, pagos fijos y cuotas de crédito entre lo personal y lo del
  * negocio, cada cosa por su propio porcentaje.
  *
- * El super va ENTERO a personal: la despensa no tiene ámbito en la app, y
- * atribuirle una parte al negocio sería inventarse un dato que el usuario nunca
- * declaró.
+ * El super se reparte con el porcentaje ponderado de las compras del mes: quien
+ * marca sus compras de insumos como del negocio ve ese gasto donde corresponde.
+ * Sin nada marcado el porcentaje es 0 y el super va entero a personal, que es el
+ * comportamiento de siempre.
  */
 function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdown {
-  const personal: ScopeSide = { income: 0, fixedPayments: 0, creditPayments: 0, groceries, expenses: 0 };
-  const business: ScopeSide = { income: 0, fixedPayments: 0, creditPayments: 0, groceries: 0, expenses: 0 };
-  let anyBusiness = false;
+  const grocerySplit = splitAmount(groceries, normalizeShare(input.groceriesBusinessShare));
+  const personal: ScopeSide = {
+    income: 0, fixedPayments: 0, creditPayments: 0, groceries: grocerySplit.personal, expenses: 0,
+  };
+  const business: ScopeSide = {
+    income: 0, fixedPayments: 0, creditPayments: 0, groceries: grocerySplit.business, expenses: 0,
+  };
+  let anyBusiness = grocerySplit.business > 0;
 
   for (const inc of input.incomes) {
     if (!inc.isActive) continue;
@@ -606,6 +618,13 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
       installment: splitAmount(c.installment, normalizeShare(c.businessShare)).personal,
       businessShare: 0,
     })),
+    // El super también: si parte de la compra era del negocio, esa parte sale
+    // del plan personal igual que un pago fijo del negocio.
+    groceriesMonthly: splitAmount(
+      input.groceriesMonthly,
+      normalizeShare(input.groceriesBusinessShare),
+    ).personal,
+    groceriesBusinessShare: 0,
   };
 }
 

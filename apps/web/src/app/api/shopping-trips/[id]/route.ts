@@ -3,6 +3,8 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { allocate, resolveItems, round2 } from '@/lib/trip-allocation';
 import type { ShoppingTripItemDto } from '@foody/types';
+import { normalizeShare } from '@/lib/expense-scope';
+import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
@@ -18,6 +20,8 @@ interface UpdateTripBody {
   purchasedAt?: string;
   totalAmount?: number;
   notes?: string;
+  /** 0-100: qué parte de la compra es del negocio. */
+  businessShare?: number;
   items?: ShoppingTripItemDto[];
 }
 
@@ -26,6 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!user) return unauthorized();
   const { id } = await params;
   const body = await request.json() as UpdateTripBody;
+  await ensureExpenseScopeSchema();
 
   // Per-user isolation: fetch the current row first (also validates ownership).
   const existing = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;
@@ -55,6 +60,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       date = COALESCE(${purchasedAt}, date),
       total_spent = COALESCE(${totalAmount}, total_spent),
       notes = COALESCE(${typeof body.notes === 'string' ? body.notes : null}, notes),
+      -- Poder RE-clasificar una compra ya guardada, no solo las nuevas: si no,
+      -- todo lo comprado antes de existir el ámbito quedaría personal para
+      -- siempre y no habría forma de corregirlo.
+      business_share = COALESCE(${body.businessShare === undefined ? null : normalizeShare(body.businessShare)}, business_share),
       updated_at = NOW()
     WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
   `;

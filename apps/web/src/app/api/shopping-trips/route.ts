@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { allocate, resolveItems, round2 } from '@/lib/trip-allocation';
 import type { Allocation } from '@/lib/trip-allocation';
 import type { AllocationStrategy, CreateShoppingTripDto } from '@foody/types';
+import { normalizeShare } from '@/lib/expense-scope';
+import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 
 export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
@@ -19,6 +21,7 @@ export async function POST(request: NextRequest) {
   if (!user) return unauthorized();
 
   const body = await request.json() as CreateShoppingTripDto;
+  await ensureExpenseScopeSchema();
 
   const bodyItems = body.items ?? [];
   const totalAmount = round2(body.totalAmount ?? 0);
@@ -59,9 +62,9 @@ export async function POST(request: NextRequest) {
   // has no allocation_strategy column.
   await sql`
     INSERT INTO shopping_trips
-      (id, store_id, store_name, date, total_spent, currency, notes, user_id, created_at, updated_at)
+      (id, store_id, store_name, date, total_spent, currency, notes, business_share, user_id, created_at, updated_at)
     VALUES
-      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${user.userId}, ${now}, ${now})
+      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${normalizeShare(body.businessShare)}, ${user.userId}, ${now}, ${now})
   `;
 
   // Create product purchases

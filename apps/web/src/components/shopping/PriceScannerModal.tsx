@@ -221,6 +221,8 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
     setErrorMsg(null);
     setSelected(null);
     setManual('');
+    // Sin soporte de cámara en vivo: se abre el selector nativo AQUÍ MISMO,
+    // todavía dentro del gesto del usuario, así que el navegador lo permite.
     if (!navigator.mediaDevices?.getUserMedia) { openFile(true); return; }
     setState('camera');
     try {
@@ -231,10 +233,22 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
       streamRef.current = stream;
       const v = videoRef.current;
       if (v) { v.srcObject = stream; await v.play().catch(() => undefined); }
-    } catch {
+    } catch (err) {
       stopCamera();
-      setState('idle');
-      openFile(true);
+      // ANTES aquí se llamaba a openFile(), y no pasaba NADA: el `await` de
+      // getUserMedia ya había consumido el gesto del usuario, así que el
+      // navegador bloqueaba el click() sobre el input y la pantalla se quedaba
+      // muerta, sin cámara y sin aviso. Ahora se muestra el motivo y un botón
+      // que el usuario pulsa — ese sí es un gesto nuevo y siempre funciona.
+      const name = err instanceof Error ? err.name : '';
+      setErrorMsg(
+        name === 'NotAllowedError'
+          ? 'No diste permiso para usar la cámara. Actívalo en el navegador o toma la foto desde tu galería.'
+          : name === 'NotFoundError'
+            ? 'No se encontró ninguna cámara en este dispositivo.'
+            : 'No se pudo abrir la cámara.',
+      );
+      setState('error');
     }
   }, [openFile, stopCamera]);
 
@@ -404,14 +418,21 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
             <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
               <p className="text-blue-700 text-sm">{errorMsg ?? 'No se pudo leer el precio.'}</p>
             </div>
+            {/* «Elegir foto» es la salida que SÍ funciona cuando la cámara está
+                denegada: reintentar volvería a chocar con el mismo permiso. Al
+                salir de un toque real del usuario, el selector nativo se abre
+                siempre. */}
             <div className="flex gap-2">
-              <button type="button" onClick={startCamera} className="flex-1 py-2.5 rounded-xl bg-sky-600 text-white font-semibold text-sm transition">
+              <button type="button" onClick={() => openFile(false)} className="flex-1 py-3 rounded-xl bg-sky-600 text-white font-semibold text-sm transition active:scale-95">
+                🖼️ Elegir foto
+              </button>
+              <button type="button" onClick={startCamera} className="flex-1 py-3 rounded-xl border border-sky-200 bg-white text-slate-700 font-semibold text-sm transition active:scale-95">
                 📷 Reintentar
               </button>
-              <button type="button" onClick={handleClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm transition">
-                Cancelar
-              </button>
             </div>
+            <button type="button" onClick={handleClose} className="w-full py-2.5 rounded-xl text-slate-500 font-semibold text-sm transition">
+              Cancelar
+            </button>
           </div>
         )}
 
