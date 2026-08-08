@@ -39,6 +39,24 @@ export const CATEGORY_ORDER: Record<string, number> = {
   'mascotas': 22, 'abarrotes': 23, 'otro': 98,
 };
 
+/**
+ * Cómo se llama el grupo de productos SIN categoría en los desgloses.
+ *
+ * Vive aquí porque el mismo texto se calcula en SQL (`COALESCE(NULLIF(TRIM(
+ * p.category), ''), 'Sin categoría')`) y luego se usa como CLAVE para volver a
+ * buscar sus productos: si las dos copias se separan, tocar la fila abre un
+ * detalle vacío.
+ */
+export const UNCATEGORIZED_LABEL = 'Sin categoría';
+
+/** Lista canónica de categorías, para poder recategorizar un producto. */
+export const KNOWN_CATEGORIES: readonly string[] = [
+  'Frutas y Verduras', 'Lácteos', 'Carnicería', 'Pescadería',
+  'Panadería', 'Granos y Legumbres', 'Cereales y Desayunos',
+  'Enlatados', 'Congelados', 'Snacks y Dulces', 'Condimentos y Salsas',
+  'Bebidas', 'Limpieza', 'Higiene y Cuidado', 'Mascotas', 'Abarrotes', 'Otro',
+];
+
 /** Emoji for a category name (case-insensitive); 📦 for null/unknown. */
 export function categoryEmoji(category: string | null | undefined): string {
   if (!category) return '📦';
