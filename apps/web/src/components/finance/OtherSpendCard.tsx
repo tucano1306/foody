@@ -1,0 +1,133 @@
+'use client';
+
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { CameraIcon } from '@heroicons/react/24/solid';
+import { expenseKindMeta } from '@/lib/expense-kind';
+import type { OtherSpendInsight } from '@/lib/other-spend';
+import { fmtMoney } from './finance-ui';
+
+interface Props {
+  readonly other: OtherSpendInsight;
+}
+
+/**
+ * Lo que se va fuera del super: comida, farmacia, gasolina, hogar.
+ *
+ * Es la mitad que faltaba del plan. Estos tickets se registraban igual que los
+ * del super pero no aparecían en ninguna pantalla y no restaban en ningún
+ * cálculo: el plan repartía entre metas un dinero ya gastado.
+ *
+ * La tarjeta responde tres cosas y ninguna más: cuánto llevas, en qué se va, y
+ * qué va a restar el plan. Sin barra de límite —nadie se pone un tope de
+ * farmacia— y sin proyecciones antes de que signifiquen algo.
+ */
+export default function OtherSpendCard({ other: o }: Props) {
+  if (!o.hasData) return null;
+
+  const maxKind = Math.max(...o.byKind.map((k) => k.currentMonth), 1);
+
+  return (
+    <section className="rounded-3xl border border-blue-100 bg-blue-50/60 shadow-sm p-5">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-black text-black uppercase tracking-wide">
+            🍔 Fuera del super
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            {o.countThisMonth > 0
+              ? `${o.countThisMonth} ${o.countThisMonth === 1 ? 'gasto' : 'gastos'} este mes que no son de despensa.`
+              : 'Sin gastos de este tipo registrados este mes.'}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-xl font-black text-black tabular-nums leading-none">
+            {fmtMoney(o.spentThisMonth)}
+          </p>
+          {/* La tendencia solo con dos meses cerrados: con uno se compara
+              contra ruido, igual criterio que en el super. */}
+          {o.trendPct !== null && o.monthsWithData >= 2 && Math.abs(o.trendPct) >= 10 && (
+            <span
+              className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                o.trendPct > 0 ? 'bg-blue-100 text-blue-700' : 'bg-sky-100 text-sky-700'
+              }`}
+            >
+              {o.trendPct > 0 ? '↑' : '↓'} {Math.abs(Math.round(o.trendPct))}% vs tu promedio
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* En qué se va */}
+      {o.byKind.length > 0 && (
+        <ul className="space-y-2.5">
+          {o.byKind.map((k) => {
+            const meta = expenseKindMeta(k.kind);
+            return (
+              <li key={k.kind} className="flex items-center gap-2.5">
+                <span className="text-base shrink-0" aria-hidden="true">{meta.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-700 truncate">
+                      {meta.groupLabel}
+                      <span className="ml-1.5 font-normal text-slate-400">
+                        {k.count} {k.count === 1 ? 'ticket' : 'tickets'}
+                      </span>
+                    </span>
+                    <span className="text-xs font-black text-black tabular-nums shrink-0">
+                      {fmtMoney(k.currentMonth)}
+                      {k.deltaPct !== null && Math.abs(k.deltaPct) >= 10 && (
+                        <span className={`ml-1.5 font-bold ${k.deltaPct > 0 ? 'text-blue-700' : 'text-sky-700'}`}>
+                          {k.deltaPct > 0 ? '+' : ''}{Math.round(k.deltaPct)}%
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white mt-1 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-linear-to-r from-sky-300 to-blue-400"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(k.currentMonth / maxKind) * 100}%` }}
+                      transition={{ duration: 0.7 }}
+                    />
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Dónde. Tres sitios como mucho: es un dato de contexto, no un informe. */}
+      {o.topPlaces.length > 0 && (
+        <p className="mt-3 text-[11px] text-slate-500">
+          Sobre todo en{' '}
+          {o.topPlaces.map((p, i) => (
+            <span key={p.name}>
+              {i > 0 && (i === o.topPlaces.length - 1 ? ' y ' : ', ')}
+              <span className="font-bold text-slate-600">{p.name}</span> ({fmtMoney(p.total)})
+            </span>
+          ))}
+          .
+        </p>
+      )}
+
+      <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-blue-100">
+        {/* Lo que el plan hace con esto, dicho sin rodeos: es la única cifra de
+            la tarjeta que afecta a las metas. */}
+        <p className="text-[11px] text-slate-500 min-w-0">
+          {o.baseline > 0
+            ? <>El plan resta <span className="font-bold text-slate-700">{fmtMoney(o.baseline)}</span> al mes por esto.</>
+            : 'Todavía no resta nada por este concepto.'}
+        </p>
+        <Link
+          href="/shopping-trips/new"
+          className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-500 active:bg-blue-600 active:scale-95 text-white text-sm font-bold shadow-sm transition"
+        >
+          <CameraIcon className="w-5 h-5" />
+          Escanear
+        </Link>
+      </div>
+    </section>
+  );
+}

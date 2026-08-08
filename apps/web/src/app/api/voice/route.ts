@@ -122,7 +122,7 @@ async function handleSpendingQuery(userId: string): Promise<IntentResult> {
       SUM(total_spent) AS total,
       COUNT(*) AS trips
     FROM shopping_trips
-    WHERE user_id = ${userId}
+    WHERE user_id = ${userId} AND kind = 'grocery'
       AND date >= DATE_TRUNC('month', NOW())
     GROUP BY TO_CHAR(date, 'Month YYYY')
   `;

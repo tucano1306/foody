@@ -798,3 +798,134 @@ describe('simulatePlan', () => {
     expect(base.extraMonthly).toBeUndefined();
   });
 });
+
+describe('otherExpensesMonthly — el gasto que no es super', () => {
+  it('se resta del dinero libre', () => {
+    // Sin esto el plan repartía entre metas un dinero ya gastado en comer
+    // fuera, y la meta fallaba a fin de mes sin que nada lo explicara.
+    const sin = buildFinancePlan(plan());
+    const con = buildFinancePlan(plan({ otherExpensesMonthly: 250 }));
+    expect(con.cashFlow.otherExpenses).toBe(250);
+    expect(con.cashFlow.available).toBe(sin.cashFlow.available - 250);
+  });
+
+  it('es cero cuando no se le pasa nada — el plan de siempre', () => {
+    const p = buildFinancePlan(plan());
+    expect(p.cashFlow.otherExpenses).toBe(0);
+    expect(p.cashFlow.available).toBe(3000 - 900 - 400);
+  });
+
+  it('ignora importes negativos', () => {
+    const p = buildFinancePlan(plan({ otherExpensesMonthly: -80 }));
+    expect(p.cashFlow.otherExpenses).toBe(0);
+  });
+
+  it('reduce lo que se puede asignar a las metas', () => {
+    const sin = buildFinancePlan(plan({ goals: [goal({ targetAmount: 9000 })] }));
+    const con = buildFinancePlan(plan({ goals: [goal({ targetAmount: 9000 })], otherExpensesMonthly: 500 }));
+    expect(con.goals[0].allocatedMonthly).toBeLessThan(sin.goals[0].allocatedMonthly);
+  });
+
+  it('puede volver negativo el mes y disparar el aviso', () => {
+    const p = buildFinancePlan(plan({ incomes: [income({ amount: 1400 })], otherExpensesMonthly: 400 }));
+    expect(p.cashFlow.available).toBeLessThan(0);
+    const alerta = p.advice.find((a) => a.id === 'negative-flow');
+    expect(alerta).toBeDefined();
+    expect(alerta?.body).toContain('fuera del super');
+  });
+
+  it('se reparte entre personal y negocio con su propio porcentaje', () => {
+    const p = buildFinancePlan(plan({ otherExpensesMonthly: 200, otherBusinessShare: 75 }));
+    expect(p.scopes.business.otherExpenses).toBe(150);
+    expect(p.scopes.personal.otherExpenses).toBe(50);
+    expect(p.scopes.hasBusiness).toBe(true);
+    // Y entra en el total de gastos de cada lado, no solo en su propia fila.
+    expect(p.scopes.business.expenses).toBe(150);
+  });
+
+  it('la vista solo-personal se queda con su parte', () => {
+    const personal = personalOnlyInput(plan({ otherExpensesMonthly: 200, otherBusinessShare: 75 }));
+    expect(personal.otherExpensesMonthly).toBe(50);
+    expect(personal.otherBusinessShare).toBe(0);
+  });
+
+  it('sin negocio marcado no inventa uno', () => {
+    const p = buildFinancePlan(plan({ otherExpensesMonthly: 200 }));
+    expect(p.scopes.personal.otherExpenses).toBe(200);
+    expect(p.scopes.business.otherExpenses).toBe(0);
+    expect(p.scopes.hasBusiness).toBe(false);
+  });
+});
+
+describe('consejos sobre el gasto que no es super', () => {
+  function otherSpend(over: Partial<import('./other-spend').OtherSpendInsight> = {}) {
+    return {
+      spentThisMonth: 300,
+      countThisMonth: 6,
+      avgMonthly: 200,
+      lastMonth: 210,
+      monthsWithData: 3,
+      projectedMonthEnd: 300,
+      baseline: 300,
+      baselineSource: 'pace' as const,
+      byKind: [
+        { kind: 'dining' as const, currentMonth: 220, prevMonth: 120, count: 5, deltaPct: 83, share: 73 },
+        { kind: 'fuel' as const, currentMonth: 80, prevMonth: 90, count: 1, deltaPct: -11, share: 27 },
+      ],
+      biggestMover: { kind: 'dining' as const, currentMonth: 220, prevMonth: 120, count: 5, deltaPct: 83, share: 73 },
+      topPlaces: [{ name: 'Pollo Tropical', total: 120, count: 3 }],
+      trendPct: 50,
+      hasData: true,
+      ...over,
+    };
+  }
+
+  it('nombra el tipo de gasto que se lleva el mes', () => {
+    const p = buildFinancePlan(plan({ otherExpensesMonthly: 300, otherSpend: otherSpend() }));
+    const a = p.advice.find((x) => x.id === 'other-top-dining');
+    expect(a).toBeDefined();
+    expect(a?.title).toContain('Comida fuera');
+  });
+
+  it('avisa cuando la tendencia sube de verdad', () => {
+    const p = buildFinancePlan(plan({ otherExpensesMonthly: 300, otherSpend: otherSpend() }));
+    const a = p.advice.find((x) => x.id === 'other-trend-up');
+    expect(a?.tone).toBe('warning');
+    expect(a?.body).toContain('Comida fuera');
+  });
+
+  it('felicita cuando baja', () => {
+    const p = buildFinancePlan(plan({
+      otherExpensesMonthly: 100,
+      otherSpend: otherSpend({ trendPct: -40, projectedMonthEnd: 120, avgMonthly: 200, biggestMover: null }),
+    }));
+    expect(p.advice.find((x) => x.id === 'other-trend-down')?.tone).toBe('good');
+  });
+
+  it('calla con un solo mes de historial: comparar contra ruido no es un consejo', () => {
+    const p = buildFinancePlan(plan({
+      otherExpensesMonthly: 300,
+      otherSpend: otherSpend({ monthsWithData: 1 }),
+    }));
+    expect(p.advice.find((x) => x.id === 'other-trend-up')).toBeUndefined();
+  });
+
+  it('calla del todo si no hay gastos de este tipo', () => {
+    const p = buildFinancePlan(plan({ otherSpend: otherSpend({ hasData: false }) }));
+    expect(p.advice.some((x) => x.id.startsWith('other-'))).toBe(false);
+  });
+
+  it('no señala un reparto normal como si fuera un problema', () => {
+    const p = buildFinancePlan(plan({
+      otherExpensesMonthly: 300,
+      otherSpend: otherSpend({
+        trendPct: 0,
+        byKind: [
+          { kind: 'dining', currentMonth: 90, prevMonth: 90, count: 2, deltaPct: 0, share: 30 },
+          { kind: 'fuel', currentMonth: 90, prevMonth: 90, count: 2, deltaPct: 0, share: 30 },
+        ],
+      }),
+    }));
+    expect(p.advice.some((x) => x.id.startsWith('other-top-'))).toBe(false);
+  });
+});

@@ -19,6 +19,7 @@ interface Props {
   readonly onOpenPayments: () => void;
   readonly onOpenBudget: () => void;
   readonly onOpenDebts: () => void;
+  readonly onOpenTrips: () => void;
 }
 
 interface Row {
@@ -35,10 +36,10 @@ interface Row {
  * La cascada del mes: de lo que entra a lo que queda libre. Cada barra es
  * proporcional al ingreso, así se ve de un vistazo qué se está comiendo el sueldo.
  */
-export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget, onOpenDebts }: Props) {
+export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget, onOpenDebts, onOpenTrips }: Props) {
   const base = Math.max(
     cash.monthlyIncome,
-    cash.fixedPayments + cash.groceriesEstimate + cash.creditPayments,
+    cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditPayments,
     1,
   );
 
@@ -71,6 +72,21 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       onClick: onOpenBudget,
     },
   ];
+
+  // Comer fuera, farmacia, gasolina: su propia fila. Metido dentro de "Super"
+  // inflaba una cifra que el usuario compara contra su límite de despensa;
+  // fuera de la cascada, simplemente desaparecía del mes.
+  if (cash.otherExpenses > 0) {
+    rows.push({
+      key: 'other',
+      emoji: '🍔',
+      label: 'Fuera del super',
+      hint: 'comida, farmacia, gasolina',
+      amount: -cash.otherExpenses,
+      bar: 'from-sky-300 to-blue-300',
+      onClick: onOpenTrips,
+    });
+  }
 
   // Las cuotas de tarjetas y créditos: dinero ya comprometido, con su propia
   // fila para que no se confunda con los recibos fijos.

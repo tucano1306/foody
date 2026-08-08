@@ -2,8 +2,9 @@ import { getSession } from './session';
 import { sql } from './db';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
-import { ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
 import { normalizeShare } from './expense-scope';
+import { normalizeExpenseKind } from './expense-kind';
 import { randomUUID } from 'node:crypto';
 
 interface PushSubscriptionJSON {
@@ -208,6 +209,7 @@ function mapShoppingTrip(row: Record<string, unknown>): ShoppingTrip {
     allocationStrategy: (row.allocation_strategy as AllocationStrategy | undefined) ?? 'manual_partial',
     receiptPhotoUrl: (row.receipt_photo_url as string | null | undefined) ?? null,
     notes: (row.notes as string | null | undefined) ?? null,
+    kind: normalizeExpenseKind(row.kind),
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
@@ -532,8 +534,10 @@ export const api = {
       const rows = await sql`UPDATE shopping_list_items SET in_cart = NOT in_cart WHERE id = ${id} RETURNING *`;
       return rows[0];
     },
+    /** Gasto en COMIDA de casa (super). Comer fuera es otra cosa y va al plan. */
     monthlyFoodSpending: async (): Promise<{ currentTotal: number; previousTotal: number; purchaseCount: number }> => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       // Igual que byStore/presupuesto: el total_spent de cada ticket es la
       // cifra autoritativa (un ticket sin items vinculados cuenta completo),
       // más las compras sueltas sin ticket agrupadas por sesión. Sumar
@@ -546,7 +550,7 @@ export const api = {
           COUNT(*) AS purchase_count
         FROM (
           SELECT date AS d, COALESCE(total_spent, 0) AS total
-          FROM shopping_trips WHERE user_id = ${userId}
+          FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
           UNION ALL
           SELECT purchased_at AS d, SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
           FROM product_purchases
@@ -784,13 +788,39 @@ export const api = {
     },
   },
   shoppingTrips: {
+    /**
+     * La sección Compras: SOLO tickets de super.
+     *
+     * Una cena o una farmacia no tienen precio que comparar ni despensa que
+     * llenar, y colarlas aquí ensuciaba el total, el promedio por ticket y las
+     * medallas de "más cara / más barata". Viven en el Plan Financiero.
+     */
     list: async () => {
       const { userId } = await getAuthContext();
-      const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${userId} ORDER BY date DESC`;
+      await ensureExpenseKindSchema();
+      const rows = await sql`
+        SELECT * FROM shopping_trips
+        WHERE user_id = ${userId} AND kind = 'grocery'
+        ORDER BY date DESC
+      `;
       return rows.map((row) => mapShoppingTrip(row as Record<string, unknown>));
+    },
+    /** Cuántos tickets NO son de super este mes — para el enlace al plan. */
+    otherKindsThisMonth: async (): Promise<{ count: number; total: number }> => {
+      const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
+      const rows = await sql`
+        SELECT COUNT(*) AS count, COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
+        FROM shopping_trips
+        WHERE user_id = ${userId} AND kind <> 'grocery'
+          AND date >= DATE_TRUNC('month', NOW())
+      `;
+      const row = rows[0] as { count: unknown; total: unknown } | undefined;
+      return { count: asInteger(row?.count), total: asNumber(row?.total) };
     },
     byStore: async () => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       // Real visits without double counting: formal trips (authoritative
       // total_spent) plus loose trip-less purchases grouped into one session
       // per shared batch timestamp. Counting product_purchases rows directly
@@ -799,7 +829,7 @@ export const api = {
         SELECT name AS "storeName", SUM(total) AS total, COUNT(*) AS count
         FROM (
           SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
-          FROM shopping_trips WHERE user_id = ${userId}
+          FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
           UNION ALL
           SELECT COALESCE(store_name, 'Sin tienda') AS name,
             SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
@@ -816,8 +846,10 @@ export const api = {
         count: asInteger(row.count),
       }));
     },
+    /** El detalle abre CUALQUIER ticket: es donde se reclasifica uno mal puesto. */
     get: async (id: string) => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       const tripRows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
       if (!tripRows[0]) return null;
 
@@ -835,10 +867,11 @@ export const api = {
     },
     create: async (data: CreateShoppingTripDto) => {
       const { userId, householdId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       const id = randomUUID();
       const rows = await sql`
-        INSERT INTO shopping_trips (id, store_id, store_name, date, total_spent, currency, notes, user_id, household_id, created_at, updated_at)
-        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'USD'}, ${data.notes ?? null}, ${userId}, ${householdId}, NOW(), NOW())
+        INSERT INTO shopping_trips (id, store_id, store_name, date, total_spent, currency, notes, kind, user_id, household_id, created_at, updated_at)
+        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'USD'}, ${data.notes ?? null}, ${normalizeExpenseKind(data.kind)}, ${userId}, ${householdId}, NOW(), NOW())
         RETURNING *
       `;
       return {
@@ -858,6 +891,7 @@ export const api = {
     },
     priceComparison: async () => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       const rows = await sql`
         SELECT
           p.id AS product_id,
@@ -870,9 +904,13 @@ export const api = {
           MAX(pp.purchased_at) AS last_seen_at
         FROM product_purchases pp
         JOIN products p ON p.id = pp.product_id
+        -- Comparar precios entre supermercados: un ítem de un ticket que se
+        -- reclasificó a "comida fuera" no es un precio de super.
+        LEFT JOIN shopping_trips t ON t.id = pp.trip_id
         WHERE pp.unit_price IS NOT NULL
           AND pp.store_name IS NOT NULL
           AND pp.user_id = ${userId}
+          AND (pp.trip_id IS NULL OR t.kind = 'grocery')
         GROUP BY p.id, p.name, pp.store_name
         ORDER BY p.name ASC, min_price ASC
       `;

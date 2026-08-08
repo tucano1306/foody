@@ -13,7 +13,9 @@
  * Se prueba en finance-engine.test.ts; la capa de datos vive en finance-data.ts.
  */
 
+import { expenseKindMeta } from './expense-kind';
 import type { BaselineSource, GroceryInsight } from './grocery-insights';
+import type { OtherSpendInsight } from './other-spend';
 import {
   buildBusinessResult,
   normalizeShare,
@@ -123,6 +125,19 @@ export interface PlanInput {
   groceriesBusinessShare?: number;
   /** Análisis de las compras registradas — alimenta los consejos de super. */
   groceries?: GroceryInsight;
+  /**
+   * Estimado mensual del gasto que NO es super: comer fuera, farmacia,
+   * gasolina, hogar.
+   *
+   * Sale de los mismos tickets, solo que clasificados. Antes no se restaba en
+   * ninguna parte: el plan repartía entre metas un dinero que ya se había
+   * gastado, y las metas fallaban sin que nada en la pantalla lo explicara.
+   */
+  otherExpensesMonthly?: number;
+  /** 0-100: qué parte de esos gastos es del negocio, ponderada por importe. */
+  otherBusinessShare?: number;
+  /** Desglose de ese gasto — alimenta sus consejos. */
+  otherSpend?: OtherSpendInsight;
   /** Dinero extra mensual para simular escenarios ("¿y si aporto $200 más?"). */
   extraMonthly?: number;
   now?: Date;
@@ -134,9 +149,11 @@ export interface CashFlow {
   monthlyIncome: number;
   fixedPayments: number;
   groceriesEstimate: number;
+  /** Comer fuera, farmacia, gasolina, hogar: los tickets que no son de super. */
+  otherExpenses: number;
   /** Suma de las cuotas de tarjetas y créditos — compromiso mensual real. */
   creditPayments: number;
-  /** Ingreso − pagos fijos − super − cuotas de crédito (+ extra simulado). Puede ser negativo. */
+  /** Ingreso − pagos fijos − super − otros gastos − cuotas (+ extra simulado). Puede ser negativo. */
   available: number;
   /** Parte de `available` que el plan reserva para ponerse al día con deudas. */
   debtCatchUp: number;
@@ -241,6 +258,8 @@ export interface ScopeSide {
   fixedPayments: number;
   creditPayments: number;
   groceries: number;
+  /** Comida fuera, farmacia, gasolina, hogar. */
+  otherExpenses: number;
   /** Todo lo que sale de este lado. */
   expenses: number;
 }
@@ -532,15 +551,20 @@ function buildDebtOverview(
  * Sin nada marcado el porcentaje es 0 y el super va entero a personal, que es el
  * comportamiento de siempre.
  */
-function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdown {
+function buildScopeBreakdown(input: PlanInput, groceries: number, otherExpenses: number): ScopeBreakdown {
   const grocerySplit = splitAmount(groceries, normalizeShare(input.groceriesBusinessShare));
+  // Los gastos que no son super se reparten con su propio porcentaje: la
+  // gasolina de los repartos y la comida del sábado no son lo mismo.
+  const otherSplit = splitAmount(otherExpenses, normalizeShare(input.otherBusinessShare));
   const personal: ScopeSide = {
-    income: 0, fixedPayments: 0, creditPayments: 0, groceries: grocerySplit.personal, expenses: 0,
+    income: 0, fixedPayments: 0, creditPayments: 0,
+    groceries: grocerySplit.personal, otherExpenses: otherSplit.personal, expenses: 0,
   };
   const business: ScopeSide = {
-    income: 0, fixedPayments: 0, creditPayments: 0, groceries: grocerySplit.business, expenses: 0,
+    income: 0, fixedPayments: 0, creditPayments: 0,
+    groceries: grocerySplit.business, otherExpenses: otherSplit.business, expenses: 0,
   };
-  let anyBusiness = grocerySplit.business > 0;
+  let anyBusiness = grocerySplit.business > 0 || otherSplit.business > 0;
 
   for (const inc of input.incomes) {
     if (!inc.isActive) continue;
@@ -572,7 +596,8 @@ function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdow
     fixedPayments: round2(side.fixedPayments),
     creditPayments: round2(side.creditPayments),
     groceries: round2(side.groceries),
-    expenses: round2(side.fixedPayments + side.creditPayments + side.groceries),
+    otherExpenses: round2(side.otherExpenses),
+    expenses: round2(side.fixedPayments + side.creditPayments + side.groceries + side.otherExpenses),
   });
 
   const personalSide = close(personal);
@@ -625,6 +650,13 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
       normalizeShare(input.groceriesBusinessShare),
     ).personal,
     groceriesBusinessShare: 0,
+    // Y lo mismo con el resto de gastos: la gasolina de los repartos sale del
+    // plan personal igual que un pago fijo del negocio.
+    otherExpensesMonthly: splitAmount(
+      input.otherExpensesMonthly ?? 0,
+      normalizeShare(input.otherBusinessShare),
+    ).personal,
+    otherBusinessShare: 0,
   };
 }
 
@@ -685,7 +717,7 @@ function adviceForCashFlow(cash: CashFlow, out: Advice[]): void {
       tone: 'critical',
       icon: '🚨',
       title: `Gastas ${money(deficit)} más de lo que ingresas`,
-      body: `Tus pagos fijos (${money(cash.fixedPayments)})${cash.creditPayments > 0 ? `, las cuotas de tus créditos (${money(cash.creditPayments)})` : ''} más el super (${money(cash.groceriesEstimate)}) superan tu ingreso mensual de ${money(cash.monthlyIncome)}. Antes de ahorrar para cualquier meta hay que cerrar ese hueco: revisa qué pago fijo puedes bajar o cancelar, y recorta el super.`,
+      body: `Tus pagos fijos (${money(cash.fixedPayments)})${cash.creditPayments > 0 ? `, las cuotas de tus créditos (${money(cash.creditPayments)})` : ''}${cash.otherExpenses > 0 ? `, lo que gastas fuera del super (${money(cash.otherExpenses)})` : ''} más el super (${money(cash.groceriesEstimate)}) superan tu ingreso mensual de ${money(cash.monthlyIncome)}. Antes de ahorrar para cualquier meta hay que cerrar ese hueco: revisa qué pago fijo puedes bajar o cancelar, y recorta el super.`,
       action: { label: 'Revisar pagos fijos', kind: 'open_payments' },
     });
     return;
@@ -1076,6 +1108,63 @@ function adviceForGroceries(input: PlanInput, cash: CashFlow, goals: GoalProject
   }
 }
 
+/**
+ * Consejos sobre el gasto que no es super.
+ *
+ * Es el gasto más fácil de mover de todo el plan —nadie deja de pagar la renta,
+ * pero sí puede comer fuera una vez menos— y hasta ahora no aparecía en ningún
+ * consejo porque ni siquiera se medía. Por eso el mensaje se dice siempre en
+ * días de meta ganados, no en un porcentaje abstracto.
+ */
+function adviceForOtherSpend(input: PlanInput, cash: CashFlow, goals: GoalProjection[], out: Advice[]): void {
+  const o = input.otherSpend;
+  if (!o || !o.hasData || cash.monthlyIncome <= 0) return;
+
+  const top = o.byKind[0];
+
+  // 1. Un tipo de gasto se está comiendo el mes. El 35 % es el corte: por
+  //    debajo de eso el reparto es normal y señalarlo sería alarmismo.
+  if (top && top.share >= 35 && top.currentMonth > 0) {
+    const recorte = top.currentMonth * 0.25;
+    const meta = expenseKindMeta(top.kind);
+    out.push({
+      id: `other-top-${top.kind}`,
+      tone: 'idea',
+      icon: meta.emoji,
+      title: `${meta.groupLabel} se lleva ${money(top.currentMonth)} este mes`,
+      body: `Es el ${Math.round(top.share)} % de lo que gastas fuera del super, en ${top.count} ${top.count === 1 ? 'ticket' : 'tickets'}. Bajarlo una cuarta parte libera ${money(recorte)} al mes — ${money(recorte * 12)} al año.${impactOnGoal(goals, recorte)}`,
+      action: { label: 'Ver mis compras', kind: 'open_trips' },
+    });
+  }
+
+  // 2. Tendencia contra el promedio: mismo criterio que el super — hacen falta
+  //    dos meses cerrados y una semana de mes para que signifique algo.
+  if (o.trendPct !== null && o.monthsWithData >= 2 && o.projectedMonthEnd > 0) {
+    const diff = Math.abs(o.projectedMonthEnd - o.avgMonthly);
+    if (o.trendPct >= 20) {
+      const culpable = o.biggestMover
+        ? ` Lo que más subió es ${expenseKindMeta(o.biggestMover.kind).groupLabel}: ${money(o.biggestMover.currentMonth)} contra ${money(o.biggestMover.prevMonth)} el mes pasado.`
+        : '';
+      out.push({
+        id: 'other-trend-up',
+        tone: 'warning',
+        icon: '📈',
+        title: `Tus gastos fuera del super van ${Math.round(o.trendPct)} % arriba`,
+        body: `Proyectas ${money(o.projectedMonthEnd)} frente a los ${money(o.avgMonthly)} que sueles gastar — ${money(diff)} de más.${culpable} Ese dinero salía de tus metas sin que nada lo dijera.`,
+        action: { label: 'Ver mis compras', kind: 'open_trips' },
+      });
+    } else if (o.trendPct <= -20) {
+      out.push({
+        id: 'other-trend-down',
+        tone: 'good',
+        icon: '📉',
+        title: `Estás gastando ${Math.abs(Math.round(o.trendPct))} % menos fuera del super`,
+        body: `Proyectas ${money(o.projectedMonthEnd)} contra tu promedio de ${money(o.avgMonthly)}: ${money(diff)} liberados este mes.${impactOnGoal(goals, diff)}`,
+      });
+    }
+  }
+}
+
 export function buildAdvice(
   input: PlanInput,
   cash: CashFlow,
@@ -1097,6 +1186,7 @@ export function buildAdvice(
   for (const goal of active) adviceForGoal(goal, cash, input, out);
 
   adviceForGroceries(input, cash, goals, out);
+  adviceForOtherSpend(input, cash, goals, out);
   adviceForSurplus(cash, goals, out);
 
   return out.sort((a, b) => TONE_WEIGHT[a.tone] - TONE_WEIGHT[b.tone]);
@@ -1111,6 +1201,9 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   const monthlyIncome = totalMonthlyIncome(input.incomes);
   const fixedPayments = input.fixedPayments.reduce((s, p) => s + Math.max(0, p.amount), 0);
   const groceriesEstimate = Math.max(0, input.groceriesMonthly);
+  // Comer fuera y la gasolina no son super, pero salen de la misma cuenta el
+  // mismo mes. Restarlos aquí es lo que hace que "te queda libre" sea cierto.
+  const otherExpenses = Math.max(0, input.otherExpensesMonthly ?? 0);
 
   // La cuota de una tarjeta o un crédito es dinero comprometido igual que la
   // renta: si no se resta aquí, el plan cree que hay más libre del que hay y
@@ -1119,7 +1212,7 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   const creditPayments = credits.reduce((s, c) => s + Math.max(0, c.installment), 0);
 
   const available =
-    monthlyIncome - fixedPayments - groceriesEstimate - creditPayments + extraMonthly;
+    monthlyIncome - fixedPayments - groceriesEstimate - otherExpenses - creditPayments + extraMonthly;
 
   const debts = buildDebtOverview(input.fixedPayments, input.goals, credits, available);
   const goalsBudget = Math.max(0, available - debts.monthlyCatchUp);
@@ -1135,6 +1228,7 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     monthlyIncome: round2(monthlyIncome),
     fixedPayments: round2(fixedPayments),
     groceriesEstimate: round2(groceriesEstimate),
+    otherExpenses: round2(otherExpenses),
     creditPayments: round2(creditPayments),
     available: round2(available),
     debtCatchUp: debts.monthlyCatchUp,
@@ -1145,7 +1239,7 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     extraMonthly: round2(extraMonthly),
   };
 
-  const scopes = buildScopeBreakdown(input, cashFlow.groceriesEstimate);
+  const scopes = buildScopeBreakdown(input, cashFlow.groceriesEstimate, cashFlow.otherExpenses);
   const advice = buildAdvice(input, cashFlow, projections, debts, scopes);
   const healthScore = computeHealthScore(cashFlow, projections, debts);
 
