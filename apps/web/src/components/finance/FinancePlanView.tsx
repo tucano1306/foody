@@ -439,7 +439,7 @@ export default function FinancePlanView({ initialData }: Props) {
       <BusinessPanel scopes={data.scopes} />
 
       {/* ─── Deuda ───────────────────────────────────────────────────────── */}
-      <DebtPanel debts={view.debts} />
+      <DebtPanel debts={view.debts} onChanged={() => void refresh(true)} />
 
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
       <section className="space-y-3">
