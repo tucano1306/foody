@@ -8,8 +8,14 @@
  * solo con total — recibo sin vincular — cuenta completo), más las compras
  * sueltas sin ticket agrupadas por sesión. Sumar product_purchases a secas
  * ignoraría los tickets sin items y contaría doble los que sí tienen.
+ *
+ * SOLO cuenta el super (`kind = 'grocery'`). El límite mensual que el usuario
+ * configura aquí es un límite de DESPENSA: meter en él la cena del sábado o la
+ * gasolina hacía que el presupuesto se pasara de rojo por gastos que nunca
+ * pretendió cubrir.
  */
 import { sql } from '@/lib/db';
+import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
 
 export interface BudgetMonthEntry {
   month: string; // YYYY-MM
@@ -50,6 +56,8 @@ export function currentMonthKey(now = new Date()): string {
 
 export async function getBudgetData(userId: string): Promise<BudgetData> {
   await ensureBudgetSchema();
+  // Antes de filtrar por `kind` hay que garantizar que la columna existe.
+  await ensureExpenseKindSchema();
 
   const [settingsRows, historyRows] = await Promise.all([
     sql`
@@ -67,7 +75,7 @@ export async function getBudgetData(userId: string): Promise<BudgetData> {
       FROM (
         SELECT date AS d, COALESCE(total_spent, 0) AS total
         FROM shopping_trips
-        WHERE user_id = ${userId}
+        WHERE user_id = ${userId} AND kind = 'grocery'
         UNION ALL
         SELECT purchased_at AS d, SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
         FROM product_purchases

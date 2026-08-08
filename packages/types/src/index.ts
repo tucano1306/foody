@@ -118,6 +118,19 @@ export interface UpdateStoreDto extends Partial<CreateStoreDto> {}
 // ─── Shopping Trip (Ticket) ───────────────────────────────────────────────────
 export type AllocationStrategy = 'equal' | 'by_quantity' | 'manual_partial' | 'none';
 
+/**
+ * Qué clase de gasto es un ticket.
+ *
+ * `grocery` es lo único que vive en la sección Compras: es la despensa, y es lo
+ * que alimenta precios, stock y el presupuesto de super. El resto —una comida
+ * fuera, la farmacia, la gasolina— es gasto igual de real, pero no es super:
+ * sale solo en el Plan Financiero, restando del dinero de las metas.
+ *
+ * Mezclarlos rompía las dos cosas a la vez: el promedio por ticket del super se
+ * ensuciaba con restaurantes, y esos gastos no aparecían en ningún lado del plan.
+ */
+export type ExpenseKind = 'grocery' | 'dining' | 'pharmacy' | 'fuel' | 'home' | 'other';
+
 export interface ShoppingTrip {
   id: string;
   storeId: string | null;
@@ -128,6 +141,8 @@ export interface ShoppingTrip {
   allocationStrategy: AllocationStrategy;
   receiptPhotoUrl: string | null;
   notes: string | null;
+  /** Súper o gasto de otro tipo. Por defecto `grocery`. */
+  kind: ExpenseKind;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -151,6 +166,8 @@ export interface CreateShoppingTripDto {
   notes?: string;
   /** 0-100: qué parte de esta compra es del negocio. 0 = personal. */
   businessShare?: number;
+  /** Súper o gasto de otro tipo. Ausente = `grocery`. */
+  kind?: ExpenseKind;
   items: ShoppingTripItemDto[];
 }
 
@@ -159,6 +176,8 @@ export interface UpdateShoppingTripDto {
   purchasedAt?: string;
   totalAmount?: number;
   notes?: string;
+  /** Re-clasificar un ticket ya guardado (un restaurante que entró como super). */
+  kind?: ExpenseKind;
   /** When present, the trip's purchases are rewritten with a fresh allocation. */
   items?: ShoppingTripItemDto[];
 }

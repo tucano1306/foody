@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import ModernTitle from '@/components/layout/ModernTitle';
+import ReclassifyChip from '@/components/shopping/ReclassifyChip';
+import { detectExpenseKind } from '@/lib/expense-kind';
 import type { ShoppingTrip } from '@foody/types';
 
 function formatCurrency(value: number, currency: string): string {
@@ -37,6 +39,16 @@ export default async function ShoppingTripsPage() {
     trips = [];
   }
 
+  // Cuántos gastos de este mes NO son de super. Se enseñan como puerta al plan:
+  // sin esto, quien escaneó una factura de restaurante la buscaría aquí, no la
+  // encontraría y pensaría que se perdió.
+  let otherKinds = { count: 0, total: 0 };
+  try {
+    otherKinds = await api.shoppingTrips.otherKindsThisMonth();
+  } catch {
+    otherKinds = { count: 0, total: 0 };
+  }
+
   const totalSpent = trips.reduce((sum, t) => sum + t.totalAmount, 0);
   const avgSpent = trips.length > 0 ? totalSpent / trips.length : 0;
   const currency = trips[0]?.currency ?? 'USD';
@@ -53,8 +65,8 @@ export default async function ShoppingTripsPage() {
   return (
     <div className="space-y-4">
       <ModernTitle
-        title="🧾 Compras"
-        subtitle="Tickets y precios"
+        title="🛒 Compras del super"
+        subtitle="Tickets y precios de tu despensa"
         action={
           <Link
             href="/shopping-trips/new"
@@ -85,6 +97,26 @@ export default async function ShoppingTripsPage() {
         </div>
       )}
 
+      {/* Lo que se escaneó y NO era super. Solo aparece si existe: quien nunca
+          clasifica un gasto fuera del super no ve nada de esto. */}
+      {otherKinds.count > 0 && (
+        <Link
+          href="/plan"
+          className="flex items-center gap-3 rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3 hover:bg-blue-100 transition"
+        >
+          <span className="text-2xl">🧭</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-blue-800 text-sm">
+              {otherKinds.count} {otherKinds.count === 1 ? 'gasto' : 'gastos'} fuera del super este mes
+            </p>
+            <p className="text-xs text-blue-500">
+              {formatCurrency(otherKinds.total, currency)} en comida fuera, farmacia o gasolina — están en tu plan
+            </p>
+          </div>
+          <span className="text-blue-400 text-sm">→</span>
+        </Link>
+      )}
+
       {/* Compare prices shortcut */}
       <Link
         href="/shopping-trips/compare"
@@ -101,7 +133,7 @@ export default async function ShoppingTripsPage() {
       {trips.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="text-5xl mb-3">🛒</p>
-          <p className="text-slate-700 font-semibold">Aún no registras compras</p>
+          <p className="text-slate-700 font-semibold">Aún no registras compras del super</p>
           <p className="text-sm text-slate-500 mt-1">
             Completa una sesión de supermercado y Foody guardará los precios automáticamente.
           </p>
@@ -115,7 +147,13 @@ export default async function ShoppingTripsPage() {
       ) : (
         <>
           <ul className="space-y-2 card-stagger">
-            {trips.map((trip) => (
+            {trips.map((trip) => {
+              // Tickets de antes de que existiera la clasificación: nada se
+              // migró solo, así que el nombre de la tienda es lo único que
+              // puede delatar que esto no era una compra de despensa.
+              const suggested = detectExpenseKind(trip.storeName);
+              const misfiled = suggested !== null && suggested !== 'grocery';
+              return (
               <li key={trip.id}>
                 <Link
                   href={`/shopping-trips/${trip.id}`}
@@ -154,8 +192,18 @@ export default async function ShoppingTripsPage() {
                     </span>
                   </div>
                 </Link>
+                {/* Fuera del <Link>: es un botón, y anidarlo dentro de un
+                    enlace haría que tocarlo también navegara. */}
+                {misfiled && (
+                  <ReclassifyChip
+                    tripId={trip.id}
+                    storeName={trip.storeName ?? 'Este ticket'}
+                    suggested={suggested}
+                  />
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         </>
       )}

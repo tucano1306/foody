@@ -18,6 +18,8 @@ const ReceiptScanner = dynamic(
 );
 import { useToast } from '@/components/ui/Toast';
 import ScopePicker from '@/components/ui/ScopePicker';
+import KindPicker from '@/components/ui/KindPicker';
+import { detectExpenseKind, type ExpenseKind } from '@/lib/expense-kind';
 import { notifyGoalImpact } from '@/lib/notify-goal-impact';
 
 interface Props {
@@ -64,6 +66,19 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const [itemsExpanded, setItemsExpanded] = useState(false);
   /** 0-100: qué parte de esta compra es del negocio. Empieza en personal. */
   const [businessShare, setBusinessShare] = useState(0);
+  /**
+   * Súper o gasto de otro tipo. Empieza en súper —el caso normal— y solo lo
+   * mueve el detector si reconoce la tienda o el usuario si lo toca.
+   */
+  const [kind, setKind] = useState<ExpenseKind>('grocery');
+  /** El tipo lo puso el detector y el usuario aún no lo ha corregido. */
+  const [kindAutoDetected, setKindAutoDetected] = useState(false);
+  /**
+   * El usuario eligió el tipo a mano. A partir de ahí el detector se calla:
+   * seguir "corrigiéndole" mientras termina de escribir el nombre de la tienda
+   * sería pelearse con él.
+   */
+  const [kindTouched, setKindTouched] = useState(false);
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +118,31 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     [products, addedIds],
   );
 
+  /**
+   * Sugiere el tipo de gasto a partir del nombre de la tienda.
+   *
+   * Solo sugiere: si el usuario ya eligió a mano, o si el nombre no dice nada,
+   * no toca nada. Es lo que hace que un ticket de Pollo Tropical llegue ya
+   * marcado como comida sin que nadie tenga que acordarse de marcarlo.
+   */
+  function suggestKind(name: string): ExpenseKind {
+    if (kindTouched) return kind;
+    const detected = detectExpenseKind(name);
+    if (detected === null) return kind;
+    setKind(detected);
+    setKindAutoDetected(true);
+    // Se devuelve además de guardarse porque quien llama lo necesita YA: el
+    // `setState` no se ve hasta el siguiente render y en el mismo turno hay que
+    // decidir si los productos del recibo se cargan o no.
+    return detected;
+  }
+
+  function pickKind(next: ExpenseKind) {
+    setKind(next);
+    setKindTouched(true);
+    setKindAutoDetected(false);
+  }
+
   function handleReceiptResult(data: ReceiptParseResult) {
     setScannerOpen(false);
     // Pre-fill total
@@ -113,6 +153,9 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     if (data.storeName !== null && storeName.trim() === '') {
       setStoreName(data.storeName);
     }
+    // Clasificar en el momento del escaneo: es justo cuando se sabe de dónde es
+    // el ticket y justo cuando el usuario está mirando.
+    const effectiveKind = suggestKind(data.storeName ?? storeName);
     // Pre-fill date
     if (data.receiptDate !== null) {
       setPurchasedAt(data.receiptDate);
@@ -126,7 +169,11 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     // accurate (not just an even split of the total).
     // Sin productos legibles NO es un fallo: con el total y la tienda el
     // ticket ya sirve para el presupuesto y el plan, que es lo que se pidió.
-    if (data.items.length === 0) return;
+    //
+    // Y si el ticket no es de super tampoco se cargan: las líneas de una cena
+    // no son productos de despensa, y volcarlas al catálogo llenaría el
+    // inventario de "Combo #2" que nadie va a reponer nunca.
+    if (data.items.length === 0 || effectiveKind !== 'grocery') return;
 
     const used = new Set(items.map((it) => it.productId).filter((id) => id !== ''));
     const additions: LineItem[] = [];
@@ -225,9 +272,18 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const parsedTotal = Number.parseFloat(totalAmount);
   const totalValid = Number.isFinite(parsedTotal) && parsedTotal > 0;
 
+  /**
+   * Solo el super tiene productos que vincular.
+   *
+   * Una cena o un tanque de gasolina no llenan la despensa, así que todo el
+   * bloque de productos —sugerencias, buscador, líneas del recibo— desaparece.
+   * Registrar ese gasto se reduce a lo único que importa: cuánto y dónde.
+   */
+  const isGrocery = kind === 'grocery';
+
   // Items linked to a catalog product (productId !== '') are the only ones sent to the API
-  const linkedItems = items.filter((it) => it.productId !== '');
-  const unlinkedCount = items.length - linkedItems.length;
+  const linkedItems = isGrocery ? items.filter((it) => it.productId !== '') : [];
+  const unlinkedCount = isGrocery ? items.length - linkedItems.length : 0;
 
   const storeNameValid = storeName.trim().length > 0;
   const canSubmit =
@@ -246,6 +302,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         totalAmount: totalValid ? parsedTotal : 0,
         currency,
         businessShare,
+        kind,
         allocationStrategy: 'manual_partial',
         items: linkedItems.map((it) => {
           const qty = Number.parseFloat(it.quantity);
@@ -276,16 +333,23 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         throw new Error(msg);
       }
       haptic([15, 40, 20]);
-      const msg = unlinkedCount > 0
-        ? `Compra guardada ✨ (${unlinkedCount} del recibo sin vincular se omitieron)`
-        : 'Compra guardada ✨';
+      // El aviso dice DÓNDE quedó el gasto: quien acaba de marcar "Comida"
+      // esperaría verlo en Compras y no está, y descubrirlo por su cuenta es
+      // exactamente la confusión que este cambio venía a quitar.
+      const msg = !isGrocery
+        ? 'Gasto guardado ✨ Lo ves en tu Plan financiero'
+        : unlinkedCount > 0
+          ? `Compra guardada ✨ (${unlinkedCount} del recibo sin vincular se omitieron)`
+          : 'Compra guardada ✨';
       toast.show(msg, 'success');
 
-      // Qué le hizo esta compra a las metas. Va después del aviso de éxito y
+      // Qué le hizo este gasto a las metas. Va después del aviso de éxito y
       // nunca puede tumbar el guardado: si falla, la compra ya está a salvo.
       void notifyGoalImpact(totalValid ? parsedTotal : 0, toast.show);
 
-      router.push('/shopping-trips');
+      // Un gasto que no es de super no aparece en Compras: mandar ahí al
+      // usuario sería enseñarle una lista donde su ticket no está.
+      router.push(isGrocery ? '/shopping-trips' : '/plan');
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
@@ -338,9 +402,12 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           </span>
           <input
             type="text"
-            placeholder="Ej. Walmart, Publix, Soriana…"
+            placeholder="Ej. Walmart, Publix, Pollo Tropical…"
             value={storeName}
             onChange={(e) => setStoreName(e.target.value)}
+            // Al salir del campo, no en cada tecla: clasificar mientras se
+            // escribe iría saltando de tipo a media palabra.
+            onBlur={(e) => suggestKind(e.target.value)}
             className={`w-full rounded-xl border px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-brand-500 ${
               storeNameValid ? 'border-slate-200 bg-white' : 'border-blue-300 bg-blue-50'
             }`}
@@ -381,13 +448,34 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           </div>
         </label>
         <p className="text-xs text-slate-400 mt-1">
-          El monto total del ticket. Foody reparte entre tus productos.
+          {isGrocery
+            ? 'El monto total del ticket. Foody reparte entre tus productos.'
+            : 'El monto total del ticket.'}
         </p>
       </section>
 
-      {/* Strategy */}
+      {/* ── Qué clase de gasto es ────────────────────────────────────────────
+          Va justo debajo del total y antes de los productos: es la decisión que
+          determina si esto es una compra de despensa o un gasto del plan, y
+          cambia lo que se enseña a partir de aquí. */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100 space-y-4">
+        <KindPicker value={kind} onChange={pickKind} autoDetected={kindAutoDetected} />
 
-      {/* Items */}
+        {/* Cualquier gasto puede ser del negocio: insumos del super, la comida
+            de una reunión, la gasolina de los repartos. Vive aquí y no dentro
+            del bloque de productos porque no depende de que los haya. Viene en
+            «Personal», así que no estorba a quien no lo use. */}
+        <ScopePicker
+          value={businessShare}
+          onChange={setBusinessShare}
+          amount={totalValid ? parsedTotal : undefined}
+          currency={currency}
+          label="¿De quién es este gasto?"
+        />
+      </section>
+
+      {/* Items — solo para el super: una cena no tiene productos que vincular */}
+      {isGrocery && (
       <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100 space-y-3">
         {/* Smart suggestions — predictive */}
         {smartSuggestions.length > 0 && (
@@ -419,17 +507,6 @@ export default function NewTripForm({ products }: Readonly<Props>) {
             </div>
           </div>
         )}
-
-        {/* Una compra también puede ser del negocio: insumos, material de
-            oficina, o el carrito mixto de quien pasa por el super para las dos
-            cosas. Viene en «Personal», así que no estorba a quien no lo use. */}
-        <ScopePicker
-          value={businessShare}
-          onChange={setBusinessShare}
-          amount={totalValid ? parsedTotal : undefined}
-          currency={currency}
-          label="¿De quién es esta compra?"
-        />
 
         {/* El detalle del ticket va PLEGADO. Lo que importa al registrar una
             compra es cuánto y dónde; los productos se siguen guardando igual
@@ -597,6 +674,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           )}
         </div>
       </section>
+      )}
 
       {unlinkedCount > 0 && (
         <p className="rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-xs px-3 py-2">

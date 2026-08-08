@@ -8,9 +8,11 @@ import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstAt, confettiRain } from '@/lib/fx';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 import type { FinancePlanPayload } from '@/lib/finance-data';
 import { buildFinancePlan, personalOnlyInput } from '@/lib/finance-engine';
 import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
+import { topPlanChange } from '@/lib/plan-diff';
 import AdviceFeed from './AdviceFeed';
 import BusinessPanel from './BusinessPanel';
 import CashFlowCard from './CashFlowCard';
@@ -20,6 +22,7 @@ import GoalCard from './GoalCard';
 import GoalFormModal, { type GoalPayload } from './GoalFormModal';
 import GrocerySpendCard from './GrocerySpendCard';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
+import OtherSpendCard from './OtherSpendCard';
 import SimulatorCard from './SimulatorCard';
 import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel } from './finance-ui';
 
@@ -84,6 +87,7 @@ function HealthRing({ score }: { readonly score: number }) {
 
 export default function FinancePlanView({ initialData }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [data, setData] = useState(initialData);
   /**
    * Si el dinero del negocio cuenta para las metas.
@@ -102,15 +106,42 @@ export default function FinancePlanView({ initialData }: Props) {
    *  cada render (guardaba 'hidden' como overflow "anterior" del body). */
   const closeModal = useCallback(() => setModal({ kind: 'none' }), []);
 
-  const refresh = useCallback(async () => {
+  /**
+   * Recarga el plan y AVISA de lo que cambió en las metas.
+   *
+   * Cada vez que entra información nueva —un ingreso, un aporte, una meta
+   * editada, un gasto registrado— el plan se recalcula entero y la pantalla
+   * cambiaba sola, sin decir qué se movió ni por qué. Ahora se comparan las dos
+   * fotos y se dice la más importante en una línea: "tu viaje se adelanta 2
+   * meses", "la meta ya no llega a tiempo".
+   *
+   * `silent` para la recarga manual del botón: ahí el usuario no ha aportado
+   * ningún dato nuevo, así que no hay nada que anunciarle.
+   */
+  const refresh = useCallback(async (silent = false) => {
     setRefreshing(true);
     try {
       const res = await fetch('/api/finance/plan', { credentials: 'include' });
-      if (res.ok) setData(await res.json());
+      if (!res.ok) return;
+      const next = (await res.json()) as FinancePlanPayload;
+      // `setData(prev => …)` y no la variable `data`: entre el clic y la
+      // respuesta puede haber entrado otra actualización, y comparar contra una
+      // foto vieja anunciaría un cambio que no ocurrió.
+      setData((prev) => {
+        if (!silent) {
+          try {
+            const change = topPlanChange(prev, next);
+            if (change) toast.show(change.message, change.tone === 'warning' ? 'info' : 'success');
+          } catch {
+            // Un aviso roto jamás puede impedir que el plan se actualice.
+          }
+        }
+        return next;
+      });
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
   /** Todas las mutaciones pasan por aquí: lanza el error del servidor tal cual. */
   const send = useCallback(async (url: string, method: string, body?: unknown) => {
@@ -249,6 +280,15 @@ export default function FinancePlanView({ initialData }: Props) {
       groceriesSource: data.groceries.baselineSource,
       groceriesSpentThisMonth: data.groceries.spentThisMonth,
       groceries: data.groceries,
+      // Faltaba lo mismo que faltaba en las cuotas de crédito: sin esto el
+      // simulador y la vista solo-personal calculan con dinero ya gastado en
+      // comer fuera y prometen metas antes de tiempo.
+      otherExpensesMonthly: data.otherSpend.baseline,
+      otherSpend: data.otherSpend,
+      // Los porcentajes de negocio: sin ellos, apagar «contar el negocio»
+      // dejaba el super y los gastos de fuera enteros del lado personal.
+      groceriesBusinessShare: data.groceriesBusinessShare,
+      otherBusinessShare: data.otherBusinessShare,
     }),
     [data],
   );
@@ -324,7 +364,7 @@ export default function FinancePlanView({ initialData }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => { haptic(8); void refresh(); }}
+            onClick={() => { haptic(8); void refresh(true); }}
             aria-label="Actualizar plan"
             className={`p-2.5 rounded-2xl transition ${BTN_SOFT}`}
           >
@@ -376,10 +416,14 @@ export default function FinancePlanView({ initialData }: Props) {
         onOpenPayments={() => router.push('/payments')}
         onOpenBudget={() => router.push('/budget')}
         onOpenDebts={() => router.push('/payments/debts')}
+        onOpenTrips={() => router.push('/shopping-trips')}
       />
 
       {/* ─── Compras reales ──────────────────────────────────────────────── */}
       <GrocerySpendCard groceries={data.groceries} history={data.history} />
+
+      {/* ─── Lo que se va fuera del super ────────────────────────────────── */}
+      <OtherSpendCard other={data.otherSpend} />
 
       {/* ─── Consejero ───────────────────────────────────────────────────── */}
       <AdviceFeed advice={view.advice} onAction={runAdviceAction} />

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import type { Product, ShoppingTripDetail, UpdateShoppingTripDto } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { useToast } from '@/components/ui/Toast';
+import KindPicker from '@/components/ui/KindPicker';
+import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 
 interface Props {
   readonly trip: ShoppingTripDetail;
@@ -76,6 +78,8 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
   const [date, setDate] = useState(trip.purchasedAt.slice(0, 10));
   const [total, setTotal] = useState(trip.totalAmount > 0 ? trip.totalAmount.toFixed(2) : '');
   const [notes, setNotes] = useState(trip.notes ?? '');
+  /** Reclasificar: un restaurante que entró como super tiene que poder mudarse. */
+  const [kind, setKind] = useState<ExpenseKind>(trip.kind);
   const [items, setItems] = useState<EditItem[]>(() => itemsFromTrip(trip));
   const [search, setSearch] = useState('');
 
@@ -102,6 +106,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
     setDate(trip.purchasedAt.slice(0, 10));
     setTotal(trip.totalAmount > 0 ? trip.totalAmount.toFixed(2) : '');
     setNotes(trip.notes ?? '');
+    setKind(trip.kind);
     setItems(itemsFromTrip(trip));
     setSearch('');
     setError(null);
@@ -141,11 +146,13 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
     setSaving(true);
     setError(null);
     try {
+      const movedOut = trip.kind === 'grocery' && kind !== 'grocery';
       const dto: UpdateShoppingTripDto = {
         storeName: store.trim(),
         purchasedAt: new Date(date).toISOString(),
         totalAmount: parsedTotal,
         notes,
+        kind,
         items: items.map((it) => {
           const qty = Number.parseFloat(it.quantity);
           const price = Number.parseFloat(it.price);
@@ -172,8 +179,15 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
         throw new Error(msg);
       }
       haptic([15, 40, 20]);
-      toast.show('Ticket actualizado ✨', 'success');
       setEditing(false);
+      if (movedOut) {
+        // Sacarlo de Compras sin decirlo dejaría al usuario buscando un ticket
+        // que ya no está en esta lista.
+        toast.show('Movido a tu Plan financiero ✨', 'success');
+        router.push('/plan');
+      } else {
+        toast.show('Ticket actualizado ✨', 'success');
+      }
       router.refresh();
     } catch (e) {
       const msg = e instanceof TypeError
@@ -209,23 +223,41 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
   return (
     <div className={`space-y-4 ${editing ? 'pb-24' : ''}`}>
-      <Link href="/shopping-trips" className="text-sm text-slate-500 hover:text-slate-700">
-        ← Volver a compras
-      </Link>
+      {/* Volver a donde el ticket vive de verdad: si no es de super, Compras no
+          lo lista y el enlace llevaría a una pantalla sin él. */}
+      {trip.kind === 'grocery' ? (
+        <Link href="/shopping-trips" className="text-sm text-slate-500 hover:text-slate-700">
+          ← Volver a compras
+        </Link>
+      ) : (
+        <Link href="/plan" className="text-sm text-slate-500 hover:text-slate-700">
+          ← Volver al plan financiero
+        </Link>
+      )}
 
       {/* ── Encabezado del ticket ─────────────────────────────────────────── */}
       <header className="rounded-2xl bg-white p-5 shadow-sm border border-slate-100">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <p className="text-xs uppercase tracking-wide text-brand-600 font-semibold">Ticket</p>
           {!editing && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-              Estrategia: {STRATEGY_LABELS[trip.allocationStrategy] ?? trip.allocationStrategy}
-            </span>
+            <div className="flex items-center gap-1.5">
+              {/* Qué clase de gasto es, a la vista: es la diferencia entre
+                  aparecer en Compras o en el plan, y hasta ahora era invisible. */}
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold">
+                {expenseKindMeta(trip.kind).emoji} {expenseKindMeta(trip.kind).label}
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                {STRATEGY_LABELS[trip.allocationStrategy] ?? trip.allocationStrategy}
+              </span>
+            </div>
           )}
         </div>
 
         {editing ? (
           <div className="mt-3 space-y-3">
+            {/* Reclasificar es la primera opción del editor a propósito: cambia
+                dónde vive el ticket, y todo lo demás depende de eso. */}
+            <KindPicker value={kind} onChange={setKind} />
             <label className="block">
               <span className="block text-xs font-semibold text-slate-500 mb-1">
                 Tienda <span className="text-blue-500">*</span>
@@ -307,7 +339,12 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
         </div>
       )}
 
-      {/* ── Productos ─────────────────────────────────────────────────────── */}
+      {/* ── Productos ─────────────────────────────────────────────────────────
+          Solo tiene sentido en el super. En una cena o un tanque de gasolina no
+          hay nada que vincular, y el bloque solo invitaría a llenar el catálogo
+          de cosas que nadie va a reponer. Si un ticket reclasificado conserva
+          productos de antes, se siguen mostrando para poder quitarlos. */}
+      {(kind === 'grocery' || items.length > 0 || trip.items.length > 0) && (
       <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
         <h2 className="font-semibold text-slate-800 mb-3">
           Productos ({editing ? items.length : trip.items.length})
@@ -433,6 +470,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
           </ul>
         )}
       </section>
+      )}
 
       {/* ── Notas ─────────────────────────────────────────────────────────── */}
       {editing ? (

@@ -3,6 +3,7 @@ import {
   chooseBaseline,
   computeGroceryInsight,
   monthKeyOf,
+  UNITEMIZED_LABEL,
   type GroceryInsightInput,
 } from './grocery-insights';
 
@@ -221,5 +222,111 @@ describe('computeGroceryInsight — sin datos', () => {
     expect(g.trendPct).toBeNull();
     expect(g.categories).toEqual([]);
     expect(g.overLimit).toBeCloseTo(-400, 1);
+  });
+});
+
+describe('unitemized — el desglose tiene que cuadrar con el total', () => {
+  // El bug que motivó esto: el mes decía "llevas $104" y "En qué se va este
+  // mes" sumaba $23. Los $81 restantes eran tickets escaneados sin productos
+  // vinculados — el usuario los registraba y no los veía en ninguna parte.
+  it('declara la parte del mes que ningún producto explica', () => {
+    const g = computeGroceryInsight(
+      input({
+        monthlyTotals: [
+          { month: '2026-06', total: 500, trips: 6 },
+          { month: '2026-07', total: 104, trips: 5 },
+        ],
+        categories: [
+          { category: 'otro', currentMonth: 13, prevMonth: 35 },
+          { category: 'Sin categoría', currentMonth: 10, prevMonth: 5 },
+        ],
+      }),
+    );
+    expect(g.spentThisMonth).toBe(104);
+    expect(g.unitemized?.currentMonth).toBe(81);
+    expect(g.unitemized?.category).toBe(UNITEMIZED_LABEL);
+    // Y ahora el desglose completo cuadra con el total del mes.
+    const shown = g.categories.reduce((s, c) => s + c.currentMonth, 0) + (g.unitemized?.currentMonth ?? 0);
+    expect(shown).toBeCloseTo(g.spentThisMonth, 2);
+  });
+
+  it('reparte el 100 % entre categorías y resto', () => {
+    const g = computeGroceryInsight(
+      input({
+        monthlyTotals: [{ month: '2026-07', total: 200, trips: 3 }],
+        categories: [{ category: 'carnes', currentMonth: 50, prevMonth: 0 }],
+      }),
+    );
+    expect(g.categories[0].share).toBe(25);
+    expect(g.unitemized?.share).toBe(75);
+  });
+
+  it('calla cuando el ticket está entero desglosado', () => {
+    const g = computeGroceryInsight(
+      input({
+        monthlyTotals: [{ month: '2026-07', total: 150, trips: 2 }],
+        categories: [
+          { category: 'carnes', currentMonth: 100, prevMonth: 0 },
+          { category: 'bebidas', currentMonth: 50, prevMonth: 0 },
+        ],
+      }),
+    );
+    expect(g.unitemized).toBeNull();
+  });
+
+  it('calla ante centavos de redondeo del reparto', () => {
+    const g = computeGroceryInsight(
+      input({
+        monthlyTotals: [{ month: '2026-07', total: 100.2, trips: 1 }],
+        categories: [{ category: 'carnes', currentMonth: 100, prevMonth: 0 }],
+      }),
+    );
+    expect(g.unitemized).toBeNull();
+  });
+
+  it('nunca inventa un hueco negativo', () => {
+    // Las compras sueltas sin ticket pueden sumar más que su "visita": el hueco
+    // no puede salir en negativo ni restarle al desglose.
+    const g = computeGroceryInsight(
+      input({
+        monthlyTotals: [{ month: '2026-07', total: 50, trips: 1 }],
+        categories: [{ category: 'carnes', currentMonth: 90, prevMonth: 0 }],
+      }),
+    );
+    expect(g.unitemized).toBeNull();
+  });
+
+  it('compara contra el mes de CALENDARIO anterior, no contra el último con datos', () => {
+    // Junio $300, julio vacío, agosto $100: el resto de agosto se compara con
+    // julio (0 → sin porcentaje), no con junio.
+    const g = computeGroceryInsight(
+      input({
+        now: new Date(2026, 7, 22, 12, 0, 0),
+        monthlyTotals: [
+          { month: '2026-06', total: 300, trips: 4 },
+          { month: '2026-08', total: 100, trips: 2 },
+        ],
+        categories: [],
+      }),
+    );
+    expect(g.unitemized?.currentMonth).toBe(100);
+    expect(g.unitemized?.prevMonth).toBe(0);
+    expect(g.unitemized?.deltaPct).toBeNull();
+  });
+
+  it('no entra en las categorías ni en el consejero', () => {
+    // Si entrara, el consejo diría "recorta un 15 % en Sin detallar", que no
+    // significa nada accionable.
+    const g = computeGroceryInsight(
+      input({
+        monthlyTotals: [
+          { month: '2026-06', total: 300, trips: 4 },
+          { month: '2026-07', total: 400, trips: 5 },
+        ],
+        categories: [{ category: 'carnes', currentMonth: 20, prevMonth: 10 }],
+      }),
+    );
+    expect(g.categories.map((c) => c.category)).toEqual(['carnes']);
+    expect(g.biggestMover?.category).toBe('carnes');
   });
 });

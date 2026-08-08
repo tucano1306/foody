@@ -101,3 +101,28 @@ export async function ensureExpenseScopeSchema(): Promise<void> {
   await sql`ALTER TABLE IF EXISTS shopping_trips ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
   scopeEnsured = true;
 }
+
+let kindEnsured = false;
+
+/**
+ * Añade `kind` a los tickets: qué CLASE de gasto es (super, comida fuera,
+ * farmacia, gasolina, hogar, otro).
+ *
+ * DEFAULT 'grocery' no es un detalle: al desplegar, cada ticket que ya existía
+ * sigue siendo exactamente lo que era —una compra de super— y ninguno se muda de
+ * sección solo. Reclasificar es siempre una decisión explícita del usuario, y
+ * eso vale también para el histórico.
+ *
+ * Se llama desde TODA consulta que filtre por tipo. Es idempotente y está
+ * protegida por un flag en memoria, así que corre a lo sumo una vez por arranque
+ * en frío; el coste de llamarla de más es cero y el de olvidarla sería un
+ * «column kind does not exist» en producción.
+ */
+export async function ensureExpenseKindSchema(): Promise<void> {
+  if (kindEnsured) return;
+  await sql`ALTER TABLE IF EXISTS shopping_trips ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'grocery'`;
+  // Todas las lecturas nuevas filtran por (user_id, kind) sobre un rango de
+  // fechas: sin este índice, cada carga del plan hace un scan de la tabla.
+  await sql`CREATE INDEX IF NOT EXISTS idx_trips_user_kind_date ON shopping_trips (user_id, kind, date DESC)`;
+  kindEnsured = true;
+}
