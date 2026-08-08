@@ -1,15 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { CameraIcon } from '@heroicons/react/24/solid';
+import { haptic } from '@/lib/haptic';
 import { CATEGORY_EMOJI } from '@/lib/categories';
 import type { GroceryInsight, MonthTotal } from '@/lib/grocery-insights';
+import CategoryDetailSheet from './CategoryDetailSheet';
 import { fmtMoney } from './finance-ui';
 
 interface Props {
   readonly groceries: GroceryInsight;
   readonly history: readonly MonthTotal[];
+  /** Se tocó algo dentro de una categoría: el plan tiene que recalcularse. */
+  readonly onChanged: () => void;
 }
 
 const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -27,7 +32,10 @@ function categoryEmoji(name: string): string {
  * Cómo tus compras reales afectan al plan: el ritmo del mes contra el límite,
  * la tendencia frente a tu promedio y en qué se está yendo el dinero.
  */
-export default function GrocerySpendCard({ groceries: g, history }: Props) {
+export default function GrocerySpendCard({ groceries: g, history, onChanged }: Props) {
+  /** Categoría abierta en la hoja de detalle. null = ninguna. */
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+
   if (g.baselineSource === 'none') return null;
 
   const overLimit = g.limit > 0 && g.overLimit > 0;
@@ -187,53 +195,73 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
           usuario acababa de escanear simplemente no estaban en ninguna fila. */}
       {(g.categories.length > 0 || g.unitemized !== null) && (
         <div className="mt-4">
+          {/* El título dice de qué es el desglose y lo ata al número de arriba.
+              «En qué se va este mes» no decía ni que era solo el super, ni que
+              sumaba justo esos $82 — parecía una lista de gastos cualquiera. */}
           <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
-            En qué se va este mes
+            Tus {fmtMoney(g.spentThisMonth)} de super, por categoría
           </p>
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {[...g.categories.slice(0, 4), ...(g.unitemized ? [g.unitemized] : [])].map((c) => (
-              <li key={c.category} className="flex items-center gap-2.5">
-                <span className="text-base shrink-0" aria-hidden="true">
-                  {c === g.unitemized ? '🧾' : categoryEmoji(c.category)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    {/* Las categorías ya vienen con su capitalización correcta
-                        ("Condimentos y Salsas"): `capitalize` las estropearía. */}
-                    <span className="text-xs font-bold text-slate-700 truncate">
-                      {c.category}
-                      {/* El resto necesita explicarse: si no, parece una
-                          categoría más y el usuario se pregunta qué compró. */}
-                      {c === g.unitemized && (
-                        <span className="ml-1.5 font-normal text-slate-400">
-                          tickets sin productos
-                        </span>
-                      )}
+              <li key={c.category}>
+                {/* Cada fila abre lo que hay dentro. El chevron es toda la
+                    instrucción que necesita: se toca y se ve. */}
+                <button
+                  type="button"
+                  onClick={() => { haptic(); setOpenCategory(c.category); }}
+                  className="flex w-full items-center gap-2.5 rounded-xl -mx-1.5 px-1.5 py-1 text-left transition active:scale-[0.99] active:bg-white/70"
+                >
+                  <span className="text-base shrink-0" aria-hidden="true">
+                    {c === g.unitemized ? '🧾' : categoryEmoji(c.category)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-2">
+                      {/* Las categorías ya vienen con su capitalización correcta
+                          ("Condimentos y Salsas"): `capitalize` las estropearía. */}
+                      <span className="text-xs font-bold text-slate-700 truncate">
+                        {c.category}
+                        {/* El resto necesita explicarse: si no, parece una
+                            categoría más y el usuario se pregunta qué compró. */}
+                        {c === g.unitemized && (
+                          <span className="ml-1.5 font-normal text-slate-400">
+                            tickets sin productos
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs font-black text-black tabular-nums shrink-0">
+                        {fmtMoney(c.currentMonth)}
+                        {c.deltaPct !== null && Math.abs(c.deltaPct) >= 10 && (
+                          <span className={`ml-1.5 font-bold ${c.deltaPct > 0 ? 'text-blue-700' : 'text-sky-700'}`}>
+                            {c.deltaPct > 0 ? '+' : ''}{Math.round(c.deltaPct)}%
+                          </span>
+                        )}
+                      </span>
                     </span>
-                    <span className="text-xs font-black text-black tabular-nums shrink-0">
-                      {fmtMoney(c.currentMonth)}
-                      {c.deltaPct !== null && Math.abs(c.deltaPct) >= 10 && (
-                        <span className={`ml-1.5 font-bold ${c.deltaPct > 0 ? 'text-blue-700' : 'text-sky-700'}`}>
-                          {c.deltaPct > 0 ? '+' : ''}{Math.round(c.deltaPct)}%
-                        </span>
-                      )}
+                    <span className="block h-1.5 rounded-full bg-white mt-1 overflow-hidden">
+                      <motion.span
+                        className={`block h-full rounded-full bg-linear-to-r ${
+                          c === g.unitemized ? 'from-slate-200 to-slate-300' : 'from-sky-300 to-blue-300'
+                        }`}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${c.share}%` }}
+                        transition={{ duration: 0.7 }}
+                      />
                     </span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-white mt-1 overflow-hidden">
-                    <motion.div
-                      className={`h-full rounded-full bg-linear-to-r ${
-                        c === g.unitemized ? 'from-slate-200 to-slate-300' : 'from-sky-300 to-blue-300'
-                      }`}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${c.share}%` }}
-                      transition={{ duration: 0.7 }}
-                    />
-                  </div>
-                </div>
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-slate-300 text-sm">›</span>
+                </button>
               </li>
             ))}
           </ul>
         </div>
+      )}
+
+      {openCategory !== null && (
+        <CategoryDetailSheet
+          category={openCategory}
+          onClose={() => setOpenCategory(null)}
+          onChanged={onChanged}
+        />
       )}
 
       <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-sky-100">

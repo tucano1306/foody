@@ -420,7 +420,14 @@ export default function FinancePlanView({ initialData }: Props) {
       />
 
       {/* ─── Compras reales ──────────────────────────────────────────────── */}
-      <GrocerySpendCard groceries={data.groceries} history={data.history} />
+      <GrocerySpendCard
+        groceries={data.groceries}
+        history={data.history}
+        // `true`: editar una línea del desglose no cambia las metas por sí
+        // mismo, y un aviso de "tu viaje se adelanta" al corregir un centavo
+        // sería ruido.
+        onChanged={() => void refresh(true)}
+      />
 
       {/* ─── Lo que se va fuera del super ────────────────────────────────── */}
       <OtherSpendCard other={data.otherSpend} />
