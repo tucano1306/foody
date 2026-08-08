@@ -430,7 +430,7 @@ export default function FinancePlanView({ initialData }: Props) {
       />
 
       {/* ─── Lo que se va fuera del super ────────────────────────────────── */}
-      <OtherSpendCard other={data.otherSpend} />
+      <OtherSpendCard other={data.otherSpend} onChanged={() => void refresh(true)} />
 
       {/* ─── Consejero ───────────────────────────────────────────────────── */}
       <AdviceFeed advice={view.advice} onAction={runAdviceAction} />
