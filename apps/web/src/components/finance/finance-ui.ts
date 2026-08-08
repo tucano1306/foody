@@ -92,7 +92,6 @@ export interface ToneMeta {
   card: string;
   title: string;
   body: string;
-  button: string;
 }
 
 /**
@@ -104,31 +103,26 @@ export const TONE_META: Record<AdviceTone, ToneMeta> = {
     card: 'bg-sky-100/80 border-sky-200 border-l-4 border-l-blue-500',
     title: 'text-slate-900',
     body: 'text-slate-700',
-    button: 'bg-blue-500 hover:bg-blue-600 text-white',
   },
   warning: {
     card: 'bg-sky-50/90 border-sky-200 border-l-4 border-l-sky-400',
     title: 'text-slate-900',
     body: 'text-slate-700',
-    button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   idea: {
     card: 'bg-sky-50/70 border-sky-100 border-l-4 border-l-sky-300',
     title: 'text-slate-900',
     body: 'text-slate-700',
-    button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   good: {
     card: 'bg-blue-50/70 border-sky-100 border-l-4 border-l-sky-200',
     title: 'text-slate-900',
     body: 'text-slate-700',
-    button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
   info: {
     card: 'bg-sky-50/60 border-sky-100 border-l-4 border-l-sky-200',
     title: 'text-slate-900',
     body: 'text-slate-700',
-    button: 'bg-sky-500 hover:bg-sky-600 text-white',
   },
 };
 

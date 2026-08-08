@@ -929,3 +929,128 @@ describe('consejos sobre el gasto que no es super', () => {
     expect(p.advice.some((x) => x.id.startsWith('other-top-'))).toBe(false);
   });
 });
+
+describe('meta en riesgo — la explicación distingue la CAUSA', () => {
+  // El mensaje viejo decía siempre lo mismo: "el plan solo puede darle $0. Te
+  // faltan $X. Opciones: bajar la meta a $0". Tres veces la misma cifra, un $0
+  // sin origen, y una opción que no significa nada. Ahora cada causa tiene su
+  // explicación y sus opciones.
+  const meta = goal({ targetAmount: 3000, savedAmount: 0, targetDate: '2026-10-15' });
+
+  it('sin ingresos: una sola tarjeta para TODAS las metas, no una por meta', () => {
+    const { advice } = buildFinancePlan(plan({
+      incomes: [],
+      goals: [meta, goal({ id: 'g2', name: 'Coche', targetAmount: 5000 })],
+    }));
+    expect(advice.filter((a) => a.id.startsWith('goal-risk-'))).toHaveLength(0);
+    const uno = advice.filter((a) => a.id === 'goals-need-income');
+    expect(uno).toHaveLength(1);
+    expect(uno[0].title).toContain('2 metas');
+    expect(uno[0].body).toContain('no sabe cuánto ganas');
+  });
+
+  it('sin ingresos NO vuelve a pedir el dato que ya pide la cabecera', () => {
+    const { advice } = buildFinancePlan(plan({ incomes: [], goals: [meta] }));
+    const aviso = advice.find((a) => a.id === 'goals-need-income');
+    expect(aviso?.action).toBeUndefined();
+    expect(aviso?.steps?.[0]).toContain('Ingresos');
+  });
+
+  it('con una sola meta habla en singular', () => {
+    const { advice } = buildFinancePlan(plan({ incomes: [], goals: [meta] }));
+    expect(advice.find((a) => a.id === 'goals-need-income')?.title).toBe(
+      'Viaje a Argentina está en pausa',
+    );
+  });
+
+  it('mes en rojo: culpa al mes, no a la meta, y dice de dónde sale el hueco', () => {
+    const { advice } = buildFinancePlan(plan({
+      incomes: [income({ amount: 1000 })],
+      fixedPayments: [payment({ amount: 900 })],
+      goals: [meta],
+    }));
+    const a = advice.find((x) => x.id === `goal-risk-${meta.id}`);
+    expect(a?.title).toContain('está parada');
+    expect(a?.body).toContain('No es un problema de esta meta');
+    // Nombra las dos cifras que explican el hueco.
+    expect(a?.body).toContain('$1,000');
+    expect(a?.action?.kind).toBe('open_payments');
+    expect(a?.steps?.some((s) => s.includes('pagos fijos'))).toBe(true);
+  });
+
+  it('otras metas se llevan el dinero: lo dice y ofrece prioridad', () => {
+    const { advice } = buildFinancePlan(plan({
+      incomes: [income({ amount: 3000 })],
+      fixedPayments: [payment({ amount: 900 })],
+      // La primera se lo come todo; la segunda se queda a cero.
+      goals: [
+        goal({ id: 'g1', name: 'Urgente', priority: 1, targetAmount: 90000, targetDate: '2026-09-01' }),
+        goal({ id: 'g2', name: 'Segunda', priority: 3, targetAmount: 3000, targetDate: '2026-12-01' }),
+      ],
+    }));
+    const a = advice.find((x) => x.id === 'goal-risk-g2');
+    expect(a?.title).toContain('no recibe nada');
+    expect(a?.body).toContain('se los reparten enteros');
+    expect(a?.steps?.some((s) => s.includes('prioridad'))).toBe(true);
+  });
+
+  it('recibe algo pero no alcanza: da la cifra real y opciones que sirven', () => {
+    const { advice } = buildFinancePlan(plan({
+      incomes: [income({ amount: 3000 })],
+      fixedPayments: [payment({ amount: 900 })],
+      goals: [goal({ targetAmount: 40000, savedAmount: 5000, targetDate: '2026-10-15' })],
+    }));
+    const a = advice.find((x) => x.id.startsWith('goal-risk-'));
+    expect(a?.title).toContain('no llega a tiempo');
+    expect(a?.body).toContain('Se queda corta por');
+    expect(a?.steps && a.steps.length).toBeGreaterThan(0);
+  });
+
+  it('nunca ofrece "baja el objetivo a $0"', () => {
+    // Era la opción sin sentido del mensaje viejo: con $0 asignados, el
+    // objetivo alcanzable calculado daba exactamente cero.
+    for (const p of [
+      plan({ incomes: [income({ amount: 1000 })], fixedPayments: [payment({ amount: 900 })], goals: [meta] }),
+      plan({ incomes: [income({ amount: 3000 })], goals: [goal({ targetAmount: 99999, targetDate: '2026-09-01' })] }),
+    ]) {
+      for (const a of buildFinancePlan(p).advice) {
+        for (const step of a.steps ?? []) {
+          expect(step).not.toContain('objetivo a $0');
+        }
+      }
+    }
+  });
+
+  it('las opciones van en lista, no apelmazadas con punto y coma', () => {
+    const { advice } = buildFinancePlan(plan({
+      incomes: [income({ amount: 3000 })],
+      fixedPayments: [payment({ amount: 900 })],
+      goals: [goal({ targetAmount: 40000, savedAmount: 5000, targetDate: '2026-10-15' })],
+    }));
+    const a = advice.find((x) => x.id.startsWith('goal-risk-'));
+    expect(a?.body).not.toContain('Opciones:');
+    expect(a?.body).not.toContain(';');
+  });
+});
+
+describe('meta vencida — no promete fechas sin ritmo', () => {
+  it('con ritmo asignado da la fecha nueva', () => {
+    const { advice } = buildFinancePlan(plan({
+      incomes: [income({ amount: 3000 })],
+      goals: [goal({ targetAmount: 2000, savedAmount: 500, targetDate: '2026-07-01' })],
+    }));
+    const a = advice.find((x) => x.id.startsWith('goal-overdue-'));
+    expect(a?.body).toContain('los tendrías hacia el');
+  });
+
+  it('sin ritmo NO dice "al ritmo de $0 la lograrías"', () => {
+    const { advice } = buildFinancePlan(plan({
+      incomes: [income({ amount: 1000 })],
+      fixedPayments: [payment({ amount: 1500 })],
+      goals: [goal({ targetAmount: 2000, savedAmount: 500, targetDate: '2026-07-01' })],
+    }));
+    const a = advice.find((x) => x.id.startsWith('goal-overdue-'));
+    expect(a?.body).toContain('no puede apartarle nada');
+    expect(a?.body).not.toContain('al ritmo de $0');
+  });
+});
