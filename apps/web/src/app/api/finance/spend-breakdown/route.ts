@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, badRequest } from '@/lib/route-helpers';
 import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
+import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { UNITEMIZED_LABEL } from '@/lib/grocery-insights';
 
 /**
@@ -12,10 +13,12 @@ import { UNITEMIZED_LABEL } from '@/lib/grocery-insights';
  * poder corregirlas, que es lo que convierte el desglose en algo accionable en
  * vez de un dato que solo se mira.
  *
- * Dos formas según la fila, porque son dos cosas distintas:
- *  - una categoría normal → las COMPRAS de productos de esa categoría
- *  - «Sin detallar» → los TICKETS cuyo total ningún producto explica; ahí no
- *    hay líneas que editar, hay recibos a los que les faltan sus productos.
+ * Tres formas según la fila, porque son tres cosas distintas:
+ *  - `?category=Lácteos` → las COMPRAS de productos de esa categoría
+ *  - `?category=Sin detallar` → los TICKETS cuyo total ningún producto explica;
+ *    ahí no hay líneas que editar, hay recibos a los que les faltan sus productos.
+ *  - `?kind=dining` → los TICKETS de un tipo de gasto que no es super; una cena
+ *    no tiene desglose, tiene un total, un sitio y una fecha.
  *
  * Solo lee. Alcance: mes en curso y tickets de super, igual que la tarjeta.
  */
@@ -39,10 +42,43 @@ export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
+  const kindParam = request.nextUrl.searchParams.get('kind')?.trim();
   const category = request.nextUrl.searchParams.get('category')?.trim();
-  if (!category) return badRequest('Falta la categoría');
+  if (!kindParam && !category) return badRequest('Falta la categoría');
 
   await ensureExpenseKindSchema();
+
+  // ── Gasto que NO es super: los TICKETS de un tipo ─────────────────────────
+  // Aquí los elementos son recibos enteros, no líneas de producto: una cena no
+  // tiene desglose que editar, tiene un total, un sitio y una fecha.
+  if (kindParam) {
+    const expenseKind = normalizeExpenseKind(kindParam);
+    const rows = await sql`
+      SELECT id, store_name, date, COALESCE(total_spent, 0) AS total, kind, business_share
+      FROM shopping_trips
+      WHERE user_id = ${user.userId}
+        AND kind = ${expenseKind}
+        AND date >= DATE_TRUNC('month', NOW())
+      ORDER BY date DESC, created_at DESC
+    `;
+
+    const expenses = (rows as Record<string, unknown>[]).map((r) => ({
+      id: String(r.id),
+      storeName: (r.store_name as string | null) ?? null,
+      date: iso(r.date),
+      total: num(r.total),
+      kind: normalizeExpenseKind(r.kind),
+    }));
+
+    return NextResponse.json({
+      kind: 'expenses' as const,
+      category: expenseKind,
+      total: Math.round(expenses.reduce((s, e) => s + e.total, 0) * 100) / 100,
+      items: [],
+      trips: [],
+      expenses,
+    });
+  }
 
   // ── «Sin detallar»: tickets a los que les falta el desglose ───────────────
   if (category === UNITEMIZED_LABEL) {
@@ -83,6 +119,7 @@ export async function GET(request: NextRequest) {
       total: Math.round(trips.reduce((s, t) => s + t.gap, 0) * 100) / 100,
       items: [],
       trips,
+      expenses: [],
     });
   }
 
@@ -128,5 +165,6 @@ export async function GET(request: NextRequest) {
     total: Math.round(items.reduce((s, i) => s + i.totalPrice, 0) * 100) / 100,
     items,
     trips: [],
+    expenses: [],
   });
 }

@@ -1,14 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { CameraIcon } from '@heroicons/react/24/solid';
-import { expenseKindMeta } from '@/lib/expense-kind';
+import { haptic } from '@/lib/haptic';
+import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import type { OtherSpendInsight } from '@/lib/other-spend';
+import ExpenseDetailSheet from './ExpenseDetailSheet';
 import { fmtMoney } from './finance-ui';
 
 interface Props {
   readonly other: OtherSpendInsight;
+  /** Se tocó algo dentro de un tipo de gasto: el plan tiene que recalcularse. */
+  readonly onChanged: () => void;
 }
 
 /**
@@ -22,7 +27,10 @@ interface Props {
  * qué va a restar el plan. Sin barra de límite —nadie se pone un tope de
  * farmacia— y sin proyecciones antes de que signifiquen algo.
  */
-export default function OtherSpendCard({ other: o }: Props) {
+export default function OtherSpendCard({ other: o, onChanged }: Props) {
+  /** Tipo de gasto abierto en la hoja de detalle. null = ninguno. */
+  const [openKind, setOpenKind] = useState<ExpenseKind | null>(null);
+
   if (!o.hasData) return null;
 
   const maxKind = Math.max(...o.byKind.map((k) => k.currentMonth), 1);
@@ -58,40 +66,48 @@ export default function OtherSpendCard({ other: o }: Props) {
         </div>
       </div>
 
-      {/* En qué se va */}
+      {/* En qué se va. Cada fila abre sus tickets: ahí se corrigen, se borran
+          y se añaden. El chevron es toda la instrucción que hace falta. */}
       {o.byKind.length > 0 && (
-        <ul className="space-y-2.5">
+        <ul className="space-y-1">
           {o.byKind.map((k) => {
             const meta = expenseKindMeta(k.kind);
             return (
-              <li key={k.kind} className="flex items-center gap-2.5">
-                <span className="text-base shrink-0" aria-hidden="true">{meta.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-700 truncate">
-                      {meta.groupLabel}
-                      <span className="ml-1.5 font-normal text-slate-400">
-                        {k.count} {k.count === 1 ? 'ticket' : 'tickets'}
+              <li key={k.kind}>
+                <button
+                  type="button"
+                  onClick={() => { haptic(); setOpenKind(k.kind); }}
+                  className="flex w-full items-center gap-2.5 rounded-xl -mx-1.5 px-1.5 py-1.5 text-left transition active:scale-[0.99] active:bg-white/70"
+                >
+                  <span className="text-base shrink-0" aria-hidden="true">{meta.emoji}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-700 truncate">
+                        {meta.groupLabel}
+                        <span className="ml-1.5 font-normal text-slate-400">
+                          {k.count} {k.count === 1 ? 'ticket' : 'tickets'}
+                        </span>
+                      </span>
+                      <span className="text-xs font-black text-black tabular-nums shrink-0">
+                        {fmtMoney(k.currentMonth)}
+                        {k.deltaPct !== null && Math.abs(k.deltaPct) >= 10 && (
+                          <span className={`ml-1.5 font-bold ${k.deltaPct > 0 ? 'text-blue-700' : 'text-sky-700'}`}>
+                            {k.deltaPct > 0 ? '+' : ''}{Math.round(k.deltaPct)}%
+                          </span>
+                        )}
                       </span>
                     </span>
-                    <span className="text-xs font-black text-black tabular-nums shrink-0">
-                      {fmtMoney(k.currentMonth)}
-                      {k.deltaPct !== null && Math.abs(k.deltaPct) >= 10 && (
-                        <span className={`ml-1.5 font-bold ${k.deltaPct > 0 ? 'text-blue-700' : 'text-sky-700'}`}>
-                          {k.deltaPct > 0 ? '+' : ''}{Math.round(k.deltaPct)}%
-                        </span>
-                      )}
+                    <span className="block h-1.5 rounded-full bg-white mt-1 overflow-hidden">
+                      <motion.span
+                        className="block h-full rounded-full bg-linear-to-r from-sky-300 to-blue-400"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(k.currentMonth / maxKind) * 100}%` }}
+                        transition={{ duration: 0.7 }}
+                      />
                     </span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-white mt-1 overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full bg-linear-to-r from-sky-300 to-blue-400"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(k.currentMonth / maxKind) * 100}%` }}
-                      transition={{ duration: 0.7 }}
-                    />
-                  </div>
-                </div>
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-slate-300 text-sm">›</span>
+                </button>
               </li>
             );
           })}
@@ -128,6 +144,14 @@ export default function OtherSpendCard({ other: o }: Props) {
           Escanear
         </Link>
       </div>
+
+      {openKind !== null && (
+        <ExpenseDetailSheet
+          expenseKind={openKind}
+          onClose={() => setOpenKind(null)}
+          onChanged={onChanged}
+        />
+      )}
     </section>
   );
 }
