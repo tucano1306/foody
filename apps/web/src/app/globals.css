@@ -87,6 +87,23 @@
   /* ─── Typography ──────────────────────────────────────────────────────── */
   --font-sans: "Inter", "system-ui", "sans-serif";
 
+  /*
+   * Familia de LECTURA, para los párrafos que explican algo en vez de
+   * etiquetar un dato: hoy, los consejos del Plan Financiero.
+   *
+   * Es una serif a propósito. Esos textos son prosa —dicen qué pasa, por qué y
+   * qué hacer— y en la misma sans que el resto de la interfaz se leían como un
+   * pie de foto más: pequeños, densos y salteables. Cambiar de familia (y de
+   * tamaño) los separa del cromo de la app y les da el registro que les toca,
+   * el de alguien explicándote algo.
+   *
+   * Stack del sistema: cero peticiones, cero bytes de fuente y ninguna
+   * dependencia de build. En iOS y macOS cae en Iowan/Palatino, en Android en
+   * Noto Serif, en Windows en Georgia.
+   */
+  --font-reading: "Iowan Old Style", "Palatino Linotype", "Palatino", "Georgia",
+                  "Noto Serif", "Times New Roman", ui-serif, serif;
+
   /* ─── Radius ──────────────────────────────────────────────────────────── */
   --radius-card: 1rem;
 
