@@ -19,6 +19,7 @@ import {
   ShareIcon,
   BanknotesIcon,
   FlagIcon,
+  ScaleIcon,
 } from '@heroicons/react/24/solid';
 import ThemeToggle from './ThemeToggle';
 
@@ -39,6 +40,11 @@ const NAV_SECTIONS = [
     items: [
       { href: '/budget',   icon: BanknotesIcon,  label: 'Presupuesto' },
       { href: '/payments', icon: CreditCardIcon, label: 'Pagos' },
+      // Deudas colgaba de Pagos y solo se llegaba por un botón dentro. Son dos
+      // cosas distintas —un recibo se paga y se olvida; una deuda tiene saldo,
+      // interés y fecha de salida— y esconder la segunda dentro de la primera
+      // la hacía invisible.
+      { href: '/debts',    icon: ScaleIcon,      label: 'Deudas' },
       { href: '/plan',     icon: FlagIcon,       label: 'Plan financiero' },
     ],
   },

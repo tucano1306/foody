@@ -183,6 +183,22 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
     out.dueDay = d;
   }
 
+  // Enlazar/desenlazar con un recibo de Pagos, o descartar la sospecha de
+  // duplicado. Cadena vacía y null significan lo mismo: quitar el enlace.
+  if (body.linkedPaymentId !== undefined) {
+    const raw = body.linkedPaymentId;
+    if (raw === null || raw === '') {
+      out.linkedPaymentId = null;
+    } else if (typeof raw === 'string' && /^[0-9a-f-]{36}$/i.test(raw.trim())) {
+      out.linkedPaymentId = raw.trim();
+    } else {
+      return { error: 'El pago enlazado no es válido', status: 422 };
+    }
+  }
+  if (body.duplicateDismissed !== undefined) {
+    out.duplicateDismissed = Boolean(body.duplicateDismissed);
+  }
+
   if (body.kind !== undefined) out.kind = oneOf(body.kind, DEBT_KINDS) ?? undefined;
   if (body.ratePeriod !== undefined) out.ratePeriod = oneOf(body.ratePeriod, RATE_PERIODS) ?? undefined;
   if (body.strategy !== undefined) out.strategy = oneOf(body.strategy, PAYOFF_STRATEGIES) ?? undefined;

@@ -14,6 +14,7 @@
  */
 
 import { expenseKindMeta } from './expense-kind';
+import type { DuplicateSuspect } from './duplicate-obligations';
 import type { BaselineSource, GroceryInsight } from './grocery-insights';
 import type { OtherSpendInsight } from './other-spend';
 import {
@@ -101,6 +102,19 @@ export interface CreditInput {
   neverPaysOff: boolean;
   /** 0-100: qué parte de la cuota corresponde al negocio. */
   businessShare?: number;
+  /**
+   * Id del pago mensual que YA cobra esta cuota, si el usuario lo enlazó.
+   *
+   * La cuota del coche vive legítimamente en los dos sitios: en Pagos por el
+   * recordatorio y el día de cobro, en Deudas por el saldo y el interés. Pero
+   * el dinero sale UNA vez, y el plan restaba las dos —$1.097 de «GMC» en
+   * pagos fijos y otros $1.097 de «Auto» en cuotas— inflando el gasto del mes
+   * sin que nada lo explicara.
+   *
+   * Con el enlace puesto manda el pago mensual (es el que tiene día de cobro y
+   * marca de pagado) y la cuota deja de restarse. Ver duplicate-obligations.ts.
+   */
+  linkedPaymentId?: string | null;
 }
 
 export interface PlanInput {
@@ -138,6 +152,15 @@ export interface PlanInput {
   otherBusinessShare?: number;
   /** Desglose de ese gasto — alimenta sus consejos. */
   otherSpend?: OtherSpendInsight;
+  /**
+   * Cuotas que podrían estar cobradas ya como pago mensual, sin resolver.
+   *
+   * Las calcula duplicate-obligations.ts; aquí solo se convierten en un aviso.
+   * Mientras estén sin resolver el plan resta ese dinero DOS veces, así que es
+   * de lo más grave que puede decir el consejero: no es un consejo de ahorro,
+   * es «esta cifra está mal».
+   */
+  duplicateObligations?: readonly DuplicateSuspect[];
   /** Dinero extra mensual para simular escenarios ("¿y si aporto $200 más?"). */
   extraMonthly?: number;
   now?: Date;
@@ -230,6 +253,11 @@ export interface DebtOverview {
     monthlyInterest: number;
     monthsToPayoff: number | null;
     neverPaysOff: boolean;
+    /**
+     * Su cuota ya la cobra un pago mensual, así que NO entra en
+     * `creditPayments`. La UI lo dice para que las filas y el total cuadren.
+     */
+    countedInPayments: boolean;
   }[];
   /** Créditos que con su cuota actual no se liquidan nunca. */
   creditsStuck: { id: string; name: string; monthlyInterest: number }[];
@@ -492,6 +520,21 @@ function finishProjection(p: GoalProjection, now: Date, goalsBudget: number): vo
   }
 }
 
+/**
+ * Cuotas que NO hay que restar: las que ya cobra un pago mensual.
+ *
+ * El enlace solo vale si el pago sigue existiendo y activo. Si el usuario borró
+ * el recibo, el dinero vuelve a salir por la cuota y contarlo sería hacerlo
+ * desaparecer del plan — el error contrario, y más difícil de detectar.
+ */
+function isCoveredByPayment(
+  credit: CreditInput,
+  fixedPayments: readonly FixedPaymentInput[],
+): boolean {
+  if (!credit.linkedPaymentId) return false;
+  return fixedPayments.some((p) => p.id === credit.linkedPaymentId);
+}
+
 function buildDebtOverview(
   fixedPayments: readonly FixedPaymentInput[],
   goals: readonly FinanceGoal[],
@@ -532,6 +575,7 @@ function buildDebtOverview(
       monthlyInterest: round2(c.monthlyInterest),
       monthsToPayoff: c.monthsToPayoff,
       neverPaysOff: c.neverPaysOff,
+      countedInPayments: isCoveredByPayment(c, fixedPayments),
     }));
 
   return {
@@ -543,7 +587,11 @@ function buildDebtOverview(
     goalDebtTotal,
     creditBalance: round2(creditOrder.reduce((s, c) => s + c.balance, 0)),
     creditMonthlyInterest: round2(creditOrder.reduce((s, c) => s + c.monthlyInterest, 0)),
-    creditPayments: round2(creditOrder.reduce((s, c) => s + c.installment, 0)),
+    // Las cuotas ya cobradas por un pago mensual quedan FUERA del total: ese
+    // dinero ya está restado en `fixedPayments`.
+    creditPayments: round2(
+      creditOrder.filter((c) => !c.countedInPayments).reduce((s, c) => s + c.installment, 0),
+    ),
     creditOrder,
     creditsStuck: creditOrder
       .filter((c) => c.neverPaysOff)
@@ -595,6 +643,10 @@ function buildScopeBreakdown(input: PlanInput, groceries: number, otherExpenses:
   for (const c of input.credits ?? []) {
     const share = normalizeShare(c.businessShare);
     if (share > 0) anyBusiness = true;
+    // Igual que en el flujo: la cuota que ya cobra un pago mensual no se
+    // reparte otra vez, o el negocio parecería gastar el doble. Era justo lo
+    // que pasaba: $2.314 de pagos fijos + $1.097 de la misma cuota = $3.411.
+    if (isCoveredByPayment(c, input.fixedPayments)) continue;
     const split = splitAmount(Math.max(0, c.installment), share);
     personal.creditPayments += split.personal;
     business.creditPayments += split.business;
@@ -750,6 +802,39 @@ function adviceForCashFlow(cash: CashFlow, out: Advice[]): void {
       body: `Te quedan ${money(cash.available)} libres cada mes — por encima del 20% recomendado. Ese margen es justo lo que hace que tus metas lleguen a tiempo.`,
     });
   }
+}
+
+/**
+ * El mismo pago contado dos veces.
+ *
+ * Va en `critical` y se emite antes que nada porque no es un consejo sobre cómo
+ * gastar mejor: es la app avisando de que una cifra suya está mal. Mientras no
+ * se resuelva, todo lo demás del plan —el dinero libre, lo que cabe en las
+ * metas, el resultado del negocio— está calculado con ese dinero de más.
+ */
+function adviceForDuplicates(input: PlanInput, out: Advice[]): void {
+  const dupes = input.duplicateObligations ?? [];
+  if (dupes.length === 0) return;
+
+  const total = round2(dupes.reduce((s, d) => s + d.amount, 0));
+  const primero = dupes[0];
+
+  out.push({
+    id: 'duplicate-obligations',
+    tone: 'critical',
+    icon: '👀',
+    title: dupes.length === 1
+      ? `¿«${primero.paymentName}» y «${primero.debtName}» son el mismo pago?`
+      : `${dupes.length} pagos podrían estar contados dos veces`,
+    body: dupes.length === 1
+      ? `En Pagos tienes «${primero.paymentName}» por ${money(primero.amount)} al mes, y en Deudas «${primero.debtName}» con una cuota igual. Si son la misma cosa, el plan está restando ${money(primero.amount)} de más cada mes y todo lo que ves debajo se queda corto.`
+      : `Hay ${dupes.length} recibos de Pagos con una cuota idéntica en Deudas, ${money(total)} al mes en total. Si son las mismas obligaciones, el plan las está restando dos veces.`,
+    steps: [
+      `Tenerlo en los dos sitios está bien: Pagos lleva el recordatorio y Deudas el saldo y el interés.`,
+      `Solo hay que decirle a la app que son lo mismo para que el dinero se cuente una vez.`,
+    ],
+    action: { label: 'Revisar en Deudas', kind: 'open_debts' },
+  });
 }
 
 /**
@@ -1309,6 +1394,9 @@ export function buildAdvice(
 ): Advice[] {
   const out: Advice[] = [];
 
+  // Lo primero: si hay dinero contado dos veces, el resto de consejos están
+  // calculados sobre una cifra equivocada y conviene decirlo antes que nada.
+  adviceForDuplicates(input, out);
   adviceForCashFlow(cash, out);
   if (scopes) adviceForScopes(scopes, out);
   adviceForCredits(debts, out);
@@ -1345,7 +1433,11 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   // renta: si no se resta aquí, el plan cree que hay más libre del que hay y
   // promete metas con dinero que ya tiene dueño.
   const credits = input.credits ?? [];
-  const creditPayments = credits.reduce((s, c) => s + Math.max(0, c.installment), 0);
+  // La cuota enlazada a un pago mensual ya está dentro de `fixedPayments`:
+  // sumarla otra vez es el doble conteo que inflaba el gasto del mes.
+  const creditPayments = credits
+    .filter((c) => !isCoveredByPayment(c, input.fixedPayments))
+    .reduce((s, c) => s + Math.max(0, c.installment), 0);
 
   const available =
     monthlyIncome - fixedPayments - groceriesEstimate - otherExpenses - creditPayments + extraMonthly;

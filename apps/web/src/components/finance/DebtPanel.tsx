@@ -128,6 +128,15 @@ export default function DebtPanel({ debts, onChanged }: Props) {
                               c.monthsToPayoff === null ? '—' : `libre en ${c.monthsToPayoff} ${c.monthsToPayoff === 1 ? 'mes' : 'meses'}`
                             }`}
                     </span>
+                    {/* Su cuota ya la cobra un recibo de Pagos, así que NO
+                        entra en el total de abajo. Sin decirlo, las filas
+                        sumarían más que «Comprometido al mes» y parecería un
+                        error de la app — justo lo contrario de lo que es. */}
+                    {c.countedInPayments && (
+                      <span className="mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                        Ya contada en Pagos
+                      </span>
+                    )}
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block text-sm font-black tabular-nums text-black">{fmtMoney(c.balance)}</span>
@@ -152,7 +161,11 @@ export default function DebtPanel({ debts, onChanged }: Props) {
                 {fmtMoney(debts.creditPayments)}
                 <span className="text-xs font-medium text-slate-400">/mes</span>
               </p>
-              <p className="text-[11px] text-slate-500">Ya restado de tu dinero libre</p>
+              <p className="text-[11px] text-slate-500">
+                {debts.creditOrder.some((c) => c.countedInPayments)
+                  ? 'Sin contar las cuotas que ya cobra un recibo de Pagos'
+                  : 'Ya restado de tu dinero libre'}
+              </p>
             </div>
             {/* En lugar de mandar a otra pantalla a hacer lo que ya se puede
                 hacer aquí, el pie ofrece lo único que faltaba: dar de alta. */}

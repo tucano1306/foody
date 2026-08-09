@@ -246,7 +246,7 @@ export default function FinancePlanView({ initialData }: Props) {
       case 'open_trips':
         return router.push('/shopping-trips');
       case 'open_debts':
-        return router.push('/payments/debts');
+        return router.push('/debts');
       case 'edit_goal': {
         const goal = data.rawGoals.find((g) => g.id === action.goalId);
         return setModal({ kind: 'goal', goal: goal ?? null });
@@ -415,7 +415,7 @@ export default function FinancePlanView({ initialData }: Props) {
         onOpenIncome={() => setModal({ kind: 'income' })}
         onOpenPayments={() => router.push('/payments')}
         onOpenBudget={() => router.push('/budget')}
-        onOpenDebts={() => router.push('/payments/debts')}
+        onOpenDebts={() => router.push('/debts')}
         onOpenTrips={() => router.push('/shopping-trips')}
       />
 
