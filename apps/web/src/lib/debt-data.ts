@@ -551,38 +551,6 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
   return { debts, portfolio: buildPortfolio(portfolioInput, now) };
 }
 
-export interface DebtsSummary {
-  count: number;
-  totalBalance: number;
-  currency: string;
-  /** Deudas cuyo saldo ya llegó a cero. */
-  paidOffCount: number;
-}
-
-/**
- * Resumen barato para la entrada desde Pagos: una sola consulta y SIN devengar
- * intereses. La pantalla de Pagos no debería pagar el costo de poner al día el
- * libro mayor solo por enseñar un total.
- */
-export async function getDebtsSummary(userId: string): Promise<DebtsSummary> {
-  await ensureDebtSchema();
-  const rows = await sql`
-    SELECT
-      COUNT(*) FILTER (WHERE current_balance > 0) AS active_count,
-      COUNT(*) FILTER (WHERE current_balance <= 0) AS paid_count,
-      COALESCE(SUM(current_balance), 0) AS total,
-      MIN(currency) AS currency
-    FROM debts WHERE user_id = ${userId} AND status <> 'archived'
-  `;
-  const r = (rows[0] ?? {}) as Record<string, unknown>;
-  return {
-    count: Math.trunc(num(r.active_count)),
-    paidOffCount: Math.trunc(num(r.paid_count)),
-    totalBalance: round2(num(r.total)),
-    currency: typeof r.currency === 'string' ? r.currency : 'USD',
-  };
-}
-
 /** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
 export interface CreditForPlan {
   id: string;
