@@ -436,7 +436,21 @@ export default function FinancePlanView({ initialData }: Props) {
       <AdviceFeed advice={view.advice} onAction={runAdviceAction} />
 
       {/* ─── Negocio ─────────────────────────────────────────────────────── */}
-      <BusinessPanel scopes={data.scopes} />
+      {/* `planInput` y no `data`: con el negocio excluido, la vista se
+          recalcula con el motor puro, y el desglose tiene que contar la misma
+          historia que las cifras que acompaña. */}
+      <BusinessPanel
+        scopes={view.scopes}
+        items={{
+          incomes: planInput.incomes,
+          fixedPayments: planInput.fixedPayments,
+          credits: planInput.credits ?? [],
+          groceriesMonthly: planInput.groceriesMonthly,
+          groceriesBusinessShare: planInput.groceriesBusinessShare ?? 0,
+          otherExpensesMonthly: planInput.otherExpensesMonthly ?? 0,
+          otherBusinessShare: planInput.otherBusinessShare ?? 0,
+        }}
+      />
 
       {/* ─── Deuda ───────────────────────────────────────────────────────── */}
       <DebtPanel debts={view.debts} onChanged={() => void refresh(true)} />
