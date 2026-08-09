@@ -51,7 +51,7 @@ export default async function PaymentsPage() {
       {/* Entrada a Deudas: el saldo es el gancho, tocar la tarjeta es la única
           instrucción que hace falta. */}
       <Link
-        href="/payments/debts"
+        href="/debts"
         className="flex items-center gap-4 rounded-2xl bg-linear-to-br from-sky-500 to-blue-700 px-4 py-4 shadow-sm transition-all duration-200 active:scale-[0.99] hover:shadow-md sm:px-5"
       >
         <span

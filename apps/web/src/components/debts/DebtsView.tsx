@@ -5,8 +5,10 @@ import { AnimatePresence } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, type PortfolioDebt } from '@/lib/debt-engine';
+import { findDuplicateObligations, type ObligationPayment } from '@/lib/duplicate-obligations';
 import { haptic } from '@/lib/haptic';
 import DebtCard from './DebtCard';
+import DuplicateBanner from './DuplicateBanner';
 import DebtDetailSheet from './DebtDetailSheet';
 import DebtEditModal from './DebtEditModal';
 import DebtPaymentModal from './DebtPaymentModal';
@@ -15,6 +17,13 @@ import { fmtDateKey, fmtMoney, fmtMoneyShort, KIND_META } from './debt-ui';
 
 interface Props {
   readonly initial: DebtsSnapshot;
+  /**
+   * Los recibos de Pagos, solo para detectar la cuota anotada dos veces.
+   *
+   * Llegan desde la página para no pedirlos desde el cliente: es una lista
+   * corta que el servidor ya tiene a mano.
+   */
+  readonly payments?: readonly ObligationPayment[];
 }
 
 /**
@@ -25,7 +34,7 @@ interface Props {
  * tarjetas mentalmente. Debajo, una tarjeta por deuda ordenada de mayor a menor
  * saldo, y el alta al final, sin tapar nada.
  */
-export default function DebtsView({ initial }: Props) {
+export default function DebtsView({ initial, payments = [] }: Props) {
   const [debts, setDebts] = useState<DebtWithProjection[]>(initial.debts);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -56,6 +65,24 @@ export default function DebtsView({ initial }: Props) {
   const paying = debts.find((d) => d.id === payId) ?? null;
   const editing = debts.find((d) => d.id === editId) ?? null;
   const target = portfolio.avalanche[0] ?? null;
+
+  // El mismo pago en Pagos y en Deudas se restaba dos veces en el plan. Se
+  // recalcula en el cliente para que el banner desaparezca en el momento en
+  // que se resuelve, sin recargar.
+  const suspects = useMemo(
+    () => findDuplicateObligations(
+      payments,
+      debts.map((d) => ({
+        id: d.id,
+        name: d.name,
+        issuer: d.issuer,
+        installment: d.projection.installment,
+        linkedPaymentId: d.linkedPaymentId,
+        duplicateDismissed: d.duplicateDismissed,
+      })),
+    ),
+    [payments, debts],
+  );
 
   const upsert = useCallback((updated: DebtWithProjection) => {
     setDebts((prev) => {
@@ -131,6 +158,13 @@ export default function DebtsView({ initial }: Props) {
           <span className="shrink-0 text-slate-400" aria-hidden="true">›</span>
         </button>
       )}
+
+      {/* ─── Posibles duplicados ─────────────────────────────────────────
+          Va ARRIBA de la lista y no dentro de cada tarjeta: es un problema de
+          cuentas, no un detalle de una deuda, y hay que verlo al entrar. */}
+      {suspects.map((s) => (
+        <DuplicateBanner key={s.debtId} suspect={s} onResolved={upsert} />
+      ))}
 
       {/* ─── Lista ───────────────────────────────────────────────────────── */}
       {debts.length > 0 && (

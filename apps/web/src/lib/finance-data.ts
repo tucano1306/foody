@@ -10,9 +10,10 @@
  */
 import { sql } from '@/lib/db';
 import { getBudgetData } from '@/lib/budget-data';
-import { listCreditsForPlan } from '@/lib/debt-data';
+import { listCreditsForPlan, type CreditForPlan } from '@/lib/debt-data';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
+import { findDuplicateObligations, type DuplicateSuspect } from '@/lib/duplicate-obligations';
 import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 import { buildPaymentAggregates, type PaidRecordInput } from '@/lib/payment-aggregates';
 import {
@@ -72,6 +73,8 @@ export interface FinancePlanPayload extends FinancePlan {
    */
   groceriesBusinessShare: number;
   otherBusinessShare: number;
+  /** Cuotas que podrían estar ya cobradas como pago mensual, sin resolver. */
+  duplicateObligations: DuplicateSuspect[];
   /** Totales de super por mes (para la mini gráfica de tendencia). */
   history: MonthTotal[];
   payments: FixedPaymentInput[];
@@ -448,7 +451,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
       loadGroceryBreakdown(userId),
       // Las cuotas de tarjetas y créditos son compromiso mensual: sin ellas el
       // plan repartiría entre metas un dinero que ya está comprometido.
-      listCreditsForPlan(userId).catch(() => [] as CreditInput[]),
+      listCreditsForPlan(userId).catch(() => [] as CreditForPlan[]),
       loadGroceryBusinessShare(userId).catch(() => 0),
       // Comer fuera, farmacia, gasolina: gasto real que hasta ahora no restaba
       // en ningún sitio. Si esta consulta falla, el plan sigue siendo el de
@@ -470,6 +473,21 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     limit: budget.monthlyLimit,
   });
 
+  // El mismo pago anotado en Pagos y en Deudas se restaba dos veces. Se
+  // detecta con lo que ya está cargado —cero consultas extra— y solo se
+  // SOSPECHA: emparejar en silencio escondería dinero real.
+  const duplicateObligations = findDuplicateObligations(
+    fixedPayments.map((p) => ({ id: p.id, name: p.name, amount: p.amount })),
+    credits.map((c) => ({
+      id: c.id,
+      name: c.name,
+      issuer: c.issuer,
+      installment: c.installment,
+      linkedPaymentId: c.linkedPaymentId,
+      duplicateDismissed: c.duplicateDismissed,
+    })),
+  );
+
   const input: PlanInput = {
     incomes,
     goals,
@@ -483,6 +501,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     otherExpensesMonthly: otherSpend.baseline,
     otherBusinessShare,
     otherSpend,
+    duplicateObligations,
     extraMonthly,
   };
 
@@ -497,6 +516,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     otherSpend,
     groceriesBusinessShare,
     otherBusinessShare,
+    duplicateObligations,
     history: budget.history,
     payments: fixedPayments,
     credits,

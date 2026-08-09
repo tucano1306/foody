@@ -1054,3 +1054,95 @@ describe('meta vencida — no promete fechas sin ritmo', () => {
     expect(a?.body).not.toContain('al ritmo de $0');
   });
 });
+
+describe('cuota enlazada a un pago mensual — no se cuenta dos veces', () => {
+  // El bug real: la cuota del coche estaba en Pagos como «GMC» ($1,097, 100 %
+  // negocio) Y en Deudas como «Auto» (cuota $1,097, 100 % negocio). El plan
+  // restaba las dos, así que el negocio parecía gastar $3,411 en vez de $2,314.
+  const gmc = payment({ id: 'p-gmc', name: 'GMC', amount: 1097, businessShare: 100 });
+  const auto = credit({ id: 'd-auto', name: 'Auto', installment: 1097, businessShare: 100 });
+
+  it('sin enlazar, resta las dos (el comportamiento roto que se documenta)', () => {
+    const p = buildFinancePlan(plan({ fixedPayments: [gmc], credits: [auto], goals: [] }));
+    expect(p.cashFlow.fixedPayments).toBe(1097);
+    expect(p.cashFlow.creditPayments).toBe(1097);
+  });
+
+  it('enlazada, la cuota deja de restarse', () => {
+    const p = buildFinancePlan(plan({
+      fixedPayments: [gmc],
+      credits: [{ ...auto, linkedPaymentId: 'p-gmc' }],
+      goals: [],
+    }));
+    expect(p.cashFlow.fixedPayments).toBe(1097);
+    expect(p.cashFlow.creditPayments).toBe(0);
+  });
+
+  it('el dinero libre sube exactamente lo que se dejó de contar dos veces', () => {
+    const base = plan({ fixedPayments: [gmc], credits: [auto], goals: [] });
+    const roto = buildFinancePlan(base);
+    const bueno = buildFinancePlan({ ...base, credits: [{ ...auto, linkedPaymentId: 'p-gmc' }] });
+    expect(bueno.cashFlow.available - roto.cashFlow.available).toBe(1097);
+  });
+
+  it('el negocio deja de gastar el doble', () => {
+    const p = buildFinancePlan(plan({
+      fixedPayments: [gmc, payment({ id: 'p2', name: 'Cable', amount: 917, businessShare: 100 })],
+      credits: [{ ...auto, linkedPaymentId: 'p-gmc' }],
+      goals: [],
+    }));
+    // 1097 + 917 de pagos fijos, y la cuota ya NO se suma encima.
+    expect(p.scopes.business.fixedPayments).toBe(2014);
+    expect(p.scopes.business.creditPayments).toBe(0);
+    expect(p.scopes.business.expenses).toBe(2014);
+  });
+
+  it('la fila del crédito se marca como ya contada, para que el total cuadre', () => {
+    const p = buildFinancePlan(plan({
+      fixedPayments: [gmc],
+      credits: [{ ...auto, linkedPaymentId: 'p-gmc' }, credit({ id: 'c2', installment: 110 })],
+      goals: [],
+    }));
+    const fila = p.debts.creditOrder.find((c) => c.id === 'd-auto');
+    expect(fila?.countedInPayments).toBe(true);
+    // La cuota real se sigue mostrando: es verdad que la cuota son $1,097.
+    expect(fila?.installment).toBe(1097);
+    // Pero el comprometido solo cuenta la que no está en Pagos.
+    expect(p.debts.creditPayments).toBe(110);
+  });
+
+  it('un enlace huérfano vuelve a contar: el dinero no puede desaparecer', () => {
+    // Si el usuario borró el recibo de Pagos, ese dinero vuelve a salir por la
+    // cuota. Seguir excluyéndola lo haría desaparecer del plan — el error
+    // contrario, y mucho más difícil de notar.
+    const p = buildFinancePlan(plan({
+      fixedPayments: [],
+      credits: [{ ...auto, linkedPaymentId: 'p-gmc' }],
+      goals: [],
+    }));
+    expect(p.cashFlow.creditPayments).toBe(1097);
+    expect(p.debts.creditOrder[0].countedInPayments).toBe(false);
+  });
+
+  it('la vista solo-personal respeta el enlace', () => {
+    const p = buildFinancePlan(personalOnlyInput(plan({
+      fixedPayments: [gmc],
+      credits: [{ ...auto, linkedPaymentId: 'p-gmc' }],
+      goals: [],
+    })));
+    // El pago es 100 % negocio, así que en personal no queda ni el pago ni la
+    // cuota — y desde luego no la cuota sola.
+    expect(p.cashFlow.fixedPayments).toBe(0);
+    expect(p.cashFlow.creditPayments).toBe(0);
+  });
+
+  it('el interés del crédito enlazado se sigue contando: eso no lo cubre el recibo', () => {
+    const p = buildFinancePlan(plan({
+      fixedPayments: [gmc],
+      credits: [{ ...auto, linkedPaymentId: 'p-gmc', monthlyInterest: 211 }],
+      goals: [],
+    }));
+    expect(p.debts.creditMonthlyInterest).toBe(211);
+    expect(p.debts.creditBalance).toBe(1000);
+  });
+});
