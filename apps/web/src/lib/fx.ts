@@ -87,3 +87,58 @@ export function confettiRain(emojis: readonly string[] = ['🎉', '✨']): void 
   }
   setTimeout(() => layer.remove(), 3300);
 }
+
+/**
+ * «Se me acabó»: el humo sube y el carrito se lo lleva.
+ *
+ * Antes esto era un `burstFromElement` con una nubecita, y el estallido radial
+ * no contaba nada: las partículas salían igual hacia arriba que hacia abajo.
+ * Aquí el humo SUBE —como algo que se evapora— y detrás asoma un carrito que
+ * también sube, que es la mitad de la historia que faltaba: lo que se acaba no
+ * desaparece, se va a la lista de la compra.
+ */
+export function ranOutFrom(el: Element | null | undefined): void {
+  if (!el || reducedMotion()) return;
+  const r = el.getBoundingClientRect();
+  const layer = makeLayer();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+
+  // El humo: varias bocanadas que suben abriéndose, cada una a su ritmo.
+  for (let i = 0; i < 7; i++) {
+    const p = document.createElement('span');
+    p.textContent = '💨';
+    const from = cx + (Math.random() - 0.5) * r.width * 0.6;
+    p.style.cssText = `position:absolute;left:${from}px;top:${cy}px;font-size:${16 + Math.random() * 12}px;will-change:transform,opacity;`;
+    layer.append(p);
+    p.animate(
+      [
+        { transform: 'translate(-50%,-50%) scale(0.5)', opacity: 0 },
+        { transform: `translate(calc(-50% + ${(Math.random() - 0.5) * 70}px), -${70 + Math.random() * 50}px) scale(1.25)`, opacity: 0.95, offset: 0.35 },
+        { transform: `translate(calc(-50% + ${(Math.random() - 0.5) * 110}px), -${130 + Math.random() * 70}px) scale(1.5)`, opacity: 0 },
+      ],
+      {
+        duration: 900 + Math.random() * 400,
+        delay: i * 45,
+        easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)',
+        fill: 'forwards',
+      },
+    );
+  }
+
+  // Y el carrito, que dice a dónde se fue.
+  const cart = document.createElement('span');
+  cart.textContent = '🛒';
+  cart.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;font-size:30px;will-change:transform,opacity;`;
+  layer.append(cart);
+  cart.animate(
+    [
+      { transform: 'translate(-50%,-50%) scale(0.4) rotate(-12deg)', opacity: 0 },
+      { transform: 'translate(-50%,-115%) scale(1.15) rotate(4deg)', opacity: 1, offset: 0.45 },
+      { transform: 'translate(-50%,-210%) scale(0.9) rotate(-4deg)', opacity: 0 },
+    ],
+    { duration: 1150, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)', fill: 'forwards' },
+  );
+
+  setTimeout(() => layer.remove(), 1700);
+}
