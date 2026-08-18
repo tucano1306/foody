@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import ModernTitle from '@/components/layout/ModernTitle';
 import ReclassifyChip from '@/components/shopping/ReclassifyChip';
+import OtherExpensesButton from '@/components/shopping/OtherExpensesButton';
 import { detectExpenseKind } from '@/lib/expense-kind';
 import type { ShoppingTrip } from '@foody/types';
 
@@ -98,24 +99,12 @@ export default async function ShoppingTripsPage() {
       )}
 
       {/* Lo que se escaneó y NO era super. Solo aparece si existe: quien nunca
-          clasifica un gasto fuera del super no ve nada de esto. */}
-      {otherKinds.count > 0 && (
-        <Link
-          href="/plan"
-          className="flex items-center gap-3 rounded-2xl bg-blue-50 border border-blue-100 px-4 py-3 hover:bg-blue-100 transition"
-        >
-          <span className="text-2xl">🧭</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-blue-800 text-sm">
-              {otherKinds.count} {otherKinds.count === 1 ? 'gasto' : 'gastos'} fuera del super este mes
-            </p>
-            <p className="text-xs text-blue-500">
-              {formatCurrency(otherKinds.total, currency)} en comida fuera, farmacia o gasolina — están en tu plan
-            </p>
-          </div>
-          <span className="text-blue-400 text-sm">→</span>
-        </Link>
-      )}
+          clasifica un gasto fuera del super no ve nada de esto.
+
+          Título y cifra, nada más: el desglose por tipo se abre al tocar, en
+          vez de resumirse en un renglón de texto que no cabía y no dejaba
+          llegar al detalle. */}
+      {otherKinds.count > 0 && <OtherExpensesButton total={otherKinds.total} />}
 
       {/* Compare prices shortcut */}
       <Link
