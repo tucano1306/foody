@@ -48,6 +48,40 @@ export async function GET(request: NextRequest) {
 
   await ensureExpenseKindSchema();
 
+  // ── `?kind=all`: la CLASIFICACIÓN de lo que no es super ───────────────────
+  // Cuánto se fue en cada tipo este mes, sin bajar al ticket. Es la respuesta a
+  // «¿en qué se me va lo de fuera del super?» y el paso previo a abrir un tipo
+  // concreto.
+  if (kindParam === 'all') {
+    const rows = await sql`
+      SELECT kind,
+             COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total,
+             COUNT(*) AS count
+      FROM shopping_trips
+      WHERE user_id = ${user.userId}
+        AND kind <> 'grocery'
+        AND date >= DATE_TRUNC('month', NOW())
+      GROUP BY kind
+      ORDER BY total DESC
+    `;
+
+    const byKind = (rows as Record<string, unknown>[]).map((r) => ({
+      kind: normalizeExpenseKind(r.kind),
+      total: num(r.total),
+      count: Math.trunc(num(r.count)),
+    }));
+
+    return NextResponse.json({
+      kind: 'expense-kinds' as const,
+      category: 'all',
+      total: Math.round(byKind.reduce((s, k) => s + k.total, 0) * 100) / 100,
+      items: [],
+      trips: [],
+      expenses: [],
+      byKind,
+    });
+  }
+
   // ── Gasto que NO es super: los TICKETS de un tipo ─────────────────────────
   // Aquí los elementos son recibos enteros, no líneas de producto: una cena no
   // tiene desglose que editar, tiene un total, un sitio y una fecha.
