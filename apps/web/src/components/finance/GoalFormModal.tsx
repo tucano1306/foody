@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { haptic } from '@/lib/haptic';
 import ModalShell from './ModalShell';
 import { DAYS_PER_MONTH, daysUntil, type FinanceGoal, type GoalKind } from '@/lib/finance-engine';
-import { KIND_META, PRIORITY_LABEL, fmtMoney, fmtMoneyFine, todayKey } from './finance-ui';
+import { KIND_META, fmtMoney, fmtMoneyFine, todayKey } from './finance-ui';
 
 export interface GoalPayload {
   name: string;
@@ -13,7 +13,6 @@ export interface GoalPayload {
   targetAmount: number;
   savedAmount: number;
   targetDate: string | null;
-  priority: number;
   monthlyOverride: number | null;
   status: 'active' | 'paused' | 'done';
   note: string | null;
@@ -61,7 +60,6 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
   const [target, setTarget] = useState(goal ? String(goal.targetAmount) : '');
   const [saved, setSaved] = useState(goal ? String(goal.savedAmount) : '');
   const [date, setDate] = useState(goal?.targetDate ?? '');
-  const [priority, setPriority] = useState(goal?.priority ?? 1);
   const [override, setOverride] = useState(goal?.monthlyOverride ? String(goal.monthlyOverride) : '');
   const [note, setNote] = useState(goal?.note ?? '');
   const [saving, setSaving] = useState(false);
@@ -111,7 +109,6 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
         targetAmount,
         savedAmount: Number.parseFloat(saved) || 0,
         targetDate: date || null,
-        priority,
         monthlyOverride: override ? Number.parseFloat(override) : null,
         status: goal?.status ?? 'active',
         note: note.trim() || null,
@@ -243,39 +240,22 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
           </div>
         </div>
 
-        {/* Fecha + prioridad */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls} htmlFor="goal-date">¿Para cuándo?</label>
-            <input
-              id="goal-date"
-              type="date"
-              min={todayKey()}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <span className={labelCls}>Prioridad</span>
-            <div className="flex gap-1.5">
-              {[1, 2, 3].map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => { setPriority(p); haptic(6); }}
-                  title={PRIORITY_LABEL[p]}
-                  className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold transition ${
-                    priority === p
-                      ? 'bg-sky-100 text-sky-700 ring-2 ring-sky-200'
-                      : 'bg-white/70 text-slate-500 hover:bg-slate-100'
-                  }`}
-                >
-                  {'⭐'.repeat(4 - p)}
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* Aquí había un selector de prioridad de tres estrellas. Se fue cuando
+            el orden de la lista pasó a ser la prioridad: eran dos mandos para
+            la misma columna, y el de las estrellas ganaba —bastaba editar el
+            nombre de una meta para deshacer el orden que el usuario había
+            armado arrastrando—. Ahora se dice de una sola forma, y es la que ya
+            se ve: la meta que está más arriba es la que va primero. */}
+        <div>
+          <label className={labelCls} htmlFor="goal-date">¿Para cuándo?</label>
+          <input
+            id="goal-date"
+            type="date"
+            min={todayKey()}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={inputCls}
+          />
         </div>
 
         {/* Vista previa del esfuerzo */}

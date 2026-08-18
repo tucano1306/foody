@@ -43,7 +43,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       target_amount    = ${input.targetAmount},
       saved_amount     = ${input.savedAmount},
       target_date      = ${input.targetDate},
-      priority         = ${input.priority},
+      -- COALESCE y no asignación directa: el formulario ya no manda prioridad,
+      -- y editar el nombre de una meta no puede deshacer el orden que el
+      -- usuario armó arrastrando las tarjetas.
+      priority         = COALESCE(${input.priority}, priority),
       monthly_override = ${input.monthlyOverride},
       status           = ${input.status},
       note             = ${input.note},
