@@ -14,6 +14,7 @@ import { burstFromElement, confettiRain } from '@/lib/fx';
 import { useToast } from '@/components/ui/Toast';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
+import { lockBodyScroll } from '@/lib/scroll-lock';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
@@ -202,9 +203,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const anySheetOpen = showModal || editorItemId !== null || showAddSheet;
   useEffect(() => {
     if (!anySheetOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    return lockBodyScroll();
   }, [anySheetOpen]);
 
   // Los atajos de marca se piden una sola vez: es una lista de nombres
