@@ -241,6 +241,20 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
     onDeleted?.(currentPayment.id);
   }, [currentPayment.id, onDeleted]);
 
+  /**
+   * ¿Esta tarjeta tiene que avisar?
+   *
+   * Solo lo que de verdad está sin pagar y sin posponer: un pago ya hecho no
+   * tiene nada que reclamar, y uno pospuesto es una decisión del usuario —
+   * seguir insistiendo después de que dijo «más tarde» es no escucharle.
+   *
+   * `!justPaid` porque las dos animaciones se pisarían: ambas escriben la
+   * propiedad `animation`, así que solo una puede correr. El brinco de «pagado»
+   * gana ese instante; si el pago tenía meses atrasados y sigue debiendo el mes
+   * en curso, al terminar el brinco el aviso vuelve solo.
+   */
+  const pulsePending = !isPaid && !isSnoozed && !justPaid;
+
   return (
     <div ref={cardRef}>
       {/* Tocar la tarjeta abre el detalle. Marcar pagado se hace con el botón
@@ -258,7 +272,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
         type="button"
         onClick={() => setSheetOpen(true)}
         onAnimationEnd={(e) => { if (e.animationName === 'foody-pop') setJustPaid(false); }}
-        className={`relative w-full text-left flex flex-col bg-sky-50/70 border border-sky-100 rounded-2xl p-5 shadow-sm hover:bg-white/70 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${justPaid ? ' animate-pop' : ''}`}
+        className={`relative w-full text-left flex flex-col bg-sky-50/70 border border-sky-100 rounded-2xl p-5 shadow-sm hover:bg-white/70 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${justPaid ? ' animate-pop' : ''}${pulsePending ? ' pulse-pending' : ''}`}
       >
         {/* Top row: icon + name + amount */}
         <div className="flex items-center gap-4">

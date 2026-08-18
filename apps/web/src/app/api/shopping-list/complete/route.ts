@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensurePurchaseSchema } from '@/lib/ensure-schema';
+import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { normalizeBrand } from '@/lib/product-brands';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
@@ -212,6 +213,12 @@ export async function POST(request: NextRequest) {
   await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND is_in_cart = true`;
 
   await notifyShoppingComplete(user.userId, items.length, storeName).catch(() => undefined);
+
+  // Esta es la vía por la que se compra de verdad, así que es la que más
+  // pantallas deja viejas: «Más comprados» en Casa, los totales de Compras, el
+  // presupuesto. Sin esto la estadística parecía no actualizarse nunca, porque
+  // el `router.refresh()` del súper solo refresca el súper.
+  revalidateAfterPurchase();
 
   return NextResponse.json({ completed: items.length, tripId, purchasesInserted, purchaseError });
 }

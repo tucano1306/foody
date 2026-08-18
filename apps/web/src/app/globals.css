@@ -516,6 +516,38 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent
   animation: foody-shake 0.5s ease both;
 }
 
+/* ─── Pago pendiente: un aviso que respira ───────────────────────────────── */
+/* Un pago sin pagar tiene que distinguirse sin gritar. Un color fijo se vuelve
+   invisible a los dos días —el ojo lo deja de registrar—, así que la tarjeta
+   respira muy despacio hacia un rojo crema y vuelve.
+
+   Los 4 s son a propósito. Más rápido parpadea y marea en una lista de diez
+   pagos; a esta velocidad se percibe al pasar la vista por encima pero no
+   compite con lo que se esté leyendo. Los colores de reposo son exactamente los
+   de la tarjeta (`bg-sky-50/70`, `border-sky-100`) para que el ciclo cierre sin
+   un salto de color.
+
+   El bloque de `prefers-reduced-motion` del final de este archivo lo apaga
+   entero, así que quien tenga las animaciones desactivadas ve la tarjeta quieta.
+
+   Se quita en cuanto el pago pasa a pagado: el aviso deja de tener sentido y un
+   recordatorio que sigue insistiendo después de hacerle caso es peor que no
+   tenerlo. */
+@keyframes foody-pendiente {
+  0%,
+  100% {
+    background-color: rgb(240 249 255 / 0.7);
+    border-color: rgb(224 242 254);
+  }
+  50% {
+    background-color: rgb(254 238 233 / 0.95);
+    border-color: rgb(250 203 193);
+  }
+}
+.pulse-pending {
+  animation: foody-pendiente 4s ease-in-out infinite;
+}
+
 /* ─── Scroll reveal: sections slide+fade in as they enter the viewport ───── */
 .reveal-section {
   opacity: 0;

@@ -502,9 +502,37 @@ export const api = {
       `;
       return (rows as { product_id: string }[]).map((r) => String(r.product_id));
     },
+    /**
+     * «Más comprados»: lo que se repite, para anticipar la próxima compra.
+     *
+     * Cuenta TICKETS y no unidades a propósito: para predecir cuándo toca
+     * reponer importa cada cuánto se compra algo, no si ese día cayeron tres
+     * paquetes o uno.
+     *
+     * Va filtrado por `kind = 'grocery'` como toda consulta de despensa (ver
+     * expense-kind-split): sin el filtro, una cena en un restaurante o una
+     * caja de pastillas entraban en la lista de «productos más comprados» de
+     * la cocina. `ensureExpenseKindSchema` antes de usar la columna, o en un
+     * arranque en frío revienta con «column kind does not exist».
+     */
     frequent: async () => {
       const { userId } = await getAuthContext();
-      const rows = await sql`SELECT product_id as "productId", p.name, p.photo_url as "photoUrl", COUNT(*) as purchases, MAX(purchased_at) as "lastPurchasedAt" FROM product_purchases pp JOIN products p ON pp.product_id = p.id WHERE pp.user_id = ${userId} GROUP BY product_id, p.name, p.photo_url ORDER BY purchases DESC LIMIT 10`;
+      await ensureExpenseKindSchema();
+      const rows = await sql`
+        SELECT pp.product_id AS "productId",
+               p.name,
+               p.photo_url AS "photoUrl",
+               COUNT(*) AS purchases,
+               MAX(pp.purchased_at) AS "lastPurchasedAt"
+        FROM product_purchases pp
+        JOIN products p ON pp.product_id = p.id
+        LEFT JOIN shopping_trips t ON t.id = pp.trip_id
+        WHERE pp.user_id = ${userId}
+          AND (pp.trip_id IS NULL OR t.kind = 'grocery')
+        GROUP BY pp.product_id, p.name, p.photo_url
+        ORDER BY purchases DESC, MAX(pp.purchased_at) DESC
+        LIMIT 10
+      `;
       return rows.map((row) => ({
         productId: String(row.productId),
         name: asText(row.name),
