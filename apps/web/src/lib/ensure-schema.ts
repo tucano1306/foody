@@ -74,6 +74,30 @@ export async function ensureProductSharingSchema(): Promise<void> {
   sharingEnsured = true;
 }
 
+let stockSignalsEnsured = false;
+
+/**
+ * Las dos marcas de tiempo que le faltaban al aviso «se te acaba».
+ *
+ * - `stock_updated_at`: cuándo dijo el usuario en qué estado está el producto.
+ *   Sin ella, la predicción contaba desde la última COMPRA e ignoraba que él
+ *   acababa de marcarlo lleno — de ahí el «Carbone ya se agotó» diario sobre
+ *   algo que tenía en casa.
+ * - `last_stock_alert_at`: cuándo se le avisó. Sin ella no había forma de no
+ *   repetir el mismo aviso cada mañana.
+ *
+ * Se rellenan con `updated_at` al crearlas: es la mejor aproximación
+ * disponible a «la última vez que supimos algo de este producto», y evita que
+ * el primer día tras el despliegue todo parezca recién tocado.
+ */
+export async function ensureStockSignalSchema(): Promise<void> {
+  if (stockSignalsEnsured) return;
+  await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_updated_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS last_stock_alert_at TIMESTAMPTZ`;
+  await sql`UPDATE products SET stock_updated_at = updated_at WHERE stock_updated_at IS NULL`;
+  stockSignalsEnsured = true;
+}
+
 let scopeEnsured = false;
 
 /**

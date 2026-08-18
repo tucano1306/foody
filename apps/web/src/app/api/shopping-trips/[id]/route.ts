@@ -140,7 +140,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (effectiveKind === 'grocery' && productIds.length > 0) {
     await sql`
       UPDATE products
-      SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
+      SET stock_level = 'full', stock_updated_at = NOW(), is_running_low = false, needs_shopping = false, updated_at = NOW()
       WHERE id = ANY(${productIds}::uuid[])
         AND user_id = ${user.userId}
     `;

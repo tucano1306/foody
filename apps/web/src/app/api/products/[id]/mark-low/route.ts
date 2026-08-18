@@ -14,7 +14,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!access) return notFound();
 
   const rows = await sql`
-    UPDATE products SET stock_level = 'half', is_running_low = true, needs_shopping = true, updated_at = NOW()
+    UPDATE products SET stock_level = 'half', stock_updated_at = NOW(), is_running_low = true, needs_shopping = true, updated_at = NOW()
     WHERE id = ${id} RETURNING *
   `;
   if (!rows.length) return notFound();

@@ -398,13 +398,13 @@ export const api = {
     },
     markLow: async (id: string) => {
       const { userId } = await getAuthContext();
-      const rows = await sql`UPDATE products SET stock_level='half', is_running_low=true, needs_shopping=true, updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET stock_level='half', stock_updated_at = NOW(), is_running_low=true, needs_shopping=true, updated_at=NOW() WHERE id=${id} RETURNING *`;
       await sql`INSERT INTO shopping_list_items (id, product_id, user_id, created_at, updated_at) VALUES (gen_random_uuid(), ${id}, ${userId}, NOW(), NOW()) ON CONFLICT DO NOTHING`;
       return mapProduct(rows[0] as Record<string, unknown>);
     },
     markOk: async (id: string) => {
       const { userId } = await getAuthContext();
-      const rows = await sql`UPDATE products SET stock_level='full', is_running_low=false, needs_shopping=false, updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET stock_level='full', stock_updated_at = NOW(), is_running_low=false, needs_shopping=false, updated_at=NOW() WHERE id=${id} RETURNING *`;
       await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       return mapProduct(rows[0] as Record<string, unknown>);
     },
@@ -412,7 +412,7 @@ export const api = {
       const { userId } = await getAuthContext();
       const isRunningLow = level !== 'full';
       const needsShopping = level === 'empty';
-      const rows = await sql`UPDATE products SET stock_level=${level}, is_running_low=${isRunningLow}, needs_shopping=${needsShopping}, updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET stock_level=${level}, stock_updated_at = NOW(), is_running_low=${isRunningLow}, needs_shopping=${needsShopping}, updated_at=NOW() WHERE id=${id} RETURNING *`;
       if (level === 'full') {
         await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       } else {
@@ -438,7 +438,7 @@ export const api = {
         VALUES (${purchaseId}, ${id}, ${data.quantity}, ${unitPrice}, ${totalPrice}, 'manual', ${data.currency ?? 'USD'}, ${data.purchasedAt ?? new Date().toISOString()}, ${userId}, ${householdId}, NOW())
         RETURNING *
       `;
-      const rows = await sql`UPDATE products SET current_quantity=current_quantity+${data.quantity}, stock_level='full', is_running_low=false, needs_shopping=false, last_purchase_price=${unitPrice}, last_purchase_date=NOW(), updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET current_quantity=current_quantity+${data.quantity}, stock_level='full', stock_updated_at = NOW(), is_running_low=false, needs_shopping=false, last_purchase_price=${unitPrice}, last_purchase_date=NOW(), updated_at=NOW() WHERE id=${id} RETURNING *`;
       await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       return {
         product: mapProduct(rows[0] as Record<string, unknown>),
