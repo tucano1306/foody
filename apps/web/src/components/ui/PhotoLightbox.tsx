@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
+import { lockBodyScroll } from '@/lib/scroll-lock';
 
 interface Props {
   readonly src: string;
@@ -117,11 +118,9 @@ function MobileLightbox({ src: rawSrc, alt, onClose, originRect }: Props) {
   }, [onClose]);
 
   // ── Lock body scroll ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  // Shared counter: the lightbox often opens from INSIDE a modal, and two
+  // hand-rolled locks overwrite each other's saved state — see scroll-lock.ts.
+  useEffect(() => lockBodyScroll(), []);
 
   const applyTransform = useCallback(() => {
     const el = imgRef.current;

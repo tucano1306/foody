@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowsPointingOutIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { lockBodyScroll } from '@/lib/scroll-lock';
 
 interface Props {
   readonly title: string;
@@ -23,12 +24,11 @@ export default function ChartZoom({ title, children }: Props) {
   // Lock body scroll + close with Escape while the overlay is open
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const unlock = lockBodyScroll();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     globalThis.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = prev;
+      unlock();
       globalThis.removeEventListener('keydown', onKey);
     };
   }, [open]);
