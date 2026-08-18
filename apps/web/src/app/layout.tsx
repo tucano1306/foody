@@ -3,6 +3,7 @@ import Script from 'next/script';
 import './globals.css';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
+import { CelebrationProvider } from '@/components/ui/Celebration';
 
 export const metadata: Metadata = {
   title: { default: 'Foody', template: '%s | Foody' },
@@ -50,7 +51,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-slate-50">
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <CelebrationProvider>{children}</CelebrationProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

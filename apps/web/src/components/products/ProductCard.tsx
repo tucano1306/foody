@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
-import { burstFromElement } from '@/lib/fx';
+import { burstFromElement, ranOutFrom } from '@/lib/fx';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -161,7 +161,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
     if (next === 'empty') {
       playSound('empty');
       setShaking(true);
-      burstFromElement(rootRef.current, ['💨']);
+      ranOutFrom(rootRef.current);
     } else if (next === 'full') {
       playSound('pop');
       burstFromElement(rootRef.current, ['✨', '🎉', '⭐']);

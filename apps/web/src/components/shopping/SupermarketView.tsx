@@ -11,6 +11,7 @@ import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstFromElement, confettiRain } from '@/lib/fx';
+import { useCelebration } from '@/components/ui/Celebration';
 import { useToast } from '@/components/ui/Toast';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
@@ -139,9 +140,22 @@ function sortCategories(cats: string[]): string[] {
   });
 }
 
+/**
+ * «12 artículos · $48.20» — el dato del que uno se siente dueño al terminar.
+ * Sin total escrito se dice solo lo que sí se sabe, en vez de inventar un cero.
+ */
+export function resumenDeCompra(articulos: number, total: string): string {
+  const cuantos = `${articulos} ${articulos === 1 ? 'artículo' : 'artículos'}`;
+  const importe = Number.parseFloat(total);
+  return Number.isFinite(importe) && importe > 0
+    ? `${cuantos} · $${importe.toFixed(2)}`
+    : cuantos;
+}
+
 export default function SupermarketView({ initialItems, pastStoreNames }: Props) {
   const router = useRouter();
   const toast = useToast();
+  const { celebrate } = useCelebration();
   const [items, setItems] = useState(initialItems);
   const [, startTransition] = useTransition();
   const [completing, setCompleting] = useState(false);
@@ -406,6 +420,18 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         const data = await res.json();
         playSound('purchase');
         confettiRain(['🛒', '🎉', '🥳']);
+        // La compra terminada es el logro grande de esta pantalla: se dice con
+        // el número que costó llenar el carrito, no con un aviso de esquina.
+        //
+        // SIN chispas propias: la lluvia de confeti ya está cayendo por encima
+        // (va en su propia capa, más alta). Sumar los dos sistemas serían ~84
+        // partículas a la vez —trabajo de sobra para un teléfono modesto— y
+        // visualmente se estorban en vez de sumar.
+        celebrate({
+          emoji: '🛍️',
+          title: '¡Compra hecha!',
+          detail: resumenDeCompra(inCart.length, totalAmount),
+        });
         if (data.purchaseError) {
           toast.show('Compra guardada, pero algunos precios no se pudieron guardar.', 'info');
         } else {

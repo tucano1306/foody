@@ -4,6 +4,10 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Product, CreateProductDto } from '@foody/types';
 import { isHeicFile, withTimeout, convertHeicToJpegBlob, dataUrlToBlob } from '@/lib/image-file';
+import { categoryEmoji } from '@/lib/categories';
+import { haptic } from '@/lib/haptic';
+import { playSound } from '@/lib/sound';
+import { useCelebration } from '@/components/ui/Celebration';
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
@@ -328,6 +332,7 @@ async function uploadPhoto(dataUrl: string): Promise<string | null> {
 
 export default function ProductForm({ product, inHousehold, isOwner = true }: Props) {
   const router = useRouter();
+  const { celebrate } = useCelebration();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   // Opt-in sharing: new products start private; editing shows the product's
@@ -427,6 +432,21 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
       // Navigate first, then refresh so the *destination* (/products) re-fetches
       // fresh server data. Refreshing before the push only revalidates the form
       // route and lands on a stale, cached product list.
+      // Solo al DAR DE ALTA, no al editar: celebrar cada corrección de una
+      // cantidad convertiría la fiesta en ruido. Va antes de navegar y se ve
+      // igual: la capa vive en el layout, así que sobrevive al cambio de
+      // pantalla y se luce sobre la despensa donde el producto acaba de caer.
+      if (!product) {
+        playSound('pop');
+        haptic([12, 30, 12]);
+        celebrate({
+          emoji: categoryEmoji(form.category),
+          title: '¡A la despensa!',
+          detail: form.name?.trim() || undefined,
+          confetti: ['✨', '🥫', '🧺'],
+        });
+      }
+
       router.push('/products');
       router.refresh();
     } catch (err) {
