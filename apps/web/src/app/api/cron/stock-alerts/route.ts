@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { ensureStockSignalSchema } from '@/lib/ensure-schema';
 import { sendWebPush } from '@/lib/web-push';
+import {
+  forecastMessage,
+  forecastStock,
+  MIN_PURCHASE_DAYS,
+  type ForecastReason,
+  type StockLevel,
+} from '@/lib/stock-forecast';
 import type { PushSubscription } from 'web-push';
 
 export const runtime = 'nodejs';
@@ -9,32 +17,33 @@ export const maxDuration = 60;
 type Row = {
   product_id: string;
   product_name: string;
-  stock_level: 'full' | 'half' | 'empty';
+  stock_level: StockLevel;
   user_id: string;
   user_name: string | null;
   push_subscription: PushSubscription | null;
   avg_interval_days: number | null;
+  purchase_days: number;
   last_purchased_at: string | null;
+  stock_updated_at: string | null;
+  last_stock_alert_at: string | null;
 };
 
-function stockFraction(level: Row['stock_level']): number {
-  if (level === 'full') return 1;
-  if (level === 'half') return 0.5;
-  return 0.1;
+function toDate(value: string | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function buildBody(name: string | null, productName: string, daysRemaining: number, cycle: number): string {
-  const firstName = name?.split(' ')[0] ?? null;
-  const greeting = firstName ? `Hola ${firstName}, ` : '¡Hola! ';
-  if (daysRemaining <= 0) {
-    return `${greeting}parece que ${productName} ya se agotó. ¡Te lo agregamos a la lista del súper! 🛒`;
-  }
-  if (daysRemaining === 1) {
-    return `${greeting}basándonos en tu consumo habitual, ${productName} te durará solo 1 día más. ¿Lo agregamos a la lista? 🛒`;
-  }
-  return `${greeting}según tus patrones de compra (cada ~${cycle} días), ${productName} te durará unos ${daysRemaining} días más. ¡Buen momento para reponerlo! 🛒`;
-}
-
+/**
+ * GET /api/cron/stock-alerts — «se te está acabando X», una vez por ciclo.
+ *
+ * Toda la decisión vive en `stock-forecast.ts` (puro y probado); aquí solo se
+ * leen los datos, se envía y se sella el aviso para no repetirlo mañana.
+ *
+ * El promedio se calcula sobre DÍAS DISTINTOS de compra, no sobre filas: dos
+ * tickets del mismo súper el mismo día daban un «ciclo» de 0,9 días y con eso
+ * cualquier producto queda agotado al día siguiente para siempre.
+ */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
@@ -42,27 +51,39 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // For each product with ≥2 purchases, compute avg interval (days) and last purchase.
+  await ensureStockSignalSchema();
+
   const rows = await sql`
-    WITH stats AS (
+    WITH purchase_days AS (
+      -- Un día de compra es un DÍA, aunque ese día hubiera tres tickets.
+      SELECT product_id, DATE(purchased_at) AS day
+      FROM product_purchases
+      GROUP BY product_id, DATE(purchased_at)
+    ),
+    stats AS (
       SELECT
         product_id,
-        COUNT(*) AS purchase_count,
-        EXTRACT(EPOCH FROM (MAX(purchased_at) - MIN(purchased_at))) / 86400.0
-          / NULLIF(COUNT(*) - 1, 0) AS avg_interval_days,
-        MAX(purchased_at) AS last_purchased_at
-      FROM product_purchases
+        COUNT(*) AS purchase_days,
+        -- Restar dos DATE ya da días enteros: meterlo en EXTRACT(EPOCH …)
+        -- —que espera un interval— revienta con «function extract(unknown,
+        -- integer) does not exist», y el cron entero se caía cada mañana.
+        (MAX(day) - MIN(day))::numeric / NULLIF(COUNT(*) - 1, 0) AS avg_interval_days,
+        MAX(day) AS last_purchased_at
+      FROM purchase_days
       GROUP BY product_id
-      HAVING COUNT(*) >= 2
+      HAVING COUNT(*) >= ${MIN_PURCHASE_DAYS}
     )
     SELECT
       p.id AS product_id,
       p.name AS product_name,
       p.stock_level,
       p.user_id,
+      p.stock_updated_at,
+      p.last_stock_alert_at,
       u.name AS user_name,
       u.push_subscription,
       s.avg_interval_days,
+      s.purchase_days,
       s.last_purchased_at
     FROM products p
     JOIN users u ON u.id = p.user_id
@@ -71,48 +92,60 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   ` as Row[];
 
   let sent = 0;
-  let skipped = 0;
+  const skippedBy: Partial<Record<ForecastReason, number>> = {};
   const goneUserIds: string[] = [];
+  const alertedProductIds: string[] = [];
+  const now = new Date();
 
   for (const row of rows) {
-    if (!row.avg_interval_days || !row.last_purchased_at || !row.push_subscription) {
-      skipped++;
-      continue;
-    }
-    const avg = row.avg_interval_days;
-    const fraction = stockFraction(row.stock_level);
-    const totalCycleMs = avg * 86_400_000;
-    const elapsedMs = Date.now() - new Date(row.last_purchased_at).getTime();
-    const remainingMs = totalCycleMs * fraction - elapsedMs;
-    const daysRemaining = Math.round(remainingMs / 86_400_000);
-
-    const threshold = Math.max(3, Math.round(avg * 0.25));
-    if (daysRemaining > threshold) {
-      skipped++;
+    const lastPurchasedAt = toDate(row.last_purchased_at);
+    if (!lastPurchasedAt || !row.push_subscription) {
+      skippedBy['no-history'] = (skippedBy['no-history'] ?? 0) + 1;
       continue;
     }
 
-    // Dedupe: if last purchase happened within 75% of cycle, assume we already alerted.
-    const cycleStart = Date.now() - avg * 0.75 * 86_400_000;
-    if (new Date(row.last_purchased_at).getTime() >= cycleStart && row.stock_level === 'full') {
-      skipped++;
+    const avg = row.avg_interval_days === null ? null : Number(row.avg_interval_days);
+    const forecast = forecastStock({
+      stockLevel: row.stock_level,
+      avgIntervalDays: avg,
+      purchaseDays: Number(row.purchase_days),
+      lastPurchasedAt,
+      stockUpdatedAt: toDate(row.stock_updated_at),
+      lastAlertAt: toDate(row.last_stock_alert_at),
+      now,
+    });
+
+    if (!forecast.shouldAlert) {
+      skippedBy[forecast.reason] = (skippedBy[forecast.reason] ?? 0) + 1;
       continue;
     }
 
-    const body = buildBody(row.user_name, row.product_name, daysRemaining, Math.round(avg));
     const result = await sendWebPush(row.push_subscription, {
       title: '🥑 Foody — Se te acaba',
-      body,
+      body: forecastMessage(row.user_name, row.product_name, forecast, avg ?? 0),
       url: '/shopping-trips',
-      data: { type: 'stock_alert', productId: row.product_id, daysRemaining },
+      data: { type: 'stock_alert', productId: row.product_id, daysRemaining: forecast.daysRemaining },
     });
-    if (result.ok) sent++;
-    else if (result.gone) goneUserIds.push(row.user_id);
+
+    if (result.ok) {
+      sent++;
+      // Se sella SIEMPRE que el envío salió bien: es lo que impide que el mismo
+      // aviso vuelva mañana, y era justo lo que faltaba.
+      alertedProductIds.push(row.product_id);
+    } else if (result.gone) {
+      goneUserIds.push(row.user_id);
+    }
   }
 
+  if (alertedProductIds.length) {
+    await sql`
+      UPDATE products SET last_stock_alert_at = NOW()
+      WHERE id = ANY(${alertedProductIds}::uuid[])
+    `;
+  }
   if (goneUserIds.length) {
     await sql`UPDATE users SET push_subscription = NULL WHERE id = ANY(${goneUserIds}::uuid[])`;
   }
 
-  return NextResponse.json({ checked: rows.length, sent, skipped });
+  return NextResponse.json({ checked: rows.length, sent, skipped: skippedBy });
 }
