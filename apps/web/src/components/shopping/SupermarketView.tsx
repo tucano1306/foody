@@ -12,6 +12,7 @@ import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstFromElement, confettiRain } from '@/lib/fx';
 import { useCelebration } from '@/components/ui/Celebration';
+import { matchesWords, normalizeSearchText, searchWords } from '@/lib/text-search';
 import { useToast } from '@/components/ui/Toast';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
@@ -99,10 +100,6 @@ function pluralize(count: number, singular: string, plural: string): string {
 /** Accent/case-insensitive haystack match: "vitáminas" finds "Vitaminas". */
 function normalizeText(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-}
-
-function textMatches(haystack: string, normalizedNeedle: string): boolean {
-  return normalizeText(haystack).includes(normalizedNeedle);
 }
 
 /** Sold-by-weight heuristic from the product's unit (lb, libras, kg, oz…). */
@@ -452,14 +449,20 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   }
 
   // ─── Search + filters (cover BOTH pending and purchased) ────────────────────
-  const q = normalizeText(search.trim());
+  // Por palabras y en un solo texto: antes el nombre y la categoría se miraban
+  // por separado, así que «dental higiene» no encontraba nada aunque una
+  // palabra estuviera en cada campo. Ver text-search.ts.
+  //
+  // La cadena normalizada se guarda aparte de las palabras porque es lo que
+  // llevan las listas de dependencias de abajo: `searchWords` devuelve un
+  // arreglo nuevo en cada render y usarlo ahí recalcularía todo sin parar.
+  const q = normalizeSearchText(search);
+  const searchTerms = q ? q.split(' ') : [];
 
   function matches(item: ShoppingListItem): boolean {
-    if (q) {
-      if (
-        !textMatches(item.product.name, q) &&
-        !textMatches(item.product.category ?? 'Sin categoría', q)
-      ) return false;
+    if (searchTerms.length > 0) {
+      const hay = `${item.product.name} ${item.product.category ?? 'Sin categoría'}`;
+      if (!matchesWords(hay, searchTerms)) return false;
     }
     // Accent/case-insensitive: selecting "Lácteos" also matches products saved
     // as "lácteos", "Lacteos", "LÁCTEOS"… so no item of the category is hidden.
@@ -1659,11 +1662,12 @@ function AddProductSheet({
   }, []);
 
   const visible = useMemo(() => {
-    const q = normalizeText(query.trim());
+    const words = searchWords(query);
     const pool = products.filter((p) => !existingProductIds.has(p.id));
-    const filtered = q
-      ? pool.filter((p) => textMatches(p.name, q) || textMatches(p.category ?? '', q))
-      : pool;
+    const filtered =
+      words.length > 0
+        ? pool.filter((p) => matchesWords(`${p.name} ${p.category ?? ''}`, words))
+        : pool;
     // Faltantes primero (lo más probable que quieras re-agregar), luego A-Z.
     return [...filtered].sort((a, b) => {
       const rank = (lvl: PantryPick['stockLevel']) => (lvl === 'empty' ? 0 : lvl === 'half' ? 1 : 2);

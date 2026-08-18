@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
 import { categoryEmoji, categoryOrder } from '@/lib/categories';
+import { matchesWords, searchWords } from '@/lib/text-search';
 
 const ALL_CATEGORIES = '__all__';
 
@@ -398,14 +399,16 @@ export default function ProductsBrowser(props: Readonly<Props>) {
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // Por palabras sueltas y sin acentos: nadie recuerda que guardó la crema
+    // dental como «Hello Crema Dental», solo que es crema dental. Ver
+    // text-search.ts.
+    const words = searchWords(query);
     return displayProducts.filter((p) => {
       if (stockFilter === 'low' && p.stockLevel === 'full') return false;
       if (stockFilter !== 'all' && stockFilter !== 'low' && p.stockLevel !== stockFilter) return false;
       if (categoryFilter !== ALL_CATEGORIES && (p.category?.trim() || 'Otro') !== categoryFilter) return false;
-      if (!q) return true;
-      const hay = `${p.name} ${p.category ?? ''} ${p.description ?? ''}`.toLowerCase();
-      return hay.includes(q);
+      if (words.length === 0) return true;
+      return matchesWords(`${p.name} ${p.category ?? ''} ${p.description ?? ''}`, words);
     });
   }, [displayProducts, query, stockFilter, categoryFilter]);
 
