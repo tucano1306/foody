@@ -6,8 +6,6 @@ import Link from 'next/link';
 interface Props {
   readonly totalProducts: number;
   readonly runningLowCount: number;
-  readonly upcomingPaymentsCount: number;
-  readonly totalMonthlyExpenses: number;
 }
 
 interface Stat {
@@ -19,11 +17,14 @@ interface Stat {
   readonly href: string;
 }
 
+/**
+ * Los números de la DESPENSA. Nada de pagos: eso vive en Pagos, Deudas y Plan
+ * financiero, cada uno con su sección en el menú, y repetirlo aquí solo daba
+ * una cifra de menor calidad a un toque de la buena.
+ */
 export default function DashboardStats({
   totalProducts,
   runningLowCount,
-  upcomingPaymentsCount,
-  totalMonthlyExpenses,
 }: Readonly<Props>) {
   const stats: readonly Stat[] = [
     {
@@ -42,27 +43,11 @@ export default function DashboardStats({
       color: runningLowCount > 0 ? '#3b82f6' : '#0ea5e9',
       href: '/products?filter=low',
     },
-    {
-      label: 'Pagos próximos',
-      value: upcomingPaymentsCount,
-      sublabel: upcomingPaymentsCount === 0 ? 'sin vencimientos' : 'vencen este mes',
-      icon: '💳',
-      color: upcomingPaymentsCount > 0 ? '#1d4ed8' : '#0ea5e9',
-      href: '/payments',
-    },
-    {
-      label: 'Gasto del mes',
-      value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(totalMonthlyExpenses),
-      sublabel: 'en pagos recurrentes',
-      icon: '💰',
-      color: '#003b71',
-      href: '/payments',
-    },
   ];
 
   return (
     <motion.div
-      className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4"
+      className="grid grid-cols-2 gap-3 sm:gap-4"
       initial="hidden"
       animate="visible"
       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}
