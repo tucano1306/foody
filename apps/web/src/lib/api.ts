@@ -897,6 +897,7 @@ export const api = {
           p.id AS product_id,
           p.name AS product_name,
           pp.store_name,
+          pp.brand,
           MIN(pp.unit_price) AS min_price,
           MAX(pp.unit_price) AS max_price,
           AVG(pp.unit_price) AS avg_price,
@@ -911,13 +912,17 @@ export const api = {
           AND pp.store_name IS NOT NULL
           AND pp.user_id = ${userId}
           AND (pp.trip_id IS NULL OR t.kind = 'grocery')
-        GROUP BY p.id, p.name, pp.store_name
+        -- Se agrupa TAMBIÉN por marca: dos marcas del mismo parmesano en la
+        -- misma tienda son dos precios distintos, y promediarlos escondía
+        -- justo la comparación que el usuario quiere hacer.
+        GROUP BY p.id, p.name, pp.store_name, pp.brand
         ORDER BY p.name ASC, min_price ASC
       `;
       return rows.map((row) => ({
         productId: String(row.product_id),
         productName: asText(row.product_name),
         storeName: asText(row.store_name),
+        brand: (row.brand as string | null) ?? null,
         minPrice: asNumber(row.min_price),
         maxPrice: asNumber(row.max_price),
         avgPrice: asNumber(row.avg_price),
