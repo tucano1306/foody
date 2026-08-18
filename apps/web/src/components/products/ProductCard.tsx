@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
-import { burstFromElement, ranOutFrom } from '@/lib/fx';
+import { burstFromElement, cameBackTo, ranOutFrom } from '@/lib/fx';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -163,8 +163,13 @@ export default function ProductCard({ product, showActions = false, compact = fa
       setShaking(true);
       ranOutFrom(rootRef.current);
     } else if (next === 'full') {
+      // Volver a «sí tengo» casi siempre es una CORRECCIÓN —se marcó que
+      // faltaba y no faltaba—, así que el efecto es el espejo del de arriba: el
+      // carrito baja y las chispas se recogen hacia dentro, no estallan hacia
+      // fuera. Antes era el mismo estallido genérico de celebrar cualquier
+      // cosa, y deshacer un error no se siente como un logro.
       playSound('pop');
-      burstFromElement(rootRef.current, ['✨', '🎉', '⭐']);
+      cameBackTo(rootRef.current);
     } else {
       playSound('low');
     }

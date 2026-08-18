@@ -142,3 +142,67 @@ export function ranOutFrom(el: Element | null | undefined): void {
 
   setTimeout(() => layer.remove(), 1700);
 }
+
+/**
+ * «Me equivoqué, sí lo tengo»: lo que se había ido a la lista vuelve al estante.
+ *
+ * Es el espejo exacto de `ranOutFrom`, y a propósito: allí el humo sube y el
+ * carrito se lleva el producto; aquí el carrito BAJA y se deshace, y las
+ * chispas van hacia DENTRO en vez de estallar hacia fuera. Ese detalle —que
+ * converjan— es lo que se lee como «vuelve a su sitio» en lugar de «pasó algo
+ * nuevo»: deshacer no es celebrar, es recoger.
+ */
+export function cameBackTo(el: Element | null | undefined): void {
+  if (!el || reducedMotion()) return;
+  const r = el.getBoundingClientRect();
+  const layer = makeLayer();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+
+  // El carrito baja y se deshace: el producto sale de la lista de la compra.
+  const cart = document.createElement('span');
+  cart.textContent = '🛒';
+  cart.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;font-size:28px;will-change:transform,opacity;`;
+  layer.append(cart);
+  cart.animate(
+    [
+      { transform: 'translate(-50%,-210%) scale(0.9) rotate(6deg)', opacity: 0 },
+      { transform: 'translate(-50%,-120%) scale(1.1) rotate(-4deg)', opacity: 1, offset: 0.4 },
+      { transform: 'translate(-50%,-50%) scale(0.5) rotate(0deg)', opacity: 0 },
+    ],
+    { duration: 780, easing: 'cubic-bezier(0.34, 1.2, 0.64, 1)', fill: 'forwards' },
+  );
+
+  // Y las chispas CONVERGEN al centro: lo disperso se recoge.
+  const count = 10;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('span');
+    p.textContent = i % 3 === 0 ? '✅' : '✨';
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+    const from = 70 + Math.random() * 45;
+    p.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;font-size:${13 + Math.random() * 9}px;will-change:transform,opacity;`;
+    layer.append(p);
+    p.animate(
+      [
+        {
+          transform: `translate(calc(-50% + ${Math.cos(angle) * from}px), calc(-50% + ${Math.sin(angle) * from}px)) scale(0.5)`,
+          opacity: 0,
+        },
+        {
+          transform: `translate(calc(-50% + ${Math.cos(angle) * from * 0.5}px), calc(-50% + ${Math.sin(angle) * from * 0.5}px)) scale(1)`,
+          opacity: 1,
+          offset: 0.55,
+        },
+        { transform: 'translate(-50%,-50%) scale(0.3)', opacity: 0 },
+      ],
+      {
+        duration: 620 + Math.random() * 220,
+        delay: 180 + Math.random() * 160,
+        easing: 'cubic-bezier(0.4, 0, 0.3, 1)',
+        fill: 'forwards',
+      },
+    );
+  }
+
+  setTimeout(() => layer.remove(), 1300);
+}
