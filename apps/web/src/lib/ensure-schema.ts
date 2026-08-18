@@ -49,6 +49,11 @@ export async function ensurePurchaseSchema(): Promise<void> {
   `;
 
   // Add columns that may be missing from older schema versions
+  //
+  // `brand`: qué marca se compró ESTA vez. Va en la compra y no en el
+  // producto porque para la despensa «queso parmesano» es un solo artículo —
+  // lo que cambia entre compras es la marca y su precio. Ver product-brands.ts.
+  await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS brand VARCHAR(60) NULL`;
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS store_name VARCHAR(255) NULL`;
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS trip_id UUID NULL`;
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS household_id UUID NULL`;
