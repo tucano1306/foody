@@ -22,8 +22,14 @@ interface CelebrationCtx {
 
 const Ctx = createContext<CelebrationCtx | null>(null);
 
-/** Lo justo para leer un título corto y un dato, sin llegar a estorbar. */
-const DEFAULT_MS = 1600;
+/**
+ * Cuánto se queda en pantalla.
+ *
+ * Elegido a ojo sobre el resultado real, no calculado: 1,6 s se sentía
+ * apresurado —la animación de entrada aún estaba asentándose cuando ya tocaba
+ * irse— y a 2,5 s da tiempo a mirarla. Quien tenga prisa la toca y se va.
+ */
+const DEFAULT_MS = 2500;
 /** Lo que tarda en disolverse una vez decidido que se va. */
 const FADE_MS = 220;
 

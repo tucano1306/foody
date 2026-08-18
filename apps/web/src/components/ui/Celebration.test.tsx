@@ -26,7 +26,12 @@ describe('Celebration', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(screen.getByText('¡Compra hecha!')).toBeInTheDocument();
 
-    act(() => void vi.advanceTimersByTime(2500));
+    // Se QUEDA un rato: no es un parpadeo, hay tiempo de mirarla.
+    act(() => void vi.advanceTimersByTime(2000));
+    expect(screen.getByText('¡Compra hecha!')).toBeInTheDocument();
+
+    // Y se va sola, sin que nadie toque nada.
+    act(() => void vi.advanceTimersByTime(2000));
     expect(screen.queryByText('¡Compra hecha!')).toBeNull();
   });
 
