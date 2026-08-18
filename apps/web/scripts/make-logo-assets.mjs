@@ -7,22 +7,31 @@
  * medias (el favicon viejo sobrevive semanas y parece que el cambio no se
  * aplicó). Este script los escribe todos desde la misma fuente:
  *
- *   public/logo.png            la barra lateral y la portada
+ *   public/logo-fy.png         la barra lateral y la portada
  *   public/icons/icon-192.png  el manifiesto de la PWA (y sus atajos)
  *   public/icons/icon-512.png  el manifiesto de la PWA
  *   src/app/icon.png           el favicon de la pestaña
  *   src/app/apple-icon.png     el icono de la pantalla de inicio en iOS
  *
- * Dos cosas que NO son obvias y por las que el script existe:
+ * Tres cosas que NO son obvias y por las que el script existe:
  *
- * 1. FONDO BLANCO, no transparente. En este logo la «F» es blanca y solo se
- *    distingue por su sombra: al recortar el blanco a transparente, la F
- *    desaparece. Así que todo se compone sobre blanco.
+ * 1. LA «F» SE DIBUJA, no se recolorea. En la imagen original la F es blanco
+ *    puro, idéntico al fondo: no existe como píxeles propios. Ver `withDarkF`.
  *
- * 2. LOS ICONOS LLEVAN MARGEN. El manifiesto los declara `maskable`, y Android
+ * 2. EL LOGO GRANDE VA TRANSPARENTE y los ICONOS sobre blanco. El primero se
+ *    pinta sobre dos fondos distintos (barra lateral clara y portada azul
+ *    marino); los segundos no pueden ser transparentes porque iOS los compone
+ *    sobre negro.
+ *
+ * 3. LOS ICONOS LLEVAN MARGEN. El manifiesto los declara `maskable`, y Android
  *    recorta esos iconos a un círculo. Sin margen, el recorte se come la
  *    zanahoria. El logo se escala a ~62 % del lienzo para que quepa entero
  *    dentro de la zona segura.
+ *
+ * Y al CAMBIAR de logo, cámbiale el NOMBRE al archivo (logo-fy.png → logo-fy2…).
+ * La barra lateral lo sirve por el optimizador de imágenes de Next, que cachea
+ * por URL: con el mismo nombre, los navegadores de escritorio siguen mostrando
+ * el logo viejo aunque el archivo ya sea otro.
  */
 
 import { createRequire } from 'node:module';
@@ -61,6 +70,60 @@ function loadSharp() {
 }
 
 const WHITE = { r: 255, g: 255, b: 255, alpha: 1 };
+
+/**
+ * La «F», dibujada encima.
+ *
+ * En la imagen original la F es blanco PURO (255,255,255), exactamente el mismo
+ * blanco del fondo: no existe como píxeles propios, solo como la sombra gris que
+ * proyecta. Se comprobó muestreando el archivo. Por eso no se puede «pintar de
+ * negro» recoloreando: no hay nada que recolorear. Hay que dibujar una F nueva.
+ *
+ * Se dibuja con rectángulos y no con texto SVG a propósito: el texto dependería
+ * de que la máquina que genera los iconos tenga instalada una fuente concreta, y
+ * el logo saldría distinto según quién ejecute el script.
+ *
+ * El color es el MISMO de la «Y» (#242c3c, medido del original) en vez de negro
+ * puro, para que las dos letras se lean como parte del mismo dibujo.
+ *
+ * Medidas en fracciones del lienzo, para que sigan valiendo con otra fuente.
+ */
+const F_COLOR = '#242c3c';
+const F_BOX = { left: 0.415, top: 0.29, width: 0.225, height: 0.25 };
+/** Grosor de los trazos y anchos de los brazos, en fracciones de la caja. */
+const F_STROKE = 0.2;
+const F_ARM_TOP = 1;
+const F_ARM_MID = 0.72;
+/** Inclinación hacia la derecha, como la del original. */
+const F_SKEW = 12;
+
+/** Compone la F oscura sobre la imagen de origen. */
+async function withDarkF(sharp, source) {
+  const { width, height } = await sharp(source).metadata();
+  const x = Math.round(width * F_BOX.left);
+  const y = Math.round(height * F_BOX.top);
+  const w = Math.round(width * F_BOX.width);
+  const h = Math.round(height * F_BOX.height);
+  const bar = Math.round(h * F_STROKE);
+
+  // El sesgo mueve la base a la izquierda, así que se deja sitio para que la
+  // letra no se salga del lienzo.
+  const lean = Math.round(h * Math.tan((F_SKEW * Math.PI) / 180));
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <g transform="translate(${x + lean} ${y}) skewX(-${F_SKEW})">
+      <rect x="0" y="0" width="${bar}" height="${h}" fill="${F_COLOR}"/>
+      <rect x="0" y="0" width="${Math.round(w * F_ARM_TOP)}" height="${bar}" fill="${F_COLOR}"/>
+      <rect x="0" y="${Math.round(h * 0.42)}" width="${Math.round(w * F_ARM_MID)}" height="${bar}" fill="${F_COLOR}"/>
+    </g>
+  </svg>`;
+
+  const buf = await sharp(source)
+    .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+    .png()
+    .toBuffer();
+  return buf;
+}
 
 /**
  * La zanahoria sola, en fracciones del ancho y alto de la fuente.
@@ -148,15 +211,18 @@ async function squareIcon(sharp, source, size, ratio, art = trimmedLogo) {
 }
 
 async function main() {
-  const source = process.argv[2];
-  if (!source) {
+  const sourceArg = process.argv[2];
+  if (!sourceArg) {
     console.error('Falta la ruta del logo.\n  node scripts/make-logo-assets.mjs <ruta>');
     process.exit(1);
   }
 
   const sharp = loadSharp();
-  const meta = await sharp(source).metadata();
-  console.log(`fuente: ${source} — ${meta.width}×${meta.height} ${meta.format}`);
+  const meta = await sharp(sourceArg).metadata();
+  console.log(`fuente: ${sourceArg} — ${meta.width}×${meta.height} ${meta.format}`);
+
+  // Todo lo demás parte de la imagen CON la F ya dibujada.
+  const source = await withDarkF(sharp, sourceArg);
 
   await mkdir('public/icons', { recursive: true });
 
@@ -164,7 +230,7 @@ async function main() {
     // La barra lateral lo pinta a 52 px con `object-contain`, así que conserva
     // su forma vertical; 512 de alto sobra para cualquier pantalla densa.
     {
-      out: 'public/logo.png',
+      out: 'public/logo-fy.png',
       make: async () => {
         const escalado = (await trimmedLogo(sharp, source)).resize({ height: 512, fit: 'inside' });
         // Transparente: este mismo archivo se pinta sobre la barra lateral clara
