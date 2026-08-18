@@ -92,12 +92,19 @@ export default function FinancePlanView({ initialData }: Props) {
   /**
    * Si el dinero del negocio cuenta para las metas.
    *
-   * Empieza en `true` —el plan completo, como siempre— y solo tiene sentido
-   * para quien haya marcado algo como negocio. No es una preferencia guardada:
-   * es una pregunta que se responde mirando, y la respuesta cambia según la
-   * meta que se esté evaluando.
+   * Arranca SIEMPRE apagado, en cada visita. El plan que la app enseña de
+   * entrada es el del bolsillo del usuario; meter el negocio cambia todas las
+   * cifras de la pantalla —lo libre del mes, lo que cabe en las metas, la
+   * salud— y eso no puede pasar sin que él lo haya pedido.
+   *
+   * No es una preferencia guardada a propósito: la respuesta no es fija,
+   * depende de si piensa financiar ESA meta con dinero del negocio, así que se
+   * responde mirando y vuelve a su sitio al salir.
+   *
+   * Para quien no tenga nada marcado como negocio esto da igual: el
+   * interruptor ni se monta, y `planInput` ignora su valor.
    */
-  const [includeBusiness, setIncludeBusiness] = useState(true);
+  const [includeBusiness, setIncludeBusiness] = useState(false);
   const [modal, setModal] = useState<Modal>({ kind: 'none' });
   const [deleting, setDeleting] = useState<GoalProjection | null>(null);
   const [refreshing, setRefreshing] = useState(false);
