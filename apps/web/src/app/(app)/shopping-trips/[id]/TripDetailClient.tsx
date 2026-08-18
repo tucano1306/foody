@@ -51,6 +51,34 @@ function formatDate(iso: string): string {
   }
 }
 
+/**
+ * Una línea del ticket, que lleva a su producto en la despensa.
+ *
+ * Es un enlace cuando hay producto al que ir y un simple recuadro cuando no
+ * —una línea de un ticket cuyo producto se borró después no debe convertirse en
+ * un enlace roto—. Mismo aspecto en los dos casos: lo único que cambia es que
+ * uno responde al toque.
+ */
+function ItemRow({
+  productId,
+  children,
+}: {
+  readonly productId: string | null;
+  readonly children: React.ReactNode;
+}) {
+  const shell = 'flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2';
+  if (!productId) return <div className={shell}>{children}</div>;
+  return (
+    <Link
+      href={`/products/${productId}`}
+      className={`${shell} transition hover:border-sky-200 hover:bg-sky-50/60 active:scale-[0.99]`}
+    >
+      {children}
+      <span className="sr-only">Ver este producto en tu despensa</span>
+    </Link>
+  );
+}
+
 function itemsFromTrip(trip: ShoppingTripDetail): EditItem[] {
   return trip.items.map((pp) => ({
     key: pp.id,
@@ -439,11 +467,16 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 Este ticket solo registra el total — edítalo para agregar productos.
               </li>
             )}
+            {/* Cada línea LLEVA a su producto en la despensa.
+                Antes era texto muerto: se veía «3 × Harina pan» en el ticket y
+                para saber cuánto queda en casa, a qué precio se compró antes o
+                cuántas veces se ha comprado, había que salir a Productos y
+                buscarlo a mano. Son la misma cosa contada desde dos lados —lo
+                que compraste y lo que tienes—, así que ahora se toca y se
+                llega. */}
             {trip.items.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"
-              >
+              <li key={item.id}>
+              <ItemRow productId={item.productId}>
                 <div className="min-w-0">
                   <p className="font-medium text-slate-800 truncate">
                     {item.quantity} × {item.productName ?? 'Producto'}
@@ -465,6 +498,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 <p className="font-semibold text-slate-700">
                   {item.totalPrice == null ? '—' : formatCurrency(item.totalPrice, item.currency)}
                 </p>
+              </ItemRow>
               </li>
             ))}
           </ul>
