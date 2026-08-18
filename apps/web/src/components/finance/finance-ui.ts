@@ -134,11 +134,6 @@ export const FREQUENCY_LABEL: Record<IncomeFrequency, string> = {
   one_time: 'Una sola vez',
 };
 
-export const PRIORITY_LABEL: Record<number, string> = {
-  1: 'Alta',
-  2: 'Normal',
-  3: 'Cuando se pueda',
-};
 
 /** Anillo de salud: azul intenso cuando va bien, azul apagado cuando no. */
 export function healthColor(score: number): string {

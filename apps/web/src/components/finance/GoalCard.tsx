@@ -13,6 +13,14 @@ interface Props {
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly onComplete: () => void;
+  /**
+   * El asa para arrastrar la tarjeta, si la lista es reordenable.
+   *
+   * Llega desde fuera y no se dibuja aquí porque el arrastre lo gobierna la
+   * lista —es la que sabe qué tarjeta va antes que cuál—; la tarjeta solo le
+   * presta el sitio en la cabecera.
+   */
+  readonly dragHandle?: React.ReactNode;
 }
 
 const RADIUS = 34;
@@ -46,7 +54,7 @@ function ProgressRing({ pct, color, emoji }: { readonly pct: number; readonly co
 }
 
 
-export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, onComplete }: Props) {
+export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, onComplete, dragHandle }: Props) {
   const meta = KIND_META[goal.kind];
   const feas = FEASIBILITY_META[goal.feasibility];
   const done = goal.feasibility === 'done';
@@ -59,8 +67,11 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
        duplicaba, escondidos, los tres botones que ya están abajo a la vista.
        Mismo criterio que en Pagos y en Deudas. */
     <div className="relative rounded-3xl">
+    {/* `layout` se apaga cuando la lista es reordenable: ahí la animación de
+        posición la lleva el contenedor que arrastra, y dos capas animando lo
+        mismo hacen temblar la tarjeta bajo el dedo. */}
     <motion.article
-      layout
+      layout={!dragHandle}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, type: 'spring', stiffness: 260, damping: 26 }}
@@ -90,6 +101,8 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
                 : '🗓️ Sin fecha límite'}
             </p>
           </div>
+
+          {dragHandle}
         </div>
       </div>
 

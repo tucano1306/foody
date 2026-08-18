@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PlusIcon, BriefcaseIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
@@ -13,12 +13,13 @@ import type { FinancePlanPayload } from '@/lib/finance-data';
 import { buildFinancePlan, personalOnlyInput } from '@/lib/finance-engine';
 import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
 import { topPlanChange } from '@/lib/plan-diff';
+import { applyOrder, moveInOrder } from '@/lib/goal-order';
 import AdviceFeed from './AdviceFeed';
 import BusinessPanel from './BusinessPanel';
 import CashFlowCard from './CashFlowCard';
 import ContributeModal from './ContributeModal';
 import DebtPanel from './DebtPanel';
-import GoalCard from './GoalCard';
+import GoalReorderList from './GoalReorderList';
 import GoalFormModal, { type GoalPayload } from './GoalFormModal';
 import GrocerySpendCard from './GrocerySpendCard';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
@@ -107,6 +108,13 @@ export default function FinancePlanView({ initialData }: Props) {
   const [includeBusiness, setIncludeBusiness] = useState(false);
   const [modal, setModal] = useState<Modal>({ kind: 'none' });
   const [deleting, setDeleting] = useState<GoalProjection | null>(null);
+  /**
+   * Orden que el usuario está armando a mano, mientras el servidor todavía no
+   * lo sabe. Es `null` cuando manda el servidor —lo normal— y solo se llena
+   * entre que se suelta la tarjeta y vuelve el plan guardado, para que la lista
+   * no dé un salto atrás delante de los ojos.
+   */
+  const [localOrder, setLocalOrder] = useState<readonly string[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   /** Referencia estable: evita que el efecto de ModalShell se reejecute en
@@ -220,6 +228,50 @@ export default function FinancePlanView({ initialData }: Props) {
     await refresh();
   }
 
+  // ── Orden de las metas ─────────────────────────────────────────────────────
+
+  /**
+   * El orden de la lista ES la prioridad, y la prioridad decide a qué meta va
+   * el dinero primero (`compareGoals` en finance-engine). Arrastrar no cambia
+   * de sitio una tarjeta: cambia el plan.
+   */
+  const persistOrder = useCallback(
+    async (ids: readonly string[]) => {
+      setLocalOrder(ids);
+      try {
+        await send('/api/finance/goals/reorder', 'PATCH', { ids });
+        // Silencioso: el usuario acaba de mover la tarjeta con la mano, no hace
+        // falta anunciarle que el plan cambió — lo está viendo.
+        await refresh(true);
+        setLocalOrder(null);
+      } catch {
+        // Se vuelve al orden del servidor: mejor ver la verdad que un orden
+        // inventado que se deshará solo en la próxima recarga.
+        setLocalOrder(null);
+        toast.show('No se pudo guardar el orden', 'error');
+      }
+    },
+    [send, refresh, toast],
+  );
+
+  /** Lo que se está arrastrando ahora mismo, para guardarlo al soltar. */
+  const draggingOrder = useRef<readonly string[] | null>(null);
+
+  const previewOrder = useCallback((ids: string[]) => {
+    draggingOrder.current = ids;
+    setLocalOrder(ids);
+  }, []);
+
+  const commitOrder = useCallback(() => {
+    const next = draggingOrder.current;
+    draggingOrder.current = null;
+    // Sin `next` el asa se agarró pero la tarjeta no llegó a moverse: no hay
+    // orden nuevo que guardar.
+    if (!next) return;
+    haptic(10);
+    void persistOrder(next);
+  }, [persistOrder]);
+
   // ── Ingresos ───────────────────────────────────────────────────────────────
 
   async function createIncome(payload: IncomePayload) {
@@ -315,7 +367,27 @@ export default function FinancePlanView({ initialData }: Props) {
     [data, planInput, fullInput],
   );
 
-  const activeGoals = view.goals.filter((g) => g.status === 'active');
+  /**
+   * Las metas activas en el orden que manda: el del servidor, salvo mientras
+   * el usuario acaba de mover una y todavía no ha vuelto el plan guardado.
+   */
+  const activeGoals = useMemo(() => {
+    const active = view.goals.filter((g) => g.status === 'active');
+    return localOrder ? applyOrder(active, localOrder, (g) => g.goalId) : active;
+  }, [view.goals, localOrder]);
+
+  /** Las flechas del teclado hacen lo mismo que el dedo, sin arrastrar. */
+  const moveGoal = useCallback(
+    (id: string, delta: number) => {
+      const current = activeGoals.map((g) => g.goalId);
+      const next = moveInOrder(current, id, delta);
+      if (next === current) return;
+      haptic(8);
+      void persistOrder(next);
+    },
+    [activeGoals, persistOrder],
+  );
+
   const doneGoals = view.goals.filter((g) => g.status === 'done');
   const cash = view.cashFlow;
   /** Sin ingreso no hay plan que calcular: la cabecera cambia de prioridad. */
@@ -494,22 +566,22 @@ export default function FinancePlanView({ initialData }: Props) {
             ))}
           </div>
         ) : (
-          <AnimatePresence mode="popLayout">
-            {activeGoals.map((goal, i) => (
-              <GoalCard
-                key={goal.goalId}
-                goal={goal}
-                index={i}
-                onContribute={() => setModal({ kind: 'contribute', goal })}
-                onEdit={() => {
-                  const raw = data.rawGoals.find((g) => g.id === goal.goalId) ?? null;
-                  setModal({ kind: 'goal', goal: raw });
-                }}
-                onDelete={() => setDeleting(goal)}
-                onComplete={() => void completeGoal(goal.goalId)}
-              />
-            ))}
-          </AnimatePresence>
+          /* Arrastrando el asa de cada tarjeta se decide qué meta va primero.
+             No es orden visual: la posición se guarda como `priority`, y el
+             motor reparte el dinero en ese orden. */
+          <GoalReorderList
+            goals={activeGoals}
+            onReorder={previewOrder}
+            onCommit={commitOrder}
+            onMove={moveGoal}
+            onContribute={(goal) => setModal({ kind: 'contribute', goal })}
+            onEdit={(goal) => {
+              const raw = data.rawGoals.find((g) => g.id === goal.goalId) ?? null;
+              setModal({ kind: 'goal', goal: raw });
+            }}
+            onDelete={(goal) => setDeleting(goal)}
+            onComplete={(goal) => void completeGoal(goal.goalId)}
+          />
         )}
 
         {doneGoals.length > 0 && (

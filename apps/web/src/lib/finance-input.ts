@@ -48,11 +48,23 @@ export interface GoalInput {
   targetAmount: number;
   savedAmount: number;
   targetDate: string | null;
-  priority: number;
+  /**
+   * `null` = el cliente no la mandó, así que la ruta decide: una meta nueva se
+   * va al final de la lista y una que se edita no se mueve de donde está.
+   *
+   * El formulario dejó de mandarla cuando el orden pasó a decidirse
+   * arrastrando las tarjetas — dos sitios escribiendo la misma columna se
+   * pisaban, y el orden que el usuario había armado a mano se deshacía al
+   * editar cualquier meta. Ver goal-order.ts.
+   */
+  priority: number | null;
   monthlyOverride: number | null;
   status: GoalStatus;
   note: string | null;
 }
+
+/** Tope de posición: muy por encima de cualquier lista de metas real. */
+export const MAX_GOAL_PRIORITY = 9999;
 
 export function validateGoalBody(body: Record<string, unknown>): GoalInput | ValidationError {
   const name = parseText(body.name, 160);
@@ -78,8 +90,13 @@ export function validateGoalBody(body: Record<string, unknown>): GoalInput | Val
   const statusRaw = typeof body.status === 'string' ? (body.status as GoalStatus) : 'active';
   const status = GOAL_STATUSES.includes(statusRaw) ? statusRaw : 'active';
 
-  const priorityRaw = typeof body.priority === 'number' ? Math.trunc(body.priority) : 2;
-  const priority = Math.min(3, Math.max(1, Number.isFinite(priorityRaw) ? priorityRaw : 2));
+  // Ya no se limita a 1-3: la prioridad es la POSICIÓN en la lista, así que
+  // vale hasta donde llegue el número de metas.
+  const priorityRaw = typeof body.priority === 'number' ? Math.trunc(body.priority) : null;
+  const priority =
+    priorityRaw !== null && Number.isFinite(priorityRaw)
+      ? Math.min(MAX_GOAL_PRIORITY, Math.max(1, priorityRaw))
+      : null;
 
   let monthlyOverride: number | null = null;
   if (body.monthlyOverride != null && body.monthlyOverride !== '') {
