@@ -6,6 +6,7 @@ import type { ShoppingTripItemDto } from '@foody/types';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind, type ExpenseKind } from '@/lib/expense-kind';
 import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
@@ -152,6 +153,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     `;
   }
 
+  revalidateAfterPurchase();
   return NextResponse.json({ trip, items: allocations });
 }
 
@@ -165,5 +167,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   await sql`DELETE FROM product_purchases WHERE trip_id = ${id} AND user_id = ${user.userId}`;
   const rows = await sql`DELETE FROM shopping_trips WHERE id = ${id} AND user_id = ${user.userId} RETURNING id`;
   if (!rows.length) return notFound();
+  // Borrar un ticket también mueve las cifras: si no se avisa, «Más comprados»
+  // sigue contando productos de una compra que ya no existe.
+  revalidateAfterPurchase();
   return new NextResponse(null, { status: 204 });
 }

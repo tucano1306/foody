@@ -8,6 +8,7 @@ import type { AllocationStrategy, CreateShoppingTripDto } from '@foody/types';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 
 /**
  * Lista los tickets de SUPER. Los de otro tipo (comida fuera, farmacia…) no
@@ -135,6 +136,9 @@ export async function POST(request: NextRequest) {
   }
 
   const tripRows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} LIMIT 1`;
+  // Casa, Compras, Stats y el presupuesto se calculan con estas filas: hay que
+  // tirar su caché o siguen contando la despensa de antes de este ticket.
+  revalidateAfterPurchase();
   return NextResponse.json({ trip: tripRows[0], items: allocations }, { status: 201 });
 }
 
