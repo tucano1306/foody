@@ -8,6 +8,7 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import ScopePicker from '@/components/ui/ScopePicker';
 import SplitBar from './SplitBar';
+import { parseMoney, parseDecimal } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
@@ -70,24 +71,27 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const rateNum = Number.parseFloat(rate);
-  const customNum = Number.parseFloat(customPayment);
-  const extraNum = Number.parseFloat(extraMonthly);
+  const rateNum = parseDecimal(rate);
+  const customNum = parseMoney(customPayment);
+  const extraNum = parseMoney(extraMonthly);
+  // `null` es «no escribió nada»; distinguirlo de 0 evita mandar huecos.
+  const hasCustom = customNum !== null && customNum > 0;
+  const hasExtra = extraNum !== null && extraNum > 0;
 
   /** La consecuencia de cada cambio, en vivo y con el saldo real. */
   const projection = useMemo(
     () =>
       projectDebt({
         balance: debt.currentBalance,
-        rate: Number.isFinite(rateNum) ? rateNum : 0,
+        rate: rateNum ?? 0,
         ratePeriod,
         strategy,
         termMonths,
         payoffDate: payoffDate || null,
-        customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
-        minPercent: Number.parseFloat(minPercent) || null,
+        customPayment: hasCustom ? customNum : null,
+        minPercent: parseDecimal(minPercent) || null,
         minFloor: debt.minFloor,
-        extraMonthly: Number.isFinite(extraNum) ? extraNum : 0,
+        extraMonthly: extraNum ?? 0,
       }),
     [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum],
   );
@@ -95,7 +99,7 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
   const status = STATUS_META[projection.status];
   const valid =
     name.trim().length > 0 &&
-    Number.isFinite(rateNum) &&
+    rateNum !== null &&
     rateNum >= 0 &&
     (strategy !== 'by_date' || payoffDate !== '');
 
@@ -125,10 +129,10 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
           strategy,
           termMonths: strategy === 'fixed_installment' ? termMonths : null,
           payoffDate: strategy === 'by_date' ? payoffDate : null,
-          customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
-          minPercent: Number.parseFloat(minPercent) || null,
-          extraMonthly: Number.isFinite(extraNum) && extraNum > 0 ? extraNum : 0,
-          creditLimit: Number.parseFloat(creditLimit) || null,
+          customPayment: hasCustom ? customNum : null,
+          minPercent: parseDecimal(minPercent) || null,
+          extraMonthly: hasExtra ? extraNum : 0,
+          creditLimit: parseMoney(creditLimit) || null,
           dueDay,
           businessShare,
           note: note.trim() || null,
@@ -239,10 +243,8 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-400">%</span>
             <input
               id="edit-rate"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="0.01"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
               className={`${inputCls} pr-12 text-xl font-extrabold`}
@@ -363,10 +365,8 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-custom"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0.01}
-              step="0.01"
               value={customPayment}
               onChange={(e) => setCustomPayment(e.target.value)}
               className={`${inputCls} text-right text-xl font-extrabold`}
@@ -381,11 +381,9 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-minpct"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
               max={100}
-              step="0.1"
               value={minPercent}
               onChange={(e) => setMinPercent(e.target.value)}
               placeholder="5"
@@ -437,10 +435,8 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-extra"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="0.01"
               value={extraMonthly}
               onChange={(e) => setExtraMonthly(e.target.value)}
               placeholder="0"
@@ -453,10 +449,8 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-limit"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="0.01"
               value={creditLimit}
               onChange={(e) => setCreditLimit(e.target.value)}
               placeholder="—"

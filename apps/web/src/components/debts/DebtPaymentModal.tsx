@@ -11,6 +11,7 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import SplitBar from './SplitBar';
 import { BTN_PRIMARY, BTN_SOFT, fmtMoney } from './debt-ui';
+import { parseMoney } from '@/lib/money-input';
 
 interface Props {
   readonly debt: DebtWithProjection;
@@ -44,8 +45,8 @@ export default function DebtPaymentModal({ debt, onClose, onPaid }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const parsed = Number.parseFloat(amount);
-  const value = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  const parsed = parseMoney(amount);
+  const value = parsed !== null && parsed > 0 ? parsed : 0;
 
   // Mismo reparto que aplicará el servidor: cascada comisiones → interés → capital.
   const split = useMemo(
@@ -147,10 +148,8 @@ export default function DebtPaymentModal({ debt, onClose, onPaid }: Props) {
               {debt.currency}
             </span>
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0.01}
-              step="0.01"
               autoFocus
               value={amount}
               onChange={(e) => setAmount(e.target.value)}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPartialMoney, parseMoney, parseSignedMoney } from './money-input';
+import { isPartialMoney, parseDecimal, parseMoney, parseSignedMoney } from './money-input';
 
 /**
  * El caso que destapó todo: un sueldo anual de 54.587,19 se guardó como 54,587
@@ -123,5 +123,49 @@ describe('parseSignedMoney', () => {
 
   it('respeta el tope en los dos sentidos', () => {
     expect(parseSignedMoney('-999999999999')).toBeNull();
+  });
+});
+
+/**
+ * Tasas y cantidades. La diferencia con el dinero es una sola regla, y es la
+ * que evita convertir un préstamo del 1,5 % en uno del 1500 %.
+ */
+describe('parseDecimal', () => {
+  it('acepta la coma decimal, que es de lo que va todo esto', () => {
+    expect(parseDecimal('1,5')).toBe(1.5);
+    expect(parseDecimal('1.5')).toBe(1.5);
+    expect(parseDecimal('36,75')).toBe(36.75);
+  });
+
+  it('un separador suelto es SIEMPRE decimal, aunque le sigan tres cifras', () => {
+    // La diferencia con parseMoney: aquí «1.500» es uno y medio.
+    expect(parseDecimal('1.500')).toBe(1.5);
+    expect(parseDecimal('1,500')).toBe(1.5);
+    expect(parseMoney('1.500')).toBe(1500); // el dinero sí lo lee como millares
+  });
+
+  it('con los dos separadores, el último sigue siendo el decimal', () => {
+    expect(parseDecimal('1.234,5')).toBe(1234.5);
+    expect(parseDecimal('1,234.5')).toBe(1234.5);
+  });
+
+  it('sirve para cantidades con decimales', () => {
+    expect(parseDecimal('2,18')).toBe(2.18);
+    expect(parseDecimal('0,5')).toBe(0.5);
+  });
+
+  it('no redondea a céntimos: una tasa puede tener más decimales', () => {
+    expect(parseDecimal('3,456')).toBe(3.456);
+  });
+
+  it('rechaza lo que no es un número', () => {
+    expect(parseDecimal('')).toBeNull();
+    expect(parseDecimal('abc')).toBeNull();
+    expect(parseDecimal('1.5.0')).toBeNull();
+    expect(parseDecimal(null)).toBeNull();
+  });
+
+  it('acepta el cero, que en un extra mensual significa «ninguno»', () => {
+    expect(parseDecimal('0')).toBe(0);
   });
 });

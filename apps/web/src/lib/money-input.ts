@@ -111,6 +111,55 @@ function normalizeSeparators(digits: string): string | null {
 }
 
 /**
+ * Lee un número que NO es dinero: una tasa de interés, un porcentaje, una
+ * cantidad («2,18 kg»).
+ *
+ * Se diferencia de `parseMoney` en una sola regla, y es la que importa: aquí un
+ * separador suelto es SIEMPRE decimal, nunca de millares. Una tasa escrita
+ * «1.500» es uno y medio por ciento, no mil quinientos — aplicarle la regla del
+ * dinero convertiría un préstamo del 1,5 % en uno del 1500 %.
+ *
+ * Sigue aceptando la coma decimal, que es el motivo de existir de todo esto:
+ * «1,5» y «1.5» son la misma tasa.
+ */
+export function parseDecimal(input: string | number | null | undefined): number | null {
+  if (typeof input === 'number') {
+    return Number.isFinite(input) ? input : null;
+  }
+  if (typeof input !== 'string') return null;
+
+  const cleaned = input.replace(/[^\d.,-]/g, '').trim();
+  if (!cleaned || cleaned === '-') return null;
+  if (cleaned.includes('-') && !cleaned.startsWith('-')) return null;
+
+  const negative = cleaned.startsWith('-');
+  const digits = negative ? cleaned.slice(1) : cleaned;
+  if (!/^[\d.,]+$/.test(digits)) return null;
+
+  const lastDot = digits.lastIndexOf('.');
+  const lastComma = digits.lastIndexOf(',');
+  let normalized: string;
+
+  if (lastDot >= 0 && lastComma >= 0) {
+    // Con los dos, el último sigue siendo el decimal.
+    const decimalIsDot = lastDot > lastComma;
+    normalized = digits
+      .split(decimalIsDot ? ',' : '.')
+      .join('')
+      .replace(decimalIsDot ? '.' : ',', '.');
+  } else {
+    const parts = digits.split(lastDot >= 0 ? '.' : ',');
+    // Más de un separador aquí no significa nada: «1.5.0» no es una tasa.
+    if (parts.length > 2) return null;
+    normalized = parts.join('.');
+  }
+
+  const value = Number.parseFloat(normalized);
+  if (!Number.isFinite(value)) return null;
+  return negative ? -value : value;
+}
+
+/**
  * ¿Puede esto llegar a ser un importe si el usuario sigue escribiendo?
  *
  * Sirve para NO pelearse con quien está a medio teclear: «54,» todavía no es un
