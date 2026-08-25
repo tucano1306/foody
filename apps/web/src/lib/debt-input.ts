@@ -13,6 +13,7 @@ import type {
 } from './debt-engine';
 import type { CreateDebtInput, UpdateDebtInput } from './debt-data';
 import { normalizeShare } from './expense-scope';
+import { parseDecimal, parseMoney } from '@/lib/money-input';
 
 export const DEBT_KINDS: readonly DebtKind[] = [
   'credit_card', 'loan', 'personal', 'mortgage', 'auto', 'store', 'other',
@@ -54,10 +55,16 @@ function text(value: unknown, max: number): string | null {
   return trimmed ? trimmed.slice(0, max) : null;
 }
 
+/**
+ * Un importe, escrito como lo escriba quien lo escriba.
+ *
+ * Delegado en `parseMoney` para que «54.587,19» signifique lo mismo aquí que en
+ * la pantalla: con `Number.parseFloat` esa cadena se leía como 54,587.
+ */
 function money(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
-  if (!Number.isFinite(n)) return null;
-  return Math.min(Math.max(n, 0), MAX_MONEY);
+  const n = parseMoney(value as string | number | null | undefined);
+  if (n === null) return null;
+  return Math.min(n, MAX_MONEY);
 }
 
 /** Solo dígitos, máximo 4 — nunca se guarda el número completo de la tarjeta. */
@@ -106,8 +113,10 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
   if (balance === null) return { error: 'El saldo debe ser un número', status: 422 };
   if (balance <= 0) return { error: 'El saldo debe ser mayor que cero', status: 422 };
 
-  const rawRate = typeof body.rate === 'number' ? body.rate : Number.parseFloat(String(body.rate ?? ''));
-  if (!Number.isFinite(rawRate) || rawRate < 0) {
+  // `parseDecimal` y no `parseMoney`: en una tasa un separador suelto es
+  // SIEMPRE decimal. «1.500» es uno y medio por ciento, no mil quinientos.
+  const rawRate = parseDecimal(body.rate as string | number | null | undefined);
+  if (rawRate === null || rawRate < 0) {
     return { error: 'La tasa debe ser un número positivo', status: 422 };
   }
   const rate = Math.min(rawRate, MAX_RATE);

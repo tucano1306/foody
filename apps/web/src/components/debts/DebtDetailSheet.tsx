@@ -9,6 +9,7 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import PayoffSimulator from './PayoffSimulator';
 import SplitBar from './SplitBar';
+import { parseMoney } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
@@ -71,8 +72,8 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
    * explicando de dónde sale cada dólar del saldo.
    */
   async function adjustBalance() {
-    const target = Number.parseFloat(realBalance);
-    if (!Number.isFinite(target) || target < 0) {
+    const target = parseMoney(realBalance);
+    if (target === null || target < 0) {
       setError('Escribe cuánto debes en realidad');
       return;
     }
@@ -306,10 +307,8 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
               </label>
               <input
                 id="debt-real-balance"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min={0}
-                step="0.01"
                 value={realBalance}
                 onChange={(e) => setRealBalance(e.target.value)}
                 placeholder={debt.currentBalance.toFixed(2)}

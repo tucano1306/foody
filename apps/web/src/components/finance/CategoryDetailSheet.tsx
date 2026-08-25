@@ -9,6 +9,7 @@ import { CATEGORY_EMOJI, KNOWN_CATEGORIES, UNCATEGORIZED_LABEL } from '@/lib/cat
 import { UNITEMIZED_LABEL } from '@/lib/grocery-insights';
 import ModalShell from './ModalShell';
 import { fmtMoney } from './finance-ui';
+import { parseMoney, parseDecimal } from '@/lib/money-input';
 
 interface BreakdownItem {
   id: string;
@@ -133,9 +134,9 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
   }
 
   async function saveEdit(item: BreakdownItem) {
-    const q = Number.parseFloat(qty);
-    const a = Number.parseFloat(amount);
-    if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(a) || a < 0) {
+    const q = parseDecimal(qty);
+    const a = parseMoney(amount);
+    if (q === null || q <= 0 || a === null || a < 0) {
       toast.show('Revisa la cantidad y el importe', 'error');
       return;
     }
@@ -215,9 +216,9 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
 
   async function confirmAdd() {
     if (!picked) return;
-    const q = Number.parseFloat(newQty);
-    const a = Number.parseFloat(newAmount);
-    if (!Number.isFinite(q) || q <= 0 || !Number.isFinite(a) || a <= 0) {
+    const q = parseDecimal(newQty);
+    const a = parseMoney(newAmount);
+    if (q === null || q <= 0 || a === null || a <= 0) {
       toast.show('Pon una cantidad y un importe', 'error');
       return;
     }
@@ -350,10 +351,8 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                     Cantidad
                   </span>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
-                    min="0"
                     value={newQty}
                     onChange={(e) => setNewQty(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
@@ -364,10 +363,8 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                     Importe total
                   </span>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
-                    min="0"
                     autoFocus
                     placeholder="0.00"
                     value={newAmount}
@@ -482,10 +479,8 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                           Cantidad
                         </span>
                         <input
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="0.01"
-                          min="0"
                           value={qty}
                           onChange={(e) => setQty(e.target.value)}
                           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
@@ -496,10 +491,8 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                           Importe
                         </span>
                         <input
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="0.01"
-                          min="0"
                           value={amount}
                           onChange={(e) => setAmount(e.target.value)}
                           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold"
