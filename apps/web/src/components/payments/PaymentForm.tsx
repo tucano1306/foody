@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { CreatePaymentDto } from '@foody/types';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import ScopePicker from '@/components/ui/ScopePicker';
+import { parseMoney } from '@/lib/money-input';
 
 const CATEGORIES = [
   { value: 'utilities', label: '💡', name: 'Servicios' },
@@ -131,11 +132,10 @@ export default function PaymentForm() {
             <input
               id="payment-amount"
               required
-              type="number"
-              min={0.01}
-              step="0.01"
+              type="text"
+                inputMode="decimal"
               value={form.amount === 0 ? '' : form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: Number.parseFloat(e.target.value) || 0 }))}
+              onChange={(e) => setForm((f) => ({ ...f, amount: parseMoney(e.target.value) ?? 0 }))}
               placeholder="0.00"
               className="w-full pl-8 pr-4 py-3 rounded-2xl border border-sky-200 text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />

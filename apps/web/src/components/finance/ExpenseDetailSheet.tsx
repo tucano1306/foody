@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/Toast';
 import { EXPENSE_KINDS, expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import ModalShell from './ModalShell';
 import { fmtMoney } from './finance-ui';
+import { parseMoney } from '@/lib/money-input';
 
 interface Expense {
   id: string;
@@ -127,8 +128,8 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
   }
 
   async function saveEdit(e: Expense) {
-    const a = Number.parseFloat(amount);
-    if (!Number.isFinite(a) || a <= 0) {
+    const a = parseMoney(amount);
+    if (a === null || a <= 0) {
       toast.show('Pon un importe mayor que 0', 'error');
       return;
     }
@@ -175,8 +176,8 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
   }
 
   async function confirmAdd() {
-    const a = Number.parseFloat(newAmount);
-    if (!Number.isFinite(a) || a <= 0) {
+    const a = parseMoney(newAmount);
+    if (a === null || a <= 0) {
       toast.show('Pon un importe mayor que 0', 'error');
       return;
     }
@@ -273,10 +274,8 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                 Importe
               </span>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                min="0"
                 placeholder="0.00"
                 value={newAmount}
                 onChange={(e) => setNewAmount(e.target.value)}
@@ -362,10 +361,8 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                           Importe
                         </span>
                         <input
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="0.01"
-                          min="0"
                           value={amount}
                           onChange={(ev) => setAmount(ev.target.value)}
                           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold"

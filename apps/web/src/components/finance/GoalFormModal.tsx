@@ -5,6 +5,7 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from './ModalShell';
 import { DAYS_PER_MONTH, daysUntil, type FinanceGoal, type GoalKind } from '@/lib/finance-engine';
 import { KIND_META, fmtMoney, fmtMoneyFine, todayKey } from './finance-ui';
+import { parseMoney } from '@/lib/money-input';
 
 export interface GoalPayload {
   name: string;
@@ -70,9 +71,9 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
 
   // Vista previa en vivo: el usuario ve el esfuerzo mensual ANTES de guardar.
   const preview = useMemo(() => {
-    const targetAmount = Number.parseFloat(target);
-    const savedAmount = Number.parseFloat(saved) || 0;
-    if (!Number.isFinite(targetAmount) || targetAmount <= 0) return null;
+    const targetAmount = parseMoney(target);
+    const savedAmount = parseMoney(saved) ?? 0;
+    if (targetAmount === null || targetAmount <= 0) return null;
 
     const remaining = Math.max(0, targetAmount - savedAmount);
     if (remaining === 0) return { remaining, monthly: 0, weekly: 0, daily: 0, days: null, fits: true };
@@ -95,9 +96,9 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
   }
 
   async function submit() {
-    const targetAmount = Number.parseFloat(target);
+    const targetAmount = parseMoney(target);
     if (!name.trim()) return setError('Ponle un nombre a tu meta');
-    if (!Number.isFinite(targetAmount) || targetAmount <= 0) return setError('El monto objetivo debe ser mayor a 0');
+    if (targetAmount === null || targetAmount <= 0) return setError('El monto objetivo debe ser mayor a 0');
 
     setError(null);
     setSaving(true);
@@ -107,9 +108,9 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
         emoji,
         kind,
         targetAmount,
-        savedAmount: Number.parseFloat(saved) || 0,
+        savedAmount: parseMoney(saved) ?? 0,
         targetDate: date || null,
-        monthlyOverride: override ? Number.parseFloat(override) : null,
+        monthlyOverride: parseMoney(override),
         status: goal?.status ?? 'active',
         note: note.trim() || null,
       });
@@ -210,10 +211,8 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
               <input
                 id="goal-target"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min="0"
-                step="50"
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
                 placeholder="2300"
@@ -227,10 +226,8 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
               <input
                 id="goal-saved"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min="0"
-                step="50"
                 value={saved}
                 onChange={(e) => setSaved(e.target.value)}
                 placeholder="0"
@@ -316,10 +313,8 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
                 <input
                   id="goal-override"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  min="0"
-                  step="25"
                   value={override}
                   onChange={(e) => setOverride(e.target.value)}
                   placeholder="Automático"

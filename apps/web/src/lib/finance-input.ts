@@ -7,6 +7,7 @@
  */
 import { GOAL_KINDS, GOAL_STATUSES, INCOME_FREQUENCIES } from '@/lib/finance-data';
 import type { GoalKind, GoalStatus, IncomeFrequency } from '@/lib/finance-engine';
+import { parseMoney } from '@/lib/money-input';
 
 export interface ValidationError {
   error: string;
@@ -19,9 +20,14 @@ export function isError<T>(value: T | ValidationError): value is ValidationError
 const MAX_AMOUNT = 100_000_000;
 
 export function parseAmount(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number.parseFloat(value) : Number.NaN;
-  if (!Number.isFinite(n) || n < 0 || n > MAX_AMOUNT) return null;
-  return Math.round(n * 100) / 100;
+  // Delegado en `parseMoney` para que un importe escrito a mano —«54.587,19»—
+  // signifique lo mismo entre en la app o por la API. Con `Number.parseFloat`
+  // esa cadena se leía como 54,587: mil veces menos, sin avisar. Los números
+  // ya hechos (que es lo que manda la app) siguen tratándose igual que antes.
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  const n = parseMoney(value);
+  if (n === null || n > MAX_AMOUNT) return null;
+  return n;
 }
 
 /** Acepta "YYYY-MM-DD" (o un ISO completo) y devuelve solo la parte de fecha. */

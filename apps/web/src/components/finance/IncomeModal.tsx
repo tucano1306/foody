@@ -7,6 +7,7 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from './ModalShell';
 import ScopePicker from '@/components/ui/ScopePicker';
 import { monthlyEquivalent, type IncomeFrequency, type IncomeSource } from '@/lib/finance-engine';
+import { parseMoney } from '@/lib/money-input';
 import { FREQUENCY_LABEL, fmtMoney } from './finance-ui';
 
 export interface IncomePayload {
@@ -44,9 +45,9 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
     .reduce((s, i) => s + monthlyEquivalent(i.amount, i.frequency), 0);
 
   async function add() {
-    const value = Number.parseFloat(amount);
+    const value = parseMoney(amount);
     if (!name.trim()) return setError('Ponle un nombre (ej. Sueldo)');
-    if (!Number.isFinite(value) || value <= 0) return setError('El monto debe ser mayor a 0');
+    if (value === null || value <= 0) return setError('El monto debe ser mayor a 0');
 
     setError(null);
     setBusy(true);
@@ -154,14 +155,18 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
             />
             <div className="relative w-32">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+              {/* `text` y no `number`: el campo numérico del navegador usa
+                  siempre el punto como decimal, así que al escribir «54.587,19»
+                  se quedaba con «54.587» y tiraba el resto sin avisar — el
+                  sueldo entraba mil veces más pequeño. Ver money-input.ts. */}
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min="0"
-                step="50"
+                autoComplete="off"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="3000"
+                aria-label="Monto"
                 className={`${inputCls} pl-7 font-bold`}
               />
             </div>
@@ -190,7 +195,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
           <ScopePicker
             value={businessShare}
             onChange={setBusinessShare}
-            amount={Number.parseFloat(amount) || undefined}
+            amount={parseMoney(amount) ?? undefined}
             label="¿De dónde viene?"
           />
 

@@ -8,6 +8,7 @@ import { playSound } from '@/lib/sound';
 import { burstAt } from '@/lib/fx';
 import { buildHistoryWindow, monthKeyOf } from '@/lib/budget-history';
 import type { BudgetMonthEntry as MonthEntry } from '@/lib/budget-history';
+import { parseMoney } from '@/lib/money-input';
 
 interface BudgetData {
   monthlyLimit: number;
@@ -142,8 +143,8 @@ function EditBudgetDialog({
   }, []);
 
   async function handleSave() {
-    const n = Number.parseFloat(value);
-    if (!Number.isFinite(n) || n < 0) return;
+    const n = parseMoney(value);
+    if (n === null || n < 0) return;
     setSaving(true);
     haptic([15, 30, 15]);
     await onSave(n);
@@ -183,9 +184,8 @@ function EditBudgetDialog({
           <input
             ref={inputRef}
             id="budget-limit"
-            type="number"
-            min="0"
-            step="100"
+            type="text"
+                inputMode="decimal"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void handleSave(); }}
