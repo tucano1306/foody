@@ -7,6 +7,7 @@ import { PAYMENT_METHODS, isCardMethod, methodNeedsBank } from '@/lib/payment-me
 import { formatMonthLong } from '@/lib/payment-aggregates';
 import { playSound } from '@/lib/sound';
 import { confettiRain } from '@/lib/fx';
+import { parseMoney } from '@/lib/money-input';
 
 /** Month/year the payment settled plus the amount actually paid. */
 export interface AppliedPayment {
@@ -75,8 +76,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
     e.preventDefault();
     setError(null);
 
-    const parsedAmount = Number.parseFloat(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    const parsedAmount = parseMoney(amount);
+    if (parsedAmount === null || parsedAmount <= 0) {
       setError('Ingresa un monto válido');
       return;
     }
@@ -227,9 +228,8 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                   id="mark-paid-amount"
                   required
                   autoFocus={payment.isVariableAmount}
-                  type="number"
-                  min={0.01}
-                  step="0.01"
+                  type="text"
+                inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder={payment.isVariableAmount ? 'Ej: 87.50' : payment.amount.toFixed(2)}
