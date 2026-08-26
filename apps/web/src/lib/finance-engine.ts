@@ -15,8 +15,8 @@
 
 import { expenseKindMeta } from './expense-kind';
 import type { DuplicateSuspect } from './duplicate-obligations';
-import type { BaselineSource, GroceryInsight } from './grocery-insights';
-import type { OtherSpendInsight } from './other-spend';
+import { personalGroceryInsight, type BaselineSource, type GroceryInsight } from './grocery-insights';
+import { personalOtherSpend, type OtherSpendInsight } from './other-spend';
 import {
   buildBusinessResult,
   normalizeShare,
@@ -730,6 +730,19 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
       normalizeShare(input.otherBusinessShare),
     ).personal,
     otherBusinessShare: 0,
+    // Los PANORAMAS también, no solo las cifras que resta la cascada.
+    //
+    // Aquí estaba la mezcla: el plan restaba el super ya repartido, pero el
+    // consejero lee estos objetos de detalle —el ritmo del mes, las categorías,
+    // los tipos de gasto— y los leía SIN repartir. Con el negocio apagado, la
+    // cascada hablaba de dinero personal y los consejos de la misma pantalla
+    // citaban cifras que incluían el negocio.
+    groceries: input.groceries
+      ? personalGroceryInsight(input.groceries, normalizeShare(input.groceriesBusinessShare))
+      : input.groceries,
+    otherSpend: input.otherSpend
+      ? personalOtherSpend(input.otherSpend, normalizeShare(input.otherBusinessShare))
+      : input.otherSpend,
   };
 }
 
