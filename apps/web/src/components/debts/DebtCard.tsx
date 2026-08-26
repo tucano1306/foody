@@ -4,6 +4,7 @@ import type { DebtWithProjection } from '@/lib/debt-data';
 import { haptic } from '@/lib/haptic';
 import ProgressRing from './ProgressRing';
 import SplitBar from './SplitBar';
+import { scopeOf } from '@/lib/expense-scope';
 import {
   fmtDateKey,
   fmtMonths,
@@ -35,6 +36,7 @@ function dueLabel(days: number): string {
 export default function DebtCard({ debt, onOpen, onPay }: Props) {
   const kind = KIND_META[debt.kind] ?? KIND_META.other;
   const status = STATUS_META[debt.projection.status];
+  const scope = scopeOf(debt.businessShare);
   const isPaid = debt.projection.status === 'paid';
   const isStuck = debt.projection.neverPaysOff;
   const { firstSplit, installment, monthsToPayoff, payoffDate } = debt.projection;
@@ -81,6 +83,17 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
           <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status.chip}`}>
             {status.emoji} {status.label}
           </span>
+          {/* De quién es esta deuda.
+              Solo se dice cuando NO es personal: quien no tiene negocio no
+              necesita ver una etiqueta en cada tarjeta repitiéndole lo obvio.
+              Y cuando sí lo es, hace falta verlo aquí — el Plan financiero deja
+              fuera la parte del negocio, y sin este aviso el número del plan no
+              hay manera de cuadrarlo con lo que se ve en esta pantalla. */}
+          {scope !== 'personal' && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+              {scope === 'business' ? '🏢 Del negocio' : `⚖️ Mixto · ${Math.round(debt.businessShare)} % negocio`}
+            </span>
+          )}
           {debt.breakdown.progress > 0 && (
             <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
               {Math.round(debt.breakdown.progress)} % pagado

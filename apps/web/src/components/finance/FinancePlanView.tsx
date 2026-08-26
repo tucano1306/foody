@@ -388,6 +388,19 @@ export default function FinancePlanView({ initialData }: Props) {
     [activeGoals, persistOrder],
   );
 
+  /**
+   * Cuotas de crédito del negocio que este plan NO está contando.
+   *
+   * `data` es siempre el plan COMPLETO tal como lo calculó el servidor y
+   * `view` es lo que se está mirando, así que su diferencia es exactamente lo
+   * que se dejó fuera al apagar «contar el negocio». Con el negocio incluido
+   * las dos son la misma cifra y esto da cero.
+   */
+  const creditsBusinessExcluded = Math.max(
+    0,
+    Math.round((data.cashFlow.creditPayments - view.cashFlow.creditPayments) * 100) / 100,
+  );
+
   const doneGoals = view.goals.filter((g) => g.status === 'done');
   const cash = view.cashFlow;
   /** Sin ingreso no hay plan que calcular: la cabecera cambia de prioridad. */
@@ -491,6 +504,7 @@ export default function FinancePlanView({ initialData }: Props) {
       <CashFlowCard
         cash={cash}
         groceriesSource={data.groceries.baselineSource}
+        creditsBusinessExcluded={creditsBusinessExcluded}
         onOpenIncome={() => setModal({ kind: 'income' })}
         onOpenPayments={() => router.push('/payments')}
         onOpenBudget={() => router.push('/budget')}

@@ -699,11 +699,23 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
       amount: splitAmount(p.amount, normalizeShare(p.businessShare)).personal,
       businessShare: 0,
     })),
-    credits: (input.credits ?? []).map((c) => ({
-      ...c,
-      installment: splitAmount(c.installment, normalizeShare(c.businessShare)).personal,
-      businessShare: 0,
-    })),
+    // El saldo y el interés se reparten IGUAL que la cuota.
+    //
+    // Antes solo se repartía la cuota, y el resultado era un plan que se
+    // contradecía: el coche del negocio aportaba $0 al mes —correcto— pero su
+    // saldo entero seguía sumando en «lo que debes», así que la pantalla decía
+    // a la vez que esa deuda no es tuya y que la debes. Cualquiera lee eso como
+    // que la app está metiendo el negocio en su plan personal.
+    credits: (input.credits ?? []).map((c) => {
+      const share = normalizeShare(c.businessShare);
+      return {
+        ...c,
+        balance: splitAmount(c.balance, share).personal,
+        installment: splitAmount(c.installment, share).personal,
+        monthlyInterest: splitAmount(c.monthlyInterest, share).personal,
+        businessShare: 0,
+      };
+    }),
     // El super también: si parte de la compra era del negocio, esa parte sale
     // del plan personal igual que un pago fijo del negocio.
     groceriesMonthly: splitAmount(
