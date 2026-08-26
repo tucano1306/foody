@@ -6,6 +6,7 @@ import { listDebts } from '@/lib/debt-data';
 import type { ObligationPayment } from '@/lib/duplicate-obligations';
 import ModernTitle from '@/components/layout/ModernTitle';
 import DebtsView from '@/components/debts/DebtsView';
+import type { ScopeFilter } from '@/lib/expense-scope';
 
 export const metadata: Metadata = { title: 'Deudas y Créditos — Foody' };
 
@@ -26,9 +27,22 @@ async function listPaymentsForDuplicateCheck(userId: string): Promise<Obligation
   }));
 }
 
-export default async function DebtsPage() {
+/** El ambito pedido por la URL, o «todo» si no viene o no se entiende. */
+function readScope(raw: string | undefined): ScopeFilter {
+  return raw === 'personal' || raw === 'business' ? raw : 'all';
+}
+
+export default async function DebtsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ scope?: string }>;
+}) {
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect('/login');
+
+  // El Plan financiero enlaza aqui con el ambito puesto, para que el consejo y
+  // la pantalla a la que lleva hablen del mismo dinero.
+  const { scope } = await searchParams;
 
   const [data, payments] = await Promise.all([
     listDebts(session.userId).catch(() => ({
@@ -57,7 +71,7 @@ export default async function DebtsPage() {
         subtitle="Cuánto debes, cuánto es interés y cuándo quedas libre"
       />
 
-      <DebtsView initial={data} payments={payments} />
+      <DebtsView initial={data} payments={payments} initialScope={readScope(scope)} />
     </div>
   );
 }
