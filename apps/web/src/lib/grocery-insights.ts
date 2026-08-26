@@ -292,3 +292,50 @@ export function computeGroceryInsight(input: GroceryInsightInput): GroceryInsigh
     paceIsMeaningful: daysElapsed >= MIN_DAYS_FOR_PACE && spentThisMonth > 0,
   };
 }
+
+/**
+ * El mismo panorama de super, con SOLO la parte personal.
+ *
+ * Hace falta porque el Plan financiero tiene dos caminos que hablaban idiomas
+ * distintos: la cascada del mes restaba el super ya repartido por su porcentaje
+ * de negocio, mientras el consejero leía este objeto TAL CUAL y citaba cifras
+ * que incluían el negocio. Con el interruptor «contar el negocio» apagado, la
+ * misma pantalla daba dos versiones del mismo gasto.
+ *
+ * Se multiplica todo el dinero por la fracción personal y NO se tocan los
+ * conteos ni los porcentajes: los tickets siguen siendo los mismos tickets, y
+ * como el reparto es uniforme, las proporciones entre categorías y la tendencia
+ * no cambian.
+ *
+ * El límite es la excepción: es una cifra que el usuario escribió para su
+ * presupuesto, no un importe repartible, así que se respeta tal cual y lo que
+ * se recalcula es cuánto se pasa de él.
+ */
+export function personalGroceryInsight(insight: GroceryInsight, businessShare: number): GroceryInsight {
+  const personal = 1 - Math.min(100, Math.max(0, businessShare)) / 100;
+  if (personal >= 1) return insight;
+
+  const cut = (n: number) => round2(n * personal);
+  const cutCategory = (c: CategorySpend): CategorySpend => ({
+    ...c,
+    currentMonth: cut(c.currentMonth),
+    prevMonth: cut(c.prevMonth),
+  });
+
+  const projectedMonthEnd = cut(insight.projectedMonthEnd);
+
+  return {
+    ...insight,
+    spentThisMonth: cut(insight.spentThisMonth),
+    dailyPace: cut(insight.dailyPace),
+    projectedMonthEnd,
+    avgMonthly: cut(insight.avgMonthly),
+    lastMonth: cut(insight.lastMonth),
+    baseline: cut(insight.baseline),
+    overLimit: insight.limit > 0 ? round2(projectedMonthEnd - insight.limit) : 0,
+    categories: insight.categories.map(cutCategory),
+    unitemized: insight.unitemized ? cutCategory(insight.unitemized) : null,
+    biggestMover: insight.biggestMover ? cutCategory(insight.biggestMover) : null,
+    topStores: insight.topStores.map((s) => ({ ...s, total: cut(s.total) })),
+  };
+}

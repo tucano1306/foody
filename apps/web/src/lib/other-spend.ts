@@ -150,3 +150,35 @@ export function computeOtherSpend(input: OtherSpendInput): OtherSpendInsight {
     hasData: spentThisMonth > 0 || past.length > 0,
   };
 }
+
+/**
+ * Lo mismo que `personalGroceryInsight`, para los gastos de fuera del super.
+ *
+ * La gasolina de los repartos y las comidas con clientes son del negocio, y con
+ * el interruptor apagado el consejero no puede seguir citándolas como si fueran
+ * del bolsillo del usuario. Se reparte el dinero; los tickets, los porcentajes
+ * y la tendencia se quedan igual, porque el reparto es uniforme.
+ */
+export function personalOtherSpend(insight: OtherSpendInsight, businessShare: number): OtherSpendInsight {
+  const personal = 1 - Math.min(100, Math.max(0, businessShare)) / 100;
+  if (personal >= 1) return insight;
+
+  const cut = (n: number) => round2(n * personal);
+  const cutKind = (k: KindSpend): KindSpend => ({
+    ...k,
+    currentMonth: cut(k.currentMonth),
+    prevMonth: cut(k.prevMonth),
+  });
+
+  return {
+    ...insight,
+    spentThisMonth: cut(insight.spentThisMonth),
+    avgMonthly: cut(insight.avgMonthly),
+    lastMonth: cut(insight.lastMonth),
+    projectedMonthEnd: cut(insight.projectedMonthEnd),
+    baseline: cut(insight.baseline),
+    byKind: insight.byKind.map(cutKind),
+    biggestMover: insight.biggestMover ? cutKind(insight.biggestMover) : null,
+    topPlaces: insight.topPlaces.map((p) => ({ ...p, total: cut(p.total) })),
+  };
+}

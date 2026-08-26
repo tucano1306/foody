@@ -1191,3 +1191,84 @@ describe('cuota enlazada a un pago mensual — no se cuenta dos veces', () => {
     expect(p.debts.creditBalance).toBe(1000);
   });
 });
+
+/**
+ * Con «contar el negocio» apagado, el consejero tiene que hablar el MISMO
+ * idioma que la cascada del mes.
+ *
+ * Aquí estaba la mezcla: el plan restaba el super ya repartido por su
+ * porcentaje de negocio, pero los consejos leen los objetos de detalle —el
+ * ritmo, las categorías, los tipos de gasto— y esos pasaban sin repartir. La
+ * misma pantalla daba dos versiones del mismo gasto.
+ */
+describe('personalOnlyInput — los panoramas también se reparten', () => {
+  const detalle: GroceryInsight = {
+    ...EMPTY_GROCERY_INSIGHT,
+    spentThisMonth: 400,
+    tripsThisMonth: 8,
+    daysElapsed: 20,
+    daysInMonth: 30,
+    dailyPace: 20,
+    projectedMonthEnd: 600,
+    avgMonthly: 500,
+    lastMonth: 450,
+    monthsWithData: 3,
+    limit: 500,
+    baseline: 600,
+    baselineSource: 'pace',
+    overLimit: 100,
+    trendPct: 20,
+    categories: [{ category: 'carnes', currentMonth: 200, prevMonth: 100, deltaPct: 100, share: 50 }],
+    biggestMover: { category: 'carnes', currentMonth: 200, prevMonth: 100, deltaPct: 100, share: 50 },
+  };
+
+  it('reparte el dinero del panorama de super', () => {
+    const solo = personalOnlyInput(
+      plan({ groceries: detalle, groceriesMonthly: 600, groceriesBusinessShare: 25 }),
+    );
+    // Un cuarto es del negocio: se queda el 75 % de cada cifra de dinero.
+    expect(solo.groceries!.spentThisMonth).toBe(300);
+    expect(solo.groceries!.projectedMonthEnd).toBe(450);
+    expect(solo.groceries!.avgMonthly).toBe(375);
+    expect(solo.groceries!.baseline).toBe(450);
+    expect(solo.groceries!.categories[0].currentMonth).toBe(150);
+    expect(solo.groceries!.biggestMover!.currentMonth).toBe(150);
+  });
+
+  it('el panorama repartido cuadra con lo que resta la cascada', () => {
+    // Los dos caminos tienen que dar la misma cifra: es justo lo que fallaba.
+    const solo = personalOnlyInput(
+      plan({ groceries: detalle, groceriesMonthly: detalle.baseline, groceriesBusinessShare: 25 }),
+    );
+    expect(solo.groceries!.baseline).toBe(solo.groceriesMonthly);
+  });
+
+  it('no toca los conteos ni los porcentajes', () => {
+    const solo = personalOnlyInput(
+      plan({ groceries: detalle, groceriesMonthly: 600, groceriesBusinessShare: 25 }),
+    );
+    // Los tickets son los mismos tickets, y como el reparto es uniforme las
+    // proporciones y la tendencia no cambian.
+    expect(solo.groceries!.tripsThisMonth).toBe(8);
+    expect(solo.groceries!.daysElapsed).toBe(20);
+    expect(solo.groceries!.trendPct).toBe(20);
+    expect(solo.groceries!.categories[0].share).toBe(50);
+  });
+
+  it('respeta el límite escrito por el usuario y recalcula cuánto se pasa', () => {
+    // El límite no es un importe repartible: es una cifra que él puso.
+    const solo = personalOnlyInput(
+      plan({ groceries: detalle, groceriesMonthly: 600, groceriesBusinessShare: 25 }),
+    );
+    expect(solo.groceries!.limit).toBe(500);
+    // Proyección personal (450) contra su límite (500): ya no se pasa.
+    expect(solo.groceries!.overLimit).toBe(-50);
+  });
+
+  it('sin negocio devuelve el panorama intacto', () => {
+    const solo = personalOnlyInput(
+      plan({ groceries: detalle, groceriesMonthly: 600, groceriesBusinessShare: 0 }),
+    );
+    expect(solo.groceries).toBe(detalle);
+  });
+})
