@@ -7,6 +7,8 @@ import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, type PortfolioDebt } from '@/lib/debt-engine';
 import { findDuplicateObligations, type ObligationPayment } from '@/lib/duplicate-obligations';
 import { haptic } from '@/lib/haptic';
+import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
+import ScopeTabs from '@/components/ui/ScopeTabs';
 import DebtCard from './DebtCard';
 import DuplicateBanner from './DuplicateBanner';
 import DebtDetailSheet from './DebtDetailSheet';
@@ -24,6 +26,8 @@ interface Props {
    * corta que el servidor ya tiene a mano.
    */
   readonly payments?: readonly ObligationPayment[];
+  /** Ámbito con el que abrir, si quien enlaza aquí ya sabe cuál quiere. */
+  readonly initialScope?: ScopeFilter;
 }
 
 /**
@@ -34,17 +38,65 @@ interface Props {
  * tarjetas mentalmente. Debajo, una tarjeta por deuda ordenada de mayor a menor
  * saldo, y el alta al final, sin tapar nada.
  */
-export default function DebtsView({ initial, payments = [] }: Props) {
+export default function DebtsView({ initial, payments = [], initialScope = 'all' }: Props) {
   const [debts, setDebts] = useState<DebtWithProjection[]>(initial.debts);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [payId, setPayId] = useState<string | null>(null);
+  /**
+   * Qué lado se está mirando.
+   *
+   * Arranca en «todo» porque esta pantalla es el inventario completo de lo que
+   * se debe. El que llega filtrando es el Plan financiero: sus consejos abren
+   * aquí con `?scope=personal` para que el consejo y su destino hablen del
+   * mismo dinero.
+   */
+  const [scope, setScope] = useState<ScopeFilter>(initialScope);
+
+  /** Los totales de las tres pestañas, calculados sobre TODAS las deudas. */
+  const scopeSummary = useMemo(
+    () =>
+      summarizeByScope(
+        debts.map((d) => ({
+          id: d.id,
+          name: d.name,
+          amount: d.currentBalance,
+          businessShare: d.businessShare,
+        })),
+      ),
+    [debts],
+  );
+
+  /**
+   * Las deudas del lado que se está mirando.
+   *
+   * Una deuda mixta sale en las DOS vistas —es real en las dos— pero con su
+   * parte correspondiente: en «personal», un coche al 60 % del negocio enseña
+   * el 40 % de su saldo, de su cuota y de su interés. Enseñar la cifra entera
+   * en una vista que dice «personal» es exactamente lo que hacía que el plan no
+   * cuadrara con esta pantalla.
+   */
+  const visibles = useMemo(() => {
+    if (scope === 'all') return debts;
+    const lado = scope === 'business' ? 'business' : 'personal';
+    return debts
+      .filter((d) => matchesFilter(d.businessShare, scope))
+      .map((d) => ({
+        ...d,
+        currentBalance: splitAmount(d.currentBalance, d.businessShare)[lado],
+        projection: {
+          ...d.projection,
+          installment: splitAmount(d.projection.installment, d.businessShare)[lado],
+          monthlyInterest: splitAmount(d.projection.monthlyInterest, d.businessShare)[lado],
+        },
+      }));
+  }, [debts, scope]);
 
   // La cartera se recalcula en el cliente para que los totales se muevan en el
   // mismo instante en que se registra un abono, sin recargar la página.
   const portfolio = useMemo(() => {
-    const input: PortfolioDebt[] = debts
+    const input: PortfolioDebt[] = visibles
       .filter((d) => d.currentBalance > 0)
       .map((d) => ({
         id: d.id,
@@ -58,7 +110,7 @@ export default function DebtsView({ initial, payments = [] }: Props) {
         status: d.projection.status,
       }));
     return buildPortfolio(input);
-  }, [debts]);
+  }, [visibles]);
 
   const currency = debts[0]?.currency ?? 'USD';
   const detail = debts.find((d) => d.id === detailId) ?? null;
@@ -99,8 +151,18 @@ export default function DebtsView({ initial, payments = [] }: Props) {
 
   return (
     <div className="space-y-5">
+      {/* ─── Personal / Negocio ───────────────────────────────────────────
+          Encima de TODO, porque cambia hasta el titular: la cartera, el
+          consejo de a cuál atacar y la lista hablan del lado elegido. */}
+      <ScopeTabs
+        value={scope}
+        onChange={setScope}
+        summary={scopeSummary}
+        format={(n) => fmtMoneyShort(n, currency)}
+      />
+
       {/* ─── Cartera ─────────────────────────────────────────────────────── */}
-      {debts.length > 0 && (
+      {visibles.length > 0 && (
         <section className="rounded-3xl bg-linear-to-br from-sky-500 to-blue-700 p-5 shadow-sm">
           <p className="text-xs font-semibold text-white/75">Debes en total</p>
           <p className="text-4xl font-extrabold leading-tight text-white">
@@ -138,7 +200,7 @@ export default function DebtsView({ initial, payments = [] }: Props) {
       )}
 
       {/* ─── A cuál atacar primero ───────────────────────────────────────── */}
-      {target && debts.filter((d) => d.currentBalance > 0).length > 1 && (
+      {target && visibles.filter((d) => d.currentBalance > 0).length > 1 && (
         <button
           type="button"
           onClick={() => {
@@ -167,9 +229,9 @@ export default function DebtsView({ initial, payments = [] }: Props) {
       ))}
 
       {/* ─── Lista ───────────────────────────────────────────────────────── */}
-      {debts.length > 0 && (
+      {visibles.length > 0 && (
         <div className="card-stagger grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {debts.map((debt) => (
+          {visibles.map((debt) => (
             <DebtCard
               key={debt.id}
               debt={debt}
