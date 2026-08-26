@@ -36,14 +36,29 @@ const CATEGORY_ICONS: Record<string, string> = {
   other: '💰',
 };
 
+/** El ámbito pedido por la URL, o «todo» si no viene o no se entiende. */
+function readScope(raw: string | null): ScopeFilter {
+  return raw === 'personal' || raw === 'business' ? raw : 'all';
+}
+
 export default function PaymentsList({ initialPayments }: Props) {
-  const [allPayments, setAllPayments] = useState<MonthlyPayment[]>(initialPayments);
-  const [scope, setScope] = useState<ScopeFilter>('all');
-  const [filter, setFilter] = useState<Filter>('all');
-  const [historyOpen, setHistoryOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('payment');
+  const scopeParam = searchParams.get('scope');
+
+  const [allPayments, setAllPayments] = useState<MonthlyPayment[]>(initialPayments);
+  /**
+   * El ámbito puede venir en la URL: `?scope=personal`.
+   *
+   * Lo usa el Plan financiero cuando «contar el negocio» está apagado. Antes
+   * los consejos decían «tus pagos fijos se llevan $2.027» y su enlace abría
+   * esta pantalla en «Todo» ($4.341, con el negocio dentro): el consejo y la
+   * pantalla a la que llevaba no hablaban del mismo dinero.
+   */
+  const [scope, setScope] = useState<ScopeFilter>(() => readScope(scopeParam));
+  const [filter, setFilter] = useState<Filter>('all');
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Jump from a history row to that payment's card: reset the filter so the
   // card is rendered, then let ?payment= trigger its scroll + auto-open.
