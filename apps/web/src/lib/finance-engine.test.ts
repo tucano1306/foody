@@ -532,6 +532,51 @@ describe('personalOnlyInput', () => {
     expect(solo.credits![0].installment).toBe(150);
   });
 
+  /**
+   * Una deuda del negocio no puede aparecer a medias en el plan personal.
+   *
+   * Antes solo se repartía la cuota, así que el coche del negocio aportaba $0 al
+   * mes —correcto— pero su saldo entero seguía sumando en «lo que debes». La
+   * pantalla decía a la vez que la deuda no es tuya y que la debes.
+   */
+  it('reparte también el saldo y el interés de las cuotas', () => {
+    const solo = personalOnlyInput(
+      plan({
+        credits: [credit({ balance: 1000, installment: 200, monthlyInterest: 40, businessShare: 25 })],
+      }),
+    );
+    expect(solo.credits![0].balance).toBe(750);
+    expect(solo.credits![0].installment).toBe(150);
+    expect(solo.credits![0].monthlyInterest).toBe(30);
+  });
+
+  it('una deuda 100 % del negocio DESAPARECE del plan personal', () => {
+    // Lo que se pidió: lo del negocio es del negocio. Con saldo 0 la deuda ya no
+    // entra en `creditOrder`, así que no suma ni sale listada.
+    const soloNegocio = plan({
+      credits: [credit({ id: 'auto', balance: 35460, installment: 1097, monthlyInterest: 210, businessShare: 100 })],
+    });
+
+    const conNegocio = buildFinancePlan(soloNegocio).debts;
+    expect(conNegocio.creditPayments).toBe(1097);
+    expect(conNegocio.creditOrder).toHaveLength(1);
+
+    const sinNegocio = buildFinancePlan(personalOnlyInput(soloNegocio)).debts;
+    expect(sinNegocio.creditPayments).toBe(0);
+    expect(sinNegocio.creditBalance).toBe(0);
+    expect(sinNegocio.creditOrder).toHaveLength(0);
+  });
+
+  it('una deuda mixta se queda con su parte, no entera', () => {
+    const mixta = plan({
+      credits: [credit({ balance: 2000, installment: 400, monthlyInterest: 60, businessShare: 50 })],
+    });
+    const personal = buildFinancePlan(personalOnlyInput(mixta)).debts;
+    expect(personal.creditBalance).toBe(1000);
+    expect(personal.creditPayments).toBe(200);
+    expect(personal.creditOrder).toHaveLength(1);
+  });
+
   it('deja el ámbito en 0: ya no queda nada de negocio que repartir', () => {
     const solo = personalOnlyInput(
       plan({ fixedPayments: [payment({ amount: 500, businessShare: 100 })] }),

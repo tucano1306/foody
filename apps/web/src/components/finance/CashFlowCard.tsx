@@ -20,6 +20,13 @@ interface Props {
   readonly onOpenBudget: () => void;
   readonly onOpenDebts: () => void;
   readonly onOpenTrips: () => void;
+  /**
+   * Cuotas de crédito del NEGOCIO que se quedaron fuera de este plan.
+   *
+   * Llega desde fuera porque solo la pantalla sabe si se está mirando el plan
+   * personal o el completo; la tarjeta se limita a decirlo cuando lo hay.
+   */
+  readonly creditsBusinessExcluded?: number;
 }
 
 interface Row {
@@ -27,6 +34,15 @@ interface Row {
   emoji: string;
   label: string;
   hint: string;
+  /**
+   * Se enseña también en móvil.
+   *
+   * Las pistas normales son decorativas («renta, servicios, suscripciones») y
+   * se esconden en pantallas estrechas. Pero una que EXPLICA por qué la cifra
+   * no es la que uno esperaría no es decorativa: sin ella, el número parece un
+   * error de la app.
+   */
+  hintAlways?: boolean;
   amount: number;
   bar: string;
   onClick?: () => void;
@@ -36,7 +52,7 @@ interface Row {
  * La cascada del mes: de lo que entra a lo que queda libre. Cada barra es
  * proporcional al ingreso, así se ve de un vistazo qué se está comiendo el sueldo.
  */
-export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget, onOpenDebts, onOpenTrips }: Props) {
+export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget, onOpenDebts, onOpenTrips, creditsBusinessExcluded = 0 }: Props) {
   const base = Math.max(
     cash.monthlyIncome,
     cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditPayments,
@@ -95,7 +111,14 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       key: 'credits',
       emoji: '💳',
       label: 'Tarjetas y créditos',
-      hint: 'cuotas de tus deudas',
+      // Cuando hay cuotas del negocio fuera del plan hay que DECIRLO. Si no,
+      // esta cifra no cuadra con la suma de las tarjetas que se ven en Deudas y
+      // parece un error de la app: «me estás metiendo el coche del negocio».
+      hint:
+        creditsBusinessExcluded > 0
+          ? `solo tu parte personal · ${fmtMoney(creditsBusinessExcluded)} del negocio fuera`
+          : 'cuotas de tus deudas',
+      hintAlways: creditsBusinessExcluded > 0,
       amount: -cash.creditPayments,
       bar: 'from-blue-400 to-blue-500',
       onClick: onOpenDebts,
@@ -132,7 +155,9 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
                 <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <span aria-hidden="true">{row.emoji}</span>
                   {row.label}
-                  <span className="font-normal text-slate-400 hidden sm:inline">· {row.hint}</span>
+                  <span className={`font-normal text-slate-400 ${row.hintAlways ? '' : 'hidden sm:inline'}`}>
+                    · {row.hint}
+                  </span>
                 </span>
                 <span className={`text-sm font-black tabular-nums ${NUM}`}>
                   {row.amount >= 0 ? '+' : '−'}{fmtMoney(Math.abs(row.amount))}
