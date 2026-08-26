@@ -291,6 +291,14 @@ export default function FinancePlanView({ initialData }: Props) {
 
   // ── Acciones de los consejos ───────────────────────────────────────────────
 
+  /**
+   * ¿Se está mirando SOLO el dinero personal?
+   *
+   * Es distinto de «el interruptor está apagado»: quien no tiene nada marcado
+   * como negocio no ve interruptor, y para él no hay nada que filtrar.
+   */
+  const personalOnly = !includeBusiness && data.scopes.hasBusiness;
+
   function runAdviceAction(action: AdviceAction) {
     haptic(10);
     switch (action.kind) {
@@ -299,7 +307,11 @@ export default function FinancePlanView({ initialData }: Props) {
       case 'add_goal':
         return setModal({ kind: 'goal', goal: null });
       case 'open_payments':
-        return router.push('/payments');
+        // El consejo dice «tus pagos fijos se llevan $2.027» —solo tu parte— y
+        // el enlace abría esta pantalla en «Todo», con el negocio dentro. Se
+        // lleva el ámbito puesto para que el consejo y su destino hablen del
+        // mismo dinero.
+        return router.push(personalOnly ? '/payments?scope=personal' : '/payments');
       case 'open_budget':
         return router.push('/budget');
       case 'open_trips':
