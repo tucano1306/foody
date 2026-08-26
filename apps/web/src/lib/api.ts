@@ -210,6 +210,9 @@ function mapShoppingTrip(row: Record<string, unknown>): ShoppingTrip {
     receiptPhotoUrl: (row.receipt_photo_url as string | null | undefined) ?? null,
     notes: (row.notes as string | null | undefined) ?? null,
     kind: normalizeExpenseKind(row.kind),
+    // Sin esto, Compras no puede separar lo personal de lo del negocio: la
+    // columna existe en la base desde hace tiempo, pero se quedaba aquí.
+    businessShare: normalizeShare(row.business_share),
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),

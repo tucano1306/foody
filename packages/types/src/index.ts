@@ -143,6 +143,8 @@ export interface ShoppingTrip {
   notes: string | null;
   /** Súper o gasto de otro tipo. Por defecto `grocery`. */
   kind: ExpenseKind;
+  /** 0-100: qué parte de esta compra es del negocio. */
+  businessShare: number;
   userId: string;
   createdAt: string;
   updatedAt: string;

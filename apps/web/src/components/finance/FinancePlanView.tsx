@@ -315,7 +315,7 @@ export default function FinancePlanView({ initialData }: Props) {
       case 'open_budget':
         return router.push('/budget');
       case 'open_trips':
-        return router.push('/shopping-trips');
+        return router.push(personalOnly ? '/shopping-trips?scope=personal' : '/shopping-trips');
       case 'open_debts':
         return router.push(personalOnly ? '/debts?scope=personal' : '/debts');
       case 'edit_goal': {
@@ -521,7 +521,7 @@ export default function FinancePlanView({ initialData }: Props) {
         onOpenPayments={() => router.push(personalOnly ? '/payments?scope=personal' : '/payments')}
         onOpenBudget={() => router.push('/budget')}
         onOpenDebts={() => router.push(personalOnly ? '/debts?scope=personal' : '/debts')}
-        onOpenTrips={() => router.push('/shopping-trips')}
+        onOpenTrips={() => router.push(personalOnly ? '/shopping-trips?scope=personal' : '/shopping-trips')}
       />
 
       {/* ─── Compras reales ──────────────────────────────────────────────── */}
