@@ -6,7 +6,7 @@ import { haptic } from '@/lib/haptic';
 import { useToast } from '@/components/ui/Toast';
 import { EXPENSE_KINDS, expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import ModalShell from './ModalShell';
-import { fmtMoney } from './finance-ui';
+import { fmtMoneyFine } from './finance-ui';
 import { parseMoney } from '@/lib/money-input';
 
 interface Expense {
@@ -226,7 +226,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
       subtitle={
         expenses === null
           ? 'Cargando…'
-          : `${fmtMoney(total)} este mes en ${count} ${count === 1 ? 'gasto' : 'gastos'}`
+          : `${fmtMoneyFine(total)} este mes en ${count} ${count === 1 ? 'gasto' : 'gastos'}`
       }
       onClose={onClose}
       footer={
@@ -332,7 +332,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                     <span className="block text-[11px] text-slate-500">{fmtDate(e.date)}</span>
                   </span>
                   <span className="shrink-0 text-sm font-black tabular-nums text-black">
-                    {fmtMoney(e.total)}
+                    {fmtMoneyFine(e.total)}
                   </span>
                   <span
                     aria-hidden="true"
