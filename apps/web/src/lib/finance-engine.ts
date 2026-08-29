@@ -271,8 +271,18 @@ export interface AdviceAction {
   goalId?: string;
 }
 
+/**
+ * De qué habla el consejo.
+ *
+ * Sirve para agruparlos en pantalla: los de METAS van bajo su propio titulo,
+ * porque leidos sueltos entre avisos de deudas y de super no queda claro a que
+ * se refieren. Lo que no lleva tema es del mes en general.
+ */
+export type AdviceTopic = 'goals' | 'general';
+
 export interface Advice {
   id: string;
+  topic?: AdviceTopic;
   tone: AdviceTone;
   icon: string;
   title: string;
@@ -1000,6 +1010,7 @@ function adviceForGoalAtRisk(goal: GoalProjection, cash: CashFlow, input: PlanIn
   const hasta = fecha ? ` antes del ${fecha}` : '';
   const base = {
     id: `goal-risk-${goal.goalId}`,
+    topic: 'goals' as const,
     tone: 'warning' as const,
     icon: '⚠️',
   };
@@ -1009,30 +1020,14 @@ function adviceForGoalAtRisk(goal: GoalProjection, cash: CashFlow, input: PlanIn
   // una sola tarjeta —`adviceForStalledGoals`— y aquí se calla.
   if (cash.monthlyIncome <= 0) return;
 
-  // ── El mes no da: no queda dinero libre para ninguna meta ─────────────────
-  if (cash.goalsBudget <= 0) {
-    const salidas = cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditPayments;
-    const steps: string[] = [];
-    if (cash.fixedPayments > 0) {
-      steps.push(`Tus pagos fijos se llevan ${money(cash.fixedPayments)} al mes: mira cuál puedes bajar o cancelar.`);
-    }
-    if (cash.creditPayments > 0) {
-      steps.push(`Las cuotas de tus créditos son otros ${money(cash.creditPayments)}. Liquidar la más chica libera su cuota entera.`);
-    }
-    if (input.groceriesMonthly > 0) {
-      steps.push(`El super va por ${money(input.groceriesMonthly)}: un 15 % menos son ${money(input.groceriesMonthly * 0.15)} al mes.`);
-    }
-    steps.push(`Mientras tanto puedes pausar la meta, para que deje de aparecer en riesgo.`);
-
-    out.push({
-      ...base,
-      title: `${goal.name} está parada`,
-      body: `No es un problema de esta meta, es del mes: entre lo que sale de tu cuenta (${money(salidas)}) y lo que entra (${money(cash.monthlyIncome)}) no queda nada libre, así que el plan no puede apartar ni un dólar para ninguna meta. Primero hay que abrir ese hueco.`,
-      steps,
-      action: { label: 'Revisar pagos fijos', kind: 'open_payments' },
-    });
-    return;
-  }
+  // ── El mes no da: no queda dinero libre para NINGUNA meta ─────────────────
+  //
+  // Aquí no se dice nada: lo cuenta `adviceForNoRoomThisMonth` en UNA tarjeta
+  // para todas. Antes esta rama se ejecutaba por meta y escupía el mismo
+  // párrafo y los mismos cuatro pasos tantas veces como metas hubiera —tres
+  // metas, tres bloques idénticos—, que es justo lo que hacía ilegible al
+  // consejero: parecía que la app se repetía sin decir nada nuevo.
+  if (cash.goalsBudget <= 0) return;
 
   // ── Hay dinero libre, pero se lo llevan otras metas ───────────────────────
   if (goal.allocatedMonthly <= 0) {
@@ -1084,12 +1079,79 @@ function adviceForGoalAtRisk(goal: GoalProjection, cash: CashFlow, input: PlanIn
   });
 }
 
+/** «a», «a y b», «a, b y c» — como se enumera al hablar. */
+function enumerate(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+}
+
+/**
+ * «Este mes no sobra nada»: UNA tarjeta para todas las metas.
+ *
+ * Es un hecho del MES, no de cada meta, y contarlo una vez por meta llenaba el
+ * consejero de bloques idénticos —mismo párrafo, mismos cuatro pasos, tres
+ * veces— que se leían como si la app se estuviera repitiendo sin decir nada.
+ *
+ * A cambio de fundirlas se NOMBRAN las metas paradas: se pierde la tarjeta por
+ * meta, no la información de cuáles están detenidas.
+ */
+function adviceForNoRoomThisMonth(
+  goals: readonly GoalProjection[],
+  cash: CashFlow,
+  input: PlanInput,
+  out: Advice[],
+): void {
+  // Sin ingresos cargados el consejo es otro (`goals-need-income`): ahí el
+  // problema no es que el mes no dé, es que no hay nada con qué calcular.
+  if (cash.monthlyIncome <= 0 || cash.goalsBudget > 0) return;
+
+  const paradas = goals.filter((g) => g.remaining > 0);
+  if (paradas.length === 0) return;
+
+  const salidas = cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditPayments;
+  const steps: string[] = [];
+  if (cash.fixedPayments > 0) {
+    steps.push(`Tus pagos fijos se llevan ${money(cash.fixedPayments)} al mes: mira cuál puedes bajar o cancelar.`);
+  }
+  if (cash.creditPayments > 0) {
+    steps.push(`Las cuotas de tus créditos son otros ${money(cash.creditPayments)}. Liquidar la más chica libera su cuota entera.`);
+  }
+  if (input.groceriesMonthly > 0) {
+    steps.push(`El super va por ${money(input.groceriesMonthly)}: gastar un 15 % menos libera ${money(input.groceriesMonthly * 0.15)} al mes.`);
+  }
+  steps.push(
+    paradas.length === 1
+      ? `Mientras tanto puedes pausarla, para que deje de aparecer en riesgo.`
+      : `Mientras tanto puedes pausar las que no corran prisa, para que dejen de aparecer en riesgo.`,
+  );
+
+  const cuales =
+    paradas.length === 1
+      ? `Por eso ${enumerate(paradas.map((g) => g.name))} está parada.`
+      : `Por eso están paradas ${enumerate(paradas.map((g) => g.name))}.`;
+
+  out.push({
+    id: 'goals-no-room',
+    topic: 'goals',
+    tone: 'warning',
+    icon: '⚠️',
+    title: paradas.length === 1 ? 'Tu meta no avanza este mes' : 'Tus metas no avanzan este mes',
+    // Sin rodeos y en este orden: cuánto sale, cuánto entra, y qué significa.
+    // La versión anterior abría con «No es un problema de esta meta, es del
+    // mes», que obliga a leer dos negaciones antes de llegar al dato.
+    body: `Cada mes se te va más de lo que entra: ${money(salidas)} de gastos frente a ${money(cash.monthlyIncome)} de ingreso. Como no sobra nada, el plan no tiene de dónde apartar. ${cuales}`,
+    steps,
+    action: { label: 'Revisar pagos fijos', kind: 'open_payments' },
+  });
+}
+
 function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, out: Advice[]): void {
   const fecha = goal.targetDate ? prettyDate(goal.targetDate) : null;
 
   if (goal.feasibility === 'done') {
     out.push({
       id: `goal-done-${goal.goalId}`,
+      topic: 'goals',
       tone: 'good',
       icon: '🎉',
       title: `¡${goal.name} está cubierta!`,
@@ -1102,6 +1164,7 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   if (goal.feasibility === 'overdue') {
     out.push({
       id: `goal-overdue-${goal.goalId}`,
+      topic: 'goals',
       tone: 'warning',
       icon: '📅',
       title: `${goal.name}: la fecha ya pasó`,
@@ -1123,6 +1186,7 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   if (goal.feasibility === 'tight') {
     out.push({
       id: `goal-tight-${goal.goalId}`,
+      topic: 'goals',
       tone: 'idea',
       icon: '🎯',
       title: `${goal.name} va justa`,
@@ -1135,6 +1199,7 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   if (goal.feasibility === 'on_track' && goal.daysLeft !== null) {
     out.push({
       id: `goal-ok-${goal.goalId}`,
+      topic: 'goals',
       tone: 'good',
       icon: goal.emoji || '✅',
       title: `${goal.name} va en camino`,
@@ -1147,6 +1212,7 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   if (goal.feasibility === 'no_date') {
     out.push({
       id: `goal-nodate-${goal.goalId}`,
+      topic: 'goals',
       tone: 'info',
       icon: '🗓️',
       title: `Ponle fecha a ${goal.name}`,
@@ -1179,6 +1245,7 @@ function adviceForStalledGoals(cash: CashFlow, goals: GoalProjection[], out: Adv
 
   out.push({
     id: 'goals-need-income',
+    topic: 'goals',
     tone: 'warning',
     icon: '⏸️',
     title: paradas.length === 1
@@ -1201,6 +1268,7 @@ function adviceForSurplus(cash: CashFlow, goals: GoalProjection[], out: Advice[]
   if (!priority) {
     out.push({
       id: 'surplus-no-goals',
+      topic: 'goals',
       tone: 'idea',
       icon: '✨',
       title: `Te sobran ${money(cash.unallocated)} al mes sin destino`,
@@ -1431,6 +1499,9 @@ export function buildAdvice(
   // estado vacío con el mismo mensaje, y repetirlo llenaba la pantalla de
   // instrucciones duplicadas.
   const active = goals.filter((g) => g.status === 'active');
+  // Primero el hecho comun —«este mes no sobra nada»— y luego lo propio de
+  // cada meta. Al reves, tres tarjetas identicas tapaban el consejo util.
+  adviceForNoRoomThisMonth(active, cash, input, out);
   for (const goal of active) adviceForGoal(goal, cash, input, out);
   adviceForStalledGoals(cash, goals, out);
 
