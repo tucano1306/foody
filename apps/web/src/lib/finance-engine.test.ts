@@ -1008,19 +1008,45 @@ describe('meta en riesgo — la explicación distingue la CAUSA', () => {
     );
   });
 
-  it('mes en rojo: culpa al mes, no a la meta, y dice de dónde sale el hueco', () => {
+  it('mes en rojo: lo dice UNA vez, nombra las metas paradas y de dónde sale el hueco', () => {
     const { advice } = buildFinancePlan(plan({
       incomes: [income({ amount: 1000 })],
       fixedPayments: [payment({ amount: 900 })],
       goals: [meta],
     }));
-    const a = advice.find((x) => x.id === `goal-risk-${meta.id}`);
-    expect(a?.title).toContain('está parada');
-    expect(a?.body).toContain('No es un problema de esta meta');
-    // Nombra las dos cifras que explican el hueco.
+    const a = advice.find((x) => x.id === 'goals-no-room');
+    expect(a?.title).toBe('Tu meta no avanza este mes');
+    // Abre con el dato, no con dos negaciones: la version anterior empezaba
+    // «No es un problema de esta meta, es del mes», que hay que releer.
+    expect(a?.body).toContain('se te va más de lo que entra');
     expect(a?.body).toContain('$1,000');
+    // Nombra cuál está parada: es lo que se perdería al fundir las tarjetas.
+    expect(a?.body).toContain(meta.name);
+    expect(a?.topic).toBe('goals');
     expect(a?.action?.kind).toBe('open_payments');
     expect(a?.steps?.some((s) => s.includes('pagos fijos'))).toBe(true);
+  });
+
+  it('con VARIAS metas paradas sigue habiendo UNA sola tarjeta', () => {
+    // Antes salía una por meta, con el mismo párrafo y los mismos pasos: tres
+    // metas eran tres bloques idénticos que tapaban el resto del consejero.
+    const { advice } = buildFinancePlan(plan({
+      incomes: [income({ amount: 1000 })],
+      fixedPayments: [payment({ amount: 900 })],
+      goals: [
+        goal({ id: 'g1', name: 'Viaje' }),
+        goal({ id: 'g2', name: 'Laptop' }),
+        goal({ id: 'g3', name: 'Fondo' }),
+      ],
+    }));
+
+    expect(advice.filter((a) => a.id === 'goals-no-room')).toHaveLength(1);
+    expect(advice.filter((a) => a.id.startsWith('goal-risk-'))).toHaveLength(0);
+
+    const a = advice.find((x) => x.id === 'goals-no-room');
+    expect(a?.title).toBe('Tus metas no avanzan este mes');
+    // Las tres, enumeradas como se enumera al hablar.
+    expect(a?.body).toContain('Viaje, Laptop y Fondo');
   });
 
   it('otras metas se llevan el dinero: lo dice y ofrece prioridad', () => {
