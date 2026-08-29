@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast';
 import { CATEGORY_EMOJI, KNOWN_CATEGORIES, UNCATEGORIZED_LABEL } from '@/lib/categories';
 import { UNITEMIZED_LABEL } from '@/lib/grocery-insights';
 import ModalShell from './ModalShell';
-import { fmtMoney } from './finance-ui';
+import { fmtMoneyFine } from './finance-ui';
 import { parseMoney, parseDecimal } from '@/lib/money-input';
 
 interface BreakdownItem {
@@ -274,8 +274,8 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
         loading
           ? 'Cargando…'
           : isUnitemized
-            ? `${fmtMoney(data?.total ?? 0)} sin explicar en ${data?.trips.length ?? 0} ${(data?.trips.length ?? 0) === 1 ? 'ticket' : 'tickets'}`
-            : `${fmtMoney(data?.total ?? 0)} este mes en ${data?.items.length ?? 0} ${(data?.items.length ?? 0) === 1 ? 'compra' : 'compras'}`
+            ? `${fmtMoneyFine(data?.total ?? 0)} sin explicar en ${data?.trips.length ?? 0} ${(data?.trips.length ?? 0) === 1 ? 'ticket' : 'tickets'}`
+            : `${fmtMoneyFine(data?.total ?? 0)} este mes en ${data?.items.length ?? 0} ${(data?.items.length ?? 0) === 1 ? 'compra' : 'compras'}`
       }
       onClose={onClose}
       footer={
@@ -418,11 +418,11 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                 <span className="block text-[11px] text-slate-500">
                   {fmtDate(t.date)} · {t.itemCount === 0
                     ? 'sin productos'
-                    : `${t.itemCount} ${t.itemCount === 1 ? 'producto' : 'productos'} de ${fmtMoney(t.total)}`}
+                    : `${t.itemCount} ${t.itemCount === 1 ? 'producto' : 'productos'} de ${fmtMoneyFine(t.total)}`}
                 </span>
               </span>
               <span className="shrink-0 text-right">
-                <span className="block text-sm font-black tabular-nums text-black">{fmtMoney(t.gap)}</span>
+                <span className="block text-sm font-black tabular-nums text-black">{fmtMoneyFine(t.gap)}</span>
                 <span className="block text-[10px] text-slate-400">por detallar</span>
               </span>
               <span aria-hidden="true" className="shrink-0 text-slate-300">›</span>
@@ -455,13 +455,13 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                       {item.productName}
                     </span>
                     <span className="block text-[11px] text-slate-500">
-                      {item.quantity} × {item.unitPrice == null ? '—' : fmtMoney(item.unitPrice)}
+                      {item.quantity} × {item.unitPrice == null ? '—' : fmtMoneyFine(item.unitPrice)}
                       {' · '}{fmtDate(item.purchasedAt)}
                       {item.storeName ? ` · ${item.storeName}` : ''}
                     </span>
                   </span>
                   <span className="shrink-0 text-sm font-black tabular-nums text-black">
-                    {fmtMoney(item.totalPrice)}
+                    {fmtMoneyFine(item.totalPrice)}
                   </span>
                   <span
                     aria-hidden="true"
