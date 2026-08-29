@@ -9,6 +9,7 @@ import MarkPaidModal, { type AppliedPayment } from '@/components/payments/MarkPa
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { scopeOf } from '@/lib/expense-scope';
 import { formatMonthShort } from '@/lib/payment-aggregates';
+import { FREQUENCY_LABEL, monthlyCost, normalizeFrequency } from '@/lib/payment-frequency';
 interface Props {
   readonly payment: MonthlyPayment;
   readonly autoOpen?: boolean;
@@ -132,6 +133,10 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
   const scope = scopeOf(currentPayment.businessShare ?? 0);
+  // Normalizada y no leida en crudo: un pago guardado antes de que existiera
+  // la frecuencia no la trae, y buscar su etiqueta a ciegas tumbaba la lista
+  // entera con un `undefined`.
+  const frequency = normalizeFrequency(currentPayment.frequency);
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
   const circleColor = getCircleColor(urgency, isPaid);
   const showQuickActions = !isPaid && !isSnoozed;
@@ -297,9 +302,20 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
               )}
               {currentPayment.currency} {currentPayment.amount.toFixed(2)}
             </p>
+            {/* El ciclo va aquí porque sin él dos recibos del mismo importe se
+                ven idénticos aunque uno cueste seis veces menos al mes. En los
+                mensuales no se dice: es lo normal y sería ruido en cada fila. */}
             <p className="text-slate-400 text-[11px]">
-              {currentPayment.isVariableAmount ? `Variable · Día ${currentPayment.dueDay}` : `Día ${currentPayment.dueDay} / mes`}
+              {currentPayment.isVariableAmount ? 'Variable · ' : ''}
+              Día {currentPayment.dueDay}
+              {frequency === 'monthly' ? ' / mes' : ` · ${FREQUENCY_LABEL[frequency].toLowerCase()}`}
             </p>
+            {frequency !== 'monthly' && (
+              <p className="text-slate-400 text-[11px]">
+                Son {currentPayment.currency}{' '}
+                {monthlyCost(currentPayment.amount, frequency).toFixed(2)} al mes
+              </p>
+            )}
           </div>
         </div>
 

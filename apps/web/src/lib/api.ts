@@ -4,6 +4,7 @@ import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
 import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
 import { normalizeShare } from './expense-scope';
+import { normalizeAnchorMonth, normalizeFrequency } from './payment-frequency';
 import { normalizeExpenseKind } from './expense-kind';
 import { randomUUID } from 'node:crypto';
 
@@ -162,6 +163,8 @@ function mapMonthlyPayment(
   aggregates?: PaymentAggregates,
 ): MonthlyPayment {
   const dueDay = asInteger(row.due_day, 1);
+  const frequency = normalizeFrequency(row.frequency);
+  const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
   const aggr = aggregates ?? { ...EMPTY_AGGREGATES, isPaidThisMonth: currentRecord?.status === 'paid' };
   const isPaidThisMonth = aggr.isPaidThisMonth;
   return {
@@ -171,6 +174,8 @@ function mapMonthlyPayment(
     amount: asNumber(row.amount),
     currency: asText(row.currency, 'USD'),
     dueDay,
+    frequency,
+    anchorMonth,
     category: ((row.category as string | null | undefined) ?? 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 1),
@@ -635,11 +640,16 @@ export const api = {
       return payments.map((row) => {
         const paymentRow = row as Record<string, unknown>;
         const paymentId = String(paymentRow.id);
+        // La frecuencia decide QUE meses cuentan: sin ella, un recibo
+        // semestral acumulaba cinco atrasos falsos por cada cobro real.
+        const frecuencia = normalizeFrequency(paymentRow.frequency);
         const aggregates = buildPaymentAggregates({
           createdAt: new Date(paymentRow.created_at as string),
           dueDay: asInteger(paymentRow.due_day, 1),
           amount: asNumber(paymentRow.amount),
           paidRecords: paidByPayment.get(paymentId) ?? [],
+          frequency: frecuencia,
+          anchorMonth: normalizeAnchorMonth(paymentRow.anchor_month, frecuencia),
         });
         return mapMonthlyPayment(paymentRow, recordMap.get(paymentId), aggregates);
       });

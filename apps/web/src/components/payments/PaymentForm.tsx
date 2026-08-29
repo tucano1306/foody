@@ -5,7 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { CreatePaymentDto } from '@foody/types';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import ScopePicker from '@/components/ui/ScopePicker';
+import { haptic } from '@/lib/haptic';
 import { parseMoney } from '@/lib/money-input';
+import { FREQUENCY_LABEL, PAYMENT_FREQUENCIES } from '@/lib/payment-frequency';
+import { LONG_MONTHS_ES } from '@/lib/payment-aggregates';
 
 const CATEGORIES = [
   { value: 'utilities', label: '💡', name: 'Servicios' },
@@ -32,6 +35,8 @@ export default function PaymentForm() {
     name: '',
     amount: 0,
     dueDay: 1,
+    frequency: 'monthly',
+    anchorMonth: null,
     currency: 'USD',
     category: presetCategory && VALID_CATEGORIES.has(presetCategory) ? presetCategory : 'other',
     description: '',
@@ -221,6 +226,64 @@ export default function PaymentForm() {
         </button>
       </div>
 
+      {/* ─── Cada cuánto se paga ──────────────────────────────────────────
+          Antes no se preguntaba y todo se asumía mensual, así que el seguro
+          del coche que se cobra cada seis meses entraba como si saliera de la
+          cuenta todos los meses: el plan multiplicaba ese gasto por seis. */}
+      <div>
+        <span className="block text-sm font-semibold text-slate-700 mb-1.5">Cada cuánto se paga</span>
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+          {PAYMENT_FREQUENCIES.map((f) => {
+            const active = form.frequency === f;
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => {
+                  haptic(6);
+                  setForm((prev) => ({
+                    ...prev,
+                    frequency: f,
+                    // Al dejar de ser mensual hace falta saber en qué mes cae
+                    // el cobro; se propone el actual, que es lo más probable.
+                    anchorMonth: f === 'monthly' ? null : (prev.anchorMonth ?? new Date().getMonth() + 1),
+                  }));
+                }}
+                aria-pressed={active}
+                className={`rounded-xl px-2 py-2.5 text-[11px] font-bold transition ${
+                  active ? 'bg-sky-500 text-white shadow-sm' : 'bg-sky-50 text-slate-600 hover:bg-sky-100'
+                }`}
+              >
+                {FREQUENCY_LABEL[f]}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* El mes solo se pregunta cuando hace falta: en un recibo mensual no
+            significa nada y sería una decisión de más. */}
+        {form.frequency !== 'monthly' && (
+          <div className="mt-2.5">
+            <label htmlFor="payment-anchor-month" className="block text-xs font-semibold text-slate-600 mb-1">
+              ¿En qué mes toca el próximo cobro?
+            </label>
+            <select
+              id="payment-anchor-month"
+              value={form.anchorMonth ?? 1}
+              onChange={(e) => setForm((f) => ({ ...f, anchorMonth: Number.parseInt(e.target.value, 10) }))}
+              className="w-full px-4 py-3 rounded-2xl border border-sky-200 text-black focus:outline-none focus:ring-2 focus:ring-brand-300 transition text-base"
+            >
+              {LONG_MONTHS_ES.map((name, i) => (
+                <option key={name} value={i + 1}>{name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1">
+              Los siguientes se calculan solos: {FREQUENCY_LABEL[form.frequency ?? 'monthly'].toLowerCase()} desde ese.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* ─── Día vencimiento + Notificación ──────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -249,7 +312,7 @@ export default function PaymentForm() {
               }}
               className="w-full px-4 py-3 rounded-2xl border border-sky-200 text-black focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs select-none">/ mes</span>
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs select-none">del mes</span>
           </div>
           <p className="text-xs text-slate-400 mt-1">Entre 1 y 31</p>
         </div>

@@ -217,6 +217,20 @@ export type PaymentCategory =
   | 'streaming'
   | 'other';
 
+/**
+ * Cada cuánto vence un recibo.
+ *
+ * Existe porque no todo se paga al mes: el seguro del coche llega cada seis
+ * meses, y contarlo como mensual multiplicaba ese gasto por seis en el plan
+ * financiero. La lógica vive en `payment-frequency.ts`.
+ */
+export type PaymentFrequency =
+  | 'monthly'
+  | 'bimonthly'
+  | 'quarterly'
+  | 'semiannual'
+  | 'annual';
+
 export interface MonthlyPayment {
   id: string;
   name: string;
@@ -224,6 +238,14 @@ export interface MonthlyPayment {
   amount: number;
   currency: string;
   dueDay: number;
+  /** Cada cuánto vence: mensual, bimestral, trimestral, semestral o anual. */
+  frequency: PaymentFrequency;
+  /**
+   * Mes (1-12) en que cae uno de los cobros, para los que no son mensuales.
+   * Los demás se deducen sumando ciclos: un semestral anclado en marzo vence
+   * en marzo y en septiembre. Es `null` en los mensuales.
+   */
+  anchorMonth: number | null;
   category: PaymentCategory | (string & {});
   isActive: boolean;
   notificationDaysBefore: number;
@@ -276,6 +298,10 @@ export interface CreatePaymentDto {
   amount: number;
   currency?: string;
   dueDay: number;
+  /** Cada cuánto vence. Sin esto se asume mensual, que es lo que era todo. */
+  frequency?: PaymentFrequency;
+  /** Mes (1-12) de uno de los cobros, para los que no son mensuales. */
+  anchorMonth?: number | null;
   category?: string;
   notificationDaysBefore?: number;
   isVariableAmount?: boolean;

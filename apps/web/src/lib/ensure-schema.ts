@@ -125,6 +125,12 @@ let scopeEnsured = false;
 export async function ensureExpenseScopeSchema(): Promise<void> {
   if (scopeEnsured) return;
   await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  // Cada cuanto vence el recibo. Por defecto MENSUAL, que es lo que eran todos
+  // hasta ahora: nada de lo ya guardado cambia de cifra al desplegar esto.
+  await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS frequency VARCHAR(12) NOT NULL DEFAULT 'monthly'`;
+  // Mes (1-12) en que cae uno de los cobros; los demas se deducen sumando
+  // ciclos. NULL en los mensuales, que vencen todos los meses.
+  await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS anchor_month SMALLINT`;
   await sql`ALTER TABLE IF EXISTS finance_income_sources ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
   // Una compra también puede ser del negocio (insumos, material de oficina).
   await sql`ALTER TABLE IF EXISTS shopping_trips ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
