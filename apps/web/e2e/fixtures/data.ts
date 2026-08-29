@@ -182,6 +182,10 @@ export const PAYMENTS: MonthlyPayment[] = [
     amount: 219,
     currency: 'MXN',
     dueDay: 15,
+
+    frequency: 'monthly',
+
+    anchorMonth: null,
     category: 'streaming',
     isActive: true,
     notificationDaysBefore: 3,
@@ -208,6 +212,10 @@ export const PAYMENTS: MonthlyPayment[] = [
     amount: 499,
     currency: 'MXN',
     dueDay: 5,
+
+    frequency: 'monthly',
+
+    anchorMonth: null,
     category: 'internet',
     isActive: true,
     notificationDaysBefore: 3,
@@ -249,6 +257,10 @@ export const PAYMENTS: MonthlyPayment[] = [
     amount: 8500,
     currency: 'MXN',
     dueDay: 1,
+
+    frequency: 'monthly',
+
+    anchorMonth: null,
     category: 'rent',
     isActive: true,
     notificationDaysBefore: 5,

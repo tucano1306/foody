@@ -7,6 +7,7 @@ import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from '@/lib/payment-aggregates';
 import { randomUUID } from 'node:crypto';
+import { normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -162,11 +163,14 @@ export async function POST(request: NextRequest) {
   const accountLast4 =
     typeof body.accountLast4 === 'string' && toLast4(body.accountLast4) ? toLast4(body.accountLast4) : null;
 
+  // Cada cuanto vence. Por defecto mensual, que es lo que era todo hasta ahora.
+  const frequency = normalizeFrequency(body.frequency);
+
   try {
     await ensureExpenseScopeSchema();
     const id = randomUUID();
     const rows = await sql`
-      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, is_variable_amount, is_auto_pay, business_share, payment_method, bank_name, account_last4, user_id, created_at, updated_at)
+      INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, frequency, anchor_month, category, is_active, notification_days_before, is_variable_amount, is_auto_pay, business_share, payment_method, bank_name, account_last4, user_id, created_at, updated_at)
       VALUES (
         ${id},
         ${name},
@@ -174,6 +178,8 @@ export async function POST(request: NextRequest) {
         ${amount},
         ${typeof body.currency === 'string' ? body.currency : 'USD'},
         ${dueDay},
+        ${frequency},
+        ${normalizeAnchorMonth(body.anchorMonth, frequency)},
         ${typeof body.category === 'string' ? body.category : null},
         true,
         ${notifyDays},

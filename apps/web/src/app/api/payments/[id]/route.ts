@@ -6,6 +6,7 @@ import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaymentAggregates } from '@/lib/payment-aggregates';
 import { normalizeShare } from '@/lib/expense-scope';
 import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number') return value;
@@ -166,6 +167,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ? toLast4(body.accountLast4)
       : null;
 
+  // Solo se toca la frecuencia si el cuerpo la trae: un PATCH parcial que no
+  // la menciona no puede convertir un semestral en mensual sin querer.
+  const frequency = body.frequency === undefined ? null : normalizeFrequency(body.frequency);
+  const anchorMonth = frequency === null ? null : normalizeAnchorMonth(body.anchorMonth, frequency);
+
   try {
     const rows = await sql`
       UPDATE monthly_payments SET
@@ -174,6 +180,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         amount = COALESCE(${body.amount as number ?? null}, amount),
         currency = COALESCE(${body.currency as string ?? null}, currency),
         due_day = COALESCE(${body.dueDay as number ?? null}, due_day),
+        -- La frecuencia y su mes de anclaje viajan juntos: cambiar una sin la
+        -- otra dejaria un semestral sin saber en que meses vence.
+        frequency = COALESCE(${frequency}, frequency),
+        anchor_month = CASE WHEN ${frequency}::text IS NULL THEN anchor_month ELSE ${anchorMonth} END,
         category = COALESCE(${body.category as string ?? null}, category),
         notification_days_before = COALESCE(${body.notificationDaysBefore as number ?? null}, notification_days_before),
         is_variable_amount = COALESCE(${body.isVariableAmount === undefined ? null : Boolean(body.isVariableAmount)}, is_variable_amount),

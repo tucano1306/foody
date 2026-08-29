@@ -11,6 +11,7 @@
 import { sql } from '@/lib/db';
 import { getBudgetData } from '@/lib/budget-data';
 import { listCreditsForPlan, type CreditForPlan } from '@/lib/debt-data';
+import { monthlyCost, normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { findDuplicateObligations, type DuplicateSuspect } from '@/lib/duplicate-obligations';
@@ -237,18 +238,30 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
 
   return rows.map((row) => {
     const id = String(row.id);
+    // Dos importes distintos y los dos hacen falta:
+    //
+    //   `amount`      lo que se cobra CADA VEZ. Es lo que se debe si se pasa un
+    //                 cobro, asi que es el que va a los atrasos.
+    //   `monthlyCost` lo que ese recibo cuesta AL MES. Es lo que resta el plan.
+    //
+    // Para un mensual son la misma cifra; para el seguro del coche que se paga
+    // cada seis meses, no. Confundirlos multiplicaba ese gasto por seis.
     const amount = num(row.amount);
     const dueDay = Math.trunc(num(row.due_day, 1));
+    const frequency = normalizeFrequency(row.frequency);
+    const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
     const aggregates = buildPaymentAggregates({
       createdAt: new Date(row.created_at as string),
       dueDay,
       amount,
       paidRecords: paidByPayment.get(id) ?? [],
+      frequency,
+      anchorMonth,
     });
     return {
       id,
       name: String(row.name ?? ''),
-      amount,
+      amount: monthlyCost(amount, frequency),
       dueDay,
       isPaidThisMonth: aggregates.isPaidThisMonth,
       missedMonths: aggregates.missedMonths,
