@@ -164,6 +164,9 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
           promoEndsOn: debt.promoEndsOn,
           rateAfterPromo: debt.rateAfterPromo,
           ratePeriod: debt.ratePeriod,
+          // Las cuotas caen el día de vencimiento, no el día en que se mira la
+          // pantalla: sin esto el aviso cambiaba según cuándo lo abrieras.
+          dueDay: debt.dueDay,
         })
       : null;
   const status = STATUS_META[debt.projection.status];
@@ -349,8 +352,21 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
                 </>
               ) : (
                 <p className="mt-1 text-xs leading-relaxed text-slate-700">
-                  Vas bien: a este ritmo la liquidas antes de que el 0 % se acabe, así que no
-                  pagarás intereses.
+                  {/* Con la fecha del último pago el «vas bien» se puede
+                      comprobar: entre ella y el fin de la promo está todo el
+                      margen que hay, y a veces es de días. */}
+                  {promo.lastPaymentOn ? (
+                    <>
+                      Vas bien: la última cuota cae el{' '}
+                      <strong>{fmtDateFull(promo.lastPaymentOn)}</strong>, antes de que el 0 % se
+                      acabe, así que no pagarás intereses.
+                    </>
+                  ) : (
+                    <>
+                      Vas bien: a este ritmo la liquidas antes de que el 0 % se acabe, así que no
+                      pagarás intereses.
+                    </>
+                  )}
                 </p>
               )}
             </div>

@@ -11,7 +11,13 @@
  * a cero antes. Puro, sin SQL ni React.
  */
 
-import { monthlyInterestOf, promoMonthsLeft, toMonthlyRate, type RatePeriod } from './debt-engine';
+import {
+  monthlyInterestOf,
+  promoLastDueDate,
+  promoMonthsLeft,
+  toMonthlyRate,
+  type RatePeriod,
+} from './debt-engine';
 
 // Se reexporta: vive en el motor para que este modulo no cree un ciclo de
 // importaciones, pero conceptualmente es de aqui.
@@ -26,6 +32,8 @@ export interface PromoInput {
   /** Tasa que empieza a correr el día siguiente, tal como la escribió el banco. */
   rateAfterPromo: number;
   ratePeriod?: RatePeriod;
+  /** Día del mes en que vence la cuota: decide cuántas caben antes de la fecha. */
+  dueDay?: number | null;
   now?: Date;
 }
 
@@ -42,6 +50,13 @@ export interface PromoRisk {
   extraNeeded: number;
   /** La cuota de hoy no basta: el 0 % se acaba con saldo encima. */
   willMissDeadline: boolean;
+  /**
+   * Día en que cae la última cuota que entra en la promoción, YYYY-MM-DD.
+   *
+   * Entre esa fecha y `promoEndsOn` está todo el margen que hay. `null` cuando
+   * no se sabe el día de vencimiento.
+   */
+  lastPaymentOn: string | null;
 }
 
 /**
@@ -54,7 +69,7 @@ export interface PromoRisk {
 export function promoRisk(input: PromoInput): PromoRisk {
   const balance = Math.max(0, input.balance);
   const installment = Math.max(0, input.installment);
-  const monthsLeft = promoMonthsLeft(input.promoEndsOn, input.now ?? new Date());
+  const monthsLeft = promoMonthsLeft(input.promoEndsOn, input.now ?? new Date(), input.dueDay);
   const afterMonthly = toMonthlyRate(input.rateAfterPromo, input.ratePeriod ?? 'annual_nominal');
 
   // Durante la promoción la tasa es 0, así que cada cuota baja el saldo entera.
@@ -68,6 +83,7 @@ export function promoRisk(input: PromoInput): PromoRisk {
     installmentToClear,
     extraNeeded: round2(Math.max(0, installmentToClear - installment)),
     willMissDeadline: balanceAtEnd > 0,
+    lastPaymentOn: promoLastDueDate(input.promoEndsOn, input.now ?? new Date(), input.dueDay),
   };
 }
 

@@ -78,8 +78,9 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
       termMonths,
       payoffDate: payoffDate || null,
       customPayment: hasCustom ? customNum : null,
+      dueDay,
     });
-  }, [hasMoney, hasRate, hasCustom, balanceNum, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum]);
+  }, [hasMoney, hasRate, hasCustom, balanceNum, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, dueDay]);
 
   const stepValid = [
     true,
