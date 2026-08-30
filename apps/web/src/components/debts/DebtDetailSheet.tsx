@@ -65,6 +65,9 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [realBalance, setRealBalance] = useState('');
+  const [charging, setCharging] = useState(false);
+  const [chargeAmount, setChargeAmount] = useState('');
+  const [chargeNote, setChargeNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -102,6 +105,45 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
       setAdjusting(false);
       setRealBalance('');
       setMovements(null); // el historial se recarga con el ajuste dentro
+      haptic();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Un consumo nuevo: sube el saldo y queda anotado.
+   *
+   * Se asienta como `charge` en el libro mayor y NO como una correccion de
+   * saldo: una correccion sobrescribe la cifra y no dice que se compro, asi que
+   * el historial dejaba de explicar de donde sale lo que se debe.
+   */
+  async function addCharge() {
+    const amount = parseMoney(chargeAmount);
+    if (amount === null || amount <= 0) {
+      setError('Escribe cuanto gastaste');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/debts/${debt.id}/movements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ kind: 'charge', amount, note: chargeNote.trim() || null }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? 'No se pudo registrar');
+      }
+      onChanged((await res.json()) as DebtWithProjection);
+      setCharging(false);
+      setChargeAmount('');
+      setChargeNote('');
+      setMovements(null); // el historial se recarga con el consumo dentro
       haptic();
     } catch (err) {
       setError((err as Error).message);
@@ -345,6 +387,65 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
           {/* Editar y corregir saldo. El saldo NO se edita como un campo: se
               corrige con un ajuste en el libro mayor, para que el historial
               siga explicando la cifra en vez de contradecirla. */}
+          {/* Registrar un consumo.
+              Una tarjeta que se usa a diario sube de saldo sin que nadie la
+              abone, y hasta ahora la única forma de reflejarlo era «corregir
+              saldo», que sobrescribe la cifra y no deja rastro de QUÉ se
+              compró. Un cargo entra en el libro mayor como lo que es. */}
+          <button
+            type="button"
+            onClick={() => { haptic(); setCharging(true); }}
+            className={`w-full rounded-2xl py-3 text-sm ${BTN_SOFT}`}
+          >
+            🛒 Registrar un consumo
+          </button>
+
+          {charging && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4">
+              <label htmlFor="debt-charge" className="mb-2 block text-xs font-bold text-slate-600">
+                ¿Cuánto gastaste con esta tarjeta?
+              </label>
+              <input
+                id="debt-charge"
+                type="text"
+                inputMode="decimal"
+                value={chargeAmount}
+                onChange={(e) => setChargeAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full rounded-2xl border-2 border-sky-200 bg-white px-4 py-3 text-right text-xl font-extrabold text-black focus:border-sky-400 focus:outline-none"
+              />
+              <input
+                type="text"
+                value={chargeNote}
+                onChange={(e) => setChargeNote(e.target.value)}
+                maxLength={80}
+                placeholder="¿Dónde? (opcional)"
+                aria-label="Dónde fue el consumo"
+                className="mt-2 w-full rounded-2xl border-2 border-sky-200 bg-white px-4 py-2.5 text-sm text-black focus:border-sky-400 focus:outline-none"
+              />
+              <p className="mt-2 text-[11px] text-slate-500">
+                Sube el saldo y queda en el historial, igual que en tu estado de cuenta.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setCharging(false); setChargeAmount(''); setChargeNote(''); }}
+                  className={`flex-1 rounded-2xl py-2.5 text-sm ${BTN_SOFT}`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={addCharge}
+                  className={`flex-1 rounded-2xl py-2.5 text-sm ${BTN_PRIMARY} disabled:opacity-40`}
+                >
+                  Sumar al saldo
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
