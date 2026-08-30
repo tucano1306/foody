@@ -133,6 +133,8 @@ export interface IncomeInput {
   frequency: IncomeFrequency;
   isActive: boolean;
   note: string | null;
+  /** Día en que entró el dinero, YYYY-MM-DD. Solo tiene sentido en `one_time`. */
+  receivedOn: string | null;
 }
 
 export function validateIncomeBody(body: Record<string, unknown>): IncomeInput | ValidationError {
@@ -145,11 +147,22 @@ export function validateIncomeBody(body: Record<string, unknown>): IncomeInput |
   const freqRaw = typeof body.frequency === 'string' ? (body.frequency as IncomeFrequency) : 'monthly';
   const frequency = INCOME_FREQUENCIES.includes(freqRaw) ? freqRaw : 'monthly';
 
+  // La fecha decide a qué mes pertenece un cheque, así que una fecha ilegible
+  // se rechaza en vez de caer en «hoy»: adivinarla movería dinero de mes.
+  let receivedOn: string | null = null;
+  if (body.receivedOn != null && body.receivedOn !== '') {
+    receivedOn = parseDateInput(body.receivedOn);
+    if (!receivedOn) return { error: 'La fecha del ingreso debe tener formato AAAA-MM-DD' };
+  }
+
   return {
     name,
     amount,
     frequency,
     isActive: body.isActive == null ? true : Boolean(body.isActive),
     note: parseText(body.note, 500) || null,
+    // Solo los sueltos llevan fecha: guardarla en un sueldo mensual daría a
+    // entender que ese sueldo solo cuenta un mes.
+    receivedOn: frequency === 'one_time' ? receivedOn : null,
   };
 }

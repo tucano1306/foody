@@ -64,7 +64,14 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       key: 'income',
       emoji: '💼',
       label: 'Ingresos',
-      hint: cash.extraMonthly > 0 ? `incluye ${fmtMoney(cash.extraMonthly)} simulados` : 'todo lo que entra al mes',
+      // Un cheque cobrado este mes no es lo mismo que un sueldo: decirlo aquí
+      // evita que la cifra se lea como «esto entra todos los meses».
+      hint:
+        cash.extraMonthly > 0
+          ? `incluye ${fmtMoney(cash.extraMonthly)} simulados`
+          : cash.oneTimeIncome > 0
+            ? `${fmtMoney(cash.recurringIncome)} fijos + ${fmtMoney(cash.oneTimeIncome)} cobrados este mes`
+            : 'todo lo que entra al mes',
       amount: cash.monthlyIncome + cash.extraMonthly,
       bar: 'from-sky-300 to-sky-400',
       onClick: onOpenIncome,

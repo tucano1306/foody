@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
 
   await ensureFinanceSchema();
   const rows = await sql`
-    INSERT INTO finance_income_sources (id, user_id, name, amount, frequency, is_active, note, business_share, created_at, updated_at)
-    VALUES (${randomUUID()}, ${user.userId}, ${input.name}, ${input.amount}, ${input.frequency}, ${input.isActive}, ${input.note}, ${normalizeShare(body.businessShare)}, NOW(), NOW())
+    INSERT INTO finance_income_sources (id, user_id, name, amount, frequency, is_active, note, business_share, received_on, created_at, updated_at)
+    VALUES (${randomUUID()}, ${user.userId}, ${input.name}, ${input.amount}, ${input.frequency}, ${input.isActive}, ${input.note}, ${normalizeShare(body.businessShare)}, ${input.receivedOn}, NOW(), NOW())
     RETURNING *
   `;
   return NextResponse.json(mapIncomeRow(rows[0] as Record<string, unknown>), { status: 201 });

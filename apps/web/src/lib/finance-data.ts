@@ -102,6 +102,9 @@ export async function ensureFinanceSchema(): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_income_user ON finance_income_sources (user_id, is_active)`;
+  // El día en que entró el dinero. Solo lo usa `one_time`: sin fecha, un cheque
+  // no sabe a qué mes pertenece y no puede dejar de contar en el siguiente.
+  await sql`ALTER TABLE finance_income_sources ADD COLUMN IF NOT EXISTS received_on DATE`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS finance_goals (
@@ -201,6 +204,9 @@ export function mapIncomeRow(row: Record<string, unknown>): IncomeSource {
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     note: (row.note as string | null) ?? null,
     businessShare: normalizeShare(row.business_share),
+    // Sin fecha propia manda el día en que se registró: un cheque anotado
+    // siempre pertenece a algún mes, nunca a ninguno.
+    receivedOn: dateKey(row.received_on) ?? dateKey(row.created_at),
   };
 }
 

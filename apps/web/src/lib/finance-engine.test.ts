@@ -1298,3 +1298,78 @@ describe('personalOnlyInput — los panoramas también se reparten', () => {
     expect(solo.groceries).toBe(detalle);
   });
 })
+
+/**
+ * El caso que reporto el usuario: «quizas hoy cobro un cheque de xxx y quizas
+ * mañana otro, y asi sucesivamente».
+ *
+ * `one_time` existia en el tipo, en la validacion y hasta con etiqueta escrita,
+ * pero valia 0 en toda la aritmetica y ni siquiera se ofrecia en la pantalla.
+ * Quien cobra por trabajos no tenia forma de que la app viera un solo dolar: la
+ * unica pregunta era «¿cuanto ganas al mes?» y la respuesta honesta es
+ * «depende».
+ */
+describe('buildFinancePlan — cheques y pagos sueltos', () => {
+  const cheque = (over: Partial<IncomeSource> = {}): IncomeSource =>
+    income({ id: 'c1', name: 'Cheque', frequency: 'one_time', amount: 1200, receivedOn: '2026-07-15', ...over });
+
+  it('un cheque cobrado este mes cuenta ENTERO', () => {
+    const { cashFlow } = buildFinancePlan(plan({ incomes: [cheque()] }));
+    expect(cashFlow.oneTimeIncome).toBe(1200);
+    expect(cashFlow.monthlyIncome).toBe(1200);
+  });
+
+  it('el de otro mes no cuenta, ni el de antes ni el de despues', () => {
+    for (const dia of ['2026-06-30', '2026-08-01']) {
+      const { cashFlow } = buildFinancePlan(plan({ incomes: [cheque({ receivedOn: dia })] }));
+      expect(cashFlow.oneTimeIncome).toBe(0);
+      expect(cashFlow.monthlyIncome).toBe(0);
+    }
+  });
+
+  it('varios cheques del mismo mes se suman', () => {
+    const { cashFlow } = buildFinancePlan(
+      plan({
+        incomes: [
+          cheque({ id: 'c1', amount: 1200, receivedOn: '2026-07-15' }),
+          cheque({ id: 'c2', amount: 850.4, receivedOn: '2026-07-22' }),
+          cheque({ id: 'c3', amount: 300, receivedOn: '2026-07-31' }),
+        ],
+      }),
+    );
+    expect(cashFlow.oneTimeIncome).toBe(2350.4);
+  });
+
+  it('no se confunde con el sueldo: se cuentan aparte y se suman para el mes', () => {
+    // La cifra total tiene que ser exacta, pero llamar «ingreso mensual» a un
+    // cheque seria mentir sobre el mes que viene.
+    const { cashFlow } = buildFinancePlan(plan({ incomes: [income(), cheque()] }));
+    expect(cashFlow.recurringIncome).toBe(3000);
+    expect(cashFlow.oneTimeIncome).toBe(1200);
+    expect(cashFlow.monthlyIncome).toBe(4200);
+  });
+
+  it('el cheque mueve lo que queda libre, que es de lo que come el plan', () => {
+    const sinCheque = buildFinancePlan(plan()).cashFlow.available;
+    const conCheque = buildFinancePlan(plan({ incomes: [income(), cheque()] })).cashFlow.available;
+    expect(conCheque - sinCheque).toBe(1200);
+  });
+
+  it('un cheque desactivado deja de contar sin borrarlo', () => {
+    const { cashFlow } = buildFinancePlan(plan({ incomes: [cheque({ isActive: false })] }));
+    expect(cashFlow.oneTimeIncome).toBe(0);
+  });
+
+  it('sin fecha no se inventa el mes: no cuenta', () => {
+    const { cashFlow } = buildFinancePlan(plan({ incomes: [cheque({ receivedOn: null })] }));
+    expect(cashFlow.oneTimeIncome).toBe(0);
+  });
+
+  it('un cheque del negocio llega al reparto personal/negocio', () => {
+    // Antes se repartia la tasa mensual, que en un suelto es 0: el negocio
+    // cobraba y seguia pareciendo que solo gasta.
+    const { scopes } = buildFinancePlan(plan({ incomes: [cheque({ businessShare: 100 })] }));
+    expect(scopes.business.income).toBe(1200);
+    expect(scopes.personal.income).toBe(0);
+  });
+});
