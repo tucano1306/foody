@@ -46,7 +46,7 @@ import {
 
 export const GOAL_KINDS: readonly GoalKind[] = ['trip', 'debt', 'project', 'purchase', 'emergency'];
 export const GOAL_STATUSES: readonly GoalStatus[] = ['active', 'paused', 'done'];
-export const INCOME_FREQUENCIES: readonly IncomeFrequency[] = ['monthly', 'biweekly', 'weekly', 'yearly', 'one_time'];
+export const INCOME_FREQUENCIES: readonly IncomeFrequency[] = ['monthly', 'biweekly', 'weekly', 'yearly', 'ytd', 'one_time'];
 
 export interface GoalContribution {
   id: string;

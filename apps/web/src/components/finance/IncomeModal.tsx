@@ -8,13 +8,14 @@ import ModalShell from './ModalShell';
 import ScopePicker from '@/components/ui/ScopePicker';
 import {
   monthlyEquivalent,
+  monthsElapsedThisYear,
   totalMonthlyIncome,
   totalOneTimeIncome,
   type IncomeFrequency,
   type IncomeSource,
 } from '@/lib/finance-engine';
 import { parseMoney } from '@/lib/money-input';
-import { FREQUENCY_LABEL, fmtMoney } from './finance-ui';
+import { FREQUENCY_LABEL, fmtMoney, fmtMoneyFine } from './finance-ui';
 
 export interface IncomePayload {
   name: string;
@@ -41,7 +42,13 @@ interface Props {
  * no tenía dónde meterlo y acababa poniéndolo como «Mensual», que promete todos
  * los meses un dinero que entró una vez.
  */
-const FREQUENCIES: readonly IncomeFrequency[] = ['monthly', 'biweekly', 'weekly', 'yearly', 'one_time'];
+const FREQUENCIES: readonly IncomeFrequency[] = ['monthly', 'biweekly', 'weekly', 'yearly', 'ytd', 'one_time'];
+
+/** Las dos que no son una tasa fija se llevan la fila entera y se explican. */
+const WIDE_LABEL: Partial<Record<IncomeFrequency, string>> = {
+  ytd: '📅 Lo que llevo cobrado este año',
+  one_time: '💵 Un cheque o pago suelto',
+};
 
 /** Hoy en YYYY-MM-DD, en hora local: `toISOString` corre el día por la tarde. */
 function today(): string {
@@ -75,9 +82,12 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
   const isOneTime = frequency === 'one_time';
   const recurring = totalMonthlyIncome(incomes);
   const oneTime = totalOneTimeIncome(incomes);
+  const elapsed = monthsElapsedThisYear();
+  const year = new Date().getFullYear();
 
+  const pendingAmount = parseMoney(amount);
   /** Hay algo escrito que todavía no se ha guardado. */
-  const pending = name.trim() !== '' || parseMoney(amount) !== null;
+  const pending = name.trim() !== '' || pendingAmount !== null;
 
   /** @returns true si quedó guardado (o no había nada que guardar). */
   async function add(): Promise<boolean> {
@@ -195,7 +205,9 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                     {inc.frequency === 'one_time'
                       ? ` · ${fmtDay(inc.receivedOn)}${countsNow(inc) ? '' : ' · otro mes'}`
                       : inc.frequency !== 'monthly' &&
-                        ` → ${fmtMoney(monthlyEquivalent(inc.amount, inc.frequency))}/mes`}
+                        (inc.frequency === 'ytd'
+                          ? ` ÷ ${elapsed} meses → ${fmtMoneyFine(monthlyEquivalent(inc.amount, inc.frequency))}/mes`
+                          : ` → ${fmtMoney(monthlyEquivalent(inc.amount, inc.frequency))}/mes`)}
                   </p>
                 </div>
                 <button
@@ -253,17 +265,36 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                 type="button"
                 onClick={() => { setFrequency(f); haptic(6); }}
                 className={`py-2 rounded-xl text-[11px] font-bold transition ${
-                  f === 'one_time' ? 'col-span-4' : ''
+                  WIDE_LABEL[f] ? 'col-span-4' : ''
                 } ${
                   frequency === f
                     ? 'bg-sky-100 text-sky-700 ring-2 ring-sky-200'
                     : 'bg-white text-slate-500 border border-sky-200'
                 }`}
               >
-                {f === 'one_time' ? '💵 Un cheque o pago suelto' : FREQUENCY_LABEL[f]}
+                {WIDE_LABEL[f] ?? FREQUENCY_LABEL[f]}
               </button>
             ))}
           </div>
+
+          {/* Un acumulado del año no se divide entre 12: se divide entre los
+              meses que HAN pasado. Se enseña la cuenta entera —cifra, divisor y
+              resultado— porque es un número que cambia solo al pasar de mes, y
+              verlo salir evita que parezca que la app se lo inventa. */}
+          {frequency === 'ytd' && (
+            <p className="rounded-xl bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600">
+              De enero al día de hoy han pasado <strong>{elapsed} meses de {year}</strong>.
+              {pendingAmount !== null && pendingAmount > 0 ? (
+                <>
+                  {' '}
+                  {fmtMoneyFine(pendingAmount)} ÷ {elapsed} ={' '}
+                  <strong>{fmtMoneyFine(pendingAmount / elapsed)} al mes</strong>.
+                </>
+              ) : (
+                ' Lo que escribas se repartirá entre esos meses, no entre 12.'
+              )}
+            </p>
+          )}
 
           {/* La fecha solo aparece cuando cambia algo: es lo que decide en qué
               mes cuenta el cheque, y en cuál deja de contar. */}

@@ -131,6 +131,7 @@ export const FREQUENCY_LABEL: Record<IncomeFrequency, string> = {
   biweekly: 'Quincenal',
   weekly: 'Semanal',
   yearly: 'Anual',
+  ytd: 'Llevo este año',
   one_time: 'Una sola vez',
 };
 

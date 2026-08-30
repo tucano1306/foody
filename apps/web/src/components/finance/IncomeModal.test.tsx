@@ -116,3 +116,32 @@ describe('IncomeModal — el cheque suelto', () => {
     expect(screen.getByText(/fijos \+/)).toHaveTextContent('$3,000 fijos + $1,200 de una sola vez');
   });
 });
+
+describe('IncomeModal — lo que llevo cobrado este año', () => {
+  it('enseña la cuenta entera: cifra ÷ meses transcurridos = al mes', () => {
+    // El resultado cambia solo al pasar de mes, así que la división tiene que
+    // verse: si no, parece que la app se inventa el número.
+    vi.useFakeTimers({ now: new Date(2026, 7, 30), toFake: ['Date'] });
+    try {
+      montar();
+      fireEvent.click(screen.getByRole('button', { name: /llevo cobrado este año/i }));
+      fireEvent.change(screen.getByLabelText('Monto'), { target: { value: '31397.50' } });
+
+      const nota = screen.getByText(/han pasado/i);
+      expect(nota).toHaveTextContent('8 meses de 2026');
+      expect(nota).toHaveTextContent('$3,924.69 al mes');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lo manda con su propia frecuencia, no como sueldo anual', async () => {
+    const { onCreate } = montar();
+    fireEvent.click(screen.getByRole('button', { name: /llevo cobrado este año/i }));
+    rellenar('Trabajos 2026', '31397.50');
+    fireEvent.click(screen.getByRole('button', { name: /agregar ingreso/i }));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalled());
+    expect(onCreate.mock.calls[0][0]).toMatchObject({ amount: 31397.5, frequency: 'ytd', receivedOn: null });
+  });
+});

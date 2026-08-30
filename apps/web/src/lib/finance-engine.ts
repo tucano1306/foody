@@ -28,7 +28,22 @@ import {
 
 export type GoalKind = 'trip' | 'debt' | 'project' | 'purchase' | 'emergency';
 export type GoalStatus = 'active' | 'paused' | 'done';
-export type IncomeFrequency = 'monthly' | 'biweekly' | 'weekly' | 'yearly' | 'one_time';
+export type IncomeFrequency =
+  | 'monthly'
+  | 'biweekly'
+  | 'weekly'
+  /** Total de un año COMPLETO: se reparte entre 12. */
+  | 'yearly'
+  /**
+   * Lo que se lleva cobrado del año en curso, de enero a hoy.
+   *
+   * No es lo mismo que `yearly` y por eso no comparte botón: $31.397,50 de
+   * sueldo anual son $2.616,46 al mes, pero $31.397,50 cobrados entre enero y
+   * el 30 de agosto son $3.924,69 al mes. Dividir un acumulado entre 12
+   * inventa cuatro meses que todavía no han pasado.
+   */
+  | 'ytd'
+  | 'one_time';
 
 export interface IncomeSource {
   id: string;
@@ -399,13 +414,36 @@ export function daysUntil(target: string, now: Date = new Date()): number | null
   return Math.round((end.getTime() - startOfToday) / MS_PER_DAY - 0.5);
 }
 
-/** Ingreso mensual equivalente de una fuente según su frecuencia. */
-export function monthlyEquivalent(amount: number, frequency: IncomeFrequency): number {
+/**
+ * Meses del año en curso que ya han empezado, contando el actual.
+ *
+ * El mes en marcha cuenta entero: repartir un acumulado entre «7 meses y 30
+ * días» exige un divisor fraccionario que en enero se dispara —lo cobrado el
+ * día 1 dividido entre 1/30 de mes daría un sueldo de treinta veces la cifra—.
+ * Contar el mes empezado es estable todo el año y siempre peca de prudente.
+ */
+export function monthsElapsedThisYear(now: Date = new Date()): number {
+  return now.getMonth() + 1;
+}
+
+/**
+ * Ingreso mensual equivalente de una fuente según su frecuencia.
+ *
+ * `now` solo lo usa `ytd`, que es la única frecuencia cuyo resultado depende
+ * de qué día es: un acumulado del año se reparte entre los meses que de
+ * verdad han pasado, no entre doce.
+ */
+export function monthlyEquivalent(
+  amount: number,
+  frequency: IncomeFrequency,
+  now: Date = new Date(),
+): number {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
   switch (frequency) {
     case 'weekly':   return (amount * 52) / 12;
     case 'biweekly': return (amount * 26) / 12;
     case 'yearly':   return amount / 12;
+    case 'ytd':      return amount / monthsElapsedThisYear(now);
     case 'one_time': return 0;
     case 'monthly':
     default:         return amount;
@@ -419,10 +457,13 @@ export function monthlyEquivalent(amount: number, frequency: IncomeFrequency): n
  * mensual y prometerlo para el mes que viene sería inventarlo. Lo que sí entró
  * este mes lo cuenta `totalOneTimeIncome`.
  */
-export function totalMonthlyIncome(incomes: readonly IncomeSource[]): number {
+export function totalMonthlyIncome(
+  incomes: readonly IncomeSource[],
+  now: Date = new Date(),
+): number {
   return incomes
     .filter((i) => i.isActive)
-    .reduce((sum, i) => sum + monthlyEquivalent(i.amount, i.frequency), 0);
+    .reduce((sum, i) => sum + monthlyEquivalent(i.amount, i.frequency, now), 0);
 }
 
 /** ¿Esa fecha YYYY-MM-DD cae en el mes de `now`? */
@@ -448,7 +489,7 @@ export function totalOneTimeIncome(incomes: readonly IncomeSource[], now: Date =
 /** Lo que esta fuente aporta al mes en curso: la tasa mensual, o el cheque si cayó. */
 export function incomeThisMonth(income: IncomeSource, now: Date = new Date()): number {
   if (!income.isActive) return 0;
-  if (income.frequency !== 'one_time') return monthlyEquivalent(income.amount, income.frequency);
+  if (income.frequency !== 'one_time') return monthlyEquivalent(income.amount, income.frequency, now);
   return landsInMonth(income.receivedOn, now) ? Math.max(0, income.amount) : 0;
 }
 
@@ -1577,7 +1618,7 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   // El ingreso del mes son DOS cosas: lo que se repite y lo que cayó suelto.
   // Se calculan aparte para poder decirlas aparte, y se suman para lo único
   // que necesita el total: cuánto dinero hay realmente este mes.
-  const recurringIncome = totalMonthlyIncome(input.incomes);
+  const recurringIncome = totalMonthlyIncome(input.incomes, now);
   const oneTimeIncome = totalOneTimeIncome(input.incomes, now);
   const monthlyIncome = recurringIncome + oneTimeIncome;
   const fixedPayments = input.fixedPayments.reduce((s, p) => s + Math.max(0, p.amount), 0);
