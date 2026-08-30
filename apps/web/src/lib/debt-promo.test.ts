@@ -35,6 +35,50 @@ describe('promoMonthsLeft', () => {
     expect(promoMonthsLeft('', HOY)).toBe(0);
     expect(promoMonthsLeft('no es fecha', HOY)).toBe(0);
   });
+
+  /**
+   * Con el dia de vencimiento se cuentan los PAGOS que caben, no los meses que
+   * caben. La diferencia no es teorica: la 6791 vence el 24 y su promo muere el
+   * 27/09/2027, asi que caben trece cuotas —la ultima, tres dias antes—, pero
+   * contando meses completos desde un 30 de agosto salian doce y la hoja
+   * avisaba de un descubierto de $480 que no existe.
+   */
+  describe('contando vencimientos', () => {
+    it('cuenta los pagos que caben, no los meses', () => {
+      expect(promoMonthsLeft('2027-09-27', new Date(2026, 7, 30), 24)).toBe(13);
+      expect(promoMonthsLeft('2027-09-27', new Date(2026, 7, 30))).toBe(12);
+    });
+
+    it('deja de depender del dia en que se mire la pantalla', () => {
+      // Mismo credito, tres dias distintos del mismo mes: el vencimiento del
+      // 24 de agosto ya paso en los tres, asi que la respuesta no cambia.
+      for (const dia of [25, 30, 31]) {
+        expect(promoMonthsLeft('2027-09-27', new Date(2026, 7, dia), 24)).toBe(13);
+      }
+    });
+
+    it('el vencimiento de hoy todavia cuenta', () => {
+      expect(promoMonthsLeft('2026-10-27', new Date(2026, 7, 24), 24)).toBe(3);
+      // Un dia despues ya se fue.
+      expect(promoMonthsLeft('2026-10-27', new Date(2026, 7, 25), 24)).toBe(2);
+    });
+
+    it('el que cae justo el ultimo dia entra', () => {
+      expect(promoMonthsLeft('2027-01-25', new Date(2026, 7, 30), 25)).toBe(5);
+      // Un dia antes de la promo, ese ultimo pago ya no llega.
+      expect(promoMonthsLeft('2027-01-24', new Date(2026, 7, 30), 25)).toBe(4);
+    });
+
+    it('los meses cortos recortan el dia, como hace el banco', () => {
+      // Vencimiento el 31: febrero paga el 28 y sigue contando.
+      expect(promoMonthsLeft('2027-03-31', new Date(2026, 11, 31), 31)).toBe(4);
+    });
+
+    it('un dia de vencimiento imposible no cuenta como valido', () => {
+      expect(promoMonthsLeft('2027-09-27', new Date(2026, 7, 30), 0)).toBe(12);
+      expect(promoMonthsLeft('2027-09-27', new Date(2026, 7, 30), 99)).toBe(12);
+    });
+  });
 });
 
 describe('promoRisk — el saldo de $11,440 al 0 %', () => {

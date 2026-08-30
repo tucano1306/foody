@@ -20,7 +20,11 @@ import PayoffSimulator from './PayoffSimulator';
  */
 const HOY = new Date(2026, 7, 30); // 30 de agosto de 2026
 
-function tarjeta6791(): DebtWithProjection {
+/**
+ * `cuota` cambia solo el ritmo de pago, no el credito: sirve para ver la misma
+ * tarjeta llegando a tiempo y no llegando.
+ */
+function tarjeta6791(cuota?: number): DebtWithProjection {
   const base = {
     id: 'debt-6791',
     userId: 'user-1',
@@ -33,10 +37,10 @@ function tarjeta6791(): DebtWithProjection {
     currentBalance: 6240,
     rate: 0,
     ratePeriod: 'annual_nominal' as const,
-    strategy: 'by_date' as const,
+    strategy: (cuota ? 'custom' : 'by_date') as 'custom' | 'by_date',
     termMonths: null,
     payoffDate: '2027-09-27',
-    customPayment: null,
+    customPayment: cuota ?? null,
     minPercent: null,
     minFloor: 62,
     extraMonthly: 0,
@@ -73,6 +77,7 @@ function tarjeta6791(): DebtWithProjection {
       promoEndsOn: base.promoEndsOn,
       rateAfterPromo: base.rateAfterPromo,
       cycleDays: base.cycleDays,
+      dueDay: base.dueDay,
       now: HOY,
     }),
     breakdown: {
@@ -112,13 +117,19 @@ describe('PayoffSimulator — la tarjeta al 0 % que se paga por fecha', () => {
     expect(antes).not.toHaveTextContent('—');
   });
 
-  it('el ahorro no es cero: adelantarse esquiva el 27,49 % de después', () => {
-    // A $480 la última cuota cae el 24/09/2027, tres días antes de que caduque
-    // el 0 %. Lo que sobra pasa a pagar interés, y por eso abonar de más SÍ
-    // ahorra dinero aunque la tasa de hoy sea 0.
+  it('a $480 no hay intereses que ahorrar, porque no llega a haberlos', () => {
+    // Las trece cuotas caben antes del 27/09/2027, asi que el 27,49 % nunca
+    // llega a correr. Prometer un ahorro aqui seria inventarlo.
     render(<PayoffSimulator debt={tarjeta6791()} />);
-    const ahorro = screen.getByText('Te ahorras').nextElementSibling;
-    expect(ahorro).not.toHaveTextContent('—');
+    expect(screen.getByText('Te ahorras').nextElementSibling).toHaveTextContent('—');
+  });
+
+  it('a $400 sí lo hay: el saldo sobrevive a la promo y empieza a pagar 27,49 %', () => {
+    // La misma tarjeta a un ritmo que no llega. Este ahorro NO existe en la
+    // tasa de hoy —que es 0 %—: existe solo porque el motor ve la promoción
+    // caducar. Sin pasarsela, el simulador ofrecia un «—» aqui.
+    render(<PayoffSimulator debt={tarjeta6791(400)} />);
+    expect(screen.getByText('Te ahorras').nextElementSibling).not.toHaveTextContent('—');
   });
 });
 
@@ -128,11 +139,11 @@ describe('PayoffSimulator — la tarjeta al 0 % que se paga por fecha', () => {
  * ven juntos, así que se comprueba con las cifras del banco, no con mocks.
  */
 describe('DebtDetailSheet — el resumen de la 6791 con los datos del banco', () => {
-  function abrir() {
+  function abrir(cuota?: number) {
     const noop = () => {};
     render(
       <DebtDetailSheet
-        debt={tarjeta6791()}
+        debt={tarjeta6791(cuota)}
         onClose={noop}
         onChanged={noop}
         onDeleted={noop}
@@ -147,12 +158,22 @@ describe('DebtDetailSheet — el resumen de la 6791 con los datos del banco', ()
     expect(screen.getByText(/0 % hasta el/)).toHaveTextContent('27 sep 2027');
   });
 
-  it('avisa de que a $480 se llega a esa fecha debiendo todavía $480', () => {
-    // 12 ciclos completos caben antes del 27/09/2027; la cuota número 13
-    // llega justo al filo. Ese resto es lo que empieza a pagar el 27,49 %.
+  it('a $480 dice que llega, porque las trece cuotas caben', () => {
+    // Vence el 24 y la promo muere el 27/09/2027: la ultima cuota cae el
+    // 24/09/2027, tres dias antes. Contando meses completos desde un 30 de
+    // agosto salian doce, y la hoja avisaba de un descubierto que no existe.
     abrir();
-    expect(screen.getByText(/llegarás a esa fecha debiendo/)).toHaveTextContent('$480.00');
-    expect(screen.getByText(/la liquidas a tiempo/)).toHaveTextContent('$520.00');
+    expect(screen.getByText(/0 % hasta el/)).toHaveTextContent('✅');
+    // Y lo dice de forma comprobable: ahi esta el margen entero, tres dias.
+    expect(screen.getByText(/la última cuota cae el/)).toHaveTextContent('24 sep 2027');
+  });
+
+  it('a $400 avisa, y dice con cuánto se arregla', () => {
+    abrir(400);
+    expect(screen.getByText(/0 % hasta el/)).toHaveTextContent('⏳');
+    expect(screen.getByText(/llegarás a esa fecha debiendo/)).toHaveTextContent('$1,040.00');
+    // 6240 / 13 vencimientos = 480.
+    expect(screen.getByText(/la liquidas a tiempo/)).toHaveTextContent('$480.00');
   });
 
   it('separa el cargo del adelanto: no es capital', () => {

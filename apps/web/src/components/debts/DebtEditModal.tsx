@@ -103,8 +103,11 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
         promoEndsOn: promoEndsOn || null,
         rateAfterPromo: promoEndsOn ? parseDecimal(rateAfterPromo) : null,
         cycleDays: parseDecimal(cycleDays) || null,
+        // El día de vencimiento decide cuántas cuotas caben antes de que muera
+        // la promo, así que moverlo cambia la proyección aquí mismo.
+        dueDay,
       }),
-    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum, promoEndsOn, rateAfterPromo, cycleDays],
+    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum, promoEndsOn, rateAfterPromo, cycleDays, dueDay],
   );
 
   const status = STATUS_META[projection.status];

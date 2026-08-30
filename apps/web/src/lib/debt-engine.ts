@@ -191,23 +191,89 @@ export function cycleInterestOf(balance: number, annualRate: number, cycleDays: 
 }
 
 /**
- * Ciclos mensuales completos entre hoy y el fin de la promoción.
+ * Cuántas cuotas más caben todavía dentro de la promoción.
  *
- * Se cuenta por meses y no por días porque el interés se cobra por ciclo: lo
+ * Se cuenta por ciclos y no por días porque el interés se cobra por ciclo: lo
  * que decide si llegas es cuántas cuotas más caben, no cuántas noches faltan.
- * Una promo que vence este mismo mes deja 0 ciclos: ya no hay margen.
+ *
+ * Con `dueDay` se cuentan los VENCIMIENTOS que quedan, que es lo que de verdad
+ * son esas cuotas. Contando meses completos desde hoy, el resultado dependía
+ * del día en que uno mirase la pantalla: la 6791 vence el 24 y su promo muere
+ * el 27/09/2027, así que caben trece pagos —el último, tres días antes— pero
+ * mirándola un 30 de agosto salían doce, y la app avisaba de un descubierto de
+ * $480 que no existe. Sin `dueDay` no hay nada mejor que los meses completos.
  */
-export function promoMonthsLeft(promoEndsOn: string, now: Date = new Date()): number {
+export function promoMonthsLeft(
+  promoEndsOn: string,
+  now: Date = new Date(),
+  dueDay?: number | null,
+): number {
   const m = promoEndsOn.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return 0;
   const end = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const hoy = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   if (end <= hoy) return 0;
 
+  if (dueDay != null && dueDay >= 1 && dueDay <= 31) {
+    return dueDatesUntil(end, hoy, Math.trunc(dueDay)).count;
+  }
+
   const meses =
     (end.getFullYear() - hoy.getFullYear()) * 12 + (end.getMonth() - hoy.getMonth());
   // El mes en curso solo cuenta si el día de vencimiento aún no ha pasado.
   return Math.max(0, end.getDate() >= hoy.getDate() ? meses : meses - 1);
+}
+
+/**
+ * El día en que cae la última cuota que todavía entra en la promoción.
+ *
+ * Es lo que hace comprobable un «vas bien»: entre esa fecha y el fin de la
+ * promoción está TODO el margen que hay, y a veces son tres días — o ninguno,
+ * cuando el vencimiento cae justo el día en que el 0 % muere.
+ */
+export function promoLastDueDate(
+  promoEndsOn: string,
+  now: Date = new Date(),
+  dueDay?: number | null,
+): string | null {
+  if (dueDay == null || dueDay < 1 || dueDay > 31) return null;
+  const m = promoEndsOn.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const end = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const hoy = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (end <= hoy) return null;
+
+  const { last } = dueDatesUntil(end, hoy, Math.trunc(dueDay));
+  return last ? toDateKey(last) : null;
+}
+
+/** El vencimiento de ese mes, recortado en los meses que no llegan al día. */
+function onDueDay(year: number, month: number, dueDay: number): Date {
+  // new Date(y, m, 0) da el último día del mes anterior, así que `month + 1`
+  // cuenta los días de `month`. El desbordamiento se normaliza solo: el mes 12
+  // es enero del año siguiente.
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(dueDay, daysInMonth));
+}
+
+/** Vencimientos entre hoy (incluido, si aún no ha pasado) y `end` (incluido). */
+function dueDatesUntil(end: Date, hoy: Date, dueDay: number): { count: number; last: Date | null } {
+  const year = hoy.getFullYear();
+  let month = hoy.getMonth();
+  // El de este mes cuenta si todavía no ha pasado; si ya pasó, se empieza por
+  // el del mes que viene.
+  if (onDueDay(year, month, dueDay) < hoy) month += 1;
+
+  let count = 0;
+  let last: Date | null = null;
+  while (count < MAX_SCHEDULE_MONTHS) {
+    const due = onDueDay(year, month, dueDay);
+    if (due > end) break;
+    count += 1;
+    last = due;
+    month += 1;
+  }
+  return { count, last };
 }
 
 // ─── Cuotas ───────────────────────────────────────────────────────────────────
@@ -636,6 +702,8 @@ export interface DebtInput {
   rateAfterPromo?: number | null;
   /** Días del ciclo de facturación, para calcular el interés como el banco. */
   cycleDays?: number | null;
+  /** Día del mes en que vence la cuota: define cuántas caben antes de la promo. */
+  dueDay?: number | null;
   /** Punto de partida para fechar la liquidación. */
   now?: Date;
 }
@@ -660,6 +728,7 @@ export interface DebtTerms {
   promoEndsOn: string | null;
   rateAfterPromo: number | null;
   cycleDays: number | null;
+  dueDay: number;
 }
 
 /**
@@ -686,6 +755,7 @@ export function toDebtInput(debt: DebtTerms, now?: Date): DebtInput {
     promoEndsOn: debt.promoEndsOn,
     rateAfterPromo: debt.rateAfterPromo,
     cycleDays: debt.cycleDays,
+    dueDay: debt.dueDay,
     now,
   };
 }
@@ -804,7 +874,7 @@ export function projectDebt(input: DebtInput): DebtProjection {
   // Una promoción que caduca no es una tasa: son DOS, con una fecha en medio.
   const promoMonths =
     input.promoEndsOn && input.rateAfterPromo != null
-      ? promoMonthsLeft(input.promoEndsOn, input.now ?? new Date())
+      ? promoMonthsLeft(input.promoEndsOn, input.now ?? new Date(), input.dueDay)
       : null;
   const rateAfter =
     promoMonths === null
