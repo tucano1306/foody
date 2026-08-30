@@ -169,6 +169,47 @@ export function monthlyInterestOf(balance: number, monthlyRate: number): number 
   return balance * monthlyRate;
 }
 
+/**
+ * El interés de un ciclo TAL COMO lo cobra una tarjeta: tasa diaria por los
+ * días que duró el ciclo.
+ *
+ * Las tarjetas no dividen la tasa anual entre doce: la dividen entre 365 y la
+ * multiplican por los días del período de facturación, que no todos los meses
+ * son los mismos. Con un ciclo de 31 días la diferencia se ve:
+ *
+ *   23,74 % / 365 × 31 × $1.186,97 = $23,93   ← lo que cobró el banco
+ *   23,74 % / 12       × $1.186,97 = $23,48   ← lo que calculaba la app
+ *
+ * Se usa solo para la cifra del mes en curso, que es la que el usuario compara
+ * contra su estado de cuenta. La proyección a futuro sigue en meses: no se sabe
+ * cuántos días tendrá cada ciclo del año que viene, y a la larga las dos formas
+ * convergen (365/12 = 30,4 días de media).
+ */
+export function cycleInterestOf(balance: number, annualRate: number, cycleDays: number): number {
+  if (balance <= 0 || annualRate <= 0 || cycleDays <= 0) return 0;
+  return balance * (annualRate / 100 / 365) * cycleDays;
+}
+
+/**
+ * Ciclos mensuales completos entre hoy y el fin de la promoción.
+ *
+ * Se cuenta por meses y no por días porque el interés se cobra por ciclo: lo
+ * que decide si llegas es cuántas cuotas más caben, no cuántas noches faltan.
+ * Una promo que vence este mismo mes deja 0 ciclos: ya no hay margen.
+ */
+export function promoMonthsLeft(promoEndsOn: string, now: Date = new Date()): number {
+  const m = promoEndsOn.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return 0;
+  const end = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const hoy = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (end <= hoy) return 0;
+
+  const meses =
+    (end.getFullYear() - hoy.getFullYear()) * 12 + (end.getMonth() - hoy.getMonth());
+  // El mes en curso solo cuenta si el día de vencimiento aún no ha pasado.
+  return Math.max(0, end.getDate() >= hoy.getDate() ? meses : meses - 1);
+}
+
 // ─── Cuotas ───────────────────────────────────────────────────────────────────
 
 /**
@@ -471,6 +512,14 @@ export interface ScheduleInput {
   startDate?: Date | null;
   /** Corta la tabla en N filas (0 = solo totales, sin filas). */
   limit?: number;
+  /**
+   * Cambio de tasa a mitad de camino: una promoción que caduca.
+   *
+   * Una tarjeta al 0 % «hasta el 25/01/2027» no es una deuda al 0 %: es una al
+   * 0 % durante N meses y al 23,74 % a partir de ahí. Sin esto, la app promete
+   * que no cuesta nada y calla la única fecha que de verdad importa.
+   */
+  rateAfter?: { afterMonths: number; monthlyRate: number };
 }
 
 export interface Schedule {
@@ -490,6 +539,10 @@ export interface Schedule {
 export function buildSchedule(input: ScheduleInput): Schedule {
   const rows: ScheduleRow[] = [];
   const monthlyRate = Math.max(0, input.monthlyRate);
+  const rateAfter = input.rateAfter;
+  /** La tasa vigente en la cuota número  (1 = la primera). */
+  const rateFor = (month: number): number =>
+    rateAfter && month > rateAfter.afterMonths ? Math.max(0, rateAfter.monthlyRate) : monthlyRate;
   const basePayment = safeAmount(input.payment) + safeAmount(input.extraMonthly);
   const limit =
     typeof input.limit === 'number' && input.limit >= 0
@@ -503,7 +556,11 @@ export function buildSchedule(input: ScheduleInput): Schedule {
     return { rows, truncated: false, totalInterest: 0, totalPaid: 0, months: 0 };
   }
   // Sin cuota que supere el interés no hay tabla que valga: la deuda no muere.
-  if (monthsToPayoff(balance, monthlyRate, basePayment) === null) {
+  //
+  // Con una promo que caduca esta comprobación no sirve: la tasa de hoy puede
+  // ser 0 % y la de después no. Se deja que el bucle lo descubra — si al llegar
+  // al tope sigue quedando saldo, devuelve `months: null` igual.
+  if (!rateAfter && monthsToPayoff(balance, monthlyRate, basePayment) === null) {
     return { rows, truncated: false, totalInterest: 0, totalPaid: 0, months: null };
   }
 
@@ -512,7 +569,7 @@ export function buildSchedule(input: ScheduleInput): Schedule {
   while (balance > DUST && month < MAX_SCHEDULE_MONTHS) {
     month += 1;
     const openingBalance = balance;
-    const interest = openingBalance * monthlyRate;
+    const interest = openingBalance * rateFor(month);
     // Última cuota: solo lo que falta (capital + su interés).
     const payment = Math.min(basePayment, openingBalance + interest);
     const principal = payment - interest;
@@ -573,6 +630,12 @@ export interface DebtInput {
   minFloor?: number | null;
   /** Abono extra voluntario que el usuario suma cada mes. */
   extraMonthly?: number;
+  /** Fin de una promoción al 0 %, YYYY-MM-DD. */
+  promoEndsOn?: string | null;
+  /** Tasa que empieza a correr cuando la promoción caduca. */
+  rateAfterPromo?: number | null;
+  /** Días del ciclo de facturación, para calcular el interés como el banco. */
+  cycleDays?: number | null;
   /** Punto de partida para fechar la liquidación. */
   now?: Date;
 }
@@ -677,7 +740,29 @@ export function projectDebt(input: DebtInput): DebtProjection {
   const balance = safeAmount(input.balance);
   const monthlyRate = toMonthlyRate(input.rate, input.ratePeriod);
   const annualEffectiveRate = toAnnualEffectiveRate(monthlyRate);
-  const monthlyInterest = round2(monthlyInterestOf(balance, monthlyRate));
+
+  // Con los días del ciclo conocidos se cobra como cobra la tarjeta: tasa
+  // diaria por días del período. Es la cifra que el usuario compara contra su
+  // estado de cuenta, y por un doceavo no cuadraba.
+  const annualNominal = monthlyRate * 12 * 100;
+  const monthlyInterest = round2(
+    input.cycleDays && input.cycleDays > 0
+      ? cycleInterestOf(balance, annualNominal, input.cycleDays)
+      : monthlyInterestOf(balance, monthlyRate),
+  );
+
+  // Una promoción que caduca no es una tasa: son DOS, con una fecha en medio.
+  const promoMonths =
+    input.promoEndsOn && input.rateAfterPromo != null
+      ? promoMonthsLeft(input.promoEndsOn, input.now ?? new Date())
+      : null;
+  const rateAfter =
+    promoMonths === null
+      ? undefined
+      : {
+          afterMonths: promoMonths,
+          monthlyRate: toMonthlyRate(input.rateAfterPromo ?? 0, input.ratePeriod ?? 'annual_nominal'),
+        };
 
   const baseInstallment = installmentFor(input);
   const extra = safeAmount(input.extraMonthly);
@@ -694,7 +779,12 @@ export function projectDebt(input: DebtInput): DebtProjection {
   // intereses" da null por sí solo (la cuota iguala al interés), pero si el
   // usuario abona un extra voluntario esa misma deuda sí amortiza, y la
   // proyección tiene que reflejarlo.
-  const months = monthsToPayoff(balance, monthlyRate, installment);
+  // Con promo, el plazo lo dice la TABLA: la fórmula cerrada supone una tasa
+  // constante, y aquí hay dos.
+  const scheduleForMonths = rateAfter
+    ? buildSchedule({ balance, monthlyRate, payment: installment, startDate: now, limit: 0, rateAfter })
+    : null;
+  const months = scheduleForMonths ? scheduleForMonths.months : monthsToPayoff(balance, monthlyRate, installment);
   const neverPaysOff = balance > DUST && months === null;
 
   let totalPaid = 0;
@@ -702,7 +792,7 @@ export function projectDebt(input: DebtInput): DebtProjection {
   let payoffDate: string | null = null;
 
   if (!neverPaysOff && months !== null && months > 0) {
-    const schedule = buildSchedule({
+    const schedule = scheduleForMonths ?? buildSchedule({
       balance,
       monthlyRate,
       payment: installment,
