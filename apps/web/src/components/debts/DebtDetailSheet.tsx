@@ -14,6 +14,7 @@ import { parseMoney } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
+  fmtDateFull,
   fmtDateKey,
   fmtMonths,
   fmtMoney,
@@ -329,7 +330,7 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
               }`}
             >
               <p className="text-sm font-bold text-slate-900">
-                {promo.willMissDeadline ? '⏳' : '✅'} 0 % hasta el {fmtDateKey(debt.promoEndsOn)}
+                {promo.willMissDeadline ? '⏳' : '✅'} 0 % hasta el {fmtDateFull(debt.promoEndsOn)}
               </p>
               {promo.willMissDeadline ? (
                 <>
@@ -371,6 +372,12 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
             <Row label="Capital pendiente" value={fmtMoney(debt.breakdown.principalOwed, debt.currency)} />
             {debt.breakdown.interestOwed > 0 && (
               <Row label="Interés acumulado" value={fmtMoney(debt.breakdown.interestOwed, debt.currency)} />
+            )}
+            {/* Las comisiones no son capital: un adelanto de $6,000 con $240 de
+                cargo debe $6,240, y sin esta fila el resumen restaba el cargo
+                del capital y dejaba la diferencia sin explicar. */}
+            {debt.breakdown.feesOwed > 0 && (
+              <Row label="Comisiones" value={fmtMoney(debt.breakdown.feesOwed, debt.currency)} />
             )}
             <Row label="Interés cada mes" value={fmtMoney(debt.projection.monthlyInterest, debt.currency)} />
             <Row label="Tasa anual real" value={`${(debt.projection.annualEffectiveRate * 100).toFixed(1)} %`} />

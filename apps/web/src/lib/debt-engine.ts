@@ -640,6 +640,56 @@ export interface DebtInput {
   now?: Date;
 }
 
+/**
+ * El crédito tal como está guardado, en lo que le importa a la aritmética.
+ *
+ * `Debt` (debt-data.ts) lo cumple sin declararlo: se pide por forma y no por
+ * herencia para que este módulo siga sin saber nada de SQL.
+ */
+export interface DebtTerms {
+  currentBalance: number;
+  rate: number;
+  ratePeriod: RatePeriod;
+  strategy: PayoffStrategy;
+  termMonths: number | null;
+  payoffDate: string | null;
+  customPayment: number | null;
+  minPercent: number | null;
+  minFloor: number | null;
+  extraMonthly: number;
+  promoEndsOn: string | null;
+  rateAfterPromo: number | null;
+  cycleDays: number | null;
+}
+
+/**
+ * Traduce el crédito guardado a la entrada del motor.
+ *
+ * Existe porque copiar campo por campo ya salió mal dos veces, y siempre por
+ * omisión: quien olvida `promoEndsOn` proyecta un 0 % eterno, y quien olvida
+ * `payoffDate` deja sin cuota a la estrategia `by_date` y convierte en «deuda
+ * eterna» una que se liquida en trece meses. Con una sola conversión, añadir
+ * un término nuevo llega a todas las pantallas a la vez.
+ */
+export function toDebtInput(debt: DebtTerms, now?: Date): DebtInput {
+  return {
+    balance: debt.currentBalance,
+    rate: debt.rate,
+    ratePeriod: debt.ratePeriod,
+    strategy: debt.strategy,
+    termMonths: debt.termMonths,
+    payoffDate: debt.payoffDate,
+    customPayment: debt.customPayment,
+    minPercent: debt.minPercent,
+    minFloor: debt.minFloor,
+    extraMonthly: debt.extraMonthly,
+    promoEndsOn: debt.promoEndsOn,
+    rateAfterPromo: debt.rateAfterPromo,
+    cycleDays: debt.cycleDays,
+    now,
+  };
+}
+
 export interface DebtProjection {
   monthlyRate: number;
   annualEffectiveRate: number;
