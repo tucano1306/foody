@@ -21,6 +21,7 @@ import {
   projectDebt,
   round2,
   safeAmount,
+  toDebtInput,
   toMonthlyRate,
   toPeriodKey,
   type DebtAdvice,
@@ -485,25 +486,10 @@ function daysUntilDueDay(dueDay: number, now: Date): number {
 }
 
 function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjection {
-  const projection = projectDebt({
-    balance: debt.currentBalance,
-    rate: debt.rate,
-    ratePeriod: debt.ratePeriod,
-    strategy: debt.strategy,
-    termMonths: debt.termMonths,
-    payoffDate: debt.payoffDate,
-    customPayment: debt.customPayment,
-    minPercent: debt.minPercent,
-    minFloor: debt.minFloor,
-    extraMonthly: debt.extraMonthly,
-    // Sin estos tres, la hoja de detalle proyecta con una tasa constante y
-    // eterna: la promo no caducaria nunca y el interes del mes no cuadraria
-    // con el estado de cuenta.
-    promoEndsOn: debt.promoEndsOn,
-    rateAfterPromo: debt.rateAfterPromo,
-    cycleDays: debt.cycleDays,
-    now,
-  });
+  // Sin los términos completos la hoja proyecta con una tasa constante y
+  // eterna: la promo no caducaría nunca y el interés del mes no cuadraría con
+  // el estado de cuenta. Ver toDebtInput.
+  const projection = projectDebt(toDebtInput(debt, now));
 
   const principalOwed = round2(Math.max(0, debt.currentBalance - totals.interestOwed - totals.feesOwed));
   const reference = debt.originalAmount > 0 ? debt.originalAmount : totals.totalPrincipalPaid + principalOwed;

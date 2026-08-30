@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { DebtWithProjection } from '@/lib/debt-data';
-import { simulateExtra } from '@/lib/debt-engine';
+import { simulateExtra, toDebtInput } from '@/lib/debt-engine';
 import { haptic } from '@/lib/haptic';
 import { fmtMonths, fmtMoney } from './debt-ui';
 
@@ -27,24 +27,11 @@ export default function PayoffSimulator({ debt }: Props) {
   const max = step * 20;
   const [extra, setExtra] = useState(step * 2);
 
-  const sim = useMemo(
-    () =>
-      simulateExtra(
-        {
-          balance: debt.currentBalance,
-          rate: debt.rate,
-          ratePeriod: debt.ratePeriod,
-          strategy: debt.strategy,
-          termMonths: debt.termMonths,
-          customPayment: debt.customPayment,
-          minPercent: debt.minPercent,
-          minFloor: debt.minFloor,
-          extraMonthly: debt.extraMonthly,
-        },
-        extra,
-      ),
-    [debt, extra],
-  );
+  // Los términos completos, no un puñado de campos: sin la fecha límite la
+  // estrategia `by_date` se queda sin cuota, y sin la promoción el simulador
+  // no ve el interés que empieza el día que el 0 % caduca — que es justo lo
+  // que abonar de más consigue esquivar.
+  const sim = useMemo(() => simulateExtra(toDebtInput(debt), extra), [debt, extra]);
 
   if (debt.currentBalance <= 0) return null;
 

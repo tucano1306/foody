@@ -97,8 +97,14 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
         minPercent: parseDecimal(minPercent) || null,
         minFloor: debt.minFloor,
         extraMonthly: extraNum ?? 0,
+        // La promoción se edita en este mismo formulario: sin pasarla aquí, la
+        // vista previa seguía prometiendo «$0.00 de intereses» justo mientras
+        // se escribe la fecha en que ese 0 % deja de existir.
+        promoEndsOn: promoEndsOn || null,
+        rateAfterPromo: promoEndsOn ? parseDecimal(rateAfterPromo) : null,
+        cycleDays: parseDecimal(cycleDays) || null,
       }),
-    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum],
+    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum, promoEndsOn, rateAfterPromo, cycleDays],
   );
 
   const status = STATUS_META[projection.status];
