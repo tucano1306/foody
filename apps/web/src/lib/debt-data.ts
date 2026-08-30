@@ -496,6 +496,12 @@ function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjecti
     minPercent: debt.minPercent,
     minFloor: debt.minFloor,
     extraMonthly: debt.extraMonthly,
+    // Sin estos tres, la hoja de detalle proyecta con una tasa constante y
+    // eterna: la promo no caducaria nunca y el interes del mes no cuadraria
+    // con el estado de cuenta.
+    promoEndsOn: debt.promoEndsOn,
+    rateAfterPromo: debt.rateAfterPromo,
+    cycleDays: debt.cycleDays,
     now,
   });
 

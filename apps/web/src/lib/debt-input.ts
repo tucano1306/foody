@@ -70,7 +70,7 @@ function money(value: unknown): number | null {
 /** Fecha YYYY-MM-DD, o null si no viene una válida. */
 function dateOrNull(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  return /^d{4}-d{2}-d{2}$/.test(value.slice(0, 10)) ? value.slice(0, 10) : null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value.slice(0, 10)) ? value.slice(0, 10) : null;
 }
 
 /** Una tasa: acepta la coma decimal y nunca la lee como millares. */
