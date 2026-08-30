@@ -67,6 +67,25 @@ function money(value: unknown): number | null {
   return Math.min(n, MAX_MONEY);
 }
 
+/** Fecha YYYY-MM-DD, o null si no viene una válida. */
+function dateOrNull(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return /^d{4}-d{2}-d{2}$/.test(value.slice(0, 10)) ? value.slice(0, 10) : null;
+}
+
+/** Una tasa: acepta la coma decimal y nunca la lee como millares. */
+function rateOrNull(value: unknown): number | null {
+  const n = parseDecimal(value as string | number | null | undefined);
+  return n !== null && n >= 0 && n <= MAX_RATE ? n : null;
+}
+
+/** Un entero pequeño dentro de rango, o null. */
+function smallIntOrNull(value: unknown, min: number, max: number): number | null {
+  if (value == null) return null;
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
+}
+
 /** Solo dígitos, máximo 4 — nunca se guarda el número completo de la tarjeta. */
 function last4(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -158,6 +177,12 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
     minFloor: body.minFloor == null ? null : money(body.minFloor),
     extraMonthly: money(body.extraMonthly) ?? 0,
     businessShare: normalizeShare(body.businessShare),
+    // La promocion y el ciclo del estado de cuenta. La fecha sin la tasa
+    // posterior no dice nada, asi que se guardan como par o no se guarda nada.
+    promoEndsOn: dateOrNull(body.promoEndsOn),
+    rateAfterPromo: body.rateAfterPromo == null ? null : rateOrNull(body.rateAfterPromo),
+    cycleDays: smallIntOrNull(body.cycleDays, 1, 62),
+    statementDay: smallIntOrNull(body.statementDay, 1, 31),
     creditLimit: body.creditLimit == null ? null : money(body.creditLimit),
     dueDay,
     note: text(body.note, 1000),
@@ -229,6 +254,10 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
   if (body.minFloor !== undefined) out.minFloor = body.minFloor == null ? null : money(body.minFloor);
   if (body.extraMonthly !== undefined) out.extraMonthly = money(body.extraMonthly) ?? 0;
   if (body.businessShare !== undefined) out.businessShare = normalizeShare(body.businessShare);
+  if (body.promoEndsOn !== undefined) out.promoEndsOn = dateOrNull(body.promoEndsOn);
+  if (body.rateAfterPromo !== undefined) out.rateAfterPromo = body.rateAfterPromo == null ? null : rateOrNull(body.rateAfterPromo);
+  if (body.cycleDays !== undefined) out.cycleDays = smallIntOrNull(body.cycleDays, 1, 62);
+  if (body.statementDay !== undefined) out.statementDay = smallIntOrNull(body.statementDay, 1, 31);
   if (body.creditLimit !== undefined) out.creditLimit = body.creditLimit == null ? null : money(body.creditLimit);
   if (body.status !== undefined) {
     const s = oneOf(body.status, ['active', 'paid_off', 'archived'] as const);

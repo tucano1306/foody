@@ -72,6 +72,19 @@ export interface Debt {
   linkedPaymentId: string | null;
   /** El usuario revisó el posible duplicado y dijo que son cosas distintas. */
   duplicateDismissed: boolean;
+  /**
+   * Fin de una promocion al 0 %, YYYY-MM-DD.
+   *
+   * Con esto puesto, la deuda deja de ser «gratis» y pasa a ser gratis HASTA
+   * esa fecha. Ver debt-promo.ts.
+   */
+  promoEndsOn: string | null;
+  /** Tasa que empieza a correr cuando la promocion caduca. */
+  rateAfterPromo: number | null;
+  /** Dias del ciclo de facturacion del estado de cuenta (normalmente 30 o 31). */
+  cycleDays: number | null;
+  /** Dia del mes en que cierra el estado de cuenta. */
+  statementDay: number | null;
   creditLimit: number | null;
   dueDay: number;
   openedAt: string;
@@ -140,6 +153,10 @@ export interface CreateDebtInput {
   minFloor?: number | null;
   extraMonthly?: number;
   businessShare?: number;
+  promoEndsOn?: string | null;
+  rateAfterPromo?: number | null;
+  cycleDays?: number | null;
+  statementDay?: number | null;
   creditLimit?: number | null;
   dueDay?: number;
   note?: string | null;
@@ -217,6 +234,15 @@ export async function ensureDebtSchema(): Promise<void> {
   // Un crédito también puede ser del negocio (préstamo comercial, tarjeta de
   // la empresa). Mismo criterio que el resto de gastos: un solo número 0–100.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  // Promociones al 0 % que CADUCAN. Sin estos dos campos la app trataba un
+  // saldo promocional como gratis para siempre y callaba la fecha limite.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS promo_ends_on DATE`;
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS rate_after_promo DECIMAL(9,4)`;
+  // Datos del estado de cuenta, para que las cifras cuadren con el banco:
+  // dias del ciclo (el interes se cobra por dia, no por doceavo) y el dia en
+  // que cierra el estado.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS cycle_days SMALLINT`;
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS statement_day SMALLINT`;
   // Fecha tope de la estrategia `by_date`: la tarjeta que hay que liquidar
   // antes de que empiecen a cobrar intereses.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS payoff_date DATE`;
@@ -301,6 +327,10 @@ function mapDebt(row: Record<string, unknown>): Debt {
     businessShare: normalizeShare(row.business_share),
     linkedPaymentId: (row.linked_payment_id as string | null) ?? null,
     duplicateDismissed: Boolean(row.duplicate_dismissed),
+    promoEndsOn: dateKey(row.promo_ends_on),
+    rateAfterPromo: numOrNull(row.rate_after_promo),
+    cycleDays: numOrNull(row.cycle_days),
+    statementDay: numOrNull(row.statement_day),
     creditLimit: numOrNull(row.credit_limit),
     dueDay: Math.trunc(num(row.due_day, 1)),
     openedAt: iso(row.opened_at),
@@ -586,6 +616,7 @@ export async function listCreditsForPlan(
   const rows = await sql`
     SELECT id, name, current_balance, rate, rate_period, strategy,
            term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share,
+           promo_ends_on, rate_after_promo, cycle_days,
            linked_payment_id, duplicate_dismissed, issuer
     FROM debts
     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
@@ -605,6 +636,11 @@ export async function listCreditsForPlan(
       minPercent: numOrNull(row.min_percent),
       minFloor: numOrNull(row.min_floor),
       extraMonthly: num(row.extra_monthly),
+      // La promocion y los dias del ciclo: sin ellos la proyeccion trata un
+      // 0 % temporal como eterno y el interes del mes no cuadra con el banco.
+      promoEndsOn: dateKey(row.promo_ends_on),
+      rateAfterPromo: numOrNull(row.rate_after_promo),
+      cycleDays: numOrNull(row.cycle_days),
       now,
     });
     return {
@@ -688,6 +724,7 @@ export async function createDebt(
       user_id, name, kind, issuer, account_last4, currency,
       original_amount, current_balance, rate, rate_period, strategy,
       term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share,
+      promo_ends_on, rate_after_promo, cycle_days, statement_day,
       credit_limit, due_day, last_accrual_at, opened_at, status, note, created_at, updated_at
     ) VALUES (
       ${userId}, ${input.name}, ${input.kind ?? 'credit_card'}, ${input.issuer ?? null},
@@ -696,6 +733,8 @@ export async function createDebt(
       ${strategy}, ${input.termMonths ?? null}, ${input.payoffDate || null},
       ${lockedPayment}, ${input.minPercent ?? null}, ${input.minFloor ?? null},
       ${safeAmount(input.extraMonthly)}, ${normalizeShare(input.businessShare)},
+      ${input.promoEndsOn ?? null}, ${input.rateAfterPromo ?? null},
+      ${input.cycleDays ?? null}, ${input.statementDay ?? null},
       ${input.creditLimit ?? null}, ${input.dueDay ?? 1},
       ${nowIso}, ${nowIso}, 'active', ${input.note ?? null}, now(), now()
     ) RETURNING *
@@ -764,6 +803,10 @@ export async function updateDebt(
       business_share = ${input.businessShare === undefined ? current.businessShare : normalizeShare(input.businessShare)},
       linked_payment_id = ${input.linkedPaymentId === undefined ? current.linkedPaymentId : (input.linkedPaymentId || null)},
       duplicate_dismissed = ${input.duplicateDismissed === undefined ? current.duplicateDismissed : input.duplicateDismissed},
+      promo_ends_on    = ${input.promoEndsOn === undefined ? current.promoEndsOn : input.promoEndsOn},
+      rate_after_promo = ${input.rateAfterPromo === undefined ? current.rateAfterPromo : input.rateAfterPromo},
+      cycle_days       = ${input.cycleDays === undefined ? current.cycleDays : input.cycleDays},
+      statement_day    = ${input.statementDay === undefined ? current.statementDay : input.statementDay},
       credit_limit   = ${input.creditLimit === undefined ? current.creditLimit : input.creditLimit},
       due_day        = ${input.dueDay ?? current.dueDay},
       status         = ${input.status ?? current.status},

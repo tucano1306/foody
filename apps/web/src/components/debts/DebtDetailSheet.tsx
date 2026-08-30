@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import type { DebtMovement, DebtWithProjection } from '@/lib/debt-data';
 import { buildSchedule, toMonthlyRate } from '@/lib/debt-engine';
+import { promoRisk } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import PayoffSimulator from './PayoffSimulator';
@@ -110,6 +111,18 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
   }
 
   const kind = KIND_META[debt.kind] ?? KIND_META.other;
+
+  /** El riesgo de la promocion, solo si esta deuda tiene una. */
+  const promo =
+    debt.promoEndsOn && debt.rateAfterPromo != null && debt.currentBalance > 0
+      ? promoRisk({
+          balance: debt.currentBalance,
+          installment: debt.projection.installment,
+          promoEndsOn: debt.promoEndsOn,
+          rateAfterPromo: debt.rateAfterPromo,
+          ratePeriod: debt.ratePeriod,
+        })
+      : null;
   const status = STATUS_META[debt.projection.status];
 
   // La tabla se calcula en el cliente con el mismo motor que el servidor: es
@@ -122,8 +135,17 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
         payment: debt.projection.installment,
         startDate: new Date(),
         limit: 120,
+        // La tabla tiene que enseñar el salto de tasa: sin esto, una promoción
+        // al 0 % pintaba 120 cuotas sin un centavo de interés.
+        rateAfter:
+          promo && debt.rateAfterPromo != null
+            ? {
+                afterMonths: promo.monthsLeft,
+                monthlyRate: toMonthlyRate(debt.rateAfterPromo, debt.ratePeriod),
+              }
+            : undefined,
       }),
-    [debt],
+    [debt, promo],
   );
 
   useEffect(() => {
@@ -248,6 +270,46 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
                 principal={debt.projection.firstSplit.principal}
                 currency={debt.currency}
               />
+            </div>
+          )}
+
+          {/* La promoción que caduca.
+              Va ARRIBA de todo lo demás porque es la única fecha de la tarjeta
+              que tiene consecuencias: hasta ahora la pantalla decía «pagarás
+              $0.00 de intereses» sin mencionar que ese 0 % tiene fecha de
+              caducidad, ni cuánto costará el saldo que quede ese día. */}
+          {promo && (
+            <div
+              className={`rounded-2xl border px-4 py-3.5 ${
+                promo.willMissDeadline
+                  ? 'border-blue-300 bg-blue-50'
+                  : 'border-sky-200 bg-sky-50/70'
+              }`}
+            >
+              <p className="text-sm font-bold text-slate-900">
+                {promo.willMissDeadline ? '⏳' : '✅'} 0 % hasta el {fmtDateKey(debt.promoEndsOn)}
+              </p>
+              {promo.willMissDeadline ? (
+                <>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                    A la cuota de ahora llegarás a esa fecha debiendo{' '}
+                    <strong>{fmtMoney(promo.balanceAtEnd, debt.currency)}</strong>, y ese resto
+                    empezará a costarte{' '}
+                    <strong>{fmtMoney(promo.monthlyCostAfter, debt.currency)} al mes</strong> al{' '}
+                    {debt.rateAfterPromo} %.
+                  </p>
+                  <p className="mt-1.5 text-xs font-bold text-sky-700">
+                    Con {fmtMoney(promo.installmentToClear, debt.currency)} al mes
+                    {promo.extraNeeded > 0 && ` (${fmtMoney(promo.extraNeeded, debt.currency)} más)`}{' '}
+                    la liquidas a tiempo y no pagas ni un centavo de interés.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                  Vas bien: a este ritmo la liquidas antes de que el 0 % se acabe, así que no
+                  pagarás intereses.
+                </p>
+              )}
             </div>
           )}
 
