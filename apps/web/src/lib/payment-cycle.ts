@@ -7,6 +7,8 @@
  * and the API agree on a single source of truth.
  */
 
+import { nextDueOn, type PaymentFrequency } from './payment-frequency';
+
 const MS_PER_DAY = 86_400_000;
 
 /** Day-of-month due date for a given month, clamped to that month's length. */
@@ -31,9 +33,22 @@ export function nextDueDate(
   dueDay: number,
   isPaidThisCycle: boolean,
   now: Date = new Date(),
+  frequency: PaymentFrequency = 'monthly',
+  anchorMonth: number | null = null,
 ): Date {
   const year = now.getFullYear();
   const month = now.getMonth();
+
+  // Un recibo que no es mensual no salta al mes siguiente: salta al siguiente
+  // mes de COBRO. Sin esto, un seguro semestral pagado en abril anunciaba su
+  // proximo cargo para mayo.
+  if (frequency !== 'monthly') {
+    // Ya cobrado este ciclo: se busca desde el mes siguiente para no volver a
+    // proponer el cobro que se acaba de pagar.
+    const desde = isPaidThisCycle ? new Date(year, month + 1, 1) : now;
+    return nextDueOn(frequency, anchorMonth, dueDay, desde);
+  }
+
   return isPaidThisCycle
     ? dueDateFor(year, month + 1, dueDay)
     : dueDateFor(year, month, dueDay);
@@ -50,8 +65,10 @@ export function daysUntilNextDue(
   dueDay: number,
   isPaidThisCycle: boolean,
   now: Date = new Date(),
+  frequency: PaymentFrequency = 'monthly',
+  anchorMonth: number | null = null,
 ): number {
   const today = startOfDay(now);
-  const due = nextDueDate(dueDay, isPaidThisCycle, now);
+  const due = nextDueDate(dueDay, isPaidThisCycle, now, frequency, anchorMonth);
   return Math.round((due.getTime() - today.getTime()) / MS_PER_DAY);
 }

@@ -43,6 +43,8 @@ function mapPayment(
   aggregates: PaymentAggregates = EMPTY_AGGREGATES,
 ) {
   const dueDay = asInteger(row.due_day, 1);
+  const frequency = normalizeFrequency(row.frequency);
+  const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
   const amount = asNumber(row.amount);
   const isPaidThisMonth = aggregates.isPaidThisMonth;
   return {
@@ -52,6 +54,8 @@ function mapPayment(
     amount,
     currency: asText(row.currency, 'USD'),
     dueDay,
+    frequency,
+    anchorMonth,
     category: asText(row.category, 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 3),
@@ -66,8 +70,8 @@ function mapPayment(
     updatedAt: toISOStringSafe(row.updated_at),
     isPaidThisMonth,
     // Cycle-aware: once paid this month, the countdown restarts toward next month's due day.
-    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth),
-    nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
+    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth, new Date(), frequency, anchorMonth),
+    nextDueDate: nextDueDate(dueDay, isPaidThisMonth, new Date(), frequency, anchorMonth).toISOString(),
     snoozedUntil: row.snoozed_until == null ? null : new Date(row.snoozed_until as string).toISOString(),
     missedMonths: aggregates.missedMonths,
     accumulatedDebt: aggregates.accumulatedDebt,
