@@ -104,6 +104,66 @@ export function isDueInMonth(
 }
 
 /**
+ * El ciclo, deducido de UNA fecha de cobro.
+ *
+ * Se pregunta así y no con «día del mes» + «mes de anclaje» por separado porque
+ * nadie piensa una póliza en esos términos: se piensa «me cobran el 14 de
+ * octubre». Con dos campos sueltos es fácil dejar el día en 1 y el mes en el
+ * actual —que es lo que pasó con un seguro de abril anclado sin querer en
+ * agosto— y entonces la app reclama el cobro un mes en que no toca.
+ */
+export function cycleFromDate(value: string | Date | null | undefined): {
+  dueDay: number;
+  anchorMonth: number;
+} | null {
+  if (!value) return null;
+  // Las fechas «YYYY-MM-DD» se leen en LOCAL, no en UTC: `new Date('2026-10-14')`
+  // es medianoche UTC y en América se convierte en el día 13.
+  const date =
+    typeof value === 'string'
+      ? (() => {
+          const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(value);
+        })()
+      : value;
+  if (Number.isNaN(date.getTime())) return null;
+  return { dueDay: date.getDate(), anchorMonth: date.getMonth() + 1 };
+}
+
+/**
+ * La próxima fecha en que toca pagar, a partir de hoy.
+ *
+ * Sirve para dos cosas: enseñar «te lo cobran el 14 de octubre» y rellenar el
+ * campo de fecha al abrir el editor, para que quien edite vea lo que ya hay en
+ * vez de un hueco.
+ */
+export function nextDueOn(
+  frequency: PaymentFrequency,
+  anchorMonth: number | null,
+  dueDay: number,
+  now: Date = new Date(),
+): Date {
+  const hoy = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const every = monthsPerCycle(frequency);
+
+  // Se recorren los ciclos desde este mes hasta encontrar uno que no haya
+  // pasado. Con 13 vueltas se cubre hasta un anual completo de sobra.
+  for (let i = 0; i < 13; i += 1) {
+    const cursor = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const month = cursor.getMonth() + 1;
+    if (!isDueInMonth(frequency, anchorMonth, month)) continue;
+    const diasDelMes = new Date(cursor.getFullYear(), month, 0).getDate();
+    const fecha = new Date(cursor.getFullYear(), month - 1, Math.min(dueDay, diasDelMes));
+    if (fecha >= hoy) return fecha;
+  }
+
+  // Todo el año ya pasó: el siguiente cae un ciclo más adelante.
+  const salto = new Date(now.getFullYear(), now.getMonth() + every, 1);
+  const diasDelMes = new Date(salto.getFullYear(), salto.getMonth() + 1, 0).getDate();
+  return new Date(salto.getFullYear(), salto.getMonth(), Math.min(dueDay, diasDelMes));
+}
+
+/**
  * El próximo mes (1-12) en que toca pagar, contando desde `fromMonth` incluido.
  *
  * Devuelve también cuántos meses faltan, que es lo que necesita la cuenta atrás

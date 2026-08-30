@@ -9,6 +9,7 @@ import { PAYMENT_METHOD_LABELS, maskLast4, methodNeedsBank } from '@/lib/payment
 import { formatMonthLong, formatMonthShort } from '@/lib/payment-aggregates';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { parseMoney } from '@/lib/money-input';
+import FrequencyPicker from '@/components/payments/FrequencyPicker';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -65,6 +66,8 @@ function buildEditState(payment: MonthlyPayment): {
       name: payment.name,
       amount: payment.amount,
       dueDay: payment.dueDay,
+      frequency: payment.frequency,
+      anchorMonth: payment.anchorMonth,
       currency: payment.currency,
       category: payment.category,
       notificationDaysBefore: payment.notificationDaysBefore,
@@ -1377,6 +1380,18 @@ export default function PaymentDetailSheet({
         </div>
 
         {/* Día vencimiento + Avisar antes */}
+        {/* Cada cuánto se paga. Faltaba aquí, y por eso un seguro semestral
+            quedaba anclado en el mes equivocado sin forma de arreglarlo. */}
+        <FrequencyPicker
+          dark
+          frequency={form.frequency ?? 'monthly'}
+          anchorMonth={form.anchorMonth ?? null}
+          dueDay={form.dueDay}
+          amount={form.amount}
+          currency={form.currency ?? 'USD'}
+          onChange={(next) => setForm((f) => ({ ...f, ...next }))}
+        />
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="edit-payment-due-day" className="block text-xs font-semibold text-gray-400 mb-1.5">

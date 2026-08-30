@@ -53,3 +53,34 @@ describe('nextDueDate', () => {
     expect(due.getDate()).toBe(28);
   });
 });
+
+/**
+ * Geico: cobertura del 14/04/2026 al 14/10/2026, o sea cobros en abril y
+ * octubre. Antes la cuenta atrás saltaba de mes en mes, así que un seguro
+ * pagado en abril anunciaba su próximo cargo para mayo.
+ */
+describe('nextDueDate — recibos que no son mensuales', () => {
+  it('en agosto, el próximo cobro del seguro es en octubre', () => {
+    const proximo = nextDueDate(14, false, new Date(2026, 7, 26), 'semiannual', 4);
+    expect(proximo.getMonth() + 1).toBe(10);
+    expect(proximo.getDate()).toBe(14);
+  });
+
+  it('la cuenta atrás son los días que faltan de verdad, no los del mes', () => {
+    // Del 26 de agosto al 14 de octubre hay 49 días.
+    const dias = daysUntilNextDue(14, false, new Date(2026, 7, 26), 'semiannual', 4);
+    expect(dias).toBe(49);
+  });
+
+  it('pagado el ciclo, salta al siguiente COBRO, no al mes siguiente', () => {
+    const proximo = nextDueDate(14, true, new Date(2026, 3, 20), 'semiannual', 4);
+    expect(proximo.getMonth() + 1).toBe(10);
+  });
+
+  it('sin frecuencia se comporta como siempre: mes a mes', () => {
+    // Todo lo ya guardado depende de que esto no cambie.
+    const proximo = nextDueDate(3, true, new Date(2026, 7, 10));
+    expect(proximo.getMonth() + 1).toBe(9);
+    expect(proximo.getDate()).toBe(3);
+  });
+})

@@ -9,7 +9,7 @@ import MarkPaidModal, { type AppliedPayment } from '@/components/payments/MarkPa
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { scopeOf } from '@/lib/expense-scope';
 import { formatMonthShort } from '@/lib/payment-aggregates';
-import { FREQUENCY_LABEL, monthlyCost, normalizeFrequency } from '@/lib/payment-frequency';
+import { FREQUENCY_LABEL, isDueInMonth, monthlyCost, normalizeFrequency } from '@/lib/payment-frequency';
 interface Props {
   readonly payment: MonthlyPayment;
   readonly autoOpen?: boolean;
@@ -162,9 +162,12 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
         const curMonth = now.getMonth() + 1;
         const curYear = now.getFullYear();
         const stillUnpaid = [...(currentPayment.unpaidMonths ?? [])];
-        // Unpaid again: if this month's due day already passed it re-enters the debt.
+        // Vuelve a estar impagado si su dia ya paso Y este mes le tocaba
+        // cobrar: en un semestral, desmarcar en un mes sin cobro no puede
+        // inventar una deuda que no existe.
         if (
-          daysUntilNextDue(currentPayment.dueDay, false) < 0 &&
+          isDueInMonth(frequency, currentPayment.anchorMonth, curMonth) &&
+          daysUntilNextDue(currentPayment.dueDay, false, new Date(), frequency, currentPayment.anchorMonth) < 0 &&
           !stillUnpaid.some((u) => u.month === curMonth && u.year === curYear)
         ) {
           stillUnpaid.push({ month: curMonth, year: curYear });
@@ -172,8 +175,8 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
         const next: MonthlyPayment = {
           ...currentPayment,
           isPaidThisMonth: false,
-          daysUntilDue: daysUntilNextDue(currentPayment.dueDay, false),
-          nextDueDate: nextDueDate(currentPayment.dueDay, false).toISOString(),
+          daysUntilDue: daysUntilNextDue(currentPayment.dueDay, false, new Date(), frequency, currentPayment.anchorMonth),
+          nextDueDate: nextDueDate(currentPayment.dueDay, false, new Date(), frequency, currentPayment.anchorMonth).toISOString(),
           unpaidMonths: stillUnpaid,
           missedMonths: stillUnpaid.length,
           accumulatedDebt: stillUnpaid.length * currentPayment.amount,
@@ -200,8 +203,8 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
     const next: MonthlyPayment = {
       ...currentPayment,
       isPaidThisMonth: nowPaid,
-      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid),
-      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid).toISOString(),
+      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid, new Date(), frequency, currentPayment.anchorMonth),
+      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid, new Date(), frequency, currentPayment.anchorMonth).toISOString(),
       unpaidMonths: stillUnpaid,
       missedMonths: stillUnpaid.length,
       accumulatedDebt: stillUnpaid.length * currentPayment.amount,

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cycleFromDate,
   isDueInMonth,
   monthlyCost,
   monthsPerCycle,
   nextDueMonth,
+  nextDueOn,
   normalizeAnchorMonth,
   normalizeFrequency,
 } from './payment-frequency';
@@ -127,5 +129,69 @@ describe('monthsPerCycle', () => {
     for (const f of ['monthly', 'bimonthly', 'quarterly', 'semiannual', 'annual'] as const) {
       expect(12 % monthsPerCycle(f)).toBe(0);
     }
+  });
+})
+
+/**
+ * El caso de Geico, tal como lo cuenta su dueño: «la cobertura empezó el
+ * 14/04/2026 y vence el 14/10/2026».
+ *
+ * Pedir «día del mes» y «mes» por separado dejó el día en 1 y el mes en agosto
+ * —el mes en que se editó—, así que la app reclamaba el cobro en un mes en que
+ * no toca. De una fecha salen los dos, y no se pueden desajustar.
+ */
+describe('cycleFromDate — el ciclo sale de una fecha', () => {
+  it('del 14 de octubre saca día 14 y mes 10', () => {
+    expect(cycleFromDate('2026-10-14')).toEqual({ dueDay: 14, anchorMonth: 10 });
+  });
+
+  it('no se va un día por la zona horaria', () => {
+    // `new Date('2026-10-14')` es medianoche UTC y en América cae el día 13.
+    expect(cycleFromDate('2026-10-14')?.dueDay).toBe(14);
+    expect(cycleFromDate('2026-01-01')).toEqual({ dueDay: 1, anchorMonth: 1 });
+  });
+
+  it('acepta una fecha ya hecha', () => {
+    expect(cycleFromDate(new Date(2026, 3, 14))).toEqual({ dueDay: 14, anchorMonth: 4 });
+  });
+
+  it('sin fecha no hay ciclo', () => {
+    expect(cycleFromDate('')).toBeNull();
+    expect(cycleFromDate(null)).toBeNull();
+    expect(cycleFromDate('no es fecha')).toBeNull();
+  });
+});
+
+describe('nextDueOn — cuándo toca el próximo cobro', () => {
+  it('el seguro de abril: en agosto, el siguiente es en octubre', () => {
+    // Justo lo que el usuario esperaba ver y no veía.
+    const proximo = nextDueOn('semiannual', 4, 14, new Date(2026, 7, 26));
+    expect(proximo.getFullYear()).toBe(2026);
+    expect(proximo.getMonth() + 1).toBe(10);
+    expect(proximo.getDate()).toBe(14);
+  });
+
+  it('en el mes de cobro pero antes del día, es este mes', () => {
+    const proximo = nextDueOn('semiannual', 4, 14, new Date(2026, 9, 2));
+    expect(proximo.getMonth() + 1).toBe(10);
+  });
+
+  it('pasado el día, salta al siguiente ciclo y cambia de año', () => {
+    const proximo = nextDueOn('semiannual', 4, 14, new Date(2026, 9, 20));
+    expect(proximo.getFullYear()).toBe(2027);
+    expect(proximo.getMonth() + 1).toBe(4);
+  });
+
+  it('un mensual salta al mes siguiente en cuanto pasa el día', () => {
+    const proximo = nextDueOn('monthly', null, 3, new Date(2026, 7, 10));
+    expect(proximo.getMonth() + 1).toBe(9);
+    expect(proximo.getDate()).toBe(3);
+  });
+
+  it('recorta el día a los que tiene el mes', () => {
+    // Un cobro el 31 en un febrero no existe: cae el último día.
+    const proximo = nextDueOn('monthly', null, 31, new Date(2026, 1, 1));
+    expect(proximo.getMonth() + 1).toBe(2);
+    expect(proximo.getDate()).toBe(28);
   });
 })
