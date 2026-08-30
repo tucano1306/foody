@@ -430,8 +430,17 @@ export default function FinancePlanView({ initialData }: Props) {
             <h2 className={`text-2xl font-black leading-tight ${NUM}`}>{healthLabel(view.healthScore)}</h2>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
-                <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>Ingreso</p>
+                <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>
+                  {cash.oneTimeIncome > 0 ? 'Entra este mes' : 'Ingreso'}
+                </p>
                 <p className={`font-black tabular-nums ${NUM}`}>{fmtMoney(cash.monthlyIncome)}</p>
+                {/* La cabecera no puede llamar «ingreso mensual» a un cheque
+                    suelto: se dice cuánto de eso se repite y cuánto no. */}
+                {cash.oneTimeIncome > 0 && (
+                  <p className={`text-[10px] ${LABEL}`}>
+                    {fmtMoney(cash.recurringIncome)} fijos + {fmtMoney(cash.oneTimeIncome)} sueltos
+                  </p>
+                )}
               </div>
               <div>
                 <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>Libre al mes</p>

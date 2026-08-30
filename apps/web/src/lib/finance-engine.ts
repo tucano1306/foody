@@ -28,7 +28,22 @@ import {
 
 export type GoalKind = 'trip' | 'debt' | 'project' | 'purchase' | 'emergency';
 export type GoalStatus = 'active' | 'paused' | 'done';
-export type IncomeFrequency = 'monthly' | 'biweekly' | 'weekly' | 'yearly' | 'one_time';
+export type IncomeFrequency =
+  | 'monthly'
+  | 'biweekly'
+  | 'weekly'
+  /** Total de un año COMPLETO: se reparte entre 12. */
+  | 'yearly'
+  /**
+   * Lo que se lleva cobrado del año en curso, de enero a hoy.
+   *
+   * No es lo mismo que `yearly` y por eso no comparte botón: $31.397,50 de
+   * sueldo anual son $2.616,46 al mes, pero $31.397,50 cobrados entre enero y
+   * el 30 de agosto son $3.924,69 al mes. Dividir un acumulado entre 12
+   * inventa cuatro meses que todavía no han pasado.
+   */
+  | 'ytd'
+  | 'one_time';
 
 export interface IncomeSource {
   id: string;
@@ -44,6 +59,14 @@ export interface IncomeSource {
    * negocio que solo pierde dinero. Ver expense-scope.ts.
    */
   businessShare?: number;
+  /**
+   * Día en que entró el dinero, YYYY-MM-DD. Solo lo usa `one_time`.
+   *
+   * Un cheque no es una tasa mensual: es dinero que llegó UN día. Cuenta
+   * entero en el mes en que cayó y no cuenta en ninguno más, que es justo lo
+   * que distingue «cobré $2.300 este mes» de «gano $2.300 al mes».
+   */
+  receivedOn?: string | null;
 }
 
 export interface FinanceGoal {
@@ -169,7 +192,18 @@ export interface PlanInput {
 // ─── Tipos de salida ──────────────────────────────────────────────────────────
 
 export interface CashFlow {
+  /** Todo lo que entra este mes: lo que se repite más los cheques que cayeron. */
   monthlyIncome: number;
+  /** La parte que se repite todos los meses. */
+  recurringIncome: number;
+  /**
+   * Los cheques y pagos sueltos cobrados este mes.
+   *
+   * Va aparte de `recurringIncome` porque no es lo mismo: este dinero está
+   * ahora y puede no estar el mes que viene. Juntarlos en una sola cifra haría
+   * que la app dijese «ganas $X al mes» sobre algo que no se repite.
+   */
+  oneTimeIncome: number;
   fixedPayments: number;
   groceriesEstimate: number;
   /** Comer fuera, farmacia, gasolina, hogar: los tickets que no son de super. */
@@ -380,23 +414,83 @@ export function daysUntil(target: string, now: Date = new Date()): number | null
   return Math.round((end.getTime() - startOfToday) / MS_PER_DAY - 0.5);
 }
 
-/** Ingreso mensual equivalente de una fuente según su frecuencia. */
-export function monthlyEquivalent(amount: number, frequency: IncomeFrequency): number {
+/**
+ * Meses del año en curso que ya han empezado, contando el actual.
+ *
+ * El mes en marcha cuenta entero: repartir un acumulado entre «7 meses y 30
+ * días» exige un divisor fraccionario que en enero se dispara —lo cobrado el
+ * día 1 dividido entre 1/30 de mes daría un sueldo de treinta veces la cifra—.
+ * Contar el mes empezado es estable todo el año y siempre peca de prudente.
+ */
+export function monthsElapsedThisYear(now: Date = new Date()): number {
+  return now.getMonth() + 1;
+}
+
+/**
+ * Ingreso mensual equivalente de una fuente según su frecuencia.
+ *
+ * `now` solo lo usa `ytd`, que es la única frecuencia cuyo resultado depende
+ * de qué día es: un acumulado del año se reparte entre los meses que de
+ * verdad han pasado, no entre doce.
+ */
+export function monthlyEquivalent(
+  amount: number,
+  frequency: IncomeFrequency,
+  now: Date = new Date(),
+): number {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
   switch (frequency) {
     case 'weekly':   return (amount * 52) / 12;
     case 'biweekly': return (amount * 26) / 12;
     case 'yearly':   return amount / 12;
+    case 'ytd':      return amount / monthsElapsedThisYear(now);
     case 'one_time': return 0;
     case 'monthly':
     default:         return amount;
   }
 }
 
-export function totalMonthlyIncome(incomes: readonly IncomeSource[]): number {
+/**
+ * El ingreso que se repite todos los meses.
+ *
+ * Los `one_time` valen 0 aquí a propósito: un cheque suelto no es una tasa
+ * mensual y prometerlo para el mes que viene sería inventarlo. Lo que sí entró
+ * este mes lo cuenta `totalOneTimeIncome`.
+ */
+export function totalMonthlyIncome(
+  incomes: readonly IncomeSource[],
+  now: Date = new Date(),
+): number {
   return incomes
     .filter((i) => i.isActive)
-    .reduce((sum, i) => sum + monthlyEquivalent(i.amount, i.frequency), 0);
+    .reduce((sum, i) => sum + monthlyEquivalent(i.amount, i.frequency, now), 0);
+}
+
+/** ¿Esa fecha YYYY-MM-DD cae en el mes de `now`? */
+function landsInMonth(dateKey: string | null | undefined, now: Date): boolean {
+  const m = (dateKey ?? '').match(/^(\d{4})-(\d{2})/);
+  if (!m) return false;
+  return Number(m[1]) === now.getFullYear() && Number(m[2]) === now.getMonth() + 1;
+}
+
+/**
+ * Los cheques y pagos sueltos que cayeron ESTE mes, enteros.
+ *
+ * Sin esto, quien cobra por trabajos —hoy un cheque, la semana que viene
+ * otro— no tenía forma de que la app viera un solo dólar: la única pregunta
+ * era «¿cuánto ganas al mes?», y la respuesta honesta era «depende».
+ */
+export function totalOneTimeIncome(incomes: readonly IncomeSource[], now: Date = new Date()): number {
+  return incomes
+    .filter((i) => i.isActive && i.frequency === 'one_time' && landsInMonth(i.receivedOn, now))
+    .reduce((sum, i) => sum + Math.max(0, i.amount), 0);
+}
+
+/** Lo que esta fuente aporta al mes en curso: la tasa mensual, o el cheque si cayó. */
+export function incomeThisMonth(income: IncomeSource, now: Date = new Date()): number {
+  if (!income.isActive) return 0;
+  if (income.frequency !== 'one_time') return monthlyEquivalent(income.amount, income.frequency, now);
+  return landsInMonth(income.receivedOn, now) ? Math.max(0, income.amount) : 0;
 }
 
 /** Meses (redondeando hacia arriba) para juntar `remaining` aportando `monthly`. */
@@ -637,7 +731,10 @@ function buildScopeBreakdown(input: PlanInput, groceries: number, otherExpenses:
     if (!inc.isActive) continue;
     const share = normalizeShare(inc.businessShare);
     if (share > 0) anyBusiness = true;
-    const split = splitAmount(monthlyEquivalent(inc.amount, inc.frequency), share);
+    // `incomeThisMonth` y no la tasa mensual: un cheque cobrado por el negocio
+    // vale 0 como tasa, así que el reparto lo dejaba fuera y el negocio volvía
+    // a parecer que solo gasta.
+    const split = splitAmount(incomeThisMonth(inc, input.now ?? new Date()), share);
     personal.income += split.personal;
     business.income += split.business;
   }
@@ -1518,7 +1615,12 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   const now = input.now ?? new Date();
   const extraMonthly = Math.max(0, input.extraMonthly ?? 0);
 
-  const monthlyIncome = totalMonthlyIncome(input.incomes);
+  // El ingreso del mes son DOS cosas: lo que se repite y lo que cayó suelto.
+  // Se calculan aparte para poder decirlas aparte, y se suman para lo único
+  // que necesita el total: cuánto dinero hay realmente este mes.
+  const recurringIncome = totalMonthlyIncome(input.incomes, now);
+  const oneTimeIncome = totalOneTimeIncome(input.incomes, now);
+  const monthlyIncome = recurringIncome + oneTimeIncome;
   const fixedPayments = input.fixedPayments.reduce((s, p) => s + Math.max(0, p.amount), 0);
   const groceriesEstimate = Math.max(0, input.groceriesMonthly);
   // Comer fuera y la gasolina no son super, pero salen de la misma cuenta el
@@ -1550,6 +1652,8 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
 
   const cashFlow: CashFlow = {
     monthlyIncome: round2(monthlyIncome),
+    recurringIncome: round2(recurringIncome),
+    oneTimeIncome: round2(oneTimeIncome),
     fixedPayments: round2(fixedPayments),
     groceriesEstimate: round2(groceriesEstimate),
     otherExpenses: round2(otherExpenses),

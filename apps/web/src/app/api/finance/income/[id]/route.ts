@@ -40,6 +40,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       frequency = ${input.frequency},
       is_active = ${input.isActive},
       note = ${input.note},
+      received_on = ${input.receivedOn},
       updated_at = NOW()
     WHERE id = ${id} AND user_id = ${user.userId}
     RETURNING *
