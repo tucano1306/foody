@@ -18,4 +18,20 @@ describe('resumenDeCompra', () => {
     expect(resumenDeCompra(7, 'abc')).toBe('7 artículos');
     expect(resumenDeCompra(7, '0')).toBe('7 artículos');
   });
+
+  /**
+   * El total del super se escribia en un `type="number"`, que no deja teclear
+   * coma, y se leia con `parseFloat`, que la corta: «87,50» valia 87 y los
+   * cincuenta centavos desaparecian sin avisar. Ahora lo lee `parseMoney`, el
+   * mismo que el resto de la app.
+   */
+  it('entiende la coma decimal, no se come los centavos', () => {
+    expect(resumenDeCompra(3, '87,50')).toBe('3 artículos · $87.50');
+    expect(resumenDeCompra(3, '87.50')).toBe('3 artículos · $87.50');
+  });
+
+  it('entiende los separadores de millares', () => {
+    expect(resumenDeCompra(40, '1.234,56')).toBe('40 artículos · $1234.56');
+    expect(resumenDeCompra(40, '1,234.56')).toBe('40 artículos · $1234.56');
+  });
 })

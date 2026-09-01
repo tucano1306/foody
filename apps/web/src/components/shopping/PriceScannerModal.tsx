@@ -12,6 +12,7 @@ import {
   type PriceQuality,
   type ScanWord,
 } from '@/lib/price-scan';
+import { parseMoney } from '@/lib/money-input';
 
 interface Props {
   readonly productName: string;
@@ -267,7 +268,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
 
   function confirm() {
-    const manualNum = manual.trim() ? Number.parseFloat(manual.replaceAll(',', '.')) : null;
+    const manualNum = parseMoney(manual);
     const price = selected ?? manualNum;
     if (price !== null && !Number.isNaN(price) && price > 0) {
       onPrice(price);
@@ -282,7 +283,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
     onClose();
   }
 
-  const manualNum = manual.trim() ? Number.parseFloat(manual.replaceAll(',', '.')) : null;
+  const manualNum = parseMoney(manual);
   const canConfirm = selected !== null || (manualNum !== null && manualNum > 0);
 
   return (
@@ -349,9 +350,9 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
               <input
                 id="price-idle-manual"
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 value={manual}
                 onChange={(e) => setManual(e.target.value)}
                 placeholder="0.00"
@@ -511,9 +512,9 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
                 <input
                   id="price-preview-manual"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   value={manual}
                   onChange={(e) => { setManual(e.target.value); setSelected(null); }}
                   placeholder="0.00"
