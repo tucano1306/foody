@@ -6,6 +6,7 @@ import ProgressRing from './ProgressRing';
 import SplitBar from './SplitBar';
 import { scopeOf } from '@/lib/expense-scope';
 import {
+  fmtDateFull,
   fmtDateKey,
   fmtMonths,
   fmtMoney,
@@ -29,9 +30,13 @@ function dueLabel(days: number): string {
 }
 
 /**
- * Tarjeta de una deuda. Se toca para ver el detalle y se desliza a la derecha
- * para abonar — el mismo gesto que ya existe en Pagos, para que no haya nada
- * nuevo que aprender.
+ * Tarjeta de una deuda: se toca para ver el detalle y se abona con el botón de
+ * abajo.
+ *
+ * Una MISMA tarjeta de crédito puede tener aquí varias entradas —un saldo de
+ * compras y otro de transferencia, cada uno con su vencimiento— así que la
+ * fecha límite se muestra en la propia tarjeta: sin ella dos entradas del mismo
+ * plástico serían indistinguibles en la lista.
  */
 export default function DebtCard({ debt, onOpen, onPay }: Props) {
   const kind = KIND_META[debt.kind] ?? KIND_META.other;
@@ -142,15 +147,29 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
             </p>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-2 rounded-2xl bg-sky-50/70 px-3.5 py-2.5">
-            <span className="text-xs font-semibold text-slate-600">🏁 Libre en</span>
-            <span className="text-sm font-bold text-sky-700">
-              {fmtMonths(monthsToPayoff)}
-              {payoffDate && (
-                <span className="font-medium opacity-70"> · {fmtDateKey(payoffDate)}</span>
-              )}
-            </span>
-          </div>
+          /* Con fecha límite el dato NO es una proyección, es un compromiso: se
+             anuncia la fecha, no «libre en N meses». Además es lo que permite
+             distinguir de un vistazo dos saldos de la MISMA tarjeta, cada uno
+             con su vencimiento — que es el caso real que motivó esta pantalla. */
+          debt.strategy === 'by_date' && debt.payoffDate ? (
+            <div className="flex items-center justify-between gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-2.5">
+              <span className="text-xs font-semibold text-slate-600">⏳ Antes del</span>
+              <span className="text-sm font-bold text-sky-700">
+                {fmtDateFull(debt.payoffDate)}
+                <span className="font-medium opacity-70"> · {fmtMonths(monthsToPayoff)}</span>
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2 rounded-2xl bg-sky-50/70 px-3.5 py-2.5">
+              <span className="text-xs font-semibold text-slate-600">🏁 Libre en</span>
+              <span className="text-sm font-bold text-sky-700">
+                {fmtMonths(monthsToPayoff)}
+                {payoffDate && (
+                  <span className="font-medium opacity-70"> · {fmtDateKey(payoffDate)}</span>
+                )}
+              </span>
+            </div>
+          )
         )}
       </button>
 

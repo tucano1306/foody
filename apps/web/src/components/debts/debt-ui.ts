@@ -65,13 +65,16 @@ export function fmtDateKey(key: string | null): string {
  * "27 sep 2027": el mismo dato, pero con el día.
  *
  * Las fechas de la app son casi todas ESTIMACIONES —cuándo quedarás libre a
- * este ritmo—, y ahí el mes basta. El fin de una promoción no: es una fecha del
- * contrato, y entre pagar el 24 y que el 0 % muera el 27 hay tres días de
- * margen que "sep 2027" borra de la pantalla.
+ * este ritmo—, y ahí el mes basta. Las que NO son estimación necesitan el día,
+ * porque "sep 2027" no distingue entre quedar tres días o treinta:
+ *
+ *   - el fin de una promoción, que es una fecha del contrato;
+ *   - la fecha límite de una deuda `by_date`, que es un compromiso.
  */
 export function fmtDateFull(key: string | null): string {
   if (!key) return '—';
   const [y, m, d] = key.split('-').map(Number);
+  // Con día ilegible se cae al mes en vez de escupir la cadena cruda.
   if (!y || !m || !d) return fmtDateKey(key);
   return `${d} ${MONTHS_ES[m - 1] ?? ''} ${y}`;
 }
