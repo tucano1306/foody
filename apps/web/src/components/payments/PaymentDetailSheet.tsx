@@ -8,6 +8,9 @@ import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import { PAYMENT_METHOD_LABELS, maskLast4, methodNeedsBank } from '@/lib/payment-methods';
 import { formatMonthLong, formatMonthShort } from '@/lib/payment-aggregates';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
+import { parseMoney } from '@/lib/money-input';
+import MoneyInput from '@/components/ui/MoneyInput';
+import FrequencyPicker from '@/components/payments/FrequencyPicker';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -64,6 +67,8 @@ function buildEditState(payment: MonthlyPayment): {
       name: payment.name,
       amount: payment.amount,
       dueDay: payment.dueDay,
+      frequency: payment.frequency,
+      anchorMonth: payment.anchorMonth,
       currency: payment.currency,
       category: payment.category,
       notificationDaysBefore: payment.notificationDaysBefore,
@@ -462,8 +467,8 @@ export default function PaymentDetailSheet({
   }
 
   async function saveRecord(rec: HistoryRecord) {
-    const parsed = Number.parseFloat(recAmount);
-    if (!Number.isFinite(parsed) || parsed <= 0) { setRecError('Ingresa un monto válido'); return; }
+    const parsed = parseMoney(recAmount);
+    if (parsed === null || parsed <= 0) { setRecError('Ingresa un monto válido'); return; }
     setRecBusy(true);
     setRecError(null);
     try {
@@ -517,8 +522,8 @@ export default function PaymentDetailSheet({
     const [yearStr, monthStr] = addMonthKey.split('-');
     const year = Number.parseInt(yearStr, 10);
     const month = Number.parseInt(monthStr, 10);
-    const parsed = Number.parseFloat(addAmount);
-    if (!Number.isFinite(parsed) || parsed <= 0) { setRecError('Ingresa un monto válido'); return; }
+    const parsed = parseMoney(addAmount);
+    if (parsed === null || parsed <= 0) { setRecError('Ingresa un monto válido'); return; }
     setRecBusy(true);
     setRecError(null);
     try {
@@ -1006,9 +1011,8 @@ export default function PaymentDetailSheet({
             </span>
             <input
               id="rec-edit-amount"
-              type="number"
-              min={0.01}
-              step="0.01"
+              type="text"
+                inputMode="decimal"
               value={recAmount}
               onChange={(e) => setRecAmount(e.target.value)}
               className="w-full pl-12 pr-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -1101,9 +1105,8 @@ export default function PaymentDetailSheet({
             </span>
             <input
               id="add-record-amount"
-              type="number"
-              min={0.01}
-              step="0.01"
+              type="text"
+                inputMode="decimal"
               value={addAmount}
               onChange={(e) => setAddAmount(e.target.value)}
               className="w-full pl-12 pr-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -1301,14 +1304,11 @@ export default function PaymentDetailSheet({
           <div className="flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none">$</span>
-              <input
+              <MoneyInput
                 id="edit-payment-amount"
                 required
-                type="number"
-                min={0}
-                step="0.01"
-                value={form.amount === 0 ? '' : form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: Number.parseFloat(e.target.value) || 0 }))}
+                value={form.amount}
+                onChange={(amount) => setForm((f) => ({ ...f, amount }))}
                 placeholder="0.00"
                 className="w-full pl-8 pr-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
               />
@@ -1379,6 +1379,18 @@ export default function PaymentDetailSheet({
         </div>
 
         {/* Día vencimiento + Avisar antes */}
+        {/* Cada cuánto se paga. Faltaba aquí, y por eso un seguro semestral
+            quedaba anclado en el mes equivocado sin forma de arreglarlo. */}
+        <FrequencyPicker
+          dark
+          frequency={form.frequency ?? 'monthly'}
+          anchorMonth={form.anchorMonth ?? null}
+          dueDay={form.dueDay}
+          amount={form.amount}
+          currency={form.currency ?? 'USD'}
+          onChange={(next) => setForm((f) => ({ ...f, ...next }))}
+        />
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="edit-payment-due-day" className="block text-xs font-semibold text-gray-400 mb-1.5">

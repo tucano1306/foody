@@ -62,15 +62,20 @@ export function fmtDateKey(key: string | null): string {
 }
 
 /**
- * "14 feb 2027" — con el día.
+ * "27 sep 2027": el mismo dato, pero con el día.
  *
- * Una fecha límite necesita el día exacto: "feb 2027" no sirve para saber si
- * quedan tres días o treinta.
+ * Las fechas de la app son casi todas ESTIMACIONES —cuándo quedarás libre a
+ * este ritmo—, y ahí el mes basta. Las que NO son estimación necesitan el día,
+ * porque "sep 2027" no distingue entre quedar tres días o treinta:
+ *
+ *   - el fin de una promoción, que es una fecha del contrato;
+ *   - la fecha límite de una deuda `by_date`, que es un compromiso.
  */
 export function fmtDateFull(key: string | null): string {
   if (!key) return '—';
   const [y, m, d] = key.split('-').map(Number);
-  if (!y || !m || !d) return key;
+  // Con día ilegible se cae al mes en vez de escupir la cadena cruda.
+  if (!y || !m || !d) return fmtDateKey(key);
   return `${d} ${MONTHS_ES[m - 1] ?? ''} ${y}`;
 }
 

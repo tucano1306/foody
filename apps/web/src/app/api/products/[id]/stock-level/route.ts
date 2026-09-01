@@ -78,7 +78,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       WITH previous AS (
         SELECT stock_level AS prev FROM products WHERE id = ${id}
       )
-      UPDATE products SET stock_level = ${level}, is_running_low = ${isRunningLow}, needs_shopping = ${needsShopping}, updated_at = NOW()
+      UPDATE products SET stock_level = ${level}, stock_updated_at = NOW(), is_running_low = ${isRunningLow}, needs_shopping = ${needsShopping}, updated_at = NOW()
       WHERE id = ${id}
       RETURNING *, (SELECT prev FROM previous) AS previous_stock_level
     `;

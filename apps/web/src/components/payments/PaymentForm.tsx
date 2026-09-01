@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { CreatePaymentDto } from '@foody/types';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import ScopePicker from '@/components/ui/ScopePicker';
+import { haptic } from '@/lib/haptic';
+import MoneyInput from '@/components/ui/MoneyInput';
+import FrequencyPicker from '@/components/payments/FrequencyPicker';
 
 const CATEGORIES = [
   { value: 'utilities', label: '💡', name: 'Servicios' },
@@ -31,6 +34,8 @@ export default function PaymentForm() {
     name: '',
     amount: 0,
     dueDay: 1,
+    frequency: 'monthly',
+    anchorMonth: null,
     currency: 'USD',
     category: presetCategory && VALID_CATEGORIES.has(presetCategory) ? presetCategory : 'other',
     description: '',
@@ -128,14 +133,11 @@ export default function PaymentForm() {
         <div className="flex gap-2">
           <div className="relative flex-1">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm select-none">$</span>
-            <input
+            <MoneyInput
               id="payment-amount"
               required
-              type="number"
-              min={0.01}
-              step="0.01"
-              value={form.amount === 0 ? '' : form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: Number.parseFloat(e.target.value) || 0 }))}
+              value={form.amount}
+              onChange={(amount) => setForm((f) => ({ ...f, amount }))}
               placeholder="0.00"
               className="w-full pl-8 pr-4 py-3 rounded-2xl border border-sky-200 text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />
@@ -221,6 +223,18 @@ export default function PaymentForm() {
         </button>
       </div>
 
+      {/* Cada cuánto se paga, con la fecha del próximo cobro. El mismo
+          componente que usa el editor: tenerlo solo aquí dejó un seguro
+          semestral anclado en el mes equivocado sin forma de corregirlo. */}
+      <FrequencyPicker
+        frequency={form.frequency ?? 'monthly'}
+        anchorMonth={form.anchorMonth ?? null}
+        dueDay={form.dueDay}
+        amount={form.amount}
+        currency={form.currency ?? 'USD'}
+        onChange={(next) => setForm((f) => ({ ...f, ...next }))}
+      />
+
       {/* ─── Día vencimiento + Notificación ──────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -249,7 +263,7 @@ export default function PaymentForm() {
               }}
               className="w-full px-4 py-3 rounded-2xl border border-sky-200 text-black focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs select-none">/ mes</span>
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs select-none">del mes</span>
           </div>
           <p className="text-xs text-slate-400 mt-1">Entre 1 y 31</p>
         </div>

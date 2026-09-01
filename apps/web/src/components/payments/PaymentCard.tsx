@@ -9,6 +9,7 @@ import MarkPaidModal, { type AppliedPayment } from '@/components/payments/MarkPa
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { scopeOf } from '@/lib/expense-scope';
 import { formatMonthShort } from '@/lib/payment-aggregates';
+import { FREQUENCY_LABEL, isDueInMonth, monthlyCost, normalizeFrequency } from '@/lib/payment-frequency';
 interface Props {
   readonly payment: MonthlyPayment;
   readonly autoOpen?: boolean;
@@ -132,6 +133,10 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
   const icon = CATEGORY_ICONS[currentPayment.category ?? 'other'] ?? '💰';
   const scope = scopeOf(currentPayment.businessShare ?? 0);
+  // Normalizada y no leida en crudo: un pago guardado antes de que existiera
+  // la frecuencia no la trae, y buscar su etiqueta a ciegas tumbaba la lista
+  // entera con un `undefined`.
+  const frequency = normalizeFrequency(currentPayment.frequency);
   const urgency = getUrgency(isPaid, currentPayment.daysUntilDue);
   const circleColor = getCircleColor(urgency, isPaid);
   const showQuickActions = !isPaid && !isSnoozed;
@@ -157,9 +162,12 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
         const curMonth = now.getMonth() + 1;
         const curYear = now.getFullYear();
         const stillUnpaid = [...(currentPayment.unpaidMonths ?? [])];
-        // Unpaid again: if this month's due day already passed it re-enters the debt.
+        // Vuelve a estar impagado si su dia ya paso Y este mes le tocaba
+        // cobrar: en un semestral, desmarcar en un mes sin cobro no puede
+        // inventar una deuda que no existe.
         if (
-          daysUntilNextDue(currentPayment.dueDay, false) < 0 &&
+          isDueInMonth(frequency, currentPayment.anchorMonth, curMonth) &&
+          daysUntilNextDue(currentPayment.dueDay, false, new Date(), frequency, currentPayment.anchorMonth) < 0 &&
           !stillUnpaid.some((u) => u.month === curMonth && u.year === curYear)
         ) {
           stillUnpaid.push({ month: curMonth, year: curYear });
@@ -167,8 +175,8 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
         const next: MonthlyPayment = {
           ...currentPayment,
           isPaidThisMonth: false,
-          daysUntilDue: daysUntilNextDue(currentPayment.dueDay, false),
-          nextDueDate: nextDueDate(currentPayment.dueDay, false).toISOString(),
+          daysUntilDue: daysUntilNextDue(currentPayment.dueDay, false, new Date(), frequency, currentPayment.anchorMonth),
+          nextDueDate: nextDueDate(currentPayment.dueDay, false, new Date(), frequency, currentPayment.anchorMonth).toISOString(),
           unpaidMonths: stillUnpaid,
           missedMonths: stillUnpaid.length,
           accumulatedDebt: stillUnpaid.length * currentPayment.amount,
@@ -195,8 +203,8 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
     const next: MonthlyPayment = {
       ...currentPayment,
       isPaidThisMonth: nowPaid,
-      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid),
-      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid).toISOString(),
+      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid, new Date(), frequency, currentPayment.anchorMonth),
+      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid, new Date(), frequency, currentPayment.anchorMonth).toISOString(),
       unpaidMonths: stillUnpaid,
       missedMonths: stillUnpaid.length,
       accumulatedDebt: stillUnpaid.length * currentPayment.amount,
@@ -241,6 +249,20 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
     onDeleted?.(currentPayment.id);
   }, [currentPayment.id, onDeleted]);
 
+  /**
+   * ¿Esta tarjeta tiene que avisar?
+   *
+   * Solo lo que de verdad está sin pagar y sin posponer: un pago ya hecho no
+   * tiene nada que reclamar, y uno pospuesto es una decisión del usuario —
+   * seguir insistiendo después de que dijo «más tarde» es no escucharle.
+   *
+   * `!justPaid` porque las dos animaciones se pisarían: ambas escriben la
+   * propiedad `animation`, así que solo una puede correr. El brinco de «pagado»
+   * gana ese instante; si el pago tenía meses atrasados y sigue debiendo el mes
+   * en curso, al terminar el brinco el aviso vuelve solo.
+   */
+  const pulsePending = !isPaid && !isSnoozed && !justPaid;
+
   return (
     <div ref={cardRef}>
       {/* Tocar la tarjeta abre el detalle. Marcar pagado se hace con el botón
@@ -258,7 +280,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
         type="button"
         onClick={() => setSheetOpen(true)}
         onAnimationEnd={(e) => { if (e.animationName === 'foody-pop') setJustPaid(false); }}
-        className={`relative w-full text-left flex flex-col bg-sky-50/70 border border-sky-100 rounded-2xl p-5 shadow-sm hover:bg-white/70 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${justPaid ? ' animate-pop' : ''}`}
+        className={`relative w-full text-left flex flex-col bg-sky-50/70 border border-sky-100 rounded-2xl p-5 shadow-sm hover:bg-white/70 active:scale-[0.98] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${justPaid ? ' animate-pop' : ''}${pulsePending ? ' pulse-pending' : ''}`}
       >
         {/* Top row: icon + name + amount */}
         <div className="flex items-center gap-4">
@@ -283,9 +305,20 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
               )}
               {currentPayment.currency} {currentPayment.amount.toFixed(2)}
             </p>
+            {/* El ciclo va aquí porque sin él dos recibos del mismo importe se
+                ven idénticos aunque uno cueste seis veces menos al mes. En los
+                mensuales no se dice: es lo normal y sería ruido en cada fila. */}
             <p className="text-slate-400 text-[11px]">
-              {currentPayment.isVariableAmount ? `Variable · Día ${currentPayment.dueDay}` : `Día ${currentPayment.dueDay} / mes`}
+              {currentPayment.isVariableAmount ? 'Variable · ' : ''}
+              Día {currentPayment.dueDay}
+              {frequency === 'monthly' ? ' / mes' : ` · ${FREQUENCY_LABEL[frequency].toLowerCase()}`}
             </p>
+            {frequency !== 'monthly' && (
+              <p className="text-slate-400 text-[11px]">
+                Son {currentPayment.currency}{' '}
+                {monthlyCost(currentPayment.amount, frequency).toFixed(2)} al mes
+              </p>
+            )}
           </div>
         </div>
 

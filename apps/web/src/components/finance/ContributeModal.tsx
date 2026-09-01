@@ -5,6 +5,7 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from './ModalShell';
 import type { GoalProjection } from '@/lib/finance-engine';
 import { KIND_META, fmtMoney, fmtMoneyFine } from './finance-ui';
+import { parseSignedMoney } from '@/lib/money-input';
 
 interface Props {
   readonly goal: GoalProjection;
@@ -20,8 +21,8 @@ export default function ContributeModal({ goal, onContribute, onClose }: Props) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const value = Number.parseFloat(amount);
-  const valid = Number.isFinite(value) && value !== 0;
+  const value = parseSignedMoney(amount);
+  const valid = value !== null && value !== 0;
   const after = valid ? Math.max(0, goal.savedAmount + value) : goal.savedAmount;
   const pctAfter = goal.targetAmount > 0 ? Math.min(100, (after / goal.targetAmount) * 100) : 0;
 
@@ -80,9 +81,8 @@ export default function ContributeModal({ goal, onContribute, onClose }: Props) 
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">$</span>
             <input
               id="contrib-amount"
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="10"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="w-full pl-9 pr-4 py-3.5 rounded-2xl border border-sky-200 bg-white/70 text-black text-2xl font-black tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-300 transition"

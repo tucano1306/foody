@@ -10,9 +10,12 @@
  */
 import { sql } from '@/lib/db';
 import { getBudgetData } from '@/lib/budget-data';
-import { listCreditsForPlan } from '@/lib/debt-data';
+import { listCreditsForPlan, type CreditForPlan } from '@/lib/debt-data';
+import { monthlyCost, normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 import { normalizeShare } from '@/lib/expense-scope';
-import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { normalizeExpenseKind } from '@/lib/expense-kind';
+import { findDuplicateObligations, type DuplicateSuspect } from '@/lib/duplicate-obligations';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
 import { buildPaymentAggregates, type PaidRecordInput } from '@/lib/payment-aggregates';
 import {
   computeGroceryInsight,
@@ -21,6 +24,13 @@ import {
   type MonthTotal,
   type StoreSpend,
 } from '@/lib/grocery-insights';
+import {
+  computeOtherSpend,
+  EMPTY_OTHER_SPEND,
+  type KindSpendInput,
+  type OtherSpendInsight,
+  type PlaceSpend,
+} from '@/lib/other-spend';
 import {
   buildFinancePlan,
   type CreditInput,
@@ -36,7 +46,7 @@ import {
 
 export const GOAL_KINDS: readonly GoalKind[] = ['trip', 'debt', 'project', 'purchase', 'emergency'];
 export const GOAL_STATUSES: readonly GoalStatus[] = ['active', 'paused', 'done'];
-export const INCOME_FREQUENCIES: readonly IncomeFrequency[] = ['monthly', 'biweekly', 'weekly', 'yearly', 'one_time'];
+export const INCOME_FREQUENCIES: readonly IncomeFrequency[] = ['monthly', 'biweekly', 'weekly', 'yearly', 'ytd', 'one_time'];
 
 export interface GoalContribution {
   id: string;
@@ -52,6 +62,20 @@ export interface FinancePlanPayload extends FinancePlan {
   contributions: GoalContribution[];
   /** Análisis de las compras reales que alimenta el plan. */
   groceries: GroceryInsight;
+  /** El gasto que NO es super: comida fuera, farmacia, gasolina, hogar. */
+  otherSpend: OtherSpendInsight;
+  /**
+   * Porcentajes de negocio ponderados del mes, uno por bloque de gasto.
+   *
+   * Viajan al cliente porque el interruptor «contar el negocio en el plan»
+   * RECALCULA el plan con el mismo motor puro; sin ellos ese recálculo dejaba
+   * el super y los gastos de fuera enteros del lado personal, que es justo lo
+   * que el interruptor promete quitar.
+   */
+  groceriesBusinessShare: number;
+  otherBusinessShare: number;
+  /** Cuotas que podrían estar ya cobradas como pago mensual, sin resolver. */
+  duplicateObligations: DuplicateSuspect[];
   /** Totales de super por mes (para la mini gráfica de tendencia). */
   history: MonthTotal[];
   payments: FixedPaymentInput[];
@@ -78,6 +102,9 @@ export async function ensureFinanceSchema(): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_income_user ON finance_income_sources (user_id, is_active)`;
+  // El día en que entró el dinero. Solo lo usa `one_time`: sin fecha, un cheque
+  // no sabe a qué mes pertenece y no puede dejar de contar en el siguiente.
+  await sql`ALTER TABLE finance_income_sources ADD COLUMN IF NOT EXISTS received_on DATE`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS finance_goals (
@@ -177,6 +204,9 @@ export function mapIncomeRow(row: Record<string, unknown>): IncomeSource {
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     note: (row.note as string | null) ?? null,
     businessShare: normalizeShare(row.business_share),
+    // Sin fecha propia manda el día en que se registró: un cheque anotado
+    // siempre pertenece a algún mes, nunca a ninguno.
+    receivedOn: dateKey(row.received_on) ?? dateKey(row.created_at),
   };
 }
 
@@ -214,18 +244,30 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
 
   return rows.map((row) => {
     const id = String(row.id);
+    // Dos importes distintos y los dos hacen falta:
+    //
+    //   `amount`      lo que se cobra CADA VEZ. Es lo que se debe si se pasa un
+    //                 cobro, asi que es el que va a los atrasos.
+    //   `monthlyCost` lo que ese recibo cuesta AL MES. Es lo que resta el plan.
+    //
+    // Para un mensual son la misma cifra; para el seguro del coche que se paga
+    // cada seis meses, no. Confundirlos multiplicaba ese gasto por seis.
     const amount = num(row.amount);
     const dueDay = Math.trunc(num(row.due_day, 1));
+    const frequency = normalizeFrequency(row.frequency);
+    const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
     const aggregates = buildPaymentAggregates({
       createdAt: new Date(row.created_at as string),
       dueDay,
       amount,
       paidRecords: paidByPayment.get(id) ?? [],
+      frequency,
+      anchorMonth,
     });
     return {
       id,
       name: String(row.name ?? ''),
-      amount,
+      amount: monthlyCost(amount, frequency),
       dueDay,
       isPaidThisMonth: aggregates.isPaidThisMonth,
       missedMonths: aggregates.missedMonths,
@@ -257,11 +299,96 @@ async function loadGroceryBusinessShare(userId: string): Promise<number> {
       COALESCE(SUM(COALESCE(total_spent, 0) * COALESCE(business_share, 0) / 100), 0) AS business,
       COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
     FROM shopping_trips
-    WHERE user_id = ${userId} AND date >= DATE_TRUNC('month', NOW())
+    WHERE user_id = ${userId} AND kind = 'grocery' AND date >= DATE_TRUNC('month', NOW())
   `;
   const r = (rows[0] ?? {}) as Record<string, unknown>;
   const total = num(r.total);
   return total > 0 ? normalizeShare((num(r.business) / total) * 100) : 0;
+}
+
+/** Lo mismo para el gasto que no es super: su propio porcentaje de negocio. */
+async function loadOtherBusinessShare(userId: string): Promise<number> {
+  const rows = await sql`
+    SELECT
+      COALESCE(SUM(COALESCE(total_spent, 0) * COALESCE(business_share, 0) / 100), 0) AS business,
+      COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
+    FROM shopping_trips
+    WHERE user_id = ${userId} AND kind <> 'grocery' AND date >= DATE_TRUNC('month', NOW())
+  `;
+  const r = (rows[0] ?? {}) as Record<string, unknown>;
+  const total = num(r.total);
+  return total > 0 ? normalizeShare((num(r.business) / total) * 100) : 0;
+}
+
+/**
+ * El gasto que NO es super, por mes, por tipo y por sitio.
+ *
+ * Son tickets sin productos vinculados casi siempre (nadie desglosa una cena),
+ * así que todo sale de `shopping_trips.total_spent` y no hay riesgo de contar
+ * dos veces: las compras sueltas de `product_purchases` sin ticket son siempre
+ * de despensa y viven del otro lado.
+ */
+async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
+  const [monthRows, kindRows, placeRows] = await Promise.all([
+    sql`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', date), 'YYYY-MM') AS month,
+        COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total,
+        COUNT(*) AS trips
+      FROM shopping_trips
+      WHERE user_id = ${userId} AND kind <> 'grocery'
+        AND date >= DATE_TRUNC('month', NOW() - INTERVAL '5 months')
+      GROUP BY DATE_TRUNC('month', date)
+      ORDER BY month ASC
+    `,
+    sql`
+      SELECT
+        kind,
+        COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW())
+                          THEN COALESCE(total_spent, 0) ELSE 0 END), 0) AS current_month,
+        COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+                          THEN COALESCE(total_spent, 0) ELSE 0 END), 0) AS prev_month,
+        COUNT(*) FILTER (WHERE DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW())) AS count
+      FROM shopping_trips
+      WHERE user_id = ${userId} AND kind <> 'grocery'
+        AND date >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+      GROUP BY kind
+      ORDER BY current_month DESC
+    `,
+    sql`
+      SELECT
+        COALESCE(NULLIF(TRIM(store_name), ''), 'Sin nombre') AS name,
+        COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total,
+        COUNT(*) AS count
+      FROM shopping_trips
+      WHERE user_id = ${userId} AND kind <> 'grocery'
+        AND date >= DATE_TRUNC('month', NOW())
+      GROUP BY COALESCE(NULLIF(TRIM(store_name), ''), 'Sin nombre')
+      ORDER BY total DESC
+      LIMIT 5
+    `,
+  ]);
+
+  const monthlyTotals: MonthTotal[] = (monthRows as Record<string, unknown>[]).map((r) => ({
+    month: String(r.month),
+    total: num(r.total),
+    trips: Math.trunc(num(r.trips)),
+  }));
+
+  const byKind: KindSpendInput[] = (kindRows as Record<string, unknown>[]).map((r) => ({
+    kind: normalizeExpenseKind(r.kind),
+    currentMonth: num(r.current_month),
+    prevMonth: num(r.prev_month),
+    count: Math.trunc(num(r.count)),
+  }));
+
+  const places: PlaceSpend[] = (placeRows as Record<string, unknown>[]).map((r) => ({
+    name: String(r.name),
+    total: num(r.total),
+    count: Math.trunc(num(r.count)),
+  }));
+
+  return computeOtherSpend({ monthlyTotals, byKind, places });
 }
 
 async function loadGroceryBreakdown(userId: string): Promise<{
@@ -281,7 +408,11 @@ async function loadGroceryBreakdown(userId: string): Promise<{
                  THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS prev_month
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
+      -- Solo los ítems de tickets de SUPER: si un ticket se reclasificó a
+      -- "comida fuera", sus productos dejan de contar como despensa.
+      LEFT JOIN shopping_trips t ON t.id = pp.trip_id
       WHERE pp.user_id = ${userId}
+        AND (pp.trip_id IS NULL OR t.kind = 'grocery')
         AND pp.purchased_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
       GROUP BY COALESCE(NULLIF(TRIM(p.category), ''), 'Sin categoría')
       ORDER BY current_month DESC
@@ -291,7 +422,7 @@ async function loadGroceryBreakdown(userId: string): Promise<{
       FROM (
         SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
         FROM shopping_trips
-        WHERE user_id = ${userId} AND date >= DATE_TRUNC('month', NOW())
+        WHERE user_id = ${userId} AND kind = 'grocery' AND date >= DATE_TRUNC('month', NOW())
         UNION ALL
         SELECT COALESCE(store_name, 'Sin tienda') AS name,
                SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
@@ -324,9 +455,13 @@ async function loadGroceryBreakdown(userId: string): Promise<{
 
 export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<FinancePlanPayload> {
   await ensureFinanceSchema();
+  // Todo lo que sigue filtra por `kind`: la columna tiene que existir antes.
+  await ensureExpenseKindSchema();
 
-  const [incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits, groceriesBusinessShare] =
-    await Promise.all([
+  const [
+    incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits,
+    groceriesBusinessShare, otherSpend, otherBusinessShare,
+  ] = await Promise.all([
       sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
       sql`SELECT * FROM finance_goals WHERE user_id = ${userId} ORDER BY priority ASC, target_date ASC NULLS LAST, created_at ASC`,
       sql`SELECT * FROM finance_goal_contributions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`,
@@ -335,8 +470,13 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
       loadGroceryBreakdown(userId),
       // Las cuotas de tarjetas y créditos son compromiso mensual: sin ellas el
       // plan repartiría entre metas un dinero que ya está comprometido.
-      listCreditsForPlan(userId).catch(() => [] as CreditInput[]),
+      listCreditsForPlan(userId).catch(() => [] as CreditForPlan[]),
       loadGroceryBusinessShare(userId).catch(() => 0),
+      // Comer fuera, farmacia, gasolina: gasto real que hasta ahora no restaba
+      // en ningún sitio. Si esta consulta falla, el plan sigue siendo el de
+      // antes en vez de caerse entero.
+      loadOtherSpend(userId).catch(() => EMPTY_OTHER_SPEND),
+      loadOtherBusinessShare(userId).catch(() => 0),
     ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
@@ -352,6 +492,21 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     limit: budget.monthlyLimit,
   });
 
+  // El mismo pago anotado en Pagos y en Deudas se restaba dos veces. Se
+  // detecta con lo que ya está cargado —cero consultas extra— y solo se
+  // SOSPECHA: emparejar en silencio escondería dinero real.
+  const duplicateObligations = findDuplicateObligations(
+    fixedPayments.map((p) => ({ id: p.id, name: p.name, amount: p.amount })),
+    credits.map((c) => ({
+      id: c.id,
+      name: c.name,
+      issuer: c.issuer,
+      installment: c.installment,
+      linkedPaymentId: c.linkedPaymentId,
+      duplicateDismissed: c.duplicateDismissed,
+    })),
+  );
+
   const input: PlanInput = {
     incomes,
     goals,
@@ -362,6 +517,10 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     groceriesSpentThisMonth: groceries.spentThisMonth,
     groceriesBusinessShare,
     groceries,
+    otherExpensesMonthly: otherSpend.baseline,
+    otherBusinessShare,
+    otherSpend,
+    duplicateObligations,
     extraMonthly,
   };
 
@@ -373,6 +532,10 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     rawGoals: goals,
     contributions,
     groceries,
+    otherSpend,
+    groceriesBusinessShare,
+    otherBusinessShare,
+    duplicateObligations,
     history: budget.history,
     payments: fixedPayments,
     credits,

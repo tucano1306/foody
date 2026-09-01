@@ -71,7 +71,7 @@ export default async function Home() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-black text-xl">
             <Image
-              src="/logo.png"
+              src="/logo-fy.png"
               alt="Foody"
               width={40}
               height={40}
@@ -310,7 +310,7 @@ export default async function Home() {
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-wrap items-center justify-between gap-4 text-sm">
           <div className="flex items-center gap-2 font-bold text-white">
             <Image
-              src="/logo.png"
+              src="/logo-fy.png"
               alt="Foody"
               width={28}
               height={28}

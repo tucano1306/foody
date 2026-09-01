@@ -4,11 +4,14 @@ import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { allocate, resolveItems, round2 } from '@/lib/trip-allocation';
 import type { ShoppingTripItemDto } from '@foody/types';
 import { normalizeShare } from '@/lib/expense-scope';
-import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { normalizeExpenseKind, type ExpenseKind } from '@/lib/expense-kind';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  await ensureExpenseKindSchema();
   const { id } = await params;
   const rows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;
   if (!rows.length) return notFound();
@@ -22,6 +25,8 @@ interface UpdateTripBody {
   notes?: string;
   /** 0-100: qué parte de la compra es del negocio. */
   businessShare?: number;
+  /** Reclasificar el ticket: super, comida fuera, farmacia… */
+  kind?: ExpenseKind;
   items?: ShoppingTripItemDto[];
 }
 
@@ -31,11 +36,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json() as UpdateTripBody;
   await ensureExpenseScopeSchema();
+  await ensureExpenseKindSchema();
 
   // Per-user isolation: fetch the current row first (also validates ownership).
   const existing = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;
   if (!existing.length) return notFound();
-  const current = existing[0] as { date: string; total_spent: number | string | null; store_name: string | null; currency: string | null };
+  const current = existing[0] as { date: string; total_spent: number | string | null; store_name: string | null; currency: string | null; kind?: string | null };
+
+  // Reclasificar es opcional: sin `kind` en el cuerpo el ticket se queda donde
+  // estaba. Solo se toca cuando el usuario lo pide explícitamente.
+  const kind = body.kind === undefined ? null : normalizeExpenseKind(body.kind);
+  const effectiveKind = kind ?? normalizeExpenseKind(current.kind);
 
   const storeName = typeof body.storeName === 'string' && body.storeName.trim().length > 0
     ? body.storeName.trim()
@@ -64,6 +75,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       -- todo lo comprado antes de existir el ámbito quedaría personal para
       -- siempre y no habría forma de corregirlo.
       business_share = COALESCE(${body.businessShare === undefined ? null : normalizeShare(body.businessShare)}, business_share),
+      -- Mismo criterio con el tipo de gasto: un restaurante que entró como
+      -- super tiene que poder mudarse al plan sin borrar y volver a crear.
+      kind = COALESCE(${kind}, kind),
       updated_at = NOW()
     WHERE id = ${id} AND user_id = ${user.userId} RETURNING *
   `;
@@ -109,8 +123,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     // Refresh last-known price only when this trip is at least as recent as
     // the stored one (same guard as POST — a back-dated edit never clobbers
-    // a newer price).
-    if (alloc.unitPrice != null && alloc.unitPrice > 0) {
+    // a newer price), y solo si el ticket es de super: el precio de un plato
+    // en un restaurante no es el precio de despensa de nada.
+    if (effectiveKind === 'grocery' && alloc.unitPrice != null && alloc.unitPrice > 0) {
       await sql`
         UPDATE products
         SET last_purchase_price = ${alloc.unitPrice},
@@ -123,10 +138,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
 
-  if (productIds.length > 0) {
+  if (effectiveKind === 'grocery' && productIds.length > 0) {
     await sql`
       UPDATE products
-      SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
+      SET stock_level = 'full', stock_updated_at = NOW(), is_running_low = false, needs_shopping = false, updated_at = NOW()
       WHERE id = ANY(${productIds}::uuid[])
         AND user_id = ${user.userId}
     `;
@@ -138,6 +153,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     `;
   }
 
+  revalidateAfterPurchase();
   return NextResponse.json({ trip, items: allocations });
 }
 
@@ -151,5 +167,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   await sql`DELETE FROM product_purchases WHERE trip_id = ${id} AND user_id = ${user.userId}`;
   const rows = await sql`DELETE FROM shopping_trips WHERE id = ${id} AND user_id = ${user.userId} RETURNING id`;
   if (!rows.length) return notFound();
+  // Borrar un ticket también mueve las cifras: si no se avisa, «Más comprados»
+  // sigue contando productos de una compra que ya no existe.
+  revalidateAfterPurchase();
   return new NextResponse(null, { status: 204 });
 }

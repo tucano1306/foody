@@ -5,13 +5,16 @@ import { motion } from 'framer-motion';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import type { DebtMovement, DebtWithProjection } from '@/lib/debt-data';
 import { buildSchedule, toMonthlyRate } from '@/lib/debt-engine';
+import { promoRisk } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import PayoffSimulator from './PayoffSimulator';
 import SplitBar from './SplitBar';
+import { parseMoney } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
+  fmtDateFull,
   fmtDateKey,
   fmtMonths,
   fmtMoney,
@@ -63,6 +66,9 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [realBalance, setRealBalance] = useState('');
+  const [charging, setCharging] = useState(false);
+  const [chargeAmount, setChargeAmount] = useState('');
+  const [chargeNote, setChargeNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -71,8 +77,8 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
    * explicando de dónde sale cada dólar del saldo.
    */
   async function adjustBalance() {
-    const target = Number.parseFloat(realBalance);
-    if (!Number.isFinite(target) || target < 0) {
+    const target = parseMoney(realBalance);
+    if (target === null || target < 0) {
       setError('Escribe cuánto debes en realidad');
       return;
     }
@@ -108,7 +114,61 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
     }
   }
 
+  /**
+   * Un consumo nuevo: sube el saldo y queda anotado.
+   *
+   * Se asienta como `charge` en el libro mayor y NO como una correccion de
+   * saldo: una correccion sobrescribe la cifra y no dice que se compro, asi que
+   * el historial dejaba de explicar de donde sale lo que se debe.
+   */
+  async function addCharge() {
+    const amount = parseMoney(chargeAmount);
+    if (amount === null || amount <= 0) {
+      setError('Escribe cuanto gastaste');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/debts/${debt.id}/movements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ kind: 'charge', amount, note: chargeNote.trim() || null }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? 'No se pudo registrar');
+      }
+      onChanged((await res.json()) as DebtWithProjection);
+      setCharging(false);
+      setChargeAmount('');
+      setChargeNote('');
+      setMovements(null); // el historial se recarga con el consumo dentro
+      haptic();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const kind = KIND_META[debt.kind] ?? KIND_META.other;
+
+  /** El riesgo de la promocion, solo si esta deuda tiene una. */
+  const promo =
+    debt.promoEndsOn && debt.rateAfterPromo != null && debt.currentBalance > 0
+      ? promoRisk({
+          balance: debt.currentBalance,
+          installment: debt.projection.installment,
+          promoEndsOn: debt.promoEndsOn,
+          rateAfterPromo: debt.rateAfterPromo,
+          ratePeriod: debt.ratePeriod,
+          // Las cuotas caen el día de vencimiento, no el día en que se mira la
+          // pantalla: sin esto el aviso cambiaba según cuándo lo abrieras.
+          dueDay: debt.dueDay,
+        })
+      : null;
   const status = STATUS_META[debt.projection.status];
 
   // La tabla se calcula en el cliente con el mismo motor que el servidor: es
@@ -121,8 +181,17 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
         payment: debt.projection.installment,
         startDate: new Date(),
         limit: 120,
+        // La tabla tiene que enseñar el salto de tasa: sin esto, una promoción
+        // al 0 % pintaba 120 cuotas sin un centavo de interés.
+        rateAfter:
+          promo && debt.rateAfterPromo != null
+            ? {
+                afterMonths: promo.monthsLeft,
+                monthlyRate: toMonthlyRate(debt.rateAfterPromo, debt.ratePeriod),
+              }
+            : undefined,
       }),
-    [debt],
+    [debt, promo],
   );
 
   useEffect(() => {
@@ -250,6 +319,59 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
             </div>
           )}
 
+          {/* La promoción que caduca.
+              Va ARRIBA de todo lo demás porque es la única fecha de la tarjeta
+              que tiene consecuencias: hasta ahora la pantalla decía «pagarás
+              $0.00 de intereses» sin mencionar que ese 0 % tiene fecha de
+              caducidad, ni cuánto costará el saldo que quede ese día. */}
+          {promo && (
+            <div
+              className={`rounded-2xl border px-4 py-3.5 ${
+                promo.willMissDeadline
+                  ? 'border-blue-300 bg-blue-50'
+                  : 'border-sky-200 bg-sky-50/70'
+              }`}
+            >
+              <p className="text-sm font-bold text-slate-900">
+                {promo.willMissDeadline ? '⏳' : '✅'} 0 % hasta el {fmtDateFull(debt.promoEndsOn)}
+              </p>
+              {promo.willMissDeadline ? (
+                <>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                    A la cuota de ahora llegarás a esa fecha debiendo{' '}
+                    <strong>{fmtMoney(promo.balanceAtEnd, debt.currency)}</strong>, y ese resto
+                    empezará a costarte{' '}
+                    <strong>{fmtMoney(promo.monthlyCostAfter, debt.currency)} al mes</strong> al{' '}
+                    {debt.rateAfterPromo} %.
+                  </p>
+                  <p className="mt-1.5 text-xs font-bold text-sky-700">
+                    Con {fmtMoney(promo.installmentToClear, debt.currency)} al mes
+                    {promo.extraNeeded > 0 && ` (${fmtMoney(promo.extraNeeded, debt.currency)} más)`}{' '}
+                    la liquidas a tiempo y no pagas ni un centavo de interés.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                  {/* Con la fecha del último pago el «vas bien» se puede
+                      comprobar: entre ella y el fin de la promo está todo el
+                      margen que hay, y a veces es de días. */}
+                  {promo.lastPaymentOn ? (
+                    <>
+                      Vas bien: la última cuota cae el{' '}
+                      <strong>{fmtDateFull(promo.lastPaymentOn)}</strong>, antes de que el 0 % se
+                      acabe, así que no pagarás intereses.
+                    </>
+                  ) : (
+                    <>
+                      Vas bien: a este ritmo la liquidas antes de que el 0 % se acabe, así que no
+                      pagarás intereses.
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
+
           {debt.advice.map((a) => (
             <div
               key={a.id}
@@ -267,6 +389,12 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
             {debt.breakdown.interestOwed > 0 && (
               <Row label="Interés acumulado" value={fmtMoney(debt.breakdown.interestOwed, debt.currency)} />
             )}
+            {/* Las comisiones no son capital: un adelanto de $6,000 con $240 de
+                cargo debe $6,240, y sin esta fila el resumen restaba el cargo
+                del capital y dejaba la diferencia sin explicar. */}
+            {debt.breakdown.feesOwed > 0 && (
+              <Row label="Comisiones" value={fmtMoney(debt.breakdown.feesOwed, debt.currency)} />
+            )}
             <Row label="Interés cada mes" value={fmtMoney(debt.projection.monthlyInterest, debt.currency)} />
             <Row label="Tasa anual real" value={`${(debt.projection.annualEffectiveRate * 100).toFixed(1)} %`} />
             <Row label="Ya abonaste" value={fmtMoney(debt.breakdown.totalPaid, debt.currency)} />
@@ -282,6 +410,65 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
           {/* Editar y corregir saldo. El saldo NO se edita como un campo: se
               corrige con un ajuste en el libro mayor, para que el historial
               siga explicando la cifra en vez de contradecirla. */}
+          {/* Registrar un consumo.
+              Una tarjeta que se usa a diario sube de saldo sin que nadie la
+              abone, y hasta ahora la única forma de reflejarlo era «corregir
+              saldo», que sobrescribe la cifra y no deja rastro de QUÉ se
+              compró. Un cargo entra en el libro mayor como lo que es. */}
+          <button
+            type="button"
+            onClick={() => { haptic(); setCharging(true); }}
+            className={`w-full rounded-2xl py-3 text-sm ${BTN_SOFT}`}
+          >
+            🛒 Registrar un consumo
+          </button>
+
+          {charging && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4">
+              <label htmlFor="debt-charge" className="mb-2 block text-xs font-bold text-slate-600">
+                ¿Cuánto gastaste con esta tarjeta?
+              </label>
+              <input
+                id="debt-charge"
+                type="text"
+                inputMode="decimal"
+                value={chargeAmount}
+                onChange={(e) => setChargeAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full rounded-2xl border-2 border-sky-200 bg-white px-4 py-3 text-right text-xl font-extrabold text-black focus:border-sky-400 focus:outline-none"
+              />
+              <input
+                type="text"
+                value={chargeNote}
+                onChange={(e) => setChargeNote(e.target.value)}
+                maxLength={80}
+                placeholder="¿Dónde? (opcional)"
+                aria-label="Dónde fue el consumo"
+                className="mt-2 w-full rounded-2xl border-2 border-sky-200 bg-white px-4 py-2.5 text-sm text-black focus:border-sky-400 focus:outline-none"
+              />
+              <p className="mt-2 text-[11px] text-slate-500">
+                Sube el saldo y queda en el historial, igual que en tu estado de cuenta.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setCharging(false); setChargeAmount(''); setChargeNote(''); }}
+                  className={`flex-1 rounded-2xl py-2.5 text-sm ${BTN_SOFT}`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={addCharge}
+                  className={`flex-1 rounded-2xl py-2.5 text-sm ${BTN_PRIMARY} disabled:opacity-40`}
+                >
+                  Sumar al saldo
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -306,10 +493,8 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
               </label>
               <input
                 id="debt-real-balance"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min={0}
-                step="0.01"
                 value={realBalance}
                 onChange={(e) => setRealBalance(e.target.value)}
                 placeholder={debt.currentBalance.toFixed(2)}

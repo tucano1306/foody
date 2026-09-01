@@ -1,19 +1,80 @@
 'use client';
 
+import { useCallback, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { PlusIcon } from '@heroicons/react/24/solid';
+import type { DebtWithProjection } from '@/lib/debt-data';
 import type { DebtOverview } from '@/lib/finance-engine';
+import { haptic } from '@/lib/haptic';
+import { useToast } from '@/components/ui/Toast';
 import { fmtMoney } from './finance-ui';
+
+/**
+ * Los cuatro modales de Deudas se cargan al tocar, no al abrir el plan.
+ *
+ * Son pesados —el detalle trae tres pestañas con tabla de amortización, el
+ * alta es un asistente de varios pasos— y la inmensa mayoría de las visitas al
+ * plan no abre ninguno. Estáticos, los arrastraría el bundle de una pantalla
+ * que se mira todos los días desde el móvil.
+ */
+const DebtDetailSheet = dynamic(() => import('@/components/debts/DebtDetailSheet'), { ssr: false });
+const DebtEditModal = dynamic(() => import('@/components/debts/DebtEditModal'), { ssr: false });
+const DebtPaymentModal = dynamic(() => import('@/components/debts/DebtPaymentModal'), { ssr: false });
+const DebtWizardModal = dynamic(() => import('@/components/debts/DebtWizardModal'), { ssr: false });
 
 interface Props {
   readonly debts: DebtOverview;
+  /** Se tocó una deuda: los totales del plan tienen que recalcularse. */
+  readonly onChanged: () => void;
 }
+
+/** Qué modal está abierto sobre el panel. */
+type DebtModal =
+  | { kind: 'none' }
+  | { kind: 'detail'; debt: DebtWithProjection }
+  | { kind: 'edit'; debt: DebtWithProjection }
+  | { kind: 'pay'; debt: DebtWithProjection }
+  | { kind: 'new' };
 
 /**
  * Plan de salida de deuda: los pagos atrasados en orden de bola de nieve
  * (el más pequeño primero) con el abono mensual sugerido y el mes de liquidación.
  */
-export default function DebtPanel({ debts }: Props) {
+export default function DebtPanel({ debts, onChanged }: Props) {
+  const toast = useToast();
+  const [modal, setModal] = useState<DebtModal>({ kind: 'none' });
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  const close = useCallback(() => setModal({ kind: 'none' }), []);
+
+  /**
+   * El plan solo guarda un RESUMEN de cada crédito (saldo, cuota, interés);
+   * los modales necesitan la deuda entera con su proyección. Se pide al tocar
+   * y no al montar la página: son datos que casi nunca se miran, y traerlos
+   * todos por si acaso encarece cada carga del plan.
+   */
+  const open = useCallback(async (id: string) => {
+    haptic();
+    setLoadingId(id);
+    try {
+      const res = await fetch(`/api/debts/${id}`, { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) throw new Error();
+      setModal({ kind: 'detail', debt: (await res.json()) as DebtWithProjection });
+    } catch {
+      toast.show('No se pudo abrir la deuda', 'error');
+    } finally {
+      setLoadingId(null);
+    }
+  }, [toast]);
+
+  /** Cualquier cambio cierra lo que haya abierto y recalcula el plan. */
+  const afterChange = useCallback(() => {
+    close();
+    onChanged();
+  }, [close, onChanged]);
+
   if (debts.overdueTotal <= 0 && debts.creditBalance <= 0) return null;
 
   const max = Math.max(...debts.payoffOrder.map((d) => d.debt), 1);
@@ -44,29 +105,49 @@ export default function DebtPanel({ debts }: Props) {
             </div>
           </div>
 
-          <ul className="space-y-2.5">
+          {/* Cada crédito abre su hoja: ahí se abona, se edita y se elimina.
+              Antes esto era una lista de solo lectura y un botón al final que
+              mandaba a otra pantalla a hacer lo mismo. */}
+          <ul className="space-y-2">
             {debts.creditOrder.map((c) => (
-              <li key={c.id} className="rounded-2xl bg-white/70 px-3 py-2.5">
-                <div className="flex items-center gap-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-black">{c.name}</p>
-                    <p className="text-[11px] text-slate-500">
-                      {c.neverPaysOff
-                        ? '🛑 Con esta cuota no termina nunca'
-                        : `Cuota ${fmtMoney(c.installment)}/mes · ${
-                            c.monthsToPayoff === null ? '—' : `libre en ${c.monthsToPayoff} ${c.monthsToPayoff === 1 ? 'mes' : 'meses'}`
-                          }`}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-black tabular-nums text-black">{fmtMoney(c.balance)}</p>
-                    {c.monthlyInterest > 0 && (
-                      <p className="text-[11px] font-semibold text-blue-700">
-                        +{fmtMoney(c.monthlyInterest)} interés
-                      </p>
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => void open(c.id)}
+                  disabled={loadingId !== null}
+                  className="flex w-full items-center gap-2.5 rounded-2xl bg-white/70 px-3 py-2.5 text-left transition active:scale-[0.99] hover:bg-white disabled:opacity-60"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold text-black">{c.name}</span>
+                    <span className="block text-[11px] text-slate-500">
+                      {loadingId === c.id
+                        ? 'Abriendo…'
+                        : c.neverPaysOff
+                          ? '🛑 Con esta cuota no termina nunca'
+                          : `Cuota ${fmtMoney(c.installment)}/mes · ${
+                              c.monthsToPayoff === null ? '—' : `libre en ${c.monthsToPayoff} ${c.monthsToPayoff === 1 ? 'mes' : 'meses'}`
+                            }`}
+                    </span>
+                    {/* Su cuota ya la cobra un recibo de Pagos, así que NO
+                        entra en el total de abajo. Sin decirlo, las filas
+                        sumarían más que «Comprometido al mes» y parecería un
+                        error de la app — justo lo contrario de lo que es. */}
+                    {c.countedInPayments && (
+                      <span className="mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                        Ya contada en Pagos
+                      </span>
                     )}
-                  </div>
-                </div>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-sm font-black tabular-nums text-black">{fmtMoney(c.balance)}</span>
+                    {c.monthlyInterest > 0 && (
+                      <span className="block text-[11px] font-semibold text-blue-700">
+                        +{fmtMoney(c.monthlyInterest)} interés
+                      </span>
+                    )}
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-sm text-slate-300">›</span>
+                </button>
               </li>
             ))}
           </ul>
@@ -80,14 +161,22 @@ export default function DebtPanel({ debts }: Props) {
                 {fmtMoney(debts.creditPayments)}
                 <span className="text-xs font-medium text-slate-400">/mes</span>
               </p>
-              <p className="text-[11px] text-slate-500">Ya restado de tu dinero libre</p>
+              <p className="text-[11px] text-slate-500">
+                {debts.creditOrder.some((c) => c.countedInPayments)
+                  ? 'Sin contar las cuotas que ya cobra un recibo de Pagos'
+                  : 'Ya restado de tu dinero libre'}
+              </p>
             </div>
-            <Link
-              href="/payments/debts"
-              className="shrink-0 rounded-2xl bg-blue-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-600"
+            {/* En lugar de mandar a otra pantalla a hacer lo que ya se puede
+                hacer aquí, el pie ofrece lo único que faltaba: dar de alta. */}
+            <button
+              type="button"
+              onClick={() => { haptic(12); setModal({ kind: 'new' }); }}
+              className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-blue-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition active:scale-95 hover:bg-blue-600"
             >
-              Ver deudas →
-            </Link>
+              <PlusIcon className="h-4 w-4" />
+              Agregar
+            </button>
           </div>
         </section>
       )}
@@ -168,6 +257,45 @@ export default function DebtPanel({ debts }: Props) {
         </Link>
       </div>
     </section>
+      )}
+
+      {/* ─── Modales ────────────────────────────────────────────────────────
+          Los mismos que usa la sección Deudas: abonar, editar, dar de alta y
+          la hoja de detalle con su historial. Reutilizarlos —en vez de hacer
+          aquí una versión reducida— evita que las dos pantallas se separen y
+          que un campo editable en una falte en la otra. */}
+      {modal.kind === 'detail' && (
+        <DebtDetailSheet
+          debt={modal.debt}
+          onClose={close}
+          // La hoja sigue abierta con el dato fresco; el plan se recalcula
+          // detrás para que los totales de arriba no se queden viejos.
+          onChanged={(updated) => { setModal({ kind: 'detail', debt: updated }); onChanged(); }}
+          onDeleted={() => { toast.show('Deuda eliminada', 'success'); afterChange(); }}
+          onPay={() => setModal({ kind: 'pay', debt: modal.debt })}
+          onEdit={() => setModal({ kind: 'edit', debt: modal.debt })}
+        />
+      )}
+      {modal.kind === 'edit' && (
+        <DebtEditModal
+          debt={modal.debt}
+          onClose={() => setModal({ kind: 'detail', debt: modal.debt })}
+          onSaved={(updated) => { setModal({ kind: 'detail', debt: updated }); onChanged(); }}
+        />
+      )}
+      {modal.kind === 'pay' && (
+        <DebtPaymentModal
+          debt={modal.debt}
+          onClose={() => setModal({ kind: 'detail', debt: modal.debt })}
+          onPaid={(updated) => { setModal({ kind: 'detail', debt: updated }); onChanged(); }}
+        />
+      )}
+      {modal.kind === 'new' && (
+        <DebtWizardModal
+          currency="USD"
+          onClose={close}
+          onCreated={() => { toast.show('Deuda agregada', 'success'); afterChange(); }}
+        />
       )}
     </div>
   );

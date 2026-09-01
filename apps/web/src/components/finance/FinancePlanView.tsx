@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PlusIcon, BriefcaseIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
@@ -8,18 +8,22 @@ import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstAt, confettiRain } from '@/lib/fx';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 import type { FinancePlanPayload } from '@/lib/finance-data';
 import { buildFinancePlan, personalOnlyInput } from '@/lib/finance-engine';
 import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
+import { topPlanChange } from '@/lib/plan-diff';
+import { applyOrder, moveInOrder } from '@/lib/goal-order';
 import AdviceFeed from './AdviceFeed';
 import BusinessPanel from './BusinessPanel';
 import CashFlowCard from './CashFlowCard';
 import ContributeModal from './ContributeModal';
 import DebtPanel from './DebtPanel';
-import GoalCard from './GoalCard';
+import GoalReorderList from './GoalReorderList';
 import GoalFormModal, { type GoalPayload } from './GoalFormModal';
 import GrocerySpendCard from './GrocerySpendCard';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
+import OtherSpendCard from './OtherSpendCard';
 import SimulatorCard from './SimulatorCard';
 import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel } from './finance-ui';
 
@@ -84,33 +88,75 @@ function HealthRing({ score }: { readonly score: number }) {
 
 export default function FinancePlanView({ initialData }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [data, setData] = useState(initialData);
   /**
    * Si el dinero del negocio cuenta para las metas.
    *
-   * Empieza en `true` —el plan completo, como siempre— y solo tiene sentido
-   * para quien haya marcado algo como negocio. No es una preferencia guardada:
-   * es una pregunta que se responde mirando, y la respuesta cambia según la
-   * meta que se esté evaluando.
+   * Arranca SIEMPRE apagado, en cada visita. El plan que la app enseña de
+   * entrada es el del bolsillo del usuario; meter el negocio cambia todas las
+   * cifras de la pantalla —lo libre del mes, lo que cabe en las metas, la
+   * salud— y eso no puede pasar sin que él lo haya pedido.
+   *
+   * No es una preferencia guardada a propósito: la respuesta no es fija,
+   * depende de si piensa financiar ESA meta con dinero del negocio, así que se
+   * responde mirando y vuelve a su sitio al salir.
+   *
+   * Para quien no tenga nada marcado como negocio esto da igual: el
+   * interruptor ni se monta, y `planInput` ignora su valor.
    */
-  const [includeBusiness, setIncludeBusiness] = useState(true);
+  const [includeBusiness, setIncludeBusiness] = useState(false);
   const [modal, setModal] = useState<Modal>({ kind: 'none' });
   const [deleting, setDeleting] = useState<GoalProjection | null>(null);
+  /**
+   * Orden que el usuario está armando a mano, mientras el servidor todavía no
+   * lo sabe. Es `null` cuando manda el servidor —lo normal— y solo se llena
+   * entre que se suelta la tarjeta y vuelve el plan guardado, para que la lista
+   * no dé un salto atrás delante de los ojos.
+   */
+  const [localOrder, setLocalOrder] = useState<readonly string[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   /** Referencia estable: evita que el efecto de ModalShell se reejecute en
    *  cada render (guardaba 'hidden' como overflow "anterior" del body). */
   const closeModal = useCallback(() => setModal({ kind: 'none' }), []);
 
-  const refresh = useCallback(async () => {
+  /**
+   * Recarga el plan y AVISA de lo que cambió en las metas.
+   *
+   * Cada vez que entra información nueva —un ingreso, un aporte, una meta
+   * editada, un gasto registrado— el plan se recalcula entero y la pantalla
+   * cambiaba sola, sin decir qué se movió ni por qué. Ahora se comparan las dos
+   * fotos y se dice la más importante en una línea: "tu viaje se adelanta 2
+   * meses", "la meta ya no llega a tiempo".
+   *
+   * `silent` para la recarga manual del botón: ahí el usuario no ha aportado
+   * ningún dato nuevo, así que no hay nada que anunciarle.
+   */
+  const refresh = useCallback(async (silent = false) => {
     setRefreshing(true);
     try {
       const res = await fetch('/api/finance/plan', { credentials: 'include' });
-      if (res.ok) setData(await res.json());
+      if (!res.ok) return;
+      const next = (await res.json()) as FinancePlanPayload;
+      // `setData(prev => …)` y no la variable `data`: entre el clic y la
+      // respuesta puede haber entrado otra actualización, y comparar contra una
+      // foto vieja anunciaría un cambio que no ocurrió.
+      setData((prev) => {
+        if (!silent) {
+          try {
+            const change = topPlanChange(prev, next);
+            if (change) toast.show(change.message, change.tone === 'warning' ? 'info' : 'success');
+          } catch {
+            // Un aviso roto jamás puede impedir que el plan se actualice.
+          }
+        }
+        return next;
+      });
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
   /** Todas las mutaciones pasan por aquí: lanza el error del servidor tal cual. */
   const send = useCallback(async (url: string, method: string, body?: unknown) => {
@@ -182,6 +228,50 @@ export default function FinancePlanView({ initialData }: Props) {
     await refresh();
   }
 
+  // ── Orden de las metas ─────────────────────────────────────────────────────
+
+  /**
+   * El orden de la lista ES la prioridad, y la prioridad decide a qué meta va
+   * el dinero primero (`compareGoals` en finance-engine). Arrastrar no cambia
+   * de sitio una tarjeta: cambia el plan.
+   */
+  const persistOrder = useCallback(
+    async (ids: readonly string[]) => {
+      setLocalOrder(ids);
+      try {
+        await send('/api/finance/goals/reorder', 'PATCH', { ids });
+        // Silencioso: el usuario acaba de mover la tarjeta con la mano, no hace
+        // falta anunciarle que el plan cambió — lo está viendo.
+        await refresh(true);
+        setLocalOrder(null);
+      } catch {
+        // Se vuelve al orden del servidor: mejor ver la verdad que un orden
+        // inventado que se deshará solo en la próxima recarga.
+        setLocalOrder(null);
+        toast.show('No se pudo guardar el orden', 'error');
+      }
+    },
+    [send, refresh, toast],
+  );
+
+  /** Lo que se está arrastrando ahora mismo, para guardarlo al soltar. */
+  const draggingOrder = useRef<readonly string[] | null>(null);
+
+  const previewOrder = useCallback((ids: string[]) => {
+    draggingOrder.current = ids;
+    setLocalOrder(ids);
+  }, []);
+
+  const commitOrder = useCallback(() => {
+    const next = draggingOrder.current;
+    draggingOrder.current = null;
+    // Sin `next` el asa se agarró pero la tarjeta no llegó a moverse: no hay
+    // orden nuevo que guardar.
+    if (!next) return;
+    haptic(10);
+    void persistOrder(next);
+  }, [persistOrder]);
+
   // ── Ingresos ───────────────────────────────────────────────────────────────
 
   async function createIncome(payload: IncomePayload) {
@@ -201,6 +291,14 @@ export default function FinancePlanView({ initialData }: Props) {
 
   // ── Acciones de los consejos ───────────────────────────────────────────────
 
+  /**
+   * ¿Se está mirando SOLO el dinero personal?
+   *
+   * Es distinto de «el interruptor está apagado»: quien no tiene nada marcado
+   * como negocio no ve interruptor, y para él no hay nada que filtrar.
+   */
+  const personalOnly = !includeBusiness && data.scopes.hasBusiness;
+
   function runAdviceAction(action: AdviceAction) {
     haptic(10);
     switch (action.kind) {
@@ -209,13 +307,17 @@ export default function FinancePlanView({ initialData }: Props) {
       case 'add_goal':
         return setModal({ kind: 'goal', goal: null });
       case 'open_payments':
-        return router.push('/payments');
+        // El consejo dice «tus pagos fijos se llevan $2.027» —solo tu parte— y
+        // el enlace abría esta pantalla en «Todo», con el negocio dentro. Se
+        // lleva el ámbito puesto para que el consejo y su destino hablen del
+        // mismo dinero.
+        return router.push(personalOnly ? '/payments?scope=personal' : '/payments');
       case 'open_budget':
-        return router.push('/budget');
+        return router.push(personalOnly ? '/budget?scope=personal' : '/budget');
       case 'open_trips':
-        return router.push('/shopping-trips');
+        return router.push(personalOnly ? '/shopping-trips?scope=personal' : '/shopping-trips');
       case 'open_debts':
-        return router.push('/payments/debts');
+        return router.push(personalOnly ? '/debts?scope=personal' : '/debts');
       case 'edit_goal': {
         const goal = data.rawGoals.find((g) => g.id === action.goalId);
         return setModal({ kind: 'goal', goal: goal ?? null });
@@ -249,6 +351,15 @@ export default function FinancePlanView({ initialData }: Props) {
       groceriesSource: data.groceries.baselineSource,
       groceriesSpentThisMonth: data.groceries.spentThisMonth,
       groceries: data.groceries,
+      // Faltaba lo mismo que faltaba en las cuotas de crédito: sin esto el
+      // simulador y la vista solo-personal calculan con dinero ya gastado en
+      // comer fuera y prometen metas antes de tiempo.
+      otherExpensesMonthly: data.otherSpend.baseline,
+      otherSpend: data.otherSpend,
+      // Los porcentajes de negocio: sin ellos, apagar «contar el negocio»
+      // dejaba el super y los gastos de fuera enteros del lado personal.
+      groceriesBusinessShare: data.groceriesBusinessShare,
+      otherBusinessShare: data.otherBusinessShare,
     }),
     [data],
   );
@@ -268,7 +379,40 @@ export default function FinancePlanView({ initialData }: Props) {
     [data, planInput, fullInput],
   );
 
-  const activeGoals = view.goals.filter((g) => g.status === 'active');
+  /**
+   * Las metas activas en el orden que manda: el del servidor, salvo mientras
+   * el usuario acaba de mover una y todavía no ha vuelto el plan guardado.
+   */
+  const activeGoals = useMemo(() => {
+    const active = view.goals.filter((g) => g.status === 'active');
+    return localOrder ? applyOrder(active, localOrder, (g) => g.goalId) : active;
+  }, [view.goals, localOrder]);
+
+  /** Las flechas del teclado hacen lo mismo que el dedo, sin arrastrar. */
+  const moveGoal = useCallback(
+    (id: string, delta: number) => {
+      const current = activeGoals.map((g) => g.goalId);
+      const next = moveInOrder(current, id, delta);
+      if (next === current) return;
+      haptic(8);
+      void persistOrder(next);
+    },
+    [activeGoals, persistOrder],
+  );
+
+  /**
+   * Cuotas de crédito del negocio que este plan NO está contando.
+   *
+   * `data` es siempre el plan COMPLETO tal como lo calculó el servidor y
+   * `view` es lo que se está mirando, así que su diferencia es exactamente lo
+   * que se dejó fuera al apagar «contar el negocio». Con el negocio incluido
+   * las dos son la misma cifra y esto da cero.
+   */
+  const creditsBusinessExcluded = Math.max(
+    0,
+    Math.round((data.cashFlow.creditPayments - view.cashFlow.creditPayments) * 100) / 100,
+  );
+
   const doneGoals = view.goals.filter((g) => g.status === 'done');
   const cash = view.cashFlow;
   /** Sin ingreso no hay plan que calcular: la cabecera cambia de prioridad. */
@@ -286,8 +430,17 @@ export default function FinancePlanView({ initialData }: Props) {
             <h2 className={`text-2xl font-black leading-tight ${NUM}`}>{healthLabel(view.healthScore)}</h2>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
-                <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>Ingreso</p>
+                <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>
+                  {cash.oneTimeIncome > 0 ? 'Entra este mes' : 'Ingreso'}
+                </p>
                 <p className={`font-black tabular-nums ${NUM}`}>{fmtMoney(cash.monthlyIncome)}</p>
+                {/* La cabecera no puede llamar «ingreso mensual» a un cheque
+                    suelto: se dice cuánto de eso se repite y cuánto no. */}
+                {cash.oneTimeIncome > 0 && (
+                  <p className={`text-[10px] ${LABEL}`}>
+                    {fmtMoney(cash.recurringIncome)} fijos + {fmtMoney(cash.oneTimeIncome)} sueltos
+                  </p>
+                )}
               </div>
               <div>
                 <p className={`text-[10px] uppercase tracking-wide font-bold ${LABEL}`}>Libre al mes</p>
@@ -324,7 +477,7 @@ export default function FinancePlanView({ initialData }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => { haptic(8); void refresh(); }}
+            onClick={() => { haptic(8); void refresh(true); }}
             aria-label="Actualizar plan"
             className={`p-2.5 rounded-2xl transition ${BTN_SOFT}`}
           >
@@ -372,23 +525,49 @@ export default function FinancePlanView({ initialData }: Props) {
       <CashFlowCard
         cash={cash}
         groceriesSource={data.groceries.baselineSource}
+        creditsBusinessExcluded={creditsBusinessExcluded}
         onOpenIncome={() => setModal({ kind: 'income' })}
-        onOpenPayments={() => router.push('/payments')}
-        onOpenBudget={() => router.push('/budget')}
-        onOpenDebts={() => router.push('/payments/debts')}
+        onOpenPayments={() => router.push(personalOnly ? '/payments?scope=personal' : '/payments')}
+        onOpenBudget={() => router.push(personalOnly ? '/budget?scope=personal' : '/budget')}
+        onOpenDebts={() => router.push(personalOnly ? '/debts?scope=personal' : '/debts')}
+        onOpenTrips={() => router.push(personalOnly ? '/shopping-trips?scope=personal' : '/shopping-trips')}
       />
 
       {/* ─── Compras reales ──────────────────────────────────────────────── */}
-      <GrocerySpendCard groceries={data.groceries} history={data.history} />
+      <GrocerySpendCard
+        groceries={data.groceries}
+        history={data.history}
+        // `true`: editar una línea del desglose no cambia las metas por sí
+        // mismo, y un aviso de "tu viaje se adelanta" al corregir un centavo
+        // sería ruido.
+        onChanged={() => void refresh(true)}
+      />
+
+      {/* ─── Lo que se va fuera del super ────────────────────────────────── */}
+      <OtherSpendCard other={data.otherSpend} onChanged={() => void refresh(true)} />
 
       {/* ─── Consejero ───────────────────────────────────────────────────── */}
       <AdviceFeed advice={view.advice} onAction={runAdviceAction} />
 
       {/* ─── Negocio ─────────────────────────────────────────────────────── */}
-      <BusinessPanel scopes={data.scopes} />
+      {/* `planInput` y no `data`: con el negocio excluido, la vista se
+          recalcula con el motor puro, y el desglose tiene que contar la misma
+          historia que las cifras que acompaña. */}
+      <BusinessPanel
+        scopes={view.scopes}
+        items={{
+          incomes: planInput.incomes,
+          fixedPayments: planInput.fixedPayments,
+          credits: planInput.credits ?? [],
+          groceriesMonthly: planInput.groceriesMonthly,
+          groceriesBusinessShare: planInput.groceriesBusinessShare ?? 0,
+          otherExpensesMonthly: planInput.otherExpensesMonthly ?? 0,
+          otherBusinessShare: planInput.otherBusinessShare ?? 0,
+        }}
+      />
 
       {/* ─── Deuda ───────────────────────────────────────────────────────── */}
-      <DebtPanel debts={view.debts} />
+      <DebtPanel debts={view.debts} onChanged={() => void refresh(true)} />
 
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
       <section className="space-y-3">
@@ -422,22 +601,22 @@ export default function FinancePlanView({ initialData }: Props) {
             ))}
           </div>
         ) : (
-          <AnimatePresence mode="popLayout">
-            {activeGoals.map((goal, i) => (
-              <GoalCard
-                key={goal.goalId}
-                goal={goal}
-                index={i}
-                onContribute={() => setModal({ kind: 'contribute', goal })}
-                onEdit={() => {
-                  const raw = data.rawGoals.find((g) => g.id === goal.goalId) ?? null;
-                  setModal({ kind: 'goal', goal: raw });
-                }}
-                onDelete={() => setDeleting(goal)}
-                onComplete={() => void completeGoal(goal.goalId)}
-              />
-            ))}
-          </AnimatePresence>
+          /* Arrastrando el asa de cada tarjeta se decide qué meta va primero.
+             No es orden visual: la posición se guarda como `priority`, y el
+             motor reparte el dinero en ese orden. */
+          <GoalReorderList
+            goals={activeGoals}
+            onReorder={previewOrder}
+            onCommit={commitOrder}
+            onMove={moveGoal}
+            onContribute={(goal) => setModal({ kind: 'contribute', goal })}
+            onEdit={(goal) => {
+              const raw = data.rawGoals.find((g) => g.id === goal.goalId) ?? null;
+              setModal({ kind: 'goal', goal: raw });
+            }}
+            onDelete={(goal) => setDeleting(goal)}
+            onComplete={(goal) => void completeGoal(goal.goalId)}
+          />
         )}
 
         {doneGoals.length > 0 && (

@@ -2,6 +2,7 @@ import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { sql } from '@/lib/db';
 import { buildStatsSummary } from '@/lib/stats-engine';
+import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
 import ModernTitle from '@/components/layout/ModernTitle';
 import StatsContent from '@/components/stats/StatsContent';
 import type { Metadata } from 'next';
@@ -23,6 +24,10 @@ interface StatsData {
 }
 
 async function getStats(userId: string): Promise<StatsData> {
+  // Stats mide la DESPENSA: solo tickets de super. Comer fuera, la farmacia o
+  // la gasolina son gasto del Plan Financiero y ensuciarían cada promedio.
+  await ensureExpenseKindSchema();
+
   // Per-user isolation
   const productScope = sql`user_id = ${userId}`;
   const ppScope = sql`pp.user_id = ${userId}`;
@@ -38,7 +43,7 @@ async function getStats(userId: string): Promise<StatsData> {
       SELECT name, COUNT(*) AS trips, SUM(total) AS total_spent
       FROM (
         SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
-        FROM shopping_trips WHERE user_id = ${userId}
+        FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
         UNION ALL
         SELECT COALESCE(store_name, 'Sin tienda') AS name,
           SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
@@ -53,7 +58,7 @@ async function getStats(userId: string): Promise<StatsData> {
       FROM (
         SELECT TO_CHAR(date, 'YYYY-MM') AS month, COALESCE(total_spent, 0) AS total
         FROM shopping_trips
-        WHERE user_id = ${userId} AND date >= NOW() - INTERVAL '6 months'
+        WHERE user_id = ${userId} AND kind = 'grocery' AND date >= NOW() - INTERVAL '6 months'
         UNION ALL
         SELECT TO_CHAR(purchased_at, 'YYYY-MM') AS month,
           SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
@@ -69,7 +74,11 @@ async function getStats(userId: string): Promise<StatsData> {
       SELECT p.name, COUNT(pp.id) AS purchases, SUM(pp.quantity) AS total_qty
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
+      -- Solo ítems de tickets de super: los de un ticket reclasificado a
+      -- "comida fuera" dejan de ser despensa.
+      LEFT JOIN shopping_trips t ON t.id = pp.trip_id
       WHERE ${ppScope}
+        AND (pp.trip_id IS NULL OR t.kind = 'grocery')
       GROUP BY p.name
       ORDER BY purchases DESC
       LIMIT 8
@@ -81,7 +90,11 @@ async function getStats(userId: string): Promise<StatsData> {
         SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month') THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS prev_month
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
+      -- Solo ítems de tickets de super: los de un ticket reclasificado a
+      -- "comida fuera" dejan de ser despensa.
+      LEFT JOIN shopping_trips t ON t.id = pp.trip_id
       WHERE ${ppScope}
+        AND (pp.trip_id IS NULL OR t.kind = 'grocery')
         AND pp.purchased_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
       GROUP BY COALESCE(p.category, 'Sin categoría')
       ORDER BY current_month DESC

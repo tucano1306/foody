@@ -101,3 +101,85 @@ describe('formatMonthShort', () => {
     expect(formatMonthShort({ month: 12, year: 2025 }, NOW)).toBe('dic 25');
   });
 });
+
+/**
+ * El seguro del coche que se paga cada 6 meses.
+ *
+ * Antes esta función recorría TODOS los meses, así que un recibo semestral
+ * acumulaba cinco atrasos falsos por cada cobro real — y el plan los anunciaba
+ * como deuda vencida.
+ */
+describe('buildPaymentAggregates — recibos que no son mensuales', () => {
+  const CREADO = new Date(2026, 0, 1); // enero 2026
+  const AHORA = new Date(2026, 7, 20); // 20 de agosto de 2026
+
+  it('un semestral solo puede deber los meses en que toca', () => {
+    const aggr = buildPaymentAggregates({
+      createdAt: CREADO,
+      dueDay: 15,
+      amount: 900,
+      paidRecords: [],
+      now: AHORA,
+      frequency: 'semiannual',
+      anchorMonth: 3, // marzo y septiembre
+    });
+
+    // De enero a agosto solo venció marzo. Septiembre aún no ha llegado.
+    expect(aggr.unpaidMonths).toEqual([{ month: 3, year: 2026 }]);
+    expect(aggr.missedMonths).toBe(1);
+    expect(aggr.accumulatedDebt).toBe(900);
+  });
+
+  it('el mismo recibo como mensual acumularía ocho atrasos', () => {
+    // El contraste que justifica todo esto: de enero a agosto, todos los días
+    // 15 ya pasaron. Ocho atrasos falsos por un recibo que solo venció una vez.
+    const aggr = buildPaymentAggregates({
+      createdAt: CREADO,
+      dueDay: 15,
+      amount: 900,
+      paidRecords: [],
+      now: AHORA,
+    });
+    expect(aggr.missedMonths).toBe(8);
+  });
+
+  it('agosto no es mes de cobro: cuenta como al día', () => {
+    const aggr = buildPaymentAggregates({
+      createdAt: CREADO,
+      dueDay: 15,
+      amount: 900,
+      paidRecords: [{ month: 3, year: 2026, amount: 900, actualAmount: null, paidAt: null }],
+      now: AHORA,
+      frequency: 'semiannual',
+      anchorMonth: 3,
+    });
+    // No hay nada que pagar este mes, así que no se enseña como pendiente.
+    expect(aggr.isPaidThisMonth).toBe(true);
+    expect(aggr.missedMonths).toBe(0);
+  });
+
+  it('en el mes que SÍ toca, sin registro, sigue pendiente', () => {
+    const enMarzo = new Date(2026, 2, 20); // 20 de marzo, ya pasó el día 15
+    const aggr = buildPaymentAggregates({
+      createdAt: CREADO,
+      dueDay: 15,
+      amount: 900,
+      paidRecords: [],
+      now: enMarzo,
+      frequency: 'semiannual',
+      anchorMonth: 3,
+    });
+    expect(aggr.isPaidThisMonth).toBe(false);
+  });
+
+  it('sin frecuencia se comporta como siempre: mensual', () => {
+    // Todo lo que ya estaba guardado no tiene frecuencia y no puede cambiar.
+    const conDefecto = buildPaymentAggregates({
+      createdAt: CREADO, dueDay: 15, amount: 100, paidRecords: [], now: AHORA,
+    });
+    const explicito = buildPaymentAggregates({
+      createdAt: CREADO, dueDay: 15, amount: 100, paidRecords: [], now: AHORA, frequency: 'monthly',
+    });
+    expect(conDefecto.missedMonths).toBe(explicito.missedMonths);
+  });
+})

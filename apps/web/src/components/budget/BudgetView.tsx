@@ -6,8 +6,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstAt } from '@/lib/fx';
-import { buildHistoryWindow, monthKeyOf } from '@/lib/budget-history';
+import { buildHistoryWindow, budgetFigures, monthAmount, monthKeyOf } from '@/lib/budget-history';
+import { summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
+import ScopeTabs from '@/components/ui/ScopeTabs';
 import type { BudgetMonthEntry as MonthEntry } from '@/lib/budget-history';
+import { parseMoney } from '@/lib/money-input';
 
 interface BudgetData {
   monthlyLimit: number;
@@ -21,6 +24,8 @@ interface BudgetData {
 
 interface Props {
   readonly initialData: BudgetData;
+  /** Ámbito con el que abrir, si quien enlaza aquí ya sabe cuál quiere. */
+  readonly initialScope?: ScopeFilter;
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -142,8 +147,8 @@ function EditBudgetDialog({
   }, []);
 
   async function handleSave() {
-    const n = Number.parseFloat(value);
-    if (!Number.isFinite(n) || n < 0) return;
+    const n = parseMoney(value);
+    if (n === null || n < 0) return;
     setSaving(true);
     haptic([15, 30, 15]);
     await onSave(n);
@@ -183,9 +188,8 @@ function EditBudgetDialog({
           <input
             ref={inputRef}
             id="budget-limit"
-            type="number"
-            min="0"
-            step="100"
+            type="text"
+                inputMode="decimal"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void handleSave(); }}
@@ -231,12 +235,25 @@ function EditBudgetDialog({
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
-export default function BudgetView({ initialData }: Props) {
+export default function BudgetView({ initialData, initialScope = 'all' }: Props) {
   const [data, setData] = useState(initialData);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [scope, setScope] = useState<ScopeFilter>(initialScope);
 
-  const status = getBudgetStatus(data.percentUsed);
+  /**
+   * Las cuatro cifras del lado que se mira.
+   *
+   * Con «todo» son las mismas que trajo el servidor; al cambiar de pestaña se
+   * recalculan con la MISMA funcion que uso el servidor, para que el titular y
+   * la grafica de debajo no puedan discrepar.
+   */
+  const figures =
+    scope === 'all'
+      ? { spentThisMonth: data.spentThisMonth, avgMonthly: data.avgMonthly, percentUsed: data.percentUsed, remaining: data.remaining }
+      : budgetFigures(data.history, data.monthlyLimit, scope);
+
+  const status = getBudgetStatus(figures.percentUsed);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -267,10 +284,31 @@ export default function BudgetView({ initialData }: Props) {
 
   // Ventana de meses terminando en el ACTUAL, sin los meses vacíos del
   // inicio — la gráfica arranca en el primer mes con datos y sigue mes a mes.
-  const historyWithCurrent = buildHistoryWindow(data.history);
+  const historyWithCurrent = buildHistoryWindow(data.history).map((h) => ({
+    ...h,
+    // La grafica dibuja `total`, asi que se le da el importe del lado elegido:
+    // una barra que sigue contando el negocio contradiria al titular de arriba.
+    total: monthAmount(h, scope),
+  }));
+
+  /** Los totales de las pestañas, sobre los meses que se estan viendo. */
+  const scopeSummary = summarizeByScope(
+    buildHistoryWindow(data.history).map((h) => ({
+      id: h.month,
+      name: h.month,
+      amount: h.total,
+      // `summarizeByScope` piensa en porcentajes; aqui la parte del negocio ya
+      // viene calculada, asi que se convierte a su porcentaje equivalente.
+      businessShare: h.total > 0 ? ((h.total - h.personal) / h.total) * 100 : 0,
+    })),
+  );
 
   return (
     <div className="space-y-5 pb-20">
+      {/* ─── Personal / Negocio ───────────────────────────────────────────
+          Encima de todo: cambia el titular, el medidor y la grafica. */}
+      <ScopeTabs value={scope} onChange={setScope} summary={scopeSummary} format={fmt} />
+
       {/* ─── Header ─────────────────────────────────────────────────────────── */}
       <div className="bg-linear-to-br from-brand-700 to-brand-500 text-white rounded-2xl p-5 shadow-lg">
         <div className="flex items-start justify-between">
@@ -311,39 +349,39 @@ export default function BudgetView({ initialData }: Props) {
         <div className="flex items-center gap-5">
           {/* Arc */}
           <div className="relative w-36 h-36 shrink-0">
-            {data.percentUsed === null ? (
+            {figures.percentUsed === null ? (
               <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90" aria-hidden="true">
                 <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e2e8f0" strokeWidth="16" />
               </svg>
             ) : (
-              <RadialArc pct={data.percentUsed} color={status.arc} />
+              <RadialArc pct={figures.percentUsed} color={status.arc} />
             )}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              {data.percentUsed !== null && (
+              {figures.percentUsed !== null && (
                 <motion.span
-                  key={getGaugeEmoji(data.percentUsed)}
+                  key={getGaugeEmoji(figures.percentUsed)}
                   initial={{ scale: 0, rotate: -30 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: 'spring', stiffness: 420, damping: 14 }}
                   className="text-lg leading-none mb-0.5"
                   aria-hidden="true"
                 >
-                  {getGaugeEmoji(data.percentUsed)}
+                  {getGaugeEmoji(figures.percentUsed)}
                 </motion.span>
               )}
               <motion.span
-                key={Math.round(data.spentThisMonth)}
+                key={Math.round(figures.spentThisMonth)}
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 18 }}
                 className="text-xl font-black text-slate-800 tabular-nums leading-none"
               >
-                {fmt(data.spentThisMonth)}
+                {fmt(figures.spentThisMonth)}
               </motion.span>
               <span className="text-[11px] text-slate-400 mt-1">gastado</span>
-              {data.percentUsed !== null && (
+              {figures.percentUsed !== null && (
                 <span className={`text-xs font-bold mt-1 ${status.color}`}>
-                  {Math.round(data.percentUsed)}%
+                  {Math.round(figures.percentUsed)}%
                 </span>
               )}
             </div>
@@ -351,10 +389,10 @@ export default function BudgetView({ initialData }: Props) {
 
           {/* Stats column */}
           <div className="flex-1 space-y-3">
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${status.bg} ${status.color}${data.percentUsed !== null && data.percentUsed >= 100 ? ' animate-shake' : ''}`}>
-              {data.percentUsed !== null && data.percentUsed >= 100 && '🚨 '}
-              {data.percentUsed !== null && data.percentUsed >= 80 && data.percentUsed < 100 && '⚠️ '}
-              {(data.percentUsed === null || data.percentUsed < 80) && '✅ '}
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${status.bg} ${status.color}${figures.percentUsed !== null && figures.percentUsed >= 100 ? ' animate-shake' : ''}`}>
+              {figures.percentUsed !== null && figures.percentUsed >= 100 && '🚨 '}
+              {figures.percentUsed !== null && figures.percentUsed >= 80 && figures.percentUsed < 100 && '⚠️ '}
+              {(figures.percentUsed === null || figures.percentUsed < 80) && '✅ '}
               {status.label}
             </div>
 
@@ -366,10 +404,10 @@ export default function BudgetView({ initialData }: Props) {
                 </div>
                 <div>
                   <p className="text-[11px] text-slate-400 uppercase tracking-wide">
-                    {(data.remaining ?? 0) >= 0 ? 'Disponible' : 'Exceso'}
+                    {(figures.remaining ?? 0) >= 0 ? 'Disponible' : 'Exceso'}
                   </p>
-                  <p className={`text-base font-bold ${(data.remaining ?? 0) >= 0 ? 'text-sky-700' : 'text-blue-600'}`}>
-                    {data.remaining === null ? '—' : fmt(Math.abs(data.remaining))}
+                  <p className={`text-base font-bold ${(figures.remaining ?? 0) >= 0 ? 'text-sky-700' : 'text-blue-600'}`}>
+                    {figures.remaining === null ? '—' : fmt(Math.abs(figures.remaining))}
                   </p>
                 </div>
               </>
@@ -378,9 +416,9 @@ export default function BudgetView({ initialData }: Props) {
                 <p className="text-sm text-slate-500">
                   Sin límite establecido. Toca <strong>Establecer límite</strong> para activar el seguimiento.
                 </p>
-                {data.avgMonthly > 0 && (
+                {figures.avgMonthly > 0 && (
                   <p className="text-xs text-slate-400">
-                    Tu promedio histórico: <strong className="text-slate-600">{fmt(data.avgMonthly)}</strong>/mes
+                    Tu promedio histórico: <strong className="text-slate-600">{fmt(figures.avgMonthly)}</strong>/mes
                   </p>
                 )}
               </div>
@@ -389,7 +427,7 @@ export default function BudgetView({ initialData }: Props) {
         </div>
 
         {/* Progress bar — game meter with money riding the tip (fire when over) */}
-        {data.percentUsed !== null && (
+        {figures.percentUsed !== null && (
           <div className="mt-4">
             <div className="relative h-3 bg-slate-100 rounded-full">
               <motion.div
@@ -399,15 +437,15 @@ export default function BudgetView({ initialData }: Props) {
                   ['--progress-to' as string]: status.arc,
                 }}
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min(data.percentUsed, 100)}%` }}
+                animate={{ width: `${Math.min(figures.percentUsed, 100)}%` }}
                 transition={{ duration: 1, ease: [0.22, 0.61, 0.36, 1] }}
               />
               <span
                 aria-hidden="true"
                 className="absolute top-1/2 -translate-y-1/2 text-sm leading-none drop-shadow-sm transition-all duration-1000 ease-out"
-                style={{ left: `calc(${Math.min(Math.max(data.percentUsed, 1), 97)}% - 7px)` }}
+                style={{ left: `calc(${Math.min(Math.max(figures.percentUsed, 1), 97)}% - 7px)` }}
               >
-                {data.percentUsed >= 100 ? '🔥' : '💰'}
+                {figures.percentUsed >= 100 ? '🔥' : '💰'}
               </span>
             </div>
             <div className="flex justify-between mt-1">
@@ -422,13 +460,13 @@ export default function BudgetView({ initialData }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Este mes</p>
-          <p className="text-xl font-black text-slate-800 tabular-nums">{fmt(data.spentThisMonth)}</p>
+          <p className="text-xl font-black text-slate-800 tabular-nums">{fmt(figures.spentThisMonth)}</p>
           <p className="text-xs text-slate-400 mt-0.5">en supermercado</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
           <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Promedio</p>
           <p className="text-xl font-black text-slate-800 tabular-nums">
-            {data.avgMonthly > 0 ? fmt(data.avgMonthly) : '—'}
+            {figures.avgMonthly > 0 ? fmt(figures.avgMonthly) : '—'}
           </p>
           <p className="text-xs text-slate-400 mt-0.5">meses anteriores</p>
         </div>
@@ -453,8 +491,8 @@ export default function BudgetView({ initialData }: Props) {
       </div>
 
       {/* ─── Tips ───────────────────────────────────────────────────────────── */}
-      {data.monthlyLimit > 0 && data.percentUsed !== null && (
-        <BudgetTip pct={data.percentUsed} remaining={data.remaining} avgMonthly={data.avgMonthly} />
+      {data.monthlyLimit > 0 && figures.percentUsed !== null && (
+        <BudgetTip pct={figures.percentUsed} remaining={figures.remaining} avgMonthly={figures.avgMonthly} />
       )}
 
       {/* ─── Edit dialog ────────────────────────────────────────────────────── */}
@@ -462,7 +500,7 @@ export default function BudgetView({ initialData }: Props) {
         {editing && (
           <EditBudgetDialog
             current={data.monthlyLimit}
-            suggestion={data.avgMonthly}
+            suggestion={figures.avgMonthly}
             onSave={saveLimit}
             onClose={() => setEditing(false)}
           />

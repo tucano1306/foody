@@ -10,6 +10,7 @@ import { confettiRain } from '@/lib/fx';
 import ModalShell from '@/components/finance/ModalShell';
 import ScopePicker from '@/components/ui/ScopePicker';
 import SplitBar from './SplitBar';
+import { parseMoney, parseDecimal } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
@@ -58,11 +59,14 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const balanceNum = Number.parseFloat(balance);
-  const rateNum = Number.parseFloat(rate);
-  const customNum = Number.parseFloat(customPayment);
-  const hasMoney = Number.isFinite(balanceNum) && balanceNum > 0;
-  const hasRate = Number.isFinite(rateNum) && rateNum >= 0;
+  const balanceNum = parseMoney(balance);
+  const rateNum = parseDecimal(rate);
+  const customNum = parseMoney(customPayment);
+  // `null` en vez de NaN: los lectores nuevos dicen explícitamente «esto no es
+  // un número» en lugar de devolver un NaN que se propaga sin que nadie lo mire.
+  const hasMoney = balanceNum !== null && balanceNum > 0;
+  const hasRate = rateNum !== null && rateNum >= 0;
+  const hasCustom = customNum !== null && customNum > 0;
 
   const projection = useMemo(() => {
     if (!hasMoney || !hasRate) return null;
@@ -73,16 +77,17 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
       strategy,
       termMonths,
       payoffDate: payoffDate || null,
-      customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
+      customPayment: hasCustom ? customNum : null,
+      dueDay,
     });
-  }, [hasMoney, hasRate, balanceNum, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum]);
+  }, [hasMoney, hasRate, hasCustom, balanceNum, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, dueDay]);
 
   const stepValid = [
     true,
     hasMoney && hasRate && name.trim().length > 0,
     strategy === 'by_date'
       ? payoffDate !== ''
-      : strategy !== 'fixed_installment' || termMonths !== null || (Number.isFinite(customNum) && customNum > 0),
+      : strategy !== 'fixed_installment' || termMonths !== null || hasCustom,
   ];
   const canAdvance = stepValid[step];
   const isLast = step === 2;
@@ -93,6 +98,9 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
   }
 
   async function submit() {
+    // El asistente no deja avanzar sin saldo ni tasa; repetirlo aquí es lo que
+    // permite garantizar que nunca se manda un hueco al servidor.
+    if (balanceNum === null || rateNum === null) return;
     setSaving(true);
     setError(null);
     try {
@@ -111,7 +119,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
           strategy,
           termMonths: strategy === 'fixed_installment' ? termMonths : null,
           payoffDate: strategy === 'by_date' ? payoffDate : null,
-          customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
+          customPayment: hasCustom ? customNum : null,
           dueDay,
           businessShare,
         }),
@@ -246,10 +254,8 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                   {currency}
                 </span>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  min={0.01}
-                  step="0.01"
                   value={balance}
                   onChange={(e) => setBalance(e.target.value)}
                   placeholder="0.00"
@@ -263,10 +269,8 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                   %
                 </span>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  min={0}
-                  step="0.01"
                   value={rate}
                   onChange={(e) => setRate(e.target.value)}
                   placeholder="Tasa de interés"
@@ -411,10 +415,8 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                     {currency}
                   </span>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    min={0.01}
-                    step="0.01"
                     value={customPayment}
                     onChange={(e) => setCustomPayment(e.target.value)}
                     placeholder="0.00"

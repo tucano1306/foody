@@ -26,6 +26,8 @@ interface PriceEntry {
   productId: string;
   productName: string;
   storeName: string;
+  /** Qué marca era. null = compras anteriores a anotar la marca. */
+  brand: string | null;
   minPrice: number;
   maxPrice: number;
   avgPrice: number;
@@ -124,14 +126,23 @@ export default async function PriceComparisonPage() {
                   const isMostExpensive = idx === group.entries.length - 1 && group.entries.length > 1;
                   return (
                     <li
-                      key={`${entry.productId}-${entry.storeName}`}
+                      key={`${entry.productId}-${entry.storeName}-${entry.brand ?? ''}`}
                       className={`flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0 ${isCheapest ? 'bg-sky-50/60' : ''}`}
                     >
                       <span className="text-lg w-6 shrink-0">
                         {getStoreEmoji(isCheapest, isMostExpensive)}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-800 truncate">{entry.storeName}</p>
+                        <p className="font-semibold text-slate-800 truncate">
+                          {entry.storeName}
+                          {/* La marca, cuando se anotó: es la mitad de la
+                              respuesta a «¿cuál me conviene?». */}
+                          {entry.brand && (
+                            <span className="ml-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 align-middle">
+                              {entry.brand}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-[11px] text-slate-400">
                           {entry.purchaseCount} {entry.purchaseCount === 1 ? 'compra' : 'compras'} · último {formatDate(entry.lastSeenAt)}
                         </p>

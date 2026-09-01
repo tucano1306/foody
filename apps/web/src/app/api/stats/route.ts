@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
 
 // GET /api/stats — summary stats for the current user
 export async function GET(request: NextRequest) {
@@ -8,6 +9,8 @@ export async function GET(request: NextRequest) {
   if (!user) return unauthorized();
 
   const userId = user.userId;
+  // Stats es la foto del SUPER: comer fuera o la farmacia viven en el plan.
+  await ensureExpenseKindSchema();
 
   // Stock overview
   const stockRows = await sql`
@@ -29,7 +32,7 @@ export async function GET(request: NextRequest) {
       COUNT(*) AS trips,
       SUM(total_spent) AS total_spent
     FROM shopping_trips
-    WHERE user_id = ${userId}
+    WHERE user_id = ${userId} AND kind = 'grocery'
     GROUP BY COALESCE(store_name, 'Sin nombre')
     ORDER BY trips DESC
     LIMIT 5
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
       SUM(total_spent) AS total,
       COUNT(*) AS trips
     FROM shopping_trips
-    WHERE user_id = ${userId}
+    WHERE user_id = ${userId} AND kind = 'grocery'
       AND date >= NOW() - INTERVAL '6 months'
     GROUP BY TO_CHAR(date, 'YYYY-MM')
     ORDER BY month ASC

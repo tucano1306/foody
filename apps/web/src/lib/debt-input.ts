@@ -13,6 +13,7 @@ import type {
 } from './debt-engine';
 import type { CreateDebtInput, UpdateDebtInput } from './debt-data';
 import { normalizeShare } from './expense-scope';
+import { parseDecimal, parseMoney } from '@/lib/money-input';
 
 export const DEBT_KINDS: readonly DebtKind[] = [
   'credit_card', 'loan', 'personal', 'mortgage', 'auto', 'store', 'other',
@@ -54,10 +55,35 @@ function text(value: unknown, max: number): string | null {
   return trimmed ? trimmed.slice(0, max) : null;
 }
 
+/**
+ * Un importe, escrito como lo escriba quien lo escriba.
+ *
+ * Delegado en `parseMoney` para que «54.587,19» signifique lo mismo aquí que en
+ * la pantalla: con `Number.parseFloat` esa cadena se leía como 54,587.
+ */
 function money(value: unknown): number | null {
-  const n = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
-  if (!Number.isFinite(n)) return null;
-  return Math.min(Math.max(n, 0), MAX_MONEY);
+  const n = parseMoney(value as string | number | null | undefined);
+  if (n === null) return null;
+  return Math.min(n, MAX_MONEY);
+}
+
+/** Fecha YYYY-MM-DD, o null si no viene una válida. */
+function dateOrNull(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value.slice(0, 10)) ? value.slice(0, 10) : null;
+}
+
+/** Una tasa: acepta la coma decimal y nunca la lee como millares. */
+function rateOrNull(value: unknown): number | null {
+  const n = parseDecimal(value as string | number | null | undefined);
+  return n !== null && n >= 0 && n <= MAX_RATE ? n : null;
+}
+
+/** Un entero pequeño dentro de rango, o null. */
+function smallIntOrNull(value: unknown, min: number, max: number): number | null {
+  if (value == null) return null;
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
 
 /** Solo dígitos, máximo 4 — nunca se guarda el número completo de la tarjeta. */
@@ -106,8 +132,10 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
   if (balance === null) return { error: 'El saldo debe ser un número', status: 422 };
   if (balance <= 0) return { error: 'El saldo debe ser mayor que cero', status: 422 };
 
-  const rawRate = typeof body.rate === 'number' ? body.rate : Number.parseFloat(String(body.rate ?? ''));
-  if (!Number.isFinite(rawRate) || rawRate < 0) {
+  // `parseDecimal` y no `parseMoney`: en una tasa un separador suelto es
+  // SIEMPRE decimal. «1.500» es uno y medio por ciento, no mil quinientos.
+  const rawRate = parseDecimal(body.rate as string | number | null | undefined);
+  if (rawRate === null || rawRate < 0) {
     return { error: 'La tasa debe ser un número positivo', status: 422 };
   }
   const rate = Math.min(rawRate, MAX_RATE);
@@ -149,6 +177,12 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
     minFloor: body.minFloor == null ? null : money(body.minFloor),
     extraMonthly: money(body.extraMonthly) ?? 0,
     businessShare: normalizeShare(body.businessShare),
+    // La promocion y el ciclo del estado de cuenta. La fecha sin la tasa
+    // posterior no dice nada, asi que se guardan como par o no se guarda nada.
+    promoEndsOn: dateOrNull(body.promoEndsOn),
+    rateAfterPromo: body.rateAfterPromo == null ? null : rateOrNull(body.rateAfterPromo),
+    cycleDays: smallIntOrNull(body.cycleDays, 1, 62),
+    statementDay: smallIntOrNull(body.statementDay, 1, 31),
     creditLimit: body.creditLimit == null ? null : money(body.creditLimit),
     dueDay,
     note: text(body.note, 1000),
@@ -183,6 +217,22 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
     out.dueDay = d;
   }
 
+  // Enlazar/desenlazar con un recibo de Pagos, o descartar la sospecha de
+  // duplicado. Cadena vacía y null significan lo mismo: quitar el enlace.
+  if (body.linkedPaymentId !== undefined) {
+    const raw = body.linkedPaymentId;
+    if (raw === null || raw === '') {
+      out.linkedPaymentId = null;
+    } else if (typeof raw === 'string' && /^[0-9a-f-]{36}$/i.test(raw.trim())) {
+      out.linkedPaymentId = raw.trim();
+    } else {
+      return { error: 'El pago enlazado no es válido', status: 422 };
+    }
+  }
+  if (body.duplicateDismissed !== undefined) {
+    out.duplicateDismissed = Boolean(body.duplicateDismissed);
+  }
+
   if (body.kind !== undefined) out.kind = oneOf(body.kind, DEBT_KINDS) ?? undefined;
   if (body.ratePeriod !== undefined) out.ratePeriod = oneOf(body.ratePeriod, RATE_PERIODS) ?? undefined;
   if (body.strategy !== undefined) out.strategy = oneOf(body.strategy, PAYOFF_STRATEGIES) ?? undefined;
@@ -204,6 +254,10 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
   if (body.minFloor !== undefined) out.minFloor = body.minFloor == null ? null : money(body.minFloor);
   if (body.extraMonthly !== undefined) out.extraMonthly = money(body.extraMonthly) ?? 0;
   if (body.businessShare !== undefined) out.businessShare = normalizeShare(body.businessShare);
+  if (body.promoEndsOn !== undefined) out.promoEndsOn = dateOrNull(body.promoEndsOn);
+  if (body.rateAfterPromo !== undefined) out.rateAfterPromo = body.rateAfterPromo == null ? null : rateOrNull(body.rateAfterPromo);
+  if (body.cycleDays !== undefined) out.cycleDays = smallIntOrNull(body.cycleDays, 1, 62);
+  if (body.statementDay !== undefined) out.statementDay = smallIntOrNull(body.statementDay, 1, 31);
   if (body.creditLimit !== undefined) out.creditLimit = body.creditLimit == null ? null : money(body.creditLimit);
   if (body.status !== undefined) {
     const s = oneOf(body.status, ['active', 'paid_off', 'archived'] as const);

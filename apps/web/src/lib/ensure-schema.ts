@@ -49,6 +49,11 @@ export async function ensurePurchaseSchema(): Promise<void> {
   `;
 
   // Add columns that may be missing from older schema versions
+  //
+  // `brand`: qué marca se compró ESTA vez. Va en la compra y no en el
+  // producto porque para la despensa «queso parmesano» es un solo artículo —
+  // lo que cambia entre compras es la marca y su precio. Ver product-brands.ts.
+  await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS brand VARCHAR(60) NULL`;
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS store_name VARCHAR(255) NULL`;
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS trip_id UUID NULL`;
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS household_id UUID NULL`;
@@ -74,6 +79,30 @@ export async function ensureProductSharingSchema(): Promise<void> {
   sharingEnsured = true;
 }
 
+let stockSignalsEnsured = false;
+
+/**
+ * Las dos marcas de tiempo que le faltaban al aviso «se te acaba».
+ *
+ * - `stock_updated_at`: cuándo dijo el usuario en qué estado está el producto.
+ *   Sin ella, la predicción contaba desde la última COMPRA e ignoraba que él
+ *   acababa de marcarlo lleno — de ahí el «Carbone ya se agotó» diario sobre
+ *   algo que tenía en casa.
+ * - `last_stock_alert_at`: cuándo se le avisó. Sin ella no había forma de no
+ *   repetir el mismo aviso cada mañana.
+ *
+ * Se rellenan con `updated_at` al crearlas: es la mejor aproximación
+ * disponible a «la última vez que supimos algo de este producto», y evita que
+ * el primer día tras el despliegue todo parezca recién tocado.
+ */
+export async function ensureStockSignalSchema(): Promise<void> {
+  if (stockSignalsEnsured) return;
+  await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_updated_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS last_stock_alert_at TIMESTAMPTZ`;
+  await sql`UPDATE products SET stock_updated_at = updated_at WHERE stock_updated_at IS NULL`;
+  stockSignalsEnsured = true;
+}
+
 let scopeEnsured = false;
 
 /**
@@ -96,8 +125,39 @@ let scopeEnsured = false;
 export async function ensureExpenseScopeSchema(): Promise<void> {
   if (scopeEnsured) return;
   await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  // Cada cuanto vence el recibo. Por defecto MENSUAL, que es lo que eran todos
+  // hasta ahora: nada de lo ya guardado cambia de cifra al desplegar esto.
+  await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS frequency VARCHAR(12) NOT NULL DEFAULT 'monthly'`;
+  // Mes (1-12) en que cae uno de los cobros; los demas se deducen sumando
+  // ciclos. NULL en los mensuales, que vencen todos los meses.
+  await sql`ALTER TABLE IF EXISTS monthly_payments ADD COLUMN IF NOT EXISTS anchor_month SMALLINT`;
   await sql`ALTER TABLE IF EXISTS finance_income_sources ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
   // Una compra también puede ser del negocio (insumos, material de oficina).
   await sql`ALTER TABLE IF EXISTS shopping_trips ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
   scopeEnsured = true;
+}
+
+let kindEnsured = false;
+
+/**
+ * Añade `kind` a los tickets: qué CLASE de gasto es (super, comida fuera,
+ * farmacia, gasolina, hogar, otro).
+ *
+ * DEFAULT 'grocery' no es un detalle: al desplegar, cada ticket que ya existía
+ * sigue siendo exactamente lo que era —una compra de super— y ninguno se muda de
+ * sección solo. Reclasificar es siempre una decisión explícita del usuario, y
+ * eso vale también para el histórico.
+ *
+ * Se llama desde TODA consulta que filtre por tipo. Es idempotente y está
+ * protegida por un flag en memoria, así que corre a lo sumo una vez por arranque
+ * en frío; el coste de llamarla de más es cero y el de olvidarla sería un
+ * «column kind does not exist» en producción.
+ */
+export async function ensureExpenseKindSchema(): Promise<void> {
+  if (kindEnsured) return;
+  await sql`ALTER TABLE IF EXISTS shopping_trips ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'grocery'`;
+  // Todas las lecturas nuevas filtran por (user_id, kind) sobre un rango de
+  // fechas: sin este índice, cada carga del plan hace un scan de la tabla.
+  await sql`CREATE INDEX IF NOT EXISTS idx_trips_user_kind_date ON shopping_trips (user_id, kind, date DESC)`;
+  kindEnsured = true;
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensurePurchaseSchema } from '@/lib/ensure-schema';
+import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
+import { normalizeBrand } from '@/lib/product-brands';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
 
@@ -10,6 +12,8 @@ interface CompletionBody {
   totalAmount?: number;
   quantities?: Record<string, number>;
   unitPrices?: Record<string, number>;
+  /** Marca comprada esta vez, por producto. Opcional. */
+  brands?: Record<string, string>;
 }
 
 type CartItem = { product_id: string; quantity_needed: string };
@@ -54,6 +58,7 @@ async function insertPurchases(
   items: CartItem[],
   quantities: Record<string, number>,
   priceMap: Record<string, number | null>,
+  brands: Record<string, string>,
   storeName: string | null,
   tripId: string | null,
   userId: string,
@@ -67,11 +72,15 @@ async function insertPurchases(
       const unitPrice = priceMap[row.product_id] ?? null;
       const totalPrice = unitPrice === null ? null : unitPrice * qty;
       if (totalPrice !== null) totalSpent += totalPrice;
+      // La marca queda en la COMPRA: el artículo de despensa sigue siendo uno
+      // solo, y su historial de precios pasa a estar etiquetado en vez de
+      // mezclado. Ver product-brands.ts.
+      const brand = normalizeBrand(brands[row.product_id]);
       await sql`
         INSERT INTO product_purchases
-          (product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, store_name, trip_id, user_id, created_at)
+          (product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, store_name, brand, trip_id, user_id, created_at)
         VALUES
-          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'USD', ${now}, ${storeName}, ${tripId}, ${userId}, ${now})
+          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'USD', ${now}, ${storeName}, ${brand}, ${tripId}, ${userId}, ${now})
       `;
       inserted++;
     }
@@ -185,7 +194,7 @@ export async function POST(request: NextRequest) {
   const resolvedPriceMap = resolvePriceMap(items, quantities, mergedPriceMap, userTotalAmount);
 
   const { inserted: purchasesInserted, totalSpent, error: purchaseError } =
-    await insertPurchases(items, quantities, resolvedPriceMap, storeName, tripId, user.userId, now);
+    await insertPurchases(items, quantities, resolvedPriceMap, body.brands ?? {}, storeName, tripId, user.userId, now);
 
   if (tripId) {
     const finalTotal = userTotalAmount ?? (totalSpent > 0 ? totalSpent : null);
@@ -197,13 +206,19 @@ export async function POST(request: NextRequest) {
   // Update stock for all products in the completed cart (IDs already validated via cart lookup)
   await sql`
     UPDATE products
-    SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
+    SET stock_level = 'full', stock_updated_at = NOW(), is_running_low = false, needs_shopping = false, updated_at = NOW()
     WHERE id = ANY(${productIds}::uuid[])
   `;
 
   await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND is_in_cart = true`;
 
   await notifyShoppingComplete(user.userId, items.length, storeName).catch(() => undefined);
+
+  // Esta es la vía por la que se compra de verdad, así que es la que más
+  // pantallas deja viejas: «Más comprados» en Casa, los totales de Compras, el
+  // presupuesto. Sin esto la estadística parecía no actualizarse nunca, porque
+  // el `router.refresh()` del súper solo refresca el súper.
+  revalidateAfterPurchase();
 
   return NextResponse.json({ completed: items.length, tripId, purchasesInserted, purchaseError });
 }

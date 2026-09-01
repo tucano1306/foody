@@ -118,6 +118,19 @@ export interface UpdateStoreDto extends Partial<CreateStoreDto> {}
 // ─── Shopping Trip (Ticket) ───────────────────────────────────────────────────
 export type AllocationStrategy = 'equal' | 'by_quantity' | 'manual_partial' | 'none';
 
+/**
+ * Qué clase de gasto es un ticket.
+ *
+ * `grocery` es lo único que vive en la sección Compras: es la despensa, y es lo
+ * que alimenta precios, stock y el presupuesto de super. El resto —una comida
+ * fuera, la farmacia, la gasolina— es gasto igual de real, pero no es super:
+ * sale solo en el Plan Financiero, restando del dinero de las metas.
+ *
+ * Mezclarlos rompía las dos cosas a la vez: el promedio por ticket del super se
+ * ensuciaba con restaurantes, y esos gastos no aparecían en ningún lado del plan.
+ */
+export type ExpenseKind = 'grocery' | 'dining' | 'pharmacy' | 'fuel' | 'home' | 'other';
+
 export interface ShoppingTrip {
   id: string;
   storeId: string | null;
@@ -128,6 +141,10 @@ export interface ShoppingTrip {
   allocationStrategy: AllocationStrategy;
   receiptPhotoUrl: string | null;
   notes: string | null;
+  /** Súper o gasto de otro tipo. Por defecto `grocery`. */
+  kind: ExpenseKind;
+  /** 0-100: qué parte de esta compra es del negocio. */
+  businessShare: number;
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -151,6 +168,8 @@ export interface CreateShoppingTripDto {
   notes?: string;
   /** 0-100: qué parte de esta compra es del negocio. 0 = personal. */
   businessShare?: number;
+  /** Súper o gasto de otro tipo. Ausente = `grocery`. */
+  kind?: ExpenseKind;
   items: ShoppingTripItemDto[];
 }
 
@@ -159,6 +178,8 @@ export interface UpdateShoppingTripDto {
   purchasedAt?: string;
   totalAmount?: number;
   notes?: string;
+  /** Re-clasificar un ticket ya guardado (un restaurante que entró como super). */
+  kind?: ExpenseKind;
   /** When present, the trip's purchases are rewritten with a fresh allocation. */
   items?: ShoppingTripItemDto[];
 }
@@ -196,6 +217,20 @@ export type PaymentCategory =
   | 'streaming'
   | 'other';
 
+/**
+ * Cada cuánto vence un recibo.
+ *
+ * Existe porque no todo se paga al mes: el seguro del coche llega cada seis
+ * meses, y contarlo como mensual multiplicaba ese gasto por seis en el plan
+ * financiero. La lógica vive en `payment-frequency.ts`.
+ */
+export type PaymentFrequency =
+  | 'monthly'
+  | 'bimonthly'
+  | 'quarterly'
+  | 'semiannual'
+  | 'annual';
+
 export interface MonthlyPayment {
   id: string;
   name: string;
@@ -203,6 +238,14 @@ export interface MonthlyPayment {
   amount: number;
   currency: string;
   dueDay: number;
+  /** Cada cuánto vence: mensual, bimestral, trimestral, semestral o anual. */
+  frequency: PaymentFrequency;
+  /**
+   * Mes (1-12) en que cae uno de los cobros, para los que no son mensuales.
+   * Los demás se deducen sumando ciclos: un semestral anclado en marzo vence
+   * en marzo y en septiembre. Es `null` en los mensuales.
+   */
+  anchorMonth: number | null;
   category: PaymentCategory | (string & {});
   isActive: boolean;
   notificationDaysBefore: number;
@@ -255,6 +298,10 @@ export interface CreatePaymentDto {
   amount: number;
   currency?: string;
   dueDay: number;
+  /** Cada cuánto vence. Sin esto se asume mensual, que es lo que era todo. */
+  frequency?: PaymentFrequency;
+  /** Mes (1-12) de uno de los cobros, para los que no son mensuales. */
+  anchorMonth?: number | null;
   category?: string;
   notificationDaysBefore?: number;
   isVariableAmount?: boolean;

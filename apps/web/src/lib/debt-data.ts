@@ -21,6 +21,7 @@ import {
   projectDebt,
   round2,
   safeAmount,
+  toDebtInput,
   toMonthlyRate,
   toPeriodKey,
   type DebtAdvice,
@@ -61,6 +62,30 @@ export interface Debt {
   extraMonthly: number;
   /** 0-100: qué parte de este crédito corresponde al negocio. */
   businessShare: number;
+  /**
+   * Pago mensual que YA cobra esta cuota, si el usuario lo enlazó.
+   *
+   * La cuota del coche vive a la vez en Pagos (recordatorio, día de cobro) y
+   * en Deudas (saldo, interés, amortización). Las dos hacen falta, pero el
+   * dinero sale una sola vez: con el enlace puesto, el plan deja de restar la
+   * cuota porque el recibo ya la cubre. Ver duplicate-obligations.ts.
+   */
+  linkedPaymentId: string | null;
+  /** El usuario revisó el posible duplicado y dijo que son cosas distintas. */
+  duplicateDismissed: boolean;
+  /**
+   * Fin de una promocion al 0 %, YYYY-MM-DD.
+   *
+   * Con esto puesto, la deuda deja de ser «gratis» y pasa a ser gratis HASTA
+   * esa fecha. Ver debt-promo.ts.
+   */
+  promoEndsOn: string | null;
+  /** Tasa que empieza a correr cuando la promocion caduca. */
+  rateAfterPromo: number | null;
+  /** Dias del ciclo de facturacion del estado de cuenta (normalmente 30 o 31). */
+  cycleDays: number | null;
+  /** Dia del mes en que cierra el estado de cuenta. */
+  statementDay: number | null;
   creditLimit: number | null;
   dueDay: number;
   openedAt: string;
@@ -129,6 +154,10 @@ export interface CreateDebtInput {
   minFloor?: number | null;
   extraMonthly?: number;
   businessShare?: number;
+  promoEndsOn?: string | null;
+  rateAfterPromo?: number | null;
+  cycleDays?: number | null;
+  statementDay?: number | null;
   creditLimit?: number | null;
   dueDay?: number;
   note?: string | null;
@@ -136,6 +165,10 @@ export interface CreateDebtInput {
 
 export type UpdateDebtInput = Partial<Omit<CreateDebtInput, 'balance'>> & {
   status?: DebtStatus;
+  /** null desenlaza; un id apunta al recibo de Pagos que cobra esta cuota. */
+  linkedPaymentId?: string | null;
+  /** true = «no son el mismo pago», y la app deja de preguntarlo. */
+  duplicateDismissed?: boolean;
 };
 
 // ─── Esquema ──────────────────────────────────────────────────────────────────
@@ -202,9 +235,27 @@ export async function ensureDebtSchema(): Promise<void> {
   // Un crédito también puede ser del negocio (préstamo comercial, tarjeta de
   // la empresa). Mismo criterio que el resto de gastos: un solo número 0–100.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS business_share DECIMAL(5,2) NOT NULL DEFAULT 0`;
+  // Promociones al 0 % que CADUCAN. Sin estos dos campos la app trataba un
+  // saldo promocional como gratis para siempre y callaba la fecha limite.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS promo_ends_on DATE`;
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS rate_after_promo DECIMAL(9,4)`;
+  // Datos del estado de cuenta, para que las cifras cuadren con el banco:
+  // dias del ciclo (el interes se cobra por dia, no por doceavo) y el dia en
+  // que cierra el estado.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS cycle_days SMALLINT`;
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS statement_day SMALLINT`;
   // Fecha tope de la estrategia `by_date`: la tarjeta que hay que liquidar
   // antes de que empiecen a cobrar intereses.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS payoff_date DATE`;
+  // Enlace con el recibo de Pagos que cobra esta misma cuota. NULL = sin
+  // enlazar, que es como se comportaba la app antes: nada se empareja solo.
+  //
+  // Sin FK a monthly_payments a propósito: si el usuario borra el recibo, el
+  // enlace queda huérfano y el plan vuelve a contar la cuota —que es lo
+  // correcto, porque ese dinero vuelve a salir por ahí—. Una FK con CASCADE
+  // haría lo mismo, pero una con RESTRICT impediría borrar el recibo.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS linked_payment_id UUID`;
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS duplicate_dismissed BOOLEAN NOT NULL DEFAULT false`;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_debts_user ON debts (user_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_debt_movements ON debt_movements (debt_id, occurred_at DESC)`;
@@ -275,6 +326,12 @@ function mapDebt(row: Record<string, unknown>): Debt {
     minFloor: numOrNull(row.min_floor),
     extraMonthly: num(row.extra_monthly),
     businessShare: normalizeShare(row.business_share),
+    linkedPaymentId: (row.linked_payment_id as string | null) ?? null,
+    duplicateDismissed: Boolean(row.duplicate_dismissed),
+    promoEndsOn: dateKey(row.promo_ends_on),
+    rateAfterPromo: numOrNull(row.rate_after_promo),
+    cycleDays: numOrNull(row.cycle_days),
+    statementDay: numOrNull(row.statement_day),
     creditLimit: numOrNull(row.credit_limit),
     dueDay: Math.trunc(num(row.due_day, 1)),
     openedAt: iso(row.opened_at),
@@ -429,19 +486,10 @@ function daysUntilDueDay(dueDay: number, now: Date): number {
 }
 
 function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjection {
-  const projection = projectDebt({
-    balance: debt.currentBalance,
-    rate: debt.rate,
-    ratePeriod: debt.ratePeriod,
-    strategy: debt.strategy,
-    termMonths: debt.termMonths,
-    payoffDate: debt.payoffDate,
-    customPayment: debt.customPayment,
-    minPercent: debt.minPercent,
-    minFloor: debt.minFloor,
-    extraMonthly: debt.extraMonthly,
-    now,
-  });
+  // Sin los términos completos la hoja proyecta con una tasa constante y
+  // eterna: la promo no caducaría nunca y el interés del mes no cuadraría con
+  // el estado de cuenta. Ver toDebtInput.
+  const projection = projectDebt(toDebtInput(debt, now));
 
   const principalOwed = round2(Math.max(0, debt.currentBalance - totals.interestOwed - totals.feesOwed));
   const reference = debt.originalAmount > 0 ? debt.originalAmount : totals.totalPrincipalPaid + principalOwed;
@@ -525,38 +573,6 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
   return { debts, portfolio: buildPortfolio(portfolioInput, now) };
 }
 
-export interface DebtsSummary {
-  count: number;
-  totalBalance: number;
-  currency: string;
-  /** Deudas cuyo saldo ya llegó a cero. */
-  paidOffCount: number;
-}
-
-/**
- * Resumen barato para la entrada desde Pagos: una sola consulta y SIN devengar
- * intereses. La pantalla de Pagos no debería pagar el costo de poner al día el
- * libro mayor solo por enseñar un total.
- */
-export async function getDebtsSummary(userId: string): Promise<DebtsSummary> {
-  await ensureDebtSchema();
-  const rows = await sql`
-    SELECT
-      COUNT(*) FILTER (WHERE current_balance > 0) AS active_count,
-      COUNT(*) FILTER (WHERE current_balance <= 0) AS paid_count,
-      COALESCE(SUM(current_balance), 0) AS total,
-      MIN(currency) AS currency
-    FROM debts WHERE user_id = ${userId} AND status <> 'archived'
-  `;
-  const r = (rows[0] ?? {}) as Record<string, unknown>;
-  return {
-    count: Math.trunc(num(r.active_count)),
-    paidOffCount: Math.trunc(num(r.paid_count)),
-    totalBalance: round2(num(r.total)),
-    currency: typeof r.currency === 'string' ? r.currency : 'USD',
-  };
-}
-
 /** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
 export interface CreditForPlan {
   id: string;
@@ -568,6 +584,12 @@ export interface CreditForPlan {
   neverPaysOff: boolean;
   /** 0-100: qué parte de la cuota corresponde al negocio. */
   businessShare: number;
+  /** Recibo de Pagos que ya cobra esta cuota; null = el plan la resta él. */
+  linkedPaymentId: string | null;
+  /** El usuario ya revisó el posible duplicado y dijo que son distintos. */
+  duplicateDismissed: boolean;
+  /** Para poder emparejar por nombre con el recibo («Auto» / emisor «GMC»). */
+  issuer: string | null;
 }
 
 /**
@@ -585,7 +607,9 @@ export async function listCreditsForPlan(
   await ensureDebtSchema();
   const rows = await sql`
     SELECT id, name, current_balance, rate, rate_period, strategy,
-           term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share
+           term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share,
+           promo_ends_on, rate_after_promo, cycle_days,
+           linked_payment_id, duplicate_dismissed, issuer
     FROM debts
     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
   `;
@@ -604,6 +628,11 @@ export async function listCreditsForPlan(
       minPercent: numOrNull(row.min_percent),
       minFloor: numOrNull(row.min_floor),
       extraMonthly: num(row.extra_monthly),
+      // La promocion y los dias del ciclo: sin ellos la proyeccion trata un
+      // 0 % temporal como eterno y el interes del mes no cuadra con el banco.
+      promoEndsOn: dateKey(row.promo_ends_on),
+      rateAfterPromo: numOrNull(row.rate_after_promo),
+      cycleDays: numOrNull(row.cycle_days),
       now,
     });
     return {
@@ -615,6 +644,9 @@ export async function listCreditsForPlan(
       monthsToPayoff: projection.monthsToPayoff,
       neverPaysOff: projection.neverPaysOff,
       businessShare: normalizeShare(row.business_share),
+      linkedPaymentId: (row.linked_payment_id as string | null) ?? null,
+      duplicateDismissed: Boolean(row.duplicate_dismissed),
+      issuer: (row.issuer as string | null) ?? null,
     };
   });
 }
@@ -684,6 +716,7 @@ export async function createDebt(
       user_id, name, kind, issuer, account_last4, currency,
       original_amount, current_balance, rate, rate_period, strategy,
       term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share,
+      promo_ends_on, rate_after_promo, cycle_days, statement_day,
       credit_limit, due_day, last_accrual_at, opened_at, status, note, created_at, updated_at
     ) VALUES (
       ${userId}, ${input.name}, ${input.kind ?? 'credit_card'}, ${input.issuer ?? null},
@@ -692,6 +725,8 @@ export async function createDebt(
       ${strategy}, ${input.termMonths ?? null}, ${input.payoffDate || null},
       ${lockedPayment}, ${input.minPercent ?? null}, ${input.minFloor ?? null},
       ${safeAmount(input.extraMonthly)}, ${normalizeShare(input.businessShare)},
+      ${input.promoEndsOn ?? null}, ${input.rateAfterPromo ?? null},
+      ${input.cycleDays ?? null}, ${input.statementDay ?? null},
       ${input.creditLimit ?? null}, ${input.dueDay ?? 1},
       ${nowIso}, ${nowIso}, 'active', ${input.note ?? null}, now(), now()
     ) RETURNING *
@@ -758,6 +793,12 @@ export async function updateDebt(
       min_floor      = ${input.minFloor === undefined ? current.minFloor : input.minFloor},
       extra_monthly  = ${input.extraMonthly === undefined ? current.extraMonthly : safeAmount(input.extraMonthly)},
       business_share = ${input.businessShare === undefined ? current.businessShare : normalizeShare(input.businessShare)},
+      linked_payment_id = ${input.linkedPaymentId === undefined ? current.linkedPaymentId : (input.linkedPaymentId || null)},
+      duplicate_dismissed = ${input.duplicateDismissed === undefined ? current.duplicateDismissed : input.duplicateDismissed},
+      promo_ends_on    = ${input.promoEndsOn === undefined ? current.promoEndsOn : input.promoEndsOn},
+      rate_after_promo = ${input.rateAfterPromo === undefined ? current.rateAfterPromo : input.rateAfterPromo},
+      cycle_days       = ${input.cycleDays === undefined ? current.cycleDays : input.cycleDays},
+      statement_day    = ${input.statementDay === undefined ? current.statementDay : input.statementDay},
       credit_limit   = ${input.creditLimit === undefined ? current.creditLimit : input.creditLimit},
       due_day        = ${input.dueDay ?? current.dueDay},
       status         = ${input.status ?? current.status},

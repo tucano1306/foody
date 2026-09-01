@@ -13,7 +13,10 @@
  * Se prueba en finance-engine.test.ts; la capa de datos vive en finance-data.ts.
  */
 
-import type { BaselineSource, GroceryInsight } from './grocery-insights';
+import { expenseKindMeta } from './expense-kind';
+import type { DuplicateSuspect } from './duplicate-obligations';
+import { personalGroceryInsight, type BaselineSource, type GroceryInsight } from './grocery-insights';
+import { personalOtherSpend, type OtherSpendInsight } from './other-spend';
 import {
   buildBusinessResult,
   normalizeShare,
@@ -25,7 +28,22 @@ import {
 
 export type GoalKind = 'trip' | 'debt' | 'project' | 'purchase' | 'emergency';
 export type GoalStatus = 'active' | 'paused' | 'done';
-export type IncomeFrequency = 'monthly' | 'biweekly' | 'weekly' | 'yearly' | 'one_time';
+export type IncomeFrequency =
+  | 'monthly'
+  | 'biweekly'
+  | 'weekly'
+  /** Total de un año COMPLETO: se reparte entre 12. */
+  | 'yearly'
+  /**
+   * Lo que se lleva cobrado del año en curso, de enero a hoy.
+   *
+   * No es lo mismo que `yearly` y por eso no comparte botón: $31.397,50 de
+   * sueldo anual son $2.616,46 al mes, pero $31.397,50 cobrados entre enero y
+   * el 30 de agosto son $3.924,69 al mes. Dividir un acumulado entre 12
+   * inventa cuatro meses que todavía no han pasado.
+   */
+  | 'ytd'
+  | 'one_time';
 
 export interface IncomeSource {
   id: string;
@@ -41,6 +59,14 @@ export interface IncomeSource {
    * negocio que solo pierde dinero. Ver expense-scope.ts.
    */
   businessShare?: number;
+  /**
+   * Día en que entró el dinero, YYYY-MM-DD. Solo lo usa `one_time`.
+   *
+   * Un cheque no es una tasa mensual: es dinero que llegó UN día. Cuenta
+   * entero en el mes en que cayó y no cuenta en ninguno más, que es justo lo
+   * que distingue «cobré $2.300 este mes» de «gano $2.300 al mes».
+   */
+  receivedOn?: string | null;
 }
 
 export interface FinanceGoal {
@@ -99,6 +125,19 @@ export interface CreditInput {
   neverPaysOff: boolean;
   /** 0-100: qué parte de la cuota corresponde al negocio. */
   businessShare?: number;
+  /**
+   * Id del pago mensual que YA cobra esta cuota, si el usuario lo enlazó.
+   *
+   * La cuota del coche vive legítimamente en los dos sitios: en Pagos por el
+   * recordatorio y el día de cobro, en Deudas por el saldo y el interés. Pero
+   * el dinero sale UNA vez, y el plan restaba las dos —$1.097 de «GMC» en
+   * pagos fijos y otros $1.097 de «Auto» en cuotas— inflando el gasto del mes
+   * sin que nada lo explicara.
+   *
+   * Con el enlace puesto manda el pago mensual (es el que tiene día de cobro y
+   * marca de pagado) y la cuota deja de restarse. Ver duplicate-obligations.ts.
+   */
+  linkedPaymentId?: string | null;
 }
 
 export interface PlanInput {
@@ -123,6 +162,28 @@ export interface PlanInput {
   groceriesBusinessShare?: number;
   /** Análisis de las compras registradas — alimenta los consejos de super. */
   groceries?: GroceryInsight;
+  /**
+   * Estimado mensual del gasto que NO es super: comer fuera, farmacia,
+   * gasolina, hogar.
+   *
+   * Sale de los mismos tickets, solo que clasificados. Antes no se restaba en
+   * ninguna parte: el plan repartía entre metas un dinero que ya se había
+   * gastado, y las metas fallaban sin que nada en la pantalla lo explicara.
+   */
+  otherExpensesMonthly?: number;
+  /** 0-100: qué parte de esos gastos es del negocio, ponderada por importe. */
+  otherBusinessShare?: number;
+  /** Desglose de ese gasto — alimenta sus consejos. */
+  otherSpend?: OtherSpendInsight;
+  /**
+   * Cuotas que podrían estar cobradas ya como pago mensual, sin resolver.
+   *
+   * Las calcula duplicate-obligations.ts; aquí solo se convierten en un aviso.
+   * Mientras estén sin resolver el plan resta ese dinero DOS veces, así que es
+   * de lo más grave que puede decir el consejero: no es un consejo de ahorro,
+   * es «esta cifra está mal».
+   */
+  duplicateObligations?: readonly DuplicateSuspect[];
   /** Dinero extra mensual para simular escenarios ("¿y si aporto $200 más?"). */
   extraMonthly?: number;
   now?: Date;
@@ -131,12 +192,25 @@ export interface PlanInput {
 // ─── Tipos de salida ──────────────────────────────────────────────────────────
 
 export interface CashFlow {
+  /** Todo lo que entra este mes: lo que se repite más los cheques que cayeron. */
   monthlyIncome: number;
+  /** La parte que se repite todos los meses. */
+  recurringIncome: number;
+  /**
+   * Los cheques y pagos sueltos cobrados este mes.
+   *
+   * Va aparte de `recurringIncome` porque no es lo mismo: este dinero está
+   * ahora y puede no estar el mes que viene. Juntarlos en una sola cifra haría
+   * que la app dijese «ganas $X al mes» sobre algo que no se repite.
+   */
+  oneTimeIncome: number;
   fixedPayments: number;
   groceriesEstimate: number;
+  /** Comer fuera, farmacia, gasolina, hogar: los tickets que no son de super. */
+  otherExpenses: number;
   /** Suma de las cuotas de tarjetas y créditos — compromiso mensual real. */
   creditPayments: number;
-  /** Ingreso − pagos fijos − super − cuotas de crédito (+ extra simulado). Puede ser negativo. */
+  /** Ingreso − pagos fijos − super − otros gastos − cuotas (+ extra simulado). Puede ser negativo. */
   available: number;
   /** Parte de `available` que el plan reserva para ponerse al día con deudas. */
   debtCatchUp: number;
@@ -213,6 +287,11 @@ export interface DebtOverview {
     monthlyInterest: number;
     monthsToPayoff: number | null;
     neverPaysOff: boolean;
+    /**
+     * Su cuota ya la cobra un pago mensual, así que NO entra en
+     * `creditPayments`. La UI lo dice para que las filas y el total cuadren.
+     */
+    countedInPayments: boolean;
   }[];
   /** Créditos que con su cuota actual no se liquidan nunca. */
   creditsStuck: { id: string; name: string; monthlyInterest: number }[];
@@ -226,12 +305,31 @@ export interface AdviceAction {
   goalId?: string;
 }
 
+/**
+ * De qué habla el consejo.
+ *
+ * Sirve para agruparlos en pantalla: los de METAS van bajo su propio titulo,
+ * porque leidos sueltos entre avisos de deudas y de super no queda claro a que
+ * se refieren. Lo que no lleva tema es del mes en general.
+ */
+export type AdviceTopic = 'goals' | 'general';
+
 export interface Advice {
   id: string;
+  topic?: AdviceTopic;
   tone: AdviceTone;
   icon: string;
   title: string;
   body: string;
+  /**
+   * Qué se puede hacer, una cosa por línea.
+   *
+   * Va aparte del cuerpo porque antes las opciones se metían en la misma frase
+   * separadas por punto y coma —«Opciones: bajar la meta a $0; sumar $1.074 de
+   * ingreso extra»— y con dos o tres se volvía ilegible justo en el momento en
+   * que el usuario buscaba qué hacer.
+   */
+  steps?: string[];
   action?: AdviceAction;
 }
 
@@ -241,6 +339,8 @@ export interface ScopeSide {
   fixedPayments: number;
   creditPayments: number;
   groceries: number;
+  /** Comida fuera, farmacia, gasolina, hogar. */
+  otherExpenses: number;
   /** Todo lo que sale de este lado. */
   expenses: number;
 }
@@ -314,23 +414,83 @@ export function daysUntil(target: string, now: Date = new Date()): number | null
   return Math.round((end.getTime() - startOfToday) / MS_PER_DAY - 0.5);
 }
 
-/** Ingreso mensual equivalente de una fuente según su frecuencia. */
-export function monthlyEquivalent(amount: number, frequency: IncomeFrequency): number {
+/**
+ * Meses del año en curso que ya han empezado, contando el actual.
+ *
+ * El mes en marcha cuenta entero: repartir un acumulado entre «7 meses y 30
+ * días» exige un divisor fraccionario que en enero se dispara —lo cobrado el
+ * día 1 dividido entre 1/30 de mes daría un sueldo de treinta veces la cifra—.
+ * Contar el mes empezado es estable todo el año y siempre peca de prudente.
+ */
+export function monthsElapsedThisYear(now: Date = new Date()): number {
+  return now.getMonth() + 1;
+}
+
+/**
+ * Ingreso mensual equivalente de una fuente según su frecuencia.
+ *
+ * `now` solo lo usa `ytd`, que es la única frecuencia cuyo resultado depende
+ * de qué día es: un acumulado del año se reparte entre los meses que de
+ * verdad han pasado, no entre doce.
+ */
+export function monthlyEquivalent(
+  amount: number,
+  frequency: IncomeFrequency,
+  now: Date = new Date(),
+): number {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
   switch (frequency) {
     case 'weekly':   return (amount * 52) / 12;
     case 'biweekly': return (amount * 26) / 12;
     case 'yearly':   return amount / 12;
+    case 'ytd':      return amount / monthsElapsedThisYear(now);
     case 'one_time': return 0;
     case 'monthly':
     default:         return amount;
   }
 }
 
-export function totalMonthlyIncome(incomes: readonly IncomeSource[]): number {
+/**
+ * El ingreso que se repite todos los meses.
+ *
+ * Los `one_time` valen 0 aquí a propósito: un cheque suelto no es una tasa
+ * mensual y prometerlo para el mes que viene sería inventarlo. Lo que sí entró
+ * este mes lo cuenta `totalOneTimeIncome`.
+ */
+export function totalMonthlyIncome(
+  incomes: readonly IncomeSource[],
+  now: Date = new Date(),
+): number {
   return incomes
     .filter((i) => i.isActive)
-    .reduce((sum, i) => sum + monthlyEquivalent(i.amount, i.frequency), 0);
+    .reduce((sum, i) => sum + monthlyEquivalent(i.amount, i.frequency, now), 0);
+}
+
+/** ¿Esa fecha YYYY-MM-DD cae en el mes de `now`? */
+function landsInMonth(dateKey: string | null | undefined, now: Date): boolean {
+  const m = (dateKey ?? '').match(/^(\d{4})-(\d{2})/);
+  if (!m) return false;
+  return Number(m[1]) === now.getFullYear() && Number(m[2]) === now.getMonth() + 1;
+}
+
+/**
+ * Los cheques y pagos sueltos que cayeron ESTE mes, enteros.
+ *
+ * Sin esto, quien cobra por trabajos —hoy un cheque, la semana que viene
+ * otro— no tenía forma de que la app viera un solo dólar: la única pregunta
+ * era «¿cuánto ganas al mes?», y la respuesta honesta era «depende».
+ */
+export function totalOneTimeIncome(incomes: readonly IncomeSource[], now: Date = new Date()): number {
+  return incomes
+    .filter((i) => i.isActive && i.frequency === 'one_time' && landsInMonth(i.receivedOn, now))
+    .reduce((sum, i) => sum + Math.max(0, i.amount), 0);
+}
+
+/** Lo que esta fuente aporta al mes en curso: la tasa mensual, o el cheque si cayó. */
+export function incomeThisMonth(income: IncomeSource, now: Date = new Date()): number {
+  if (!income.isActive) return 0;
+  if (income.frequency !== 'one_time') return monthlyEquivalent(income.amount, income.frequency, now);
+  return landsInMonth(income.receivedOn, now) ? Math.max(0, income.amount) : 0;
 }
 
 /** Meses (redondeando hacia arriba) para juntar `remaining` aportando `monthly`. */
@@ -464,6 +624,21 @@ function finishProjection(p: GoalProjection, now: Date, goalsBudget: number): vo
   }
 }
 
+/**
+ * Cuotas que NO hay que restar: las que ya cobra un pago mensual.
+ *
+ * El enlace solo vale si el pago sigue existiendo y activo. Si el usuario borró
+ * el recibo, el dinero vuelve a salir por la cuota y contarlo sería hacerlo
+ * desaparecer del plan — el error contrario, y más difícil de detectar.
+ */
+function isCoveredByPayment(
+  credit: CreditInput,
+  fixedPayments: readonly FixedPaymentInput[],
+): boolean {
+  if (!credit.linkedPaymentId) return false;
+  return fixedPayments.some((p) => p.id === credit.linkedPaymentId);
+}
+
 function buildDebtOverview(
   fixedPayments: readonly FixedPaymentInput[],
   goals: readonly FinanceGoal[],
@@ -504,6 +679,7 @@ function buildDebtOverview(
       monthlyInterest: round2(c.monthlyInterest),
       monthsToPayoff: c.monthsToPayoff,
       neverPaysOff: c.neverPaysOff,
+      countedInPayments: isCoveredByPayment(c, fixedPayments),
     }));
 
   return {
@@ -515,7 +691,11 @@ function buildDebtOverview(
     goalDebtTotal,
     creditBalance: round2(creditOrder.reduce((s, c) => s + c.balance, 0)),
     creditMonthlyInterest: round2(creditOrder.reduce((s, c) => s + c.monthlyInterest, 0)),
-    creditPayments: round2(creditOrder.reduce((s, c) => s + c.installment, 0)),
+    // Las cuotas ya cobradas por un pago mensual quedan FUERA del total: ese
+    // dinero ya está restado en `fixedPayments`.
+    creditPayments: round2(
+      creditOrder.filter((c) => !c.countedInPayments).reduce((s, c) => s + c.installment, 0),
+    ),
     creditOrder,
     creditsStuck: creditOrder
       .filter((c) => c.neverPaysOff)
@@ -532,21 +712,29 @@ function buildDebtOverview(
  * Sin nada marcado el porcentaje es 0 y el super va entero a personal, que es el
  * comportamiento de siempre.
  */
-function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdown {
+function buildScopeBreakdown(input: PlanInput, groceries: number, otherExpenses: number): ScopeBreakdown {
   const grocerySplit = splitAmount(groceries, normalizeShare(input.groceriesBusinessShare));
+  // Los gastos que no son super se reparten con su propio porcentaje: la
+  // gasolina de los repartos y la comida del sábado no son lo mismo.
+  const otherSplit = splitAmount(otherExpenses, normalizeShare(input.otherBusinessShare));
   const personal: ScopeSide = {
-    income: 0, fixedPayments: 0, creditPayments: 0, groceries: grocerySplit.personal, expenses: 0,
+    income: 0, fixedPayments: 0, creditPayments: 0,
+    groceries: grocerySplit.personal, otherExpenses: otherSplit.personal, expenses: 0,
   };
   const business: ScopeSide = {
-    income: 0, fixedPayments: 0, creditPayments: 0, groceries: grocerySplit.business, expenses: 0,
+    income: 0, fixedPayments: 0, creditPayments: 0,
+    groceries: grocerySplit.business, otherExpenses: otherSplit.business, expenses: 0,
   };
-  let anyBusiness = grocerySplit.business > 0;
+  let anyBusiness = grocerySplit.business > 0 || otherSplit.business > 0;
 
   for (const inc of input.incomes) {
     if (!inc.isActive) continue;
     const share = normalizeShare(inc.businessShare);
     if (share > 0) anyBusiness = true;
-    const split = splitAmount(monthlyEquivalent(inc.amount, inc.frequency), share);
+    // `incomeThisMonth` y no la tasa mensual: un cheque cobrado por el negocio
+    // vale 0 como tasa, así que el reparto lo dejaba fuera y el negocio volvía
+    // a parecer que solo gasta.
+    const split = splitAmount(incomeThisMonth(inc, input.now ?? new Date()), share);
     personal.income += split.personal;
     business.income += split.business;
   }
@@ -562,6 +750,10 @@ function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdow
   for (const c of input.credits ?? []) {
     const share = normalizeShare(c.businessShare);
     if (share > 0) anyBusiness = true;
+    // Igual que en el flujo: la cuota que ya cobra un pago mensual no se
+    // reparte otra vez, o el negocio parecería gastar el doble. Era justo lo
+    // que pasaba: $2.314 de pagos fijos + $1.097 de la misma cuota = $3.411.
+    if (isCoveredByPayment(c, input.fixedPayments)) continue;
     const split = splitAmount(Math.max(0, c.installment), share);
     personal.creditPayments += split.personal;
     business.creditPayments += split.business;
@@ -572,7 +764,8 @@ function buildScopeBreakdown(input: PlanInput, groceries: number): ScopeBreakdow
     fixedPayments: round2(side.fixedPayments),
     creditPayments: round2(side.creditPayments),
     groceries: round2(side.groceries),
-    expenses: round2(side.fixedPayments + side.creditPayments + side.groceries),
+    otherExpenses: round2(side.otherExpenses),
+    expenses: round2(side.fixedPayments + side.creditPayments + side.groceries + side.otherExpenses),
   });
 
   const personalSide = close(personal);
@@ -613,11 +806,23 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
       amount: splitAmount(p.amount, normalizeShare(p.businessShare)).personal,
       businessShare: 0,
     })),
-    credits: (input.credits ?? []).map((c) => ({
-      ...c,
-      installment: splitAmount(c.installment, normalizeShare(c.businessShare)).personal,
-      businessShare: 0,
-    })),
+    // El saldo y el interés se reparten IGUAL que la cuota.
+    //
+    // Antes solo se repartía la cuota, y el resultado era un plan que se
+    // contradecía: el coche del negocio aportaba $0 al mes —correcto— pero su
+    // saldo entero seguía sumando en «lo que debes», así que la pantalla decía
+    // a la vez que esa deuda no es tuya y que la debes. Cualquiera lee eso como
+    // que la app está metiendo el negocio en su plan personal.
+    credits: (input.credits ?? []).map((c) => {
+      const share = normalizeShare(c.businessShare);
+      return {
+        ...c,
+        balance: splitAmount(c.balance, share).personal,
+        installment: splitAmount(c.installment, share).personal,
+        monthlyInterest: splitAmount(c.monthlyInterest, share).personal,
+        businessShare: 0,
+      };
+    }),
     // El super también: si parte de la compra era del negocio, esa parte sale
     // del plan personal igual que un pago fijo del negocio.
     groceriesMonthly: splitAmount(
@@ -625,6 +830,26 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
       normalizeShare(input.groceriesBusinessShare),
     ).personal,
     groceriesBusinessShare: 0,
+    // Y lo mismo con el resto de gastos: la gasolina de los repartos sale del
+    // plan personal igual que un pago fijo del negocio.
+    otherExpensesMonthly: splitAmount(
+      input.otherExpensesMonthly ?? 0,
+      normalizeShare(input.otherBusinessShare),
+    ).personal,
+    otherBusinessShare: 0,
+    // Los PANORAMAS también, no solo las cifras que resta la cascada.
+    //
+    // Aquí estaba la mezcla: el plan restaba el super ya repartido, pero el
+    // consejero lee estos objetos de detalle —el ritmo del mes, las categorías,
+    // los tipos de gasto— y los leía SIN repartir. Con el negocio apagado, la
+    // cascada hablaba de dinero personal y los consejos de la misma pantalla
+    // citaban cifras que incluían el negocio.
+    groceries: input.groceries
+      ? personalGroceryInsight(input.groceries, normalizeShare(input.groceriesBusinessShare))
+      : input.groceries,
+    otherSpend: input.otherSpend
+      ? personalOtherSpend(input.otherSpend, normalizeShare(input.otherBusinessShare))
+      : input.otherSpend,
   };
 }
 
@@ -685,7 +910,7 @@ function adviceForCashFlow(cash: CashFlow, out: Advice[]): void {
       tone: 'critical',
       icon: '🚨',
       title: `Gastas ${money(deficit)} más de lo que ingresas`,
-      body: `Tus pagos fijos (${money(cash.fixedPayments)})${cash.creditPayments > 0 ? `, las cuotas de tus créditos (${money(cash.creditPayments)})` : ''} más el super (${money(cash.groceriesEstimate)}) superan tu ingreso mensual de ${money(cash.monthlyIncome)}. Antes de ahorrar para cualquier meta hay que cerrar ese hueco: revisa qué pago fijo puedes bajar o cancelar, y recorta el super.`,
+      body: `Tus pagos fijos (${money(cash.fixedPayments)})${cash.creditPayments > 0 ? `, las cuotas de tus créditos (${money(cash.creditPayments)})` : ''}${cash.otherExpenses > 0 ? `, lo que gastas fuera del super (${money(cash.otherExpenses)})` : ''} más el super (${money(cash.groceriesEstimate)}) superan tu ingreso mensual de ${money(cash.monthlyIncome)}. Antes de ahorrar para cualquier meta hay que cerrar ese hueco: revisa qué pago fijo puedes bajar o cancelar, y recorta el super.`,
       action: { label: 'Revisar pagos fijos', kind: 'open_payments' },
     });
     return;
@@ -709,6 +934,39 @@ function adviceForCashFlow(cash: CashFlow, out: Advice[]): void {
       body: `Te quedan ${money(cash.available)} libres cada mes — por encima del 20% recomendado. Ese margen es justo lo que hace que tus metas lleguen a tiempo.`,
     });
   }
+}
+
+/**
+ * El mismo pago contado dos veces.
+ *
+ * Va en `critical` y se emite antes que nada porque no es un consejo sobre cómo
+ * gastar mejor: es la app avisando de que una cifra suya está mal. Mientras no
+ * se resuelva, todo lo demás del plan —el dinero libre, lo que cabe en las
+ * metas, el resultado del negocio— está calculado con ese dinero de más.
+ */
+function adviceForDuplicates(input: PlanInput, out: Advice[]): void {
+  const dupes = input.duplicateObligations ?? [];
+  if (dupes.length === 0) return;
+
+  const total = round2(dupes.reduce((s, d) => s + d.amount, 0));
+  const primero = dupes[0];
+
+  out.push({
+    id: 'duplicate-obligations',
+    tone: 'critical',
+    icon: '👀',
+    title: dupes.length === 1
+      ? `¿«${primero.paymentName}» y «${primero.debtName}» son el mismo pago?`
+      : `${dupes.length} pagos podrían estar contados dos veces`,
+    body: dupes.length === 1
+      ? `En Pagos tienes «${primero.paymentName}» por ${money(primero.amount)} al mes, y en Deudas «${primero.debtName}» con una cuota igual. Si son la misma cosa, el plan está restando ${money(primero.amount)} de más cada mes y todo lo que ves debajo se queda corto.`
+      : `Hay ${dupes.length} recibos de Pagos con una cuota idéntica en Deudas, ${money(total)} al mes en total. Si son las mismas obligaciones, el plan las está restando dos veces.`,
+    steps: [
+      `Tenerlo en los dos sitios está bien: Pagos lleva el recordatorio y Deudas el saldo y el interés.`,
+      `Solo hay que decirle a la app que son lo mismo para que el dinero se cuente una vez.`,
+    ],
+    action: { label: 'Revisar en Deudas', kind: 'open_debts' },
+  });
 }
 
 /**
@@ -828,12 +1086,169 @@ function adviceForDebt(cash: CashFlow, debts: DebtOverview, out: Advice[]): void
   }
 }
 
+/**
+ * Una meta que no llega a tiempo. Es el consejo que más se lee, y era el peor
+ * escrito de todos.
+ *
+ * Decía «Necesitas $1.074 al mes hasta el 15 de octubre y el plan solo puede
+ * darle $0. Te faltan $1.074 cada mes. Opciones: bajar la meta a $0; sumar
+ * $1.074 de ingreso extra al mes.» Tres veces la misma cifra, un «$0» sin
+ * explicar de dónde salía, y una opción —bajar la meta a cero— que no significa
+ * nada. El usuario no entendía qué le estaban diciendo, y con razón.
+ *
+ * Lo que hace falta no es más dato, es la CAUSA. Cuando el plan no puede
+ * apartar nada, el problema casi nunca es la meta: es que no hay ingresos
+ * cargados, que el mes está en números rojos, o que otra meta se lleva todo.
+ * Son tres situaciones distintas, con tres arreglos distintos, y hay que
+ * nombrarlas por su nombre en vez de resumirlas en un «$0».
+ */
+function adviceForGoalAtRisk(goal: GoalProjection, cash: CashFlow, input: PlanInput, out: Advice[]): void {
+  const fecha = goal.targetDate ? prettyDate(goal.targetDate) : null;
+  const hasta = fecha ? ` antes del ${fecha}` : '';
+  const base = {
+    id: `goal-risk-${goal.goalId}`,
+    topic: 'goals' as const,
+    tone: 'warning' as const,
+    icon: '⚠️',
+  };
+
+  // Sin ingresos cargados NINGUNA meta puede recibir nada, así que este consejo
+  // saldría clonado tantas veces como metas haya, diciendo lo mismo. Lo cuenta
+  // una sola tarjeta —`adviceForStalledGoals`— y aquí se calla.
+  if (cash.monthlyIncome <= 0) return;
+
+  // ── El mes no da: no queda dinero libre para NINGUNA meta ─────────────────
+  //
+  // Aquí no se dice nada: lo cuenta `adviceForNoRoomThisMonth` en UNA tarjeta
+  // para todas. Antes esta rama se ejecutaba por meta y escupía el mismo
+  // párrafo y los mismos cuatro pasos tantas veces como metas hubiera —tres
+  // metas, tres bloques idénticos—, que es justo lo que hacía ilegible al
+  // consejero: parecía que la app se repetía sin decir nada nuevo.
+  if (cash.goalsBudget <= 0) return;
+
+  // ── Hay dinero libre, pero se lo llevan otras metas ───────────────────────
+  if (goal.allocatedMonthly <= 0) {
+    out.push({
+      ...base,
+      title: `${goal.name} no recibe nada este mes`,
+      body: `Hay ${money(cash.goalsBudget)} libres al mes, pero tus otras metas se los reparten enteros antes de llegar a esta. El plan atiende primero las de mayor prioridad y fecha más cercana.`,
+      steps: [
+        `Súbele la prioridad si esta importa más que las de arriba.`,
+        `O pausa una de las otras y su aporte pasa a esta.`,
+        `Necesitaría ${money(goal.requiredMonthly)} al mes para llegar${hasta}.`,
+      ],
+      action: { label: 'Ajustar meta', kind: 'edit_goal', goalId: goal.goalId },
+    });
+    return;
+  }
+
+  // ── Recibe algo, pero no alcanza ──────────────────────────────────────────
+  const falta = goal.shortfallMonthly;
+  const steps: string[] = [];
+
+  if (goal.projectedDate) {
+    const tarde = goal.monthsLate > 0
+      ? ` — unos ${goal.monthsLate} ${goal.monthsLate === 1 ? 'mes' : 'meses'} más tarde`
+      : '';
+    steps.push(`Mueve la fecha al ${prettyDate(goal.projectedDate)} y llegas sin cambiar nada más${tarde}.`);
+  }
+
+  const recorteSuper = input.groceriesMonthly > 0 ? falta / input.groceriesMonthly : 0;
+  if (recorteSuper > 0 && recorteSuper <= 0.35) {
+    steps.push(`Recorta el super un ${Math.ceil(recorteSuper * 100)} % y sale justo lo que falta.`);
+  }
+
+  // Bajar la meta solo se ofrece si el objetivo reducido es una cifra que
+  // significa algo. Con $0 asignados salía «bájala a $0», que no es una opción.
+  const alcanzable = goal.savedAmount + goal.allocatedMonthly * (goal.monthsLeft ?? 1);
+  if (alcanzable > 0 && alcanzable < goal.targetAmount) {
+    steps.push(`O baja el objetivo a ${money(alcanzable)}, que es lo que sí juntas para esa fecha.`);
+  }
+
+  steps.push(`Cualquier ingreso extra de ${money(falta)} al mes también la endereza.`);
+
+  out.push({
+    ...base,
+    title: `${goal.name} no llega a tiempo`,
+    body: `El plan le aparta ${money(goal.allocatedMonthly)} al mes, pero para juntar los ${money(goal.remaining)} que faltan${hasta} harían falta ${money(goal.requiredMonthly)}. Se queda corta por ${money(falta)} cada mes.`,
+    steps,
+    action: { label: 'Ajustar meta', kind: 'edit_goal', goalId: goal.goalId },
+  });
+}
+
+/** «a», «a y b», «a, b y c» — como se enumera al hablar. */
+function enumerate(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+}
+
+/**
+ * «Este mes no sobra nada»: UNA tarjeta para todas las metas.
+ *
+ * Es un hecho del MES, no de cada meta, y contarlo una vez por meta llenaba el
+ * consejero de bloques idénticos —mismo párrafo, mismos cuatro pasos, tres
+ * veces— que se leían como si la app se estuviera repitiendo sin decir nada.
+ *
+ * A cambio de fundirlas se NOMBRAN las metas paradas: se pierde la tarjeta por
+ * meta, no la información de cuáles están detenidas.
+ */
+function adviceForNoRoomThisMonth(
+  goals: readonly GoalProjection[],
+  cash: CashFlow,
+  input: PlanInput,
+  out: Advice[],
+): void {
+  // Sin ingresos cargados el consejo es otro (`goals-need-income`): ahí el
+  // problema no es que el mes no dé, es que no hay nada con qué calcular.
+  if (cash.monthlyIncome <= 0 || cash.goalsBudget > 0) return;
+
+  const paradas = goals.filter((g) => g.remaining > 0);
+  if (paradas.length === 0) return;
+
+  const salidas = cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditPayments;
+  const steps: string[] = [];
+  if (cash.fixedPayments > 0) {
+    steps.push(`Tus pagos fijos se llevan ${money(cash.fixedPayments)} al mes: mira cuál puedes bajar o cancelar.`);
+  }
+  if (cash.creditPayments > 0) {
+    steps.push(`Las cuotas de tus créditos son otros ${money(cash.creditPayments)}. Liquidar la más chica libera su cuota entera.`);
+  }
+  if (input.groceriesMonthly > 0) {
+    steps.push(`El super va por ${money(input.groceriesMonthly)}: gastar un 15 % menos libera ${money(input.groceriesMonthly * 0.15)} al mes.`);
+  }
+  steps.push(
+    paradas.length === 1
+      ? `Mientras tanto puedes pausarla, para que deje de aparecer en riesgo.`
+      : `Mientras tanto puedes pausar las que no corran prisa, para que dejen de aparecer en riesgo.`,
+  );
+
+  const cuales =
+    paradas.length === 1
+      ? `Por eso ${enumerate(paradas.map((g) => g.name))} está parada.`
+      : `Por eso están paradas ${enumerate(paradas.map((g) => g.name))}.`;
+
+  out.push({
+    id: 'goals-no-room',
+    topic: 'goals',
+    tone: 'warning',
+    icon: '⚠️',
+    title: paradas.length === 1 ? 'Tu meta no avanza este mes' : 'Tus metas no avanzan este mes',
+    // Sin rodeos y en este orden: cuánto sale, cuánto entra, y qué significa.
+    // La versión anterior abría con «No es un problema de esta meta, es del
+    // mes», que obliga a leer dos negaciones antes de llegar al dato.
+    body: `Cada mes se te va más de lo que entra: ${money(salidas)} de gastos frente a ${money(cash.monthlyIncome)} de ingreso. Como no sobra nada, el plan no tiene de dónde apartar. ${cuales}`,
+    steps,
+    action: { label: 'Revisar pagos fijos', kind: 'open_payments' },
+  });
+}
+
 function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, out: Advice[]): void {
   const fecha = goal.targetDate ? prettyDate(goal.targetDate) : null;
 
   if (goal.feasibility === 'done') {
     out.push({
       id: `goal-done-${goal.goalId}`,
+      topic: 'goals',
       tone: 'good',
       icon: '🎉',
       title: `¡${goal.name} está cubierta!`,
@@ -846,44 +1261,29 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   if (goal.feasibility === 'overdue') {
     out.push({
       id: `goal-overdue-${goal.goalId}`,
+      topic: 'goals',
       tone: 'warning',
       icon: '📅',
       title: `${goal.name}: la fecha ya pasó`,
-      body: `Faltaron ${money(goal.remaining)} para el ${fecha}. Ponle una fecha nueva realista: al ritmo de ${money(goal.allocatedMonthly || cash.goalsBudget)} al mes lo lograrías ${goal.projectedDate ? `hacia el ${prettyDate(goal.projectedDate)}` : 'en cuanto liberes dinero'}.`,
+      // Sin ritmo asignado no se puede prometer una fecha: decir «al ritmo de
+      // $0 la lograrías…» era una frase que se contradecía sola.
+      body: goal.allocatedMonthly > 0 && goal.projectedDate
+        ? `Llegó el ${fecha} y faltaron ${money(goal.remaining)}. Con los ${money(goal.allocatedMonthly)} que el plan le aparta cada mes, los tendrías hacia el ${prettyDate(goal.projectedDate)}: ponle esa fecha y vuelve a ir en camino.`
+        : `Llegó el ${fecha} y faltaron ${money(goal.remaining)}. Ahora mismo el plan no puede apartarle nada, así que no hay fecha nueva que prometer hasta que liberes dinero del mes.`,
       action: { label: 'Ajustar fecha', kind: 'edit_goal', goalId: goal.goalId },
     });
     return;
   }
 
   if (goal.feasibility === 'at_risk') {
-    const falta = goal.shortfallMonthly;
-    const recorteSuper = input.groceriesMonthly > 0
-      ? Math.min(1, falta / input.groceriesMonthly)
-      : 0;
-    const opciones: string[] = [];
-    if (recorteSuper > 0 && recorteSuper <= 0.35) {
-      opciones.push(`recortar el super un ${Math.ceil(recorteSuper * 100)}% (${money(falta)}/mes)`);
-    }
-    if (goal.projectedDate) {
-      opciones.push(`mover la fecha al ${prettyDate(goal.projectedDate)}`);
-    }
-    opciones.push(`bajar la meta a ${money(goal.savedAmount + goal.allocatedMonthly * (goal.monthsLeft ?? 1))}`);
-    opciones.push(`sumar ${money(falta)} de ingreso extra al mes`);
-
-    out.push({
-      id: `goal-risk-${goal.goalId}`,
-      tone: 'warning',
-      icon: '⚠️',
-      title: `${goal.name} no llega a tiempo`,
-      body: `Necesitas ${money(goal.requiredMonthly)} al mes hasta el ${fecha} y el plan solo puede darle ${money(goal.allocatedMonthly)}. Te faltan ${money(falta)} cada mes. Opciones: ${opciones.join('; ')}.`,
-      action: { label: 'Ajustar meta', kind: 'edit_goal', goalId: goal.goalId },
-    });
+    adviceForGoalAtRisk(goal, cash, input, out);
     return;
   }
 
   if (goal.feasibility === 'tight') {
     out.push({
       id: `goal-tight-${goal.goalId}`,
+      topic: 'goals',
       tone: 'idea',
       icon: '🎯',
       title: `${goal.name} va justa`,
@@ -896,6 +1296,7 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   if (goal.feasibility === 'on_track' && goal.daysLeft !== null) {
     out.push({
       id: `goal-ok-${goal.goalId}`,
+      topic: 'goals',
       tone: 'good',
       icon: goal.emoji || '✅',
       title: `${goal.name} va en camino`,
@@ -908,6 +1309,7 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   if (goal.feasibility === 'no_date') {
     out.push({
       id: `goal-nodate-${goal.goalId}`,
+      topic: 'goals',
       tone: 'info',
       icon: '🗓️',
       title: `Ponle fecha a ${goal.name}`,
@@ -917,6 +1319,45 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
   }
 }
 
+/**
+ * Todas las metas paradas por la misma razón: no hay ingresos cargados.
+ *
+ * Una sola tarjeta y no una por meta. Con dos metas activas salían dos avisos
+ * idénticos —«Pagar tarjetas no llega a tiempo», «Viajar a Uruguay y Argentina
+ * no llega a tiempo»— repitiendo el mismo «$0» sin decir de dónde venía.
+ *
+ * NO lleva acción a propósito: la cabecera ya convierte «Ingresos» en su botón
+ * principal justo en este caso, y pedir el dato por segunda vez a media
+ * pantalla de distancia es la duplicación que esa decisión evitaba. Aquí se
+ * explica la CONSECUENCIA, que es lo que faltaba, y se señala el botón.
+ */
+function adviceForStalledGoals(cash: CashFlow, goals: GoalProjection[], out: Advice[]): void {
+  if (cash.monthlyIncome > 0) return;
+
+  const paradas = goals.filter((g) => g.status === 'active' && g.remaining > 0);
+  if (paradas.length === 0) return;
+
+  const total = round2(paradas.reduce((s, g) => s + g.requiredMonthly, 0));
+  const nombres = paradas.map((g) => `«${g.name}»`).join(paradas.length === 2 ? ' y ' : ', ');
+
+  out.push({
+    id: 'goals-need-income',
+    topic: 'goals',
+    tone: 'warning',
+    icon: '⏸️',
+    title: paradas.length === 1
+      ? `${paradas[0].name} está en pausa`
+      : `Tus ${paradas.length} metas están en pausa`,
+    body: `El plan todavía no sabe cuánto ganas, así que calcula con $0 entrando al mes y no puede reservar nada para ${nombres}. No es que las metas estén mal planteadas: es que le faltan los ingresos para repartir.`,
+    steps: [
+      `Toca «Ingresos» arriba y registra lo que entra al mes.`,
+      paradas.length === 1
+        ? `Para llegar a tiempo haría falta apartar ${money(total)} al mes.`
+        : `Entre todas piden ${money(total)} al mes: al cargar tu ingreso verás cuánto alcanza de verdad.`,
+    ],
+  });
+}
+
 function adviceForSurplus(cash: CashFlow, goals: GoalProjection[], out: Advice[]): void {
   if (cash.unallocated <= 1) return;
 
@@ -924,6 +1365,7 @@ function adviceForSurplus(cash: CashFlow, goals: GoalProjection[], out: Advice[]
   if (!priority) {
     out.push({
       id: 'surplus-no-goals',
+      topic: 'goals',
       tone: 'idea',
       icon: '✨',
       title: `Te sobran ${money(cash.unallocated)} al mes sin destino`,
@@ -1076,6 +1518,63 @@ function adviceForGroceries(input: PlanInput, cash: CashFlow, goals: GoalProject
   }
 }
 
+/**
+ * Consejos sobre el gasto que no es super.
+ *
+ * Es el gasto más fácil de mover de todo el plan —nadie deja de pagar la renta,
+ * pero sí puede comer fuera una vez menos— y hasta ahora no aparecía en ningún
+ * consejo porque ni siquiera se medía. Por eso el mensaje se dice siempre en
+ * días de meta ganados, no en un porcentaje abstracto.
+ */
+function adviceForOtherSpend(input: PlanInput, cash: CashFlow, goals: GoalProjection[], out: Advice[]): void {
+  const o = input.otherSpend;
+  if (!o || !o.hasData || cash.monthlyIncome <= 0) return;
+
+  const top = o.byKind[0];
+
+  // 1. Un tipo de gasto se está comiendo el mes. El 35 % es el corte: por
+  //    debajo de eso el reparto es normal y señalarlo sería alarmismo.
+  if (top && top.share >= 35 && top.currentMonth > 0) {
+    const recorte = top.currentMonth * 0.25;
+    const meta = expenseKindMeta(top.kind);
+    out.push({
+      id: `other-top-${top.kind}`,
+      tone: 'idea',
+      icon: meta.emoji,
+      title: `${meta.groupLabel} se lleva ${money(top.currentMonth)} este mes`,
+      body: `Es el ${Math.round(top.share)} % de lo que gastas fuera del super, en ${top.count} ${top.count === 1 ? 'ticket' : 'tickets'}. Bajarlo una cuarta parte libera ${money(recorte)} al mes — ${money(recorte * 12)} al año.${impactOnGoal(goals, recorte)}`,
+      action: { label: 'Ver mis compras', kind: 'open_trips' },
+    });
+  }
+
+  // 2. Tendencia contra el promedio: mismo criterio que el super — hacen falta
+  //    dos meses cerrados y una semana de mes para que signifique algo.
+  if (o.trendPct !== null && o.monthsWithData >= 2 && o.projectedMonthEnd > 0) {
+    const diff = Math.abs(o.projectedMonthEnd - o.avgMonthly);
+    if (o.trendPct >= 20) {
+      const culpable = o.biggestMover
+        ? ` Lo que más subió es ${expenseKindMeta(o.biggestMover.kind).groupLabel}: ${money(o.biggestMover.currentMonth)} contra ${money(o.biggestMover.prevMonth)} el mes pasado.`
+        : '';
+      out.push({
+        id: 'other-trend-up',
+        tone: 'warning',
+        icon: '📈',
+        title: `Tus gastos fuera del super van ${Math.round(o.trendPct)} % arriba`,
+        body: `Proyectas ${money(o.projectedMonthEnd)} frente a los ${money(o.avgMonthly)} que sueles gastar — ${money(diff)} de más.${culpable} Ese dinero salía de tus metas sin que nada lo dijera.`,
+        action: { label: 'Ver mis compras', kind: 'open_trips' },
+      });
+    } else if (o.trendPct <= -20) {
+      out.push({
+        id: 'other-trend-down',
+        tone: 'good',
+        icon: '📉',
+        title: `Estás gastando ${Math.abs(Math.round(o.trendPct))} % menos fuera del super`,
+        body: `Proyectas ${money(o.projectedMonthEnd)} contra tu promedio de ${money(o.avgMonthly)}: ${money(diff)} liberados este mes.${impactOnGoal(goals, diff)}`,
+      });
+    }
+  }
+}
+
 export function buildAdvice(
   input: PlanInput,
   cash: CashFlow,
@@ -1085,6 +1584,9 @@ export function buildAdvice(
 ): Advice[] {
   const out: Advice[] = [];
 
+  // Lo primero: si hay dinero contado dos veces, el resto de consejos están
+  // calculados sobre una cifra equivocada y conviene decirlo antes que nada.
+  adviceForDuplicates(input, out);
   adviceForCashFlow(cash, out);
   if (scopes) adviceForScopes(scopes, out);
   adviceForCredits(debts, out);
@@ -1094,9 +1596,14 @@ export function buildAdvice(
   // estado vacío con el mismo mensaje, y repetirlo llenaba la pantalla de
   // instrucciones duplicadas.
   const active = goals.filter((g) => g.status === 'active');
+  // Primero el hecho comun —«este mes no sobra nada»— y luego lo propio de
+  // cada meta. Al reves, tres tarjetas identicas tapaban el consejo util.
+  adviceForNoRoomThisMonth(active, cash, input, out);
   for (const goal of active) adviceForGoal(goal, cash, input, out);
+  adviceForStalledGoals(cash, goals, out);
 
   adviceForGroceries(input, cash, goals, out);
+  adviceForOtherSpend(input, cash, goals, out);
   adviceForSurplus(cash, goals, out);
 
   return out.sort((a, b) => TONE_WEIGHT[a.tone] - TONE_WEIGHT[b.tone]);
@@ -1108,18 +1615,30 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   const now = input.now ?? new Date();
   const extraMonthly = Math.max(0, input.extraMonthly ?? 0);
 
-  const monthlyIncome = totalMonthlyIncome(input.incomes);
+  // El ingreso del mes son DOS cosas: lo que se repite y lo que cayó suelto.
+  // Se calculan aparte para poder decirlas aparte, y se suman para lo único
+  // que necesita el total: cuánto dinero hay realmente este mes.
+  const recurringIncome = totalMonthlyIncome(input.incomes, now);
+  const oneTimeIncome = totalOneTimeIncome(input.incomes, now);
+  const monthlyIncome = recurringIncome + oneTimeIncome;
   const fixedPayments = input.fixedPayments.reduce((s, p) => s + Math.max(0, p.amount), 0);
   const groceriesEstimate = Math.max(0, input.groceriesMonthly);
+  // Comer fuera y la gasolina no son super, pero salen de la misma cuenta el
+  // mismo mes. Restarlos aquí es lo que hace que "te queda libre" sea cierto.
+  const otherExpenses = Math.max(0, input.otherExpensesMonthly ?? 0);
 
   // La cuota de una tarjeta o un crédito es dinero comprometido igual que la
   // renta: si no se resta aquí, el plan cree que hay más libre del que hay y
   // promete metas con dinero que ya tiene dueño.
   const credits = input.credits ?? [];
-  const creditPayments = credits.reduce((s, c) => s + Math.max(0, c.installment), 0);
+  // La cuota enlazada a un pago mensual ya está dentro de `fixedPayments`:
+  // sumarla otra vez es el doble conteo que inflaba el gasto del mes.
+  const creditPayments = credits
+    .filter((c) => !isCoveredByPayment(c, input.fixedPayments))
+    .reduce((s, c) => s + Math.max(0, c.installment), 0);
 
   const available =
-    monthlyIncome - fixedPayments - groceriesEstimate - creditPayments + extraMonthly;
+    monthlyIncome - fixedPayments - groceriesEstimate - otherExpenses - creditPayments + extraMonthly;
 
   const debts = buildDebtOverview(input.fixedPayments, input.goals, credits, available);
   const goalsBudget = Math.max(0, available - debts.monthlyCatchUp);
@@ -1133,8 +1652,11 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
 
   const cashFlow: CashFlow = {
     monthlyIncome: round2(monthlyIncome),
+    recurringIncome: round2(recurringIncome),
+    oneTimeIncome: round2(oneTimeIncome),
     fixedPayments: round2(fixedPayments),
     groceriesEstimate: round2(groceriesEstimate),
+    otherExpenses: round2(otherExpenses),
     creditPayments: round2(creditPayments),
     available: round2(available),
     debtCatchUp: debts.monthlyCatchUp,
@@ -1145,7 +1667,7 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     extraMonthly: round2(extraMonthly),
   };
 
-  const scopes = buildScopeBreakdown(input, cashFlow.groceriesEstimate);
+  const scopes = buildScopeBreakdown(input, cashFlow.groceriesEstimate, cashFlow.otherExpenses);
   const advice = buildAdvice(input, cashFlow, projections, debts, scopes);
   const healthScore = computeHealthScore(cashFlow, projections, debts);
 

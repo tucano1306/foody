@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { motion, useDragControls } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/solid';
+import { lockBodyScroll } from '@/lib/scroll-lock';
 
 interface Props {
   readonly title: string;
@@ -36,11 +37,13 @@ export default function ModalShell({
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', onKey);
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    // Contado, no guardado y restaurado a mano: dos modales SOLAPADOS —los que
+    // deja el paso «detalle → abonar» en Deudas— se pisaban el estado anterior
+    // y el fondo se quedaba sin scroll con todo cerrado. Ver scroll-lock.ts.
+    const unlock = lockBodyScroll();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previous;
+      unlock();
     };
   }, [onClose]);
 

@@ -19,6 +19,7 @@ import {
   ShareIcon,
   BanknotesIcon,
   FlagIcon,
+  ScaleIcon,
 } from '@heroicons/react/24/solid';
 import ThemeToggle from './ThemeToggle';
 
@@ -39,6 +40,11 @@ const NAV_SECTIONS = [
     items: [
       { href: '/budget',   icon: BanknotesIcon,  label: 'Presupuesto' },
       { href: '/payments', icon: CreditCardIcon, label: 'Pagos' },
+      // Deudas colgaba de Pagos y solo se llegaba por un botón dentro. Son dos
+      // cosas distintas —un recibo se paga y se olvida; una deuda tiene saldo,
+      // interés y fecha de salida— y esconder la segunda dentro de la primera
+      // la hacía invisible.
+      { href: '/debts',    icon: ScaleIcon,      label: 'Deudas' },
       { href: '/plan',     icon: FlagIcon,       label: 'Plan financiero' },
     ],
   },
@@ -162,7 +168,7 @@ export default function Navbar({ user }: Props) {
       {/* ─── Desktop sidebar (pastel blue) ──────────────────────────────────── */}
       <aside className="hidden md:flex flex-col w-64 shrink-0 h-screen sticky top-0 bg-linear-to-b from-sky-100 via-blue-50 to-sky-100 dark:from-navy-800 dark:via-navy-900 dark:to-navy-900 border-r border-sky-200/70 dark:border-navy-700 shadow-xl z-40 overflow-y-auto">
         <div className="flex items-center gap-4 px-6 pt-8 pb-3">
-          <Image src="/logo.png" alt="Foody" width={52} height={52} className="object-contain drop-shadow-md" priority />
+          <Image src="/logo-fy.png" alt="Foody" width={52} height={52} className="object-contain drop-shadow-md" priority />
           <h1 className={`text-3xl font-black tracking-tight ${logoTextCls}`}>
             Foody
           </h1>
@@ -219,7 +225,7 @@ export default function Navbar({ user }: Props) {
       <div className="md:hidden">
         <header className="sticky top-0 z-40 flex items-center justify-between px-4 h-16 bg-sky-100/95 dark:bg-navy-900/95 backdrop-blur border-b border-sky-200 dark:border-navy-700 shadow-lg">
           <Link href="/home" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="Foody" width={36} height={36} className="object-contain drop-shadow-md" priority />
+            <Image src="/logo-fy.png" alt="Foody" width={36} height={36} className="object-contain drop-shadow-md" priority />
             <span className={`text-xl font-black ${logoTextCls}`}>
               Foody
             </span>
@@ -258,7 +264,7 @@ export default function Navbar({ user }: Props) {
         >
           <div className="flex items-center justify-between px-5 pt-6 pb-3">
             <div className="flex items-center gap-2.5">
-              <Image src="/logo.png" alt="Foody" width={32} height={32} className="object-contain drop-shadow-md" priority />
+              <Image src="/logo-fy.png" alt="Foody" width={32} height={32} className="object-contain drop-shadow-md" priority />
               <span className={`text-xl font-bold ${logoTextCls}`}>
                 Foody
               </span>

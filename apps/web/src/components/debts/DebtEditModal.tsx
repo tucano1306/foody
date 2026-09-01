@@ -8,6 +8,7 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import ScopePicker from '@/components/ui/ScopePicker';
 import SplitBar from './SplitBar';
+import { parseMoney, parseDecimal } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
@@ -59,6 +60,11 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
     debt.minPercent != null ? String(debt.minPercent) : '',
   );
   const [dueDay, setDueDay] = useState(debt.dueDay);
+  const [promoEndsOn, setPromoEndsOn] = useState(debt.promoEndsOn ?? '');
+  const [rateAfterPromo, setRateAfterPromo] = useState(
+    debt.rateAfterPromo != null ? String(debt.rateAfterPromo) : '',
+  );
+  const [cycleDays, setCycleDays] = useState(debt.cycleDays != null ? String(debt.cycleDays) : '');
   const [creditLimit, setCreditLimit] = useState(
     debt.creditLimit != null ? String(debt.creditLimit) : '',
   );
@@ -70,32 +76,44 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const rateNum = Number.parseFloat(rate);
-  const customNum = Number.parseFloat(customPayment);
-  const extraNum = Number.parseFloat(extraMonthly);
+  const rateNum = parseDecimal(rate);
+  const customNum = parseMoney(customPayment);
+  const extraNum = parseMoney(extraMonthly);
+  // `null` es «no escribió nada»; distinguirlo de 0 evita mandar huecos.
+  const hasCustom = customNum !== null && customNum > 0;
+  const hasExtra = extraNum !== null && extraNum > 0;
 
   /** La consecuencia de cada cambio, en vivo y con el saldo real. */
   const projection = useMemo(
     () =>
       projectDebt({
         balance: debt.currentBalance,
-        rate: Number.isFinite(rateNum) ? rateNum : 0,
+        rate: rateNum ?? 0,
         ratePeriod,
         strategy,
         termMonths,
         payoffDate: payoffDate || null,
-        customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
-        minPercent: Number.parseFloat(minPercent) || null,
+        customPayment: hasCustom ? customNum : null,
+        minPercent: parseDecimal(minPercent) || null,
         minFloor: debt.minFloor,
-        extraMonthly: Number.isFinite(extraNum) ? extraNum : 0,
+        extraMonthly: extraNum ?? 0,
+        // La promoción se edita en este mismo formulario: sin pasarla aquí, la
+        // vista previa seguía prometiendo «$0.00 de intereses» justo mientras
+        // se escribe la fecha en que ese 0 % deja de existir.
+        promoEndsOn: promoEndsOn || null,
+        rateAfterPromo: promoEndsOn ? parseDecimal(rateAfterPromo) : null,
+        cycleDays: parseDecimal(cycleDays) || null,
+        // El día de vencimiento decide cuántas cuotas caben antes de que muera
+        // la promo, así que moverlo cambia la proyección aquí mismo.
+        dueDay,
       }),
-    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum],
+    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum, promoEndsOn, rateAfterPromo, cycleDays, dueDay],
   );
 
   const status = STATUS_META[projection.status];
   const valid =
     name.trim().length > 0 &&
-    Number.isFinite(rateNum) &&
+    rateNum !== null &&
     rateNum >= 0 &&
     (strategy !== 'by_date' || payoffDate !== '');
 
@@ -125,10 +143,15 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
           strategy,
           termMonths: strategy === 'fixed_installment' ? termMonths : null,
           payoffDate: strategy === 'by_date' ? payoffDate : null,
-          customPayment: Number.isFinite(customNum) && customNum > 0 ? customNum : null,
-          minPercent: Number.parseFloat(minPercent) || null,
-          extraMonthly: Number.isFinite(extraNum) && extraNum > 0 ? extraNum : 0,
-          creditLimit: Number.parseFloat(creditLimit) || null,
+          customPayment: hasCustom ? customNum : null,
+          minPercent: parseDecimal(minPercent) || null,
+          extraMonthly: hasExtra ? extraNum : 0,
+          // La fecha sin la tasa posterior no sirve de nada: se manda el par o
+          // no se manda ninguno.
+          promoEndsOn: promoEndsOn || null,
+          rateAfterPromo: promoEndsOn ? parseDecimal(rateAfterPromo) : null,
+          cycleDays: parseDecimal(cycleDays) || null,
+          creditLimit: parseMoney(creditLimit) || null,
           dueDay,
           businessShare,
           note: note.trim() || null,
@@ -239,10 +262,8 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-400">%</span>
             <input
               id="edit-rate"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="0.01"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
               className={`${inputCls} pr-12 text-xl font-extrabold`}
@@ -363,10 +384,8 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-custom"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0.01}
-              step="0.01"
               value={customPayment}
               onChange={(e) => setCustomPayment(e.target.value)}
               className={`${inputCls} text-right text-xl font-extrabold`}
@@ -381,11 +400,9 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-minpct"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
               max={100}
-              step="0.1"
               value={minPercent}
               onChange={(e) => setMinPercent(e.target.value)}
               placeholder="5"
@@ -437,10 +454,8 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-extra"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="0.01"
               value={extraMonthly}
               onChange={(e) => setExtraMonthly(e.target.value)}
               placeholder="0"
@@ -453,15 +468,75 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             </label>
             <input
               id="edit-limit"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="0.01"
               value={creditLimit}
               onChange={(e) => setCreditLimit(e.target.value)}
               placeholder="—"
               className={inputCls}
             />
+          </div>
+        </div>
+
+        {/* ─── La promoción al 0 %, si la hay ──────────────────────────────
+            Un saldo «0 % hasta el 25/01/2027» no es una deuda gratis: es una
+            gratis HASTA esa fecha. Sin estos dos datos la app prometía que no
+            costaba nada y callaba la única fecha con consecuencias. */}
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+          <p className="mb-2.5 text-xs font-bold text-slate-600">
+            ¿Es un saldo promocional al 0 %?
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="edit-promo-ends" className="mb-1 block text-[11px] font-semibold text-slate-500">
+                El 0 % dura hasta
+              </label>
+              <input
+                id="edit-promo-ends"
+                type="date"
+                value={promoEndsOn}
+                onChange={(e) => setPromoEndsOn(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-rate-after" className="mb-1 block text-[11px] font-semibold text-slate-500">
+                Después, tasa anual
+              </label>
+              <input
+                id="edit-rate-after"
+                type="text"
+                inputMode="decimal"
+                value={rateAfterPromo}
+                onChange={(e) => setRateAfterPromo(e.target.value)}
+                placeholder="23.74"
+                className={inputCls}
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+            Los dos vienen en tu estado de cuenta, en «Cálculo del Cargo por Intereses».
+            Con esto la app te dirá cuánto tienes que pagar al mes para liquidarlo antes de
+            que empiece a cobrar.
+          </p>
+
+          <div className="mt-3">
+            <label htmlFor="edit-cycle-days" className="mb-1 block text-[11px] font-semibold text-slate-500">
+              Días del ciclo de facturación
+            </label>
+            <input
+              id="edit-cycle-days"
+              type="text"
+              inputMode="numeric"
+              value={cycleDays}
+              onChange={(e) => setCycleDays(e.target.value)}
+              placeholder="31"
+              className={inputCls}
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Con esto el interés se calcula como lo cobra el banco —tasa diaria por días del
+              ciclo— y la cifra cuadra al centavo con tu estado.
+            </p>
           </div>
         </div>
 

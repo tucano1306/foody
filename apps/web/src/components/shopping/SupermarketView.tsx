@@ -11,9 +11,12 @@ import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstFromElement, confettiRain } from '@/lib/fx';
+import { useCelebration } from '@/components/ui/Celebration';
+import { matchesWords, normalizeSearchText, searchWords } from '@/lib/text-search';
 import { useToast } from '@/components/ui/Toast';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
+import { lockBodyScroll } from '@/lib/scroll-lock';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
@@ -99,10 +102,6 @@ function normalizeText(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
-function textMatches(haystack: string, normalizedNeedle: string): boolean {
-  return normalizeText(haystack).includes(normalizedNeedle);
-}
-
 /** Sold-by-weight heuristic from the product's unit (lb, libras, kg, oz…). */
 function isWeightUnit(unit: string | null | undefined): boolean {
   if (!unit) return false;
@@ -138,9 +137,22 @@ function sortCategories(cats: string[]): string[] {
   });
 }
 
+/**
+ * «12 artículos · $48.20» — el dato del que uno se siente dueño al terminar.
+ * Sin total escrito se dice solo lo que sí se sabe, en vez de inventar un cero.
+ */
+export function resumenDeCompra(articulos: number, total: string): string {
+  const cuantos = `${articulos} ${articulos === 1 ? 'artículo' : 'artículos'}`;
+  const importe = Number.parseFloat(total);
+  return Number.isFinite(importe) && importe > 0
+    ? `${cuantos} · $${importe.toFixed(2)}`
+    : cuantos;
+}
+
 export default function SupermarketView({ initialItems, pastStoreNames }: Props) {
   const router = useRouter();
   const toast = useToast();
+  const { celebrate } = useCelebration();
   const [items, setItems] = useState(initialItems);
   const [, startTransition] = useTransition();
   const [completing, setCompleting] = useState(false);
@@ -152,6 +164,16 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   // ─── Persisted shopping session (survives app close) ───────────────────────
   const [hydrated, setHydrated] = useState(false);
   const [entries, setEntries] = useState<Record<string, PriceEntry[]>>({});
+  /**
+   * Marca comprada esta vez, por producto.
+   *
+   * En la lista pone «Queso Parmesano», pero en el estante hay tres marcas. Va
+   * aquí y no en el producto porque para la despensa sigue siendo UN artículo:
+   * lo que cambia es la marca de esta compra y su precio. Ver product-brands.ts.
+   */
+  const [brands, setBrands] = useState<Record<string, string>>({});
+  /** Marcas que ya compró de cada producto, para ofrecerlas de un toque. */
+  const [knownBrands, setKnownBrands] = useState<Record<string, string[]>>({});
   const [cartTimes, setCartTimes] = useState<Record<string, number>>({});
   const [storeName, setStoreName] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -192,10 +214,19 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   const anySheetOpen = showModal || editorItemId !== null || showAddSheet;
   useEffect(() => {
     if (!anySheetOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    return lockBodyScroll();
   }, [anySheetOpen]);
+
+  // Los atajos de marca se piden una sola vez: es una lista de nombres
+  // cortos y evita teclear «Kraft» en cada compra.
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/products/brands', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data) => { if (alive) setKnownBrands(data as Record<string, string[]>); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
 
   const { inCart, notInCart, urgent, low } = useMemo(() => {
     const inCart = items.filter((i) => i.isInCart);
@@ -372,6 +403,13 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
           totalAmount: totalAmount.trim() ? Number.parseFloat(totalAmount) : undefined,
           quantities,
           unitPrices: Object.keys(unitPrices).length > 0 ? unitPrices : undefined,
+          // Solo las marcas de lo que va en el carrito, y solo las escritas:
+          // mandar cadenas vacías crearía una «marca sin nombre» en la base.
+          brands: Object.fromEntries(
+            inCart
+              .map((i) => [i.product.id, (brands[i.product.id] ?? '').trim()] as const)
+              .filter(([, b]) => b.length > 0),
+          ),
         }),
       });
 
@@ -379,6 +417,18 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         const data = await res.json();
         playSound('purchase');
         confettiRain(['🛒', '🎉', '🥳']);
+        // La compra terminada es el logro grande de esta pantalla: se dice con
+        // el número que costó llenar el carrito, no con un aviso de esquina.
+        //
+        // SIN chispas propias: la lluvia de confeti ya está cayendo por encima
+        // (va en su propia capa, más alta). Sumar los dos sistemas serían ~84
+        // partículas a la vez —trabajo de sobra para un teléfono modesto— y
+        // visualmente se estorban en vez de sumar.
+        celebrate({
+          emoji: '🛍️',
+          title: '¡Compra hecha!',
+          detail: resumenDeCompra(inCart.length, totalAmount),
+        });
         if (data.purchaseError) {
           toast.show('Compra guardada, pero algunos precios no se pudieron guardar.', 'info');
         } else {
@@ -399,14 +449,20 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
   }
 
   // ─── Search + filters (cover BOTH pending and purchased) ────────────────────
-  const q = normalizeText(search.trim());
+  // Por palabras y en un solo texto: antes el nombre y la categoría se miraban
+  // por separado, así que «dental higiene» no encontraba nada aunque una
+  // palabra estuviera en cada campo. Ver text-search.ts.
+  //
+  // La cadena normalizada se guarda aparte de las palabras porque es lo que
+  // llevan las listas de dependencias de abajo: `searchWords` devuelve un
+  // arreglo nuevo en cada render y usarlo ahí recalcularía todo sin parar.
+  const q = normalizeSearchText(search);
+  const searchTerms = q ? q.split(' ') : [];
 
   function matches(item: ShoppingListItem): boolean {
-    if (q) {
-      if (
-        !textMatches(item.product.name, q) &&
-        !textMatches(item.product.category ?? 'Sin categoría', q)
-      ) return false;
+    if (searchTerms.length > 0) {
+      const hay = `${item.product.name} ${item.product.category ?? 'Sin categoría'}`;
+      if (!matchesWords(hay, searchTerms)) return false;
     }
     // Accent/case-insensitive: selecting "Lácteos" also matches products saved
     // as "lácteos", "Lacteos", "LÁCTEOS"… so no item of the category is hidden.
@@ -805,6 +861,11 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         <PriceEditorSheet
           item={editorItem}
           entries={getEntriesFor(editorItem)}
+          brand={brands[editorItem.product.id] ?? ''}
+          brandOptions={knownBrands[editorItem.product.id] ?? []}
+          onBrandChange={(b) =>
+            setBrands((prev) => ({ ...prev, [editorItem.product.id]: b }))
+          }
           onChange={(updater) => updateEntries(editorItem.product.id, updater, editorItem)}
           onScan={(index) => setScanTarget({ productId: editorItem.product.id, index })}
           onRemoveFromList={!editorItem.isInCart ? () => setRemoveTarget(editorItem) : undefined}
@@ -1157,6 +1218,9 @@ function PriceEditorSheet({
   entries,
   onChange,
   onScan,
+  brand,
+  brandOptions,
+  onBrandChange,
   onRemoveFromList,
   onMarkBought,
   onReturnToPending,
@@ -1165,6 +1229,9 @@ function PriceEditorSheet({
 }: {
   readonly item: ShoppingListItem;
   readonly entries: PriceEntry[];
+  readonly brand: string;
+  readonly brandOptions: readonly string[];
+  readonly onBrandChange: (brand: string) => void;
   readonly onChange: (updater: (prev: PriceEntry[]) => PriceEntry[]) => void;
   readonly onScan: (index: number) => void;
   readonly onRemoveFromList?: () => void;
@@ -1240,6 +1307,49 @@ function PriceEditorSheet({
           >
             ✕
           </button>
+        </div>
+
+        {/* ── Marca de ESTA compra ─────────────────────────────────────────
+            En la lista pone «Queso Parmesano»; en el estante hay tres marcas y
+            a veces te llevas otra. Anotarla aquí deja el artículo de despensa
+            como está —sigue siendo uno— y etiqueta el precio, para que
+            «Comparar precios» pueda decirte qué marca sale mejor en vez de
+            promediarlas a ciegas. Opcional: en blanco no pasa nada. */}
+        <div className="mb-3">
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              Marca <span className="font-normal text-slate-400">· opcional</span>
+            </span>
+            <input
+              type="text"
+              value={brand}
+              onChange={(e) => onBrandChange(e.target.value)}
+              placeholder="¿Cuál te llevaste?"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-100 focus:border-brand-500 focus:outline-none"
+            />
+          </label>
+          {brandOptions.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {brandOptions.map((b) => {
+                const active = brand.trim().toLowerCase() === b.toLowerCase();
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => { haptic(); onBrandChange(active ? '' : b); }}
+                    aria-pressed={active}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-bold transition active:scale-95 ${
+                      active
+                        ? 'border-sky-500 bg-sky-500 text-white'
+                        : 'border-sky-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {b}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Hint */}
@@ -1552,11 +1662,12 @@ function AddProductSheet({
   }, []);
 
   const visible = useMemo(() => {
-    const q = normalizeText(query.trim());
+    const words = searchWords(query);
     const pool = products.filter((p) => !existingProductIds.has(p.id));
-    const filtered = q
-      ? pool.filter((p) => textMatches(p.name, q) || textMatches(p.category ?? '', q))
-      : pool;
+    const filtered =
+      words.length > 0
+        ? pool.filter((p) => matchesWords(`${p.name} ${p.category ?? ''}`, words))
+        : pool;
     // Faltantes primero (lo más probable que quieras re-agregar), luego A-Z.
     return [...filtered].sort((a, b) => {
       const rank = (lvl: PantryPick['stockLevel']) => (lvl === 'empty' ? 0 : lvl === 'half' ? 1 : 2);

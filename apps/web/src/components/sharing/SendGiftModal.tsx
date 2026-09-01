@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { lockBodyScroll } from '@/lib/scroll-lock';
 
 interface Props {
   readonly productId: string;
@@ -24,9 +25,7 @@ export default function SendGiftModal({ productId, productName, onClose }: Props
   useEffect(() => {
     const el = dialogRef.current;
     if (el && !el.open) el.showModal();
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prevOverflow; };
+    return lockBodyScroll();
   }, []);
 
   function handleSubmit(e: React.BaseSyntheticEvent) {

@@ -8,14 +8,20 @@
  * solo con total — recibo sin vincular — cuenta completo), más las compras
  * sueltas sin ticket agrupadas por sesión. Sumar product_purchases a secas
  * ignoraría los tickets sin items y contaría doble los que sí tienen.
+ *
+ * SOLO cuenta el super (`kind = 'grocery'`). El límite mensual que el usuario
+ * configura aquí es un límite de DESPENSA: meter en él la cena del sábado o la
+ * gasolina hacía que el presupuesto se pasara de rojo por gastos que nunca
+ * pretendió cubrir.
  */
 import { sql } from '@/lib/db';
+import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
 
-export interface BudgetMonthEntry {
-  month: string; // YYYY-MM
-  total: number;
-  trips: number;
-}
+// El tipo vive en budget-history.ts, que es donde estan las funciones puras
+// que lo manipulan. Tenerlo declarado dos veces ya provoco que una copia
+// ganara un campo y la otra no.
+import { budgetFigures, type BudgetMonthEntry } from '@/lib/budget-history';
+export type { BudgetMonthEntry };
 
 export interface BudgetData {
   monthlyLimit: number;
@@ -50,6 +56,8 @@ export function currentMonthKey(now = new Date()): string {
 
 export async function getBudgetData(userId: string): Promise<BudgetData> {
   await ensureBudgetSchema();
+  // Antes de filtrar por `kind` hay que garantizar que la columna existe.
+  await ensureExpenseKindSchema();
 
   const [settingsRows, historyRows] = await Promise.all([
     sql`
@@ -63,13 +71,22 @@ export async function getBudgetData(userId: string): Promise<BudgetData> {
       SELECT
         TO_CHAR(DATE_TRUNC('month', d), 'YYYY-MM') AS month,
         COALESCE(SUM(total), 0) AS total,
+        COALESCE(SUM(personal), 0) AS personal,
         COUNT(*) AS trips
       FROM (
-        SELECT date AS d, COALESCE(total_spent, 0) AS total
+        -- Los tickets llevan su porcentaje de negocio; la parte personal se
+        -- calcula aqui para que el reparto y la suma ocurran de una sola vez.
+        SELECT date AS d,
+               COALESCE(total_spent, 0) AS total,
+               COALESCE(total_spent, 0) * (1 - COALESCE(business_share, 0) / 100.0) AS personal
         FROM shopping_trips
-        WHERE user_id = ${userId}
+        WHERE user_id = ${userId} AND kind = 'grocery'
         UNION ALL
-        SELECT purchased_at AS d, SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
+        -- Las compras sueltas no tienen ambito: cuentan enteras como personales,
+        -- que es lo que son mientras nadie diga lo contrario.
+        SELECT purchased_at AS d,
+               SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total,
+               SUM(COALESCE(total_price, unit_price * quantity, 0)) AS personal
         FROM product_purchases
         WHERE user_id = ${userId} AND trip_id IS NULL
         GROUP BY purchased_at, COALESCE(store_name, '')
@@ -84,24 +101,19 @@ export async function getBudgetData(userId: string): Promise<BudgetData> {
     ? Number.parseFloat((settingsRows[0] as { monthly_limit: string }).monthly_limit)
     : 0;
 
-  const history: BudgetMonthEntry[] = (historyRows as { month: string; total: string; trips: string }[]).map((r) => ({
+  const history: BudgetMonthEntry[] = (
+    historyRows as { month: string; total: string; personal: string; trips: string }[]
+  ).map((r) => ({
     month: r.month,
     total: Number.parseFloat(r.total),
+    personal: Math.round(Number.parseFloat(r.personal) * 100) / 100,
     trips: Number.parseInt(r.trips, 10),
   }));
 
-  const nowKey = currentMonthKey();
-  const spentThisMonth = history.find((h) => h.month === nowKey)?.total ?? 0;
-
-  // Promedio solo sobre meses COMPLETOS con datos (el mes en curso a medias
-  // distorsionaría la sugerencia de límite).
-  const pastMonths = history.filter((h) => h.month !== nowKey);
-  const avgMonthly = pastMonths.length > 0
-    ? Math.round(pastMonths.reduce((s, h) => s + h.total, 0) / pastMonths.length)
-    : 0;
-
-  const percentUsed = monthlyLimit > 0 ? Math.min(200, (spentThisMonth / monthlyLimit) * 100) : null;
-  const remaining = monthlyLimit > 0 ? monthlyLimit - spentThisMonth : null;
+  // Las cuatro cifras salen de la MISMA funcion que usa la pantalla al cambiar
+  // de pestaña: con la formula duplicada, el dia que cambie una copia, «llevas
+  // gastado» y la grafica de debajo dejarian de cuadrar.
+  const { spentThisMonth, avgMonthly, percentUsed, remaining } = budgetFigures(history, monthlyLimit);
 
   return { monthlyLimit, spentThisMonth, remaining, percentUsed, avgMonthly, currency: 'USD', history };
 }

@@ -42,7 +42,13 @@ export async function POST(request: NextRequest) {
     VALUES (
       ${id}, ${user.userId}, ${input.name}, ${input.emoji}, ${input.kind},
       ${input.targetAmount}, ${input.savedAmount}, ${input.targetDate},
-      ${input.priority}, ${input.monthlyOverride}, ${input.status}, ${input.note},
+      COALESCE(
+        ${input.priority},
+        -- Sin posición pedida, la meta nueva entra al final: quien la crea decide
+        -- después dónde va arrastrándola, y mientras tanto no desordena nada.
+        (SELECT COALESCE(MAX(priority), 0) + 1 FROM finance_goals WHERE user_id = ${user.userId})
+      ),
+      ${input.monthlyOverride}, ${input.status}, ${input.note},
       NOW(), NOW()
     )
     RETURNING *

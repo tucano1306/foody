@@ -11,6 +11,21 @@ export async function GET(request: NextRequest) {
 
   const runningLow = request.nextUrl.searchParams.get('runningLow') === 'true';
 
+  // `?lite=true` — solo lo que necesita un selector de productos.
+  //
+  // El `SELECT *` de abajo arrastra `photo_url`, que es la columna más pesada
+  // con diferencia (base64) y la que agotó la cuota de transferencia de Neon.
+  // Un buscador no dibuja ninguna imagen, así que no tiene por qué pagarla.
+  if (request.nextUrl.searchParams.get('lite') === 'true') {
+    const lite = await sql`
+      SELECT id, name, category, unit, last_purchase_price
+      FROM products
+      WHERE user_id = ${user.userId}
+      ORDER BY name ASC
+    `;
+    return NextResponse.json(lite);
+  }
+
   // Per-user isolation: a user only sees products they own, regardless of
   // household membership.
   const rows = runningLow

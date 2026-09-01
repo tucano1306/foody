@@ -2,8 +2,10 @@ import { getSession } from './session';
 import { sql } from './db';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
-import { ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
 import { normalizeShare } from './expense-scope';
+import { normalizeAnchorMonth, normalizeFrequency } from './payment-frequency';
+import { normalizeExpenseKind } from './expense-kind';
 import { randomUUID } from 'node:crypto';
 
 interface PushSubscriptionJSON {
@@ -161,6 +163,8 @@ function mapMonthlyPayment(
   aggregates?: PaymentAggregates,
 ): MonthlyPayment {
   const dueDay = asInteger(row.due_day, 1);
+  const frequency = normalizeFrequency(row.frequency);
+  const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
   const aggr = aggregates ?? { ...EMPTY_AGGREGATES, isPaidThisMonth: currentRecord?.status === 'paid' };
   const isPaidThisMonth = aggr.isPaidThisMonth;
   return {
@@ -170,6 +174,8 @@ function mapMonthlyPayment(
     amount: asNumber(row.amount),
     currency: asText(row.currency, 'USD'),
     dueDay,
+    frequency,
+    anchorMonth,
     category: ((row.category as string | null | undefined) ?? 'other'),
     isActive: row.is_active == null ? true : Boolean(row.is_active),
     notificationDaysBefore: asInteger(row.notification_days_before, 1),
@@ -208,6 +214,10 @@ function mapShoppingTrip(row: Record<string, unknown>): ShoppingTrip {
     allocationStrategy: (row.allocation_strategy as AllocationStrategy | undefined) ?? 'manual_partial',
     receiptPhotoUrl: (row.receipt_photo_url as string | null | undefined) ?? null,
     notes: (row.notes as string | null | undefined) ?? null,
+    kind: normalizeExpenseKind(row.kind),
+    // Sin esto, Compras no puede separar lo personal de lo del negocio: la
+    // columna existe en la base desde hace tiempo, pero se quedaba aquí.
+    businessShare: normalizeShare(row.business_share),
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
@@ -396,13 +406,13 @@ export const api = {
     },
     markLow: async (id: string) => {
       const { userId } = await getAuthContext();
-      const rows = await sql`UPDATE products SET stock_level='half', is_running_low=true, needs_shopping=true, updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET stock_level='half', stock_updated_at = NOW(), is_running_low=true, needs_shopping=true, updated_at=NOW() WHERE id=${id} RETURNING *`;
       await sql`INSERT INTO shopping_list_items (id, product_id, user_id, created_at, updated_at) VALUES (gen_random_uuid(), ${id}, ${userId}, NOW(), NOW()) ON CONFLICT DO NOTHING`;
       return mapProduct(rows[0] as Record<string, unknown>);
     },
     markOk: async (id: string) => {
       const { userId } = await getAuthContext();
-      const rows = await sql`UPDATE products SET stock_level='full', is_running_low=false, needs_shopping=false, updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET stock_level='full', stock_updated_at = NOW(), is_running_low=false, needs_shopping=false, updated_at=NOW() WHERE id=${id} RETURNING *`;
       await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       return mapProduct(rows[0] as Record<string, unknown>);
     },
@@ -410,7 +420,7 @@ export const api = {
       const { userId } = await getAuthContext();
       const isRunningLow = level !== 'full';
       const needsShopping = level === 'empty';
-      const rows = await sql`UPDATE products SET stock_level=${level}, is_running_low=${isRunningLow}, needs_shopping=${needsShopping}, updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET stock_level=${level}, stock_updated_at = NOW(), is_running_low=${isRunningLow}, needs_shopping=${needsShopping}, updated_at=NOW() WHERE id=${id} RETURNING *`;
       if (level === 'full') {
         await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       } else {
@@ -436,7 +446,7 @@ export const api = {
         VALUES (${purchaseId}, ${id}, ${data.quantity}, ${unitPrice}, ${totalPrice}, 'manual', ${data.currency ?? 'USD'}, ${data.purchasedAt ?? new Date().toISOString()}, ${userId}, ${householdId}, NOW())
         RETURNING *
       `;
-      const rows = await sql`UPDATE products SET current_quantity=current_quantity+${data.quantity}, stock_level='full', is_running_low=false, needs_shopping=false, last_purchase_price=${unitPrice}, last_purchase_date=NOW(), updated_at=NOW() WHERE id=${id} RETURNING *`;
+      const rows = await sql`UPDATE products SET current_quantity=current_quantity+${data.quantity}, stock_level='full', stock_updated_at = NOW(), is_running_low=false, needs_shopping=false, last_purchase_price=${unitPrice}, last_purchase_date=NOW(), updated_at=NOW() WHERE id=${id} RETURNING *`;
       await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       return {
         product: mapProduct(rows[0] as Record<string, unknown>),
@@ -500,9 +510,37 @@ export const api = {
       `;
       return (rows as { product_id: string }[]).map((r) => String(r.product_id));
     },
+    /**
+     * «Más comprados»: lo que se repite, para anticipar la próxima compra.
+     *
+     * Cuenta TICKETS y no unidades a propósito: para predecir cuándo toca
+     * reponer importa cada cuánto se compra algo, no si ese día cayeron tres
+     * paquetes o uno.
+     *
+     * Va filtrado por `kind = 'grocery'` como toda consulta de despensa (ver
+     * expense-kind-split): sin el filtro, una cena en un restaurante o una
+     * caja de pastillas entraban en la lista de «productos más comprados» de
+     * la cocina. `ensureExpenseKindSchema` antes de usar la columna, o en un
+     * arranque en frío revienta con «column kind does not exist».
+     */
     frequent: async () => {
       const { userId } = await getAuthContext();
-      const rows = await sql`SELECT product_id as "productId", p.name, p.photo_url as "photoUrl", COUNT(*) as purchases, MAX(purchased_at) as "lastPurchasedAt" FROM product_purchases pp JOIN products p ON pp.product_id = p.id WHERE pp.user_id = ${userId} GROUP BY product_id, p.name, p.photo_url ORDER BY purchases DESC LIMIT 10`;
+      await ensureExpenseKindSchema();
+      const rows = await sql`
+        SELECT pp.product_id AS "productId",
+               p.name,
+               p.photo_url AS "photoUrl",
+               COUNT(*) AS purchases,
+               MAX(pp.purchased_at) AS "lastPurchasedAt"
+        FROM product_purchases pp
+        JOIN products p ON pp.product_id = p.id
+        LEFT JOIN shopping_trips t ON t.id = pp.trip_id
+        WHERE pp.user_id = ${userId}
+          AND (pp.trip_id IS NULL OR t.kind = 'grocery')
+        GROUP BY pp.product_id, p.name, p.photo_url
+        ORDER BY purchases DESC, MAX(pp.purchased_at) DESC
+        LIMIT 10
+      `;
       return rows.map((row) => ({
         productId: String(row.productId),
         name: asText(row.name),
@@ -532,8 +570,10 @@ export const api = {
       const rows = await sql`UPDATE shopping_list_items SET in_cart = NOT in_cart WHERE id = ${id} RETURNING *`;
       return rows[0];
     },
+    /** Gasto en COMIDA de casa (super). Comer fuera es otra cosa y va al plan. */
     monthlyFoodSpending: async (): Promise<{ currentTotal: number; previousTotal: number; purchaseCount: number }> => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       // Igual que byStore/presupuesto: el total_spent de cada ticket es la
       // cifra autoritativa (un ticket sin items vinculados cuenta completo),
       // más las compras sueltas sin ticket agrupadas por sesión. Sumar
@@ -546,7 +586,7 @@ export const api = {
           COUNT(*) AS purchase_count
         FROM (
           SELECT date AS d, COALESCE(total_spent, 0) AS total
-          FROM shopping_trips WHERE user_id = ${userId}
+          FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
           UNION ALL
           SELECT purchased_at AS d, SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
           FROM product_purchases
@@ -600,11 +640,16 @@ export const api = {
       return payments.map((row) => {
         const paymentRow = row as Record<string, unknown>;
         const paymentId = String(paymentRow.id);
+        // La frecuencia decide QUE meses cuentan: sin ella, un recibo
+        // semestral acumulaba cinco atrasos falsos por cada cobro real.
+        const frecuencia = normalizeFrequency(paymentRow.frequency);
         const aggregates = buildPaymentAggregates({
           createdAt: new Date(paymentRow.created_at as string),
           dueDay: asInteger(paymentRow.due_day, 1),
           amount: asNumber(paymentRow.amount),
           paidRecords: paidByPayment.get(paymentId) ?? [],
+          frequency: frecuencia,
+          anchorMonth: normalizeAnchorMonth(paymentRow.anchor_month, frecuencia),
         });
         return mapMonthlyPayment(paymentRow, recordMap.get(paymentId), aggregates);
       });
@@ -784,13 +829,39 @@ export const api = {
     },
   },
   shoppingTrips: {
+    /**
+     * La sección Compras: SOLO tickets de super.
+     *
+     * Una cena o una farmacia no tienen precio que comparar ni despensa que
+     * llenar, y colarlas aquí ensuciaba el total, el promedio por ticket y las
+     * medallas de "más cara / más barata". Viven en el Plan Financiero.
+     */
     list: async () => {
       const { userId } = await getAuthContext();
-      const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${userId} ORDER BY date DESC`;
+      await ensureExpenseKindSchema();
+      const rows = await sql`
+        SELECT * FROM shopping_trips
+        WHERE user_id = ${userId} AND kind = 'grocery'
+        ORDER BY date DESC
+      `;
       return rows.map((row) => mapShoppingTrip(row as Record<string, unknown>));
+    },
+    /** Cuántos tickets NO son de super este mes — para el enlace al plan. */
+    otherKindsThisMonth: async (): Promise<{ count: number; total: number }> => {
+      const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
+      const rows = await sql`
+        SELECT COUNT(*) AS count, COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
+        FROM shopping_trips
+        WHERE user_id = ${userId} AND kind <> 'grocery'
+          AND date >= DATE_TRUNC('month', NOW())
+      `;
+      const row = rows[0] as { count: unknown; total: unknown } | undefined;
+      return { count: asInteger(row?.count), total: asNumber(row?.total) };
     },
     byStore: async () => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       // Real visits without double counting: formal trips (authoritative
       // total_spent) plus loose trip-less purchases grouped into one session
       // per shared batch timestamp. Counting product_purchases rows directly
@@ -799,7 +870,7 @@ export const api = {
         SELECT name AS "storeName", SUM(total) AS total, COUNT(*) AS count
         FROM (
           SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
-          FROM shopping_trips WHERE user_id = ${userId}
+          FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
           UNION ALL
           SELECT COALESCE(store_name, 'Sin tienda') AS name,
             SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
@@ -816,8 +887,10 @@ export const api = {
         count: asInteger(row.count),
       }));
     },
+    /** El detalle abre CUALQUIER ticket: es donde se reclasifica uno mal puesto. */
     get: async (id: string) => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       const tripRows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
       if (!tripRows[0]) return null;
 
@@ -835,10 +908,11 @@ export const api = {
     },
     create: async (data: CreateShoppingTripDto) => {
       const { userId, householdId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       const id = randomUUID();
       const rows = await sql`
-        INSERT INTO shopping_trips (id, store_id, store_name, date, total_spent, currency, notes, user_id, household_id, created_at, updated_at)
-        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'USD'}, ${data.notes ?? null}, ${userId}, ${householdId}, NOW(), NOW())
+        INSERT INTO shopping_trips (id, store_id, store_name, date, total_spent, currency, notes, kind, user_id, household_id, created_at, updated_at)
+        VALUES (${id}, ${data.storeId ?? null}, ${data.storeName ?? null}, ${data.purchasedAt ?? new Date().toISOString()}, ${data.totalAmount ?? 0}, ${data.currency ?? 'USD'}, ${data.notes ?? null}, ${normalizeExpenseKind(data.kind)}, ${userId}, ${householdId}, NOW(), NOW())
         RETURNING *
       `;
       return {
@@ -858,11 +932,13 @@ export const api = {
     },
     priceComparison: async () => {
       const { userId } = await getAuthContext();
+      await ensureExpenseKindSchema();
       const rows = await sql`
         SELECT
           p.id AS product_id,
           p.name AS product_name,
           pp.store_name,
+          pp.brand,
           MIN(pp.unit_price) AS min_price,
           MAX(pp.unit_price) AS max_price,
           AVG(pp.unit_price) AS avg_price,
@@ -870,16 +946,24 @@ export const api = {
           MAX(pp.purchased_at) AS last_seen_at
         FROM product_purchases pp
         JOIN products p ON p.id = pp.product_id
+        -- Comparar precios entre supermercados: un ítem de un ticket que se
+        -- reclasificó a "comida fuera" no es un precio de super.
+        LEFT JOIN shopping_trips t ON t.id = pp.trip_id
         WHERE pp.unit_price IS NOT NULL
           AND pp.store_name IS NOT NULL
           AND pp.user_id = ${userId}
-        GROUP BY p.id, p.name, pp.store_name
+          AND (pp.trip_id IS NULL OR t.kind = 'grocery')
+        -- Se agrupa TAMBIÉN por marca: dos marcas del mismo parmesano en la
+        -- misma tienda son dos precios distintos, y promediarlos escondía
+        -- justo la comparación que el usuario quiere hacer.
+        GROUP BY p.id, p.name, pp.store_name, pp.brand
         ORDER BY p.name ASC, min_price ASC
       `;
       return rows.map((row) => ({
         productId: String(row.product_id),
         productName: asText(row.product_name),
         storeName: asText(row.store_name),
+        brand: (row.brand as string | null) ?? null,
         minPrice: asNumber(row.min_price),
         maxPrice: asNumber(row.max_price),
         avgPrice: asNumber(row.avg_price),

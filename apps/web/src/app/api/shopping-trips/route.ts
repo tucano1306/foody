@@ -6,13 +6,24 @@ import { allocate, resolveItems, round2 } from '@/lib/trip-allocation';
 import type { Allocation } from '@/lib/trip-allocation';
 import type { AllocationStrategy, CreateShoppingTripDto } from '@foody/types';
 import { normalizeShare } from '@/lib/expense-scope';
-import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { normalizeExpenseKind } from '@/lib/expense-kind';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 
+/**
+ * Lista los tickets de SUPER. Los de otro tipo (comida fuera, farmacia…) no
+ * salen aquí: son gasto del Plan Financiero, no despensa.
+ *
+ * `?kind=all` los devuelve todos, para quien necesite el histórico completo.
+ */
 export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  await ensureExpenseKindSchema();
 
-  const rows = await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY date DESC`;
+  const rows = request.nextUrl.searchParams.get('kind') === 'all'
+    ? await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} ORDER BY date DESC`
+    : await sql`SELECT * FROM shopping_trips WHERE user_id = ${user.userId} AND kind = 'grocery' ORDER BY date DESC`;
   return NextResponse.json(rows);
 }
 
@@ -22,6 +33,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json() as CreateShoppingTripDto;
   await ensureExpenseScopeSchema();
+  await ensureExpenseKindSchema();
 
   const bodyItems = body.items ?? [];
   const totalAmount = round2(body.totalAmount ?? 0);
@@ -43,6 +55,10 @@ export async function POST(request: NextRequest) {
   const storeName = body.storeName ?? null;
   const storeId = body.storeId ?? null;
   const now = new Date().toISOString();
+  // Qué clase de gasto es. Ausente = super, que es el caso normal y el
+  // comportamiento que la app tenía antes de que existiera esta columna.
+  const kind = normalizeExpenseKind(body.kind);
+  const isGrocery = kind === 'grocery';
 
   // Resolve items
   const resolved = resolveItems(bodyItems);
@@ -62,9 +78,9 @@ export async function POST(request: NextRequest) {
   // has no allocation_strategy column.
   await sql`
     INSERT INTO shopping_trips
-      (id, store_id, store_name, date, total_spent, currency, notes, business_share, user_id, created_at, updated_at)
+      (id, store_id, store_name, date, total_spent, currency, notes, business_share, kind, user_id, created_at, updated_at)
     VALUES
-      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${normalizeShare(body.businessShare)}, ${user.userId}, ${now}, ${now})
+      (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${normalizeShare(body.businessShare)}, ${kind}, ${user.userId}, ${now}, ${now})
   `;
 
   // Create product purchases
@@ -84,7 +100,10 @@ export async function POST(request: NextRequest) {
     // last price" suggestion, price displays) reflect this trip. Only advance
     // it when this purchase is at least as recent as the stored one, so a
     // back-dated trip never clobbers a newer price.
-    if (alloc.unitPrice != null && alloc.unitPrice > 0) {
+    //
+    // Solo para el SUPER: lo que costó un plato en un restaurante no es el
+    // precio de despensa de nada, y dejarlo entrar envenenaría el comparador.
+    if (isGrocery && alloc.unitPrice != null && alloc.unitPrice > 0) {
       await sql`
         UPDATE products
         SET last_purchase_price = ${alloc.unitPrice},
@@ -100,10 +119,12 @@ export async function POST(request: NextRequest) {
   // Mark purchased products as full (they were just bought) and clear them
   // from the shopping list — a restocked product must not keep showing in
   // Modo Supermercado.
-  if (productIds.length > 0) {
+  //
+  // Otra vez, solo el SUPER llena la despensa: cenar fuera no repone nada.
+  if (isGrocery && productIds.length > 0) {
     await sql`
       UPDATE products
-      SET stock_level = 'full', is_running_low = false, needs_shopping = false, updated_at = NOW()
+      SET stock_level = 'full', stock_updated_at = NOW(), is_running_low = false, needs_shopping = false, updated_at = NOW()
       WHERE id = ANY(${productIds}::uuid[])
         AND user_id = ${user.userId}
     `;
@@ -115,6 +136,9 @@ export async function POST(request: NextRequest) {
   }
 
   const tripRows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} LIMIT 1`;
+  // Casa, Compras, Stats y el presupuesto se calculan con estas filas: hay que
+  // tirar su caché o siguen contando la despensa de antes de este ticket.
+  revalidateAfterPurchase();
   return NextResponse.json({ trip: tripRows[0], items: allocations }, { status: 201 });
 }
 

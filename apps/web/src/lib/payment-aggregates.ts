@@ -51,6 +51,8 @@ export function monthKey(year: number, month: number): string {
   return `${year}-${month}`;
 }
 
+import { isDueInMonth, type PaymentFrequency } from './payment-frequency';
+
 /** Safety cap when walking months (10 years). */
 const MAX_MONTHS = 120;
 
@@ -64,6 +66,8 @@ export function listUnpaidMonths(
   dueDay: number,
   paidKeys: ReadonlySet<string>,
   now: Date = new Date(),
+  frequency: PaymentFrequency = 'monthly',
+  anchorMonth: number | null = null,
 ): UnpaidMonth[] {
   const out: UnpaidMonth[] = [];
   const cursor = new Date(createdAt.getFullYear(), createdAt.getMonth(), 1);
@@ -73,7 +77,12 @@ export function listUnpaidMonths(
     const daysInMonth = new Date(y, m, 0).getDate();
     const due = new Date(y, m - 1, Math.min(dueDay, daysInMonth), 23, 59, 59, 999);
     if (due >= now) break;
-    if (!paidKeys.has(monthKey(y, m))) out.push({ month: m, year: y });
+    // Un mes en que NO toca cobrar no puede estar atrasado. Sin esto, un seguro
+    // semestral acumulaba cinco atrasos falsos por cada cobro real, y el plan
+    // los anunciaba como deuda vencida.
+    if (isDueInMonth(frequency, anchorMonth, m) && !paidKeys.has(monthKey(y, m))) {
+      out.push({ month: m, year: y });
+    }
     cursor.setMonth(cursor.getMonth() + 1);
   }
   return out;
@@ -85,10 +94,14 @@ export function buildPaymentAggregates(params: {
   amount: number;
   paidRecords: readonly PaidRecordInput[];
   now?: Date;
+  frequency?: PaymentFrequency;
+  anchorMonth?: number | null;
 }): PaymentAggregates {
   const now = params.now ?? new Date();
+  const frequency = params.frequency ?? 'monthly';
+  const anchorMonth = params.anchorMonth ?? null;
   const paidKeys = new Set(params.paidRecords.map((r) => monthKey(r.year, r.month)));
-  const unpaidMonths = listUnpaidMonths(params.createdAt, params.dueDay, paidKeys, now);
+  const unpaidMonths = listUnpaidMonths(params.createdAt, params.dueDay, paidKeys, now, frequency, anchorMonth);
   let totalPaidAllTime = 0;
   let lastPaidAt: string | null = null;
   for (const rec of params.paidRecords) {
@@ -96,7 +109,11 @@ export function buildPaymentAggregates(params: {
     if (rec.paidAt && (!lastPaidAt || rec.paidAt > lastPaidAt)) lastPaidAt = rec.paidAt;
   }
   return {
-    isPaidThisMonth: paidKeys.has(monthKey(now.getFullYear(), now.getMonth() + 1)),
+    // Un mes en que no toca pagar cuenta como «al día»: no hay nada pendiente
+    // que hacer, y marcarlo como impagado llenaba la pantalla de rojo.
+    isPaidThisMonth:
+      !isDueInMonth(frequency, anchorMonth, now.getMonth() + 1) ||
+      paidKeys.has(monthKey(now.getFullYear(), now.getMonth() + 1)),
     unpaidMonths,
     missedMonths: unpaidMonths.length,
     accumulatedDebt: unpaidMonths.length * params.amount,
