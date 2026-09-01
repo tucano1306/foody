@@ -7,6 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
+import { parseMoney } from '@/lib/money-input';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
@@ -143,7 +144,7 @@ function sortCategories(cats: string[]): string[] {
  */
 export function resumenDeCompra(articulos: number, total: string): string {
   const cuantos = `${articulos} ${articulos === 1 ? 'artículo' : 'artículos'}`;
-  const importe = Number.parseFloat(total);
+  const importe = parseMoney(total) ?? Number.NaN;
   return Number.isFinite(importe) && importe > 0
     ? `${cuantos} · $${importe.toFixed(2)}`
     : cuantos;
@@ -400,7 +401,7 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeName: storeName.trim() || undefined,
-          totalAmount: totalAmount.trim() ? Number.parseFloat(totalAmount) : undefined,
+          totalAmount: parseMoney(totalAmount) ?? undefined,
           quantities,
           unitPrices: Object.keys(unitPrices).length > 0 ? unitPrices : undefined,
           // Solo las marcas de lo que va en el carrito, y solo las escritas:
@@ -985,10 +986,9 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
               <input
                 id="modal-total-amount"
-                type="number"
+                type="text"
                 inputMode="decimal"
-                min="0"
-                step="0.01"
+                autoComplete="off"
                 value={totalAmount}
                 onChange={(e) => setTotalAmount(e.target.value)}
                 placeholder="0.00"
