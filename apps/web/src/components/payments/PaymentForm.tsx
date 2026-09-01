@@ -6,7 +6,7 @@ import type { CreatePaymentDto } from '@foody/types';
 import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import ScopePicker from '@/components/ui/ScopePicker';
 import { haptic } from '@/lib/haptic';
-import { parseMoney } from '@/lib/money-input';
+import MoneyInput from '@/components/ui/MoneyInput';
 import FrequencyPicker from '@/components/payments/FrequencyPicker';
 
 const CATEGORIES = [
@@ -133,13 +133,11 @@ export default function PaymentForm() {
         <div className="flex gap-2">
           <div className="relative flex-1">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm select-none">$</span>
-            <input
+            <MoneyInput
               id="payment-amount"
               required
-              type="text"
-                inputMode="decimal"
-              value={form.amount === 0 ? '' : form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: parseMoney(e.target.value) ?? 0 }))}
+              value={form.amount}
+              onChange={(amount) => setForm((f) => ({ ...f, amount }))}
               placeholder="0.00"
               className="w-full pl-8 pr-4 py-3 rounded-2xl border border-sky-200 text-black placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition text-base"
             />

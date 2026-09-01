@@ -9,6 +9,7 @@ import { PAYMENT_METHOD_LABELS, maskLast4, methodNeedsBank } from '@/lib/payment
 import { formatMonthLong, formatMonthShort } from '@/lib/payment-aggregates';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { parseMoney } from '@/lib/money-input';
+import MoneyInput from '@/components/ui/MoneyInput';
 import FrequencyPicker from '@/components/payments/FrequencyPicker';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1303,13 +1304,11 @@ export default function PaymentDetailSheet({
           <div className="flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none">$</span>
-              <input
+              <MoneyInput
                 id="edit-payment-amount"
                 required
-                type="text"
-                inputMode="decimal"
-                value={form.amount === 0 ? '' : form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: parseMoney(e.target.value) ?? 0 }))}
+                value={form.amount}
+                onChange={(amount) => setForm((f) => ({ ...f, amount }))}
                 placeholder="0.00"
                 className="w-full pl-8 pr-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
               />
