@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, badRequest } from '@/lib/route-helpers';
-import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
+import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { UNITEMIZED_LABEL } from '@/lib/grocery-insights';
 
@@ -46,18 +46,22 @@ export async function GET(request: NextRequest) {
   const category = request.nextUrl.searchParams.get('category')?.trim();
   if (!kindParam && !category) return badRequest('Falta la categoría');
 
-  await ensureExpenseKindSchema();
+  await ensureTripSplitsSchema();
 
   // ── `?kind=all`: la CLASIFICACIÓN de lo que no es super ───────────────────
   // Cuánto se fue en cada tipo este mes, sin bajar al ticket. Es la respuesta a
   // «¿en qué se me va lo de fuera del super?» y el paso previo a abrir un tipo
   // concreto.
   if (kindParam === 'all') {
+    // `trip_kind_amounts` y no `shopping_trips`: un ticket de super con una
+    // parte de farmacia NO aparece en la tabla con kind='pharmacy', asi que la
+    // tarjeta —que si lee la vista— decia «Farmacia $21.94» y este desglose
+    // respondia «$0 en 0 gastos» sobre el mismo mes.
     const rows = await sql`
       SELECT kind,
-             COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total,
+             COALESCE(SUM(amount), 0) AS total,
              COUNT(*) AS count
-      FROM shopping_trips
+      FROM trip_kind_amounts
       WHERE user_id = ${user.userId}
         AND kind <> 'grocery'
         AND date >= DATE_TRUNC('month', NOW())
@@ -87,13 +91,15 @@ export async function GET(request: NextRequest) {
   // tiene desglose que editar, tiene un total, un sitio y una fecha.
   if (kindParam) {
     const expenseKind = normalizeExpenseKind(kindParam);
+    // El importe es lo que ESTE ticket aporta a ESTE tipo, no su total: un
+    // Publix de $35.71 con $21.94 de farmacia entra aqui por $21.94.
     const rows = await sql`
-      SELECT id, store_name, date, COALESCE(total_spent, 0) AS total, kind, business_share
-      FROM shopping_trips
+      SELECT trip_id AS id, store_name, date, amount AS total, kind, trip_kind, business_share
+      FROM trip_kind_amounts
       WHERE user_id = ${user.userId}
         AND kind = ${expenseKind}
         AND date >= DATE_TRUNC('month', NOW())
-      ORDER BY date DESC, created_at DESC
+      ORDER BY date DESC
     `;
 
     const expenses = (rows as Record<string, unknown>[]).map((r) => ({
@@ -102,6 +108,9 @@ export async function GET(request: NextRequest) {
       date: iso(r.date),
       total: num(r.total),
       kind: normalizeExpenseKind(r.kind),
+      // Esta fila es una PARTE de un ticket de otro tipo, no el ticket entero:
+      // editarla o borrarla desde aqui tocaria el recibo completo.
+      fromSplit: normalizeExpenseKind(r.trip_kind) !== normalizeExpenseKind(r.kind),
     }));
 
     return NextResponse.json({
@@ -121,7 +130,11 @@ export async function GET(request: NextRequest) {
         t.id,
         t.store_name,
         t.date,
-        COALESCE(t.total_spent, 0) AS total,
+        -- Lo que quedo EN DESPENSA, no el total del recibo: si no, un ticket
+        -- repartido pareceria tener un hueco del tamaño de la parte repartida.
+        COALESCE(t.total_spent, 0) - COALESCE((
+          SELECT SUM(amount) FROM shopping_trip_splits WHERE trip_id = t.id
+        ), 0) AS total,
         COALESCE(SUM(COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0)), 0) AS items_total,
         COUNT(pp.id) AS item_count
       FROM shopping_trips t
@@ -132,7 +145,9 @@ export async function GET(request: NextRequest) {
       GROUP BY t.id, t.store_name, t.date, t.total_spent
       -- El mismo umbral que usa la tarjeta: por debajo de medio dólar el hueco
       -- es redondeo del reparto, no un ticket sin detallar.
-      HAVING COALESCE(t.total_spent, 0)
+      HAVING COALESCE(t.total_spent, 0) - COALESCE((
+               SELECT SUM(amount) FROM shopping_trip_splits WHERE trip_id = t.id
+             ), 0)
              - COALESCE(SUM(COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0)), 0) >= 0.5
       ORDER BY t.date DESC
     `;

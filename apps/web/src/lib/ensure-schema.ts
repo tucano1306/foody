@@ -206,11 +206,15 @@ export async function ensureTripSplitsSchema(): Promise<void> {
   // GREATEST(...,0): repartir más de lo que costó el ticket se valida al
   // guardar, pero si una fila vieja quedara descuadrada el resto sería
   // negativo y ese ticket RESTARÍA del gasto del mes.
+  // Las columnas nuevas van SIEMPRE al final: `CREATE OR REPLACE VIEW` solo
+  // sabe añadir, y una columna intercalada revienta con «cannot change name of
+  // view column» en el primer arranque en frio de produccion.
   await sql`
     CREATE OR REPLACE VIEW trip_kind_amounts AS
       SELECT t.id AS trip_id, t.user_id, t.household_id, t.date, t.store_name,
              t.business_share, t.currency, t.kind,
-             GREATEST(COALESCE(t.total_spent, 0) - COALESCE(s.repartido, 0), 0) AS amount
+             GREATEST(COALESCE(t.total_spent, 0) - COALESCE(s.repartido, 0), 0) AS amount,
+             t.kind AS trip_kind
         FROM shopping_trips t
         LEFT JOIN (
           SELECT trip_id, SUM(amount) AS repartido
@@ -219,8 +223,12 @@ export async function ensureTripSplitsSchema(): Promise<void> {
        WHERE GREATEST(COALESCE(t.total_spent, 0) - COALESCE(s.repartido, 0), 0) > 0
          OR s.repartido IS NULL
       UNION ALL
+      -- trip_kind distingue una fila que ES el ticket de una que es solo una
+      -- PARTE suya. Sin ella, «Farmacia» enseñaba el Publix como si fuera un
+      -- gasto de farmacia entero, y su boton de borrar se habria llevado el
+      -- ticket de super completo con sus productos.
       SELECT sp.trip_id, t.user_id, t.household_id, t.date, t.store_name,
-             t.business_share, t.currency, sp.kind, sp.amount
+             t.business_share, t.currency, sp.kind, sp.amount, t.kind AS trip_kind
         FROM shopping_trip_splits sp
         JOIN shopping_trips t ON t.id = sp.trip_id
   `;
