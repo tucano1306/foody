@@ -55,7 +55,11 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
       <button
         type="button"
         onClick={onOpen}
-        className="relative flex w-full flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+        className={`relative flex w-full flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 text-left shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400${
+          // Se le pasó el día de pago y no hay abono este mes. Un color fijo se
+          // vuelve invisible a los dos días; esto respira muy despacio.
+          debt.isOverdue ? ' pulse-overdue' : ''
+        }`}
       >
         {/* Identidad + saldo */}
         <div className="flex items-center gap-4">

@@ -38,3 +38,6 @@ cookies.txt
 *.cookies
 .vercel
 .env*.local
+
+# Ajustes locales de Claude Code: son de esta maquina, no del proyecto.
+.claude/
