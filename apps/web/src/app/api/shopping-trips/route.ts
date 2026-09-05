@@ -7,7 +7,8 @@ import type { Allocation } from '@/lib/trip-allocation';
 import type { AllocationStrategy, CreateShoppingTripDto } from '@foody/types';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
-import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
+import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 
 /**
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as CreateShoppingTripDto;
   await ensureExpenseScopeSchema();
   await ensureExpenseKindSchema();
+  await ensureTripSplitsSchema();
 
   const bodyItems = body.items ?? [];
   const totalAmount = round2(body.totalAmount ?? 0);
@@ -60,6 +62,13 @@ export async function POST(request: NextRequest) {
   const kind = normalizeExpenseKind(body.kind);
   const isGrocery = kind === 'grocery';
 
+  // Las partes del ticket que son de otro tipo. Se validan ANTES de insertar
+  // nada: un ticket guardado a medias con un reparto imposible dejaría el
+  // gasto del mes descuadrado y sin forma de saber por dónde.
+  const splits = normalizeSplits(body.splits);
+  const splitError = validateSplits(totalAmount, splits);
+  if (splitError) return NextResponse.json({ message: splitError }, { status: 400 });
+
   // Resolve items
   const resolved = resolveItems(bodyItems);
 
@@ -82,6 +91,13 @@ export async function POST(request: NextRequest) {
     VALUES
       (${id}, ${storeId}, ${storeName}, ${purchasedAt}, ${totalAmount}, ${currency}, ${body.notes ?? null}, ${normalizeShare(body.businessShare)}, ${kind}, ${user.userId}, ${now}, ${now})
   `;
+
+  for (const part of splits) {
+    await sql`
+      INSERT INTO shopping_trip_splits (id, trip_id, user_id, kind, amount, note, created_at)
+      VALUES (${randomUUID()}, ${id}, ${user.userId}, ${part.kind}, ${part.amount}, ${part.note}, ${now})
+    `;
+  }
 
   // Create product purchases
   const productIds: string[] = [];

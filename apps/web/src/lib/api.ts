@@ -2,7 +2,7 @@ import { getSession } from './session';
 import { sql } from './db';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
-import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
+import { ensureTripSplitsSchema, ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
 import { normalizeShare } from './expense-scope';
 import { normalizeAnchorMonth, normalizeFrequency } from './payment-frequency';
 import { normalizeExpenseKind } from './expense-kind';
@@ -525,7 +525,7 @@ export const api = {
      */
     frequent: async () => {
       const { userId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       const rows = await sql`
         SELECT pp.product_id AS "productId",
                p.name,
@@ -573,7 +573,7 @@ export const api = {
     /** Gasto en COMIDA de casa (super). Comer fuera es otra cosa y va al plan. */
     monthlyFoodSpending: async (): Promise<{ currentTotal: number; previousTotal: number; purchaseCount: number }> => {
       const { userId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       // Igual que byStore/presupuesto: el total_spent de cada ticket es la
       // cifra autoritativa (un ticket sin items vinculados cuenta completo),
       // más las compras sueltas sin ticket agrupadas por sesión. Sumar
@@ -585,8 +585,8 @@ export const api = {
                     AND d < DATE_TRUNC('month', NOW()) THEN total ELSE 0 END) AS prev_total,
           COUNT(*) AS purchase_count
         FROM (
-          SELECT date AS d, COALESCE(total_spent, 0) AS total
-          FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
+          SELECT date AS d, amount AS total
+          FROM trip_kind_amounts WHERE user_id = ${userId} AND kind = 'grocery'
           UNION ALL
           SELECT purchased_at AS d, SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
           FROM product_purchases
@@ -838,7 +838,7 @@ export const api = {
      */
     list: async () => {
       const { userId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       const rows = await sql`
         SELECT * FROM shopping_trips
         WHERE user_id = ${userId} AND kind = 'grocery'
@@ -849,10 +849,10 @@ export const api = {
     /** Cuántos tickets NO son de super este mes — para el enlace al plan. */
     otherKindsThisMonth: async (): Promise<{ count: number; total: number }> => {
       const { userId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       const rows = await sql`
-        SELECT COUNT(*) AS count, COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
-        FROM shopping_trips
+        SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
+        FROM trip_kind_amounts
         WHERE user_id = ${userId} AND kind <> 'grocery'
           AND date >= DATE_TRUNC('month', NOW())
       `;
@@ -861,7 +861,7 @@ export const api = {
     },
     byStore: async () => {
       const { userId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       // Real visits without double counting: formal trips (authoritative
       // total_spent) plus loose trip-less purchases grouped into one session
       // per shared batch timestamp. Counting product_purchases rows directly
@@ -869,8 +869,8 @@ export const api = {
       const rows = await sql`
         SELECT name AS "storeName", SUM(total) AS total, COUNT(*) AS count
         FROM (
-          SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
-          FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
+          SELECT COALESCE(store_name, 'Sin tienda') AS name, amount AS total
+          FROM trip_kind_amounts WHERE user_id = ${userId} AND kind = 'grocery'
           UNION ALL
           SELECT COALESCE(store_name, 'Sin tienda') AS name,
             SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
@@ -890,25 +890,34 @@ export const api = {
     /** El detalle abre CUALQUIER ticket: es donde se reclasifica uno mal puesto. */
     get: async (id: string) => {
       const { userId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       const tripRows = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
       if (!tripRows[0]) return null;
 
-      const itemRows = await sql`
-        SELECT pp.*, p.name AS product_name
-        FROM product_purchases pp
-        LEFT JOIN products p ON p.id = pp.product_id
-        WHERE pp.trip_id = ${id}
-        ORDER BY pp.created_at ASC
-      `;
+      const [itemRows, splitRows] = await Promise.all([
+        sql`
+          SELECT pp.*, p.name AS product_name
+          FROM product_purchases pp
+          LEFT JOIN products p ON p.id = pp.product_id
+          WHERE pp.trip_id = ${id}
+          ORDER BY pp.created_at ASC
+        `,
+        sql`SELECT id, kind, amount, note FROM shopping_trip_splits WHERE trip_id = ${id} ORDER BY created_at ASC`,
+      ]);
       return {
         ...mapShoppingTrip(tripRows[0] as Record<string, unknown>),
         items: itemRows.map((row) => mapProductPurchase(row as Record<string, unknown>)),
+        splits: splitRows.map((r) => ({
+          id: String((r as Record<string, unknown>).id),
+          kind: normalizeExpenseKind((r as Record<string, unknown>).kind),
+          amount: asNumber((r as Record<string, unknown>).amount),
+          note: ((r as Record<string, unknown>).note as string | null) ?? null,
+        })),
       } satisfies ShoppingTripDetail;
     },
     create: async (data: CreateShoppingTripDto) => {
       const { userId, householdId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       const id = randomUUID();
       const rows = await sql`
         INSERT INTO shopping_trips (id, store_id, store_name, date, total_spent, currency, notes, kind, user_id, household_id, created_at, updated_at)
@@ -932,7 +941,7 @@ export const api = {
     },
     priceComparison: async () => {
       const { userId } = await getAuthContext();
-      await ensureExpenseKindSchema();
+      await ensureTripSplitsSchema();
       const rows = await sql`
         SELECT
           p.id AS product_id,

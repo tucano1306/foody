@@ -15,7 +15,7 @@ import { monthlyCost, normalizeAnchorMonth, normalizeFrequency } from '@/lib/pay
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { findDuplicateObligations, type DuplicateSuspect } from '@/lib/duplicate-obligations';
-import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
 import { buildPaymentAggregates, type PaidRecordInput } from '@/lib/payment-aggregates';
 import {
   computeGroceryInsight,
@@ -296,9 +296,9 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
 async function loadGroceryBusinessShare(userId: string): Promise<number> {
   const rows = await sql`
     SELECT
-      COALESCE(SUM(COALESCE(total_spent, 0) * COALESCE(business_share, 0) / 100), 0) AS business,
-      COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
-    FROM shopping_trips
+      COALESCE(SUM(amount * COALESCE(business_share, 0) / 100), 0) AS business,
+      COALESCE(SUM(amount), 0) AS total
+    FROM trip_kind_amounts
     WHERE user_id = ${userId} AND kind = 'grocery' AND date >= DATE_TRUNC('month', NOW())
   `;
   const r = (rows[0] ?? {}) as Record<string, unknown>;
@@ -310,9 +310,9 @@ async function loadGroceryBusinessShare(userId: string): Promise<number> {
 async function loadOtherBusinessShare(userId: string): Promise<number> {
   const rows = await sql`
     SELECT
-      COALESCE(SUM(COALESCE(total_spent, 0) * COALESCE(business_share, 0) / 100), 0) AS business,
-      COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total
-    FROM shopping_trips
+      COALESCE(SUM(amount * COALESCE(business_share, 0) / 100), 0) AS business,
+      COALESCE(SUM(amount), 0) AS total
+    FROM trip_kind_amounts
     WHERE user_id = ${userId} AND kind <> 'grocery' AND date >= DATE_TRUNC('month', NOW())
   `;
   const r = (rows[0] ?? {}) as Record<string, unknown>;
@@ -333,9 +333,9 @@ async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
     sql`
       SELECT
         TO_CHAR(DATE_TRUNC('month', date), 'YYYY-MM') AS month,
-        COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total,
-        COUNT(*) AS trips
-      FROM shopping_trips
+        COALESCE(SUM(amount), 0) AS total,
+        COUNT(DISTINCT trip_id) AS trips
+      FROM trip_kind_amounts
       WHERE user_id = ${userId} AND kind <> 'grocery'
         AND date >= DATE_TRUNC('month', NOW() - INTERVAL '5 months')
       GROUP BY DATE_TRUNC('month', date)
@@ -345,11 +345,11 @@ async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
       SELECT
         kind,
         COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW())
-                          THEN COALESCE(total_spent, 0) ELSE 0 END), 0) AS current_month,
+                          THEN amount ELSE 0 END), 0) AS current_month,
         COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW() - INTERVAL '1 month')
-                          THEN COALESCE(total_spent, 0) ELSE 0 END), 0) AS prev_month,
+                          THEN amount ELSE 0 END), 0) AS prev_month,
         COUNT(*) FILTER (WHERE DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW())) AS count
-      FROM shopping_trips
+      FROM trip_kind_amounts
       WHERE user_id = ${userId} AND kind <> 'grocery'
         AND date >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
       GROUP BY kind
@@ -358,9 +358,9 @@ async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
     sql`
       SELECT
         COALESCE(NULLIF(TRIM(store_name), ''), 'Sin nombre') AS name,
-        COALESCE(SUM(COALESCE(total_spent, 0)), 0) AS total,
+        COALESCE(SUM(amount), 0) AS total,
         COUNT(*) AS count
-      FROM shopping_trips
+      FROM trip_kind_amounts
       WHERE user_id = ${userId} AND kind <> 'grocery'
         AND date >= DATE_TRUNC('month', NOW())
       GROUP BY COALESCE(NULLIF(TRIM(store_name), ''), 'Sin nombre')
@@ -420,8 +420,8 @@ async function loadGroceryBreakdown(userId: string): Promise<{
     sql`
       SELECT name, COUNT(*) AS trips, SUM(total) AS total_spent
       FROM (
-        SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
-        FROM shopping_trips
+        SELECT COALESCE(store_name, 'Sin tienda') AS name, amount AS total
+        FROM trip_kind_amounts
         WHERE user_id = ${userId} AND kind = 'grocery' AND date >= DATE_TRUNC('month', NOW())
         UNION ALL
         SELECT COALESCE(store_name, 'Sin tienda') AS name,
@@ -455,8 +455,10 @@ async function loadGroceryBreakdown(userId: string): Promise<{
 
 export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<FinancePlanPayload> {
   await ensureFinanceSchema();
-  // Todo lo que sigue filtra por `kind`: la columna tiene que existir antes.
+  // Todo lo que sigue filtra por `kind` y lee `trip_kind_amounts`: la columna
+  // y la vista tienen que existir antes.
   await ensureExpenseKindSchema();
+  await ensureTripSplitsSchema();
 
   const [
     incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits,

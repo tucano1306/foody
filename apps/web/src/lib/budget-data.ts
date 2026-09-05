@@ -15,7 +15,7 @@
  * pretendió cubrir.
  */
 import { sql } from '@/lib/db';
-import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
+import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
 
 // El tipo vive en budget-history.ts, que es donde estan las funciones puras
 // que lo manipulan. Tenerlo declarado dos veces ya provoco que una copia
@@ -57,7 +57,7 @@ export function currentMonthKey(now = new Date()): string {
 export async function getBudgetData(userId: string): Promise<BudgetData> {
   await ensureBudgetSchema();
   // Antes de filtrar por `kind` hay que garantizar que la columna existe.
-  await ensureExpenseKindSchema();
+  await ensureTripSplitsSchema();
 
   const [settingsRows, historyRows] = await Promise.all([
     sql`
@@ -77,9 +77,9 @@ export async function getBudgetData(userId: string): Promise<BudgetData> {
         -- Los tickets llevan su porcentaje de negocio; la parte personal se
         -- calcula aqui para que el reparto y la suma ocurran de una sola vez.
         SELECT date AS d,
-               COALESCE(total_spent, 0) AS total,
-               COALESCE(total_spent, 0) * (1 - COALESCE(business_share, 0) / 100.0) AS personal
-        FROM shopping_trips
+               amount AS total,
+               amount * (1 - COALESCE(business_share, 0) / 100.0) AS personal
+        FROM trip_kind_amounts
         WHERE user_id = ${userId} AND kind = 'grocery'
         UNION ALL
         -- Las compras sueltas no tienen ambito: cuentan enteras como personales,

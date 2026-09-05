@@ -145,6 +145,14 @@ export interface ShoppingTrip {
   kind: ExpenseKind;
   /** 0-100: qué parte de esta compra es del negocio. */
   businessShare: number;
+  /**
+   * Partes del ticket que cuentan como otro tipo de gasto.
+   *
+   * Opcional porque el LISTADO no las carga: decir `TripSplit[]` ahí obligaría
+   * a inventar un `[]` que no distingue «este ticket no tiene partes» de «no
+   * se pidieron». El detalle sí las trae siempre.
+   */
+  splits?: TripSplit[];
   userId: string;
   createdAt: string;
   updatedAt: string;
@@ -155,6 +163,26 @@ export interface ShoppingTripItemDto {
   quantity: number;
   unitPrice?: number;
   totalPrice?: number;
+}
+
+/**
+ * Un trozo del ticket que NO es del tipo principal.
+ *
+ * Un carrito de Walmart puede llevar $85 de despensa y $35 de farmacia en el
+ * mismo recibo. El ticket guarda su tipo principal y su total; cada `split`
+ * recorta del total la parte que pertenece a otro sitio, y lo que sobra se
+ * queda donde dice el ticket.
+ */
+export interface TripSplitDto {
+  kind: ExpenseKind;
+  amount: number;
+  /** Qué era, con las palabras del usuario ("pañales", "medicinas"). */
+  note?: string | null;
+}
+
+export interface TripSplit extends TripSplitDto {
+  id: string;
+  note: string | null;
 }
 
 export interface CreateShoppingTripDto {
@@ -170,6 +198,8 @@ export interface CreateShoppingTripDto {
   businessShare?: number;
   /** Súper o gasto de otro tipo. Ausente = `grocery`. */
   kind?: ExpenseKind;
+  /** Partes del ticket que pertenecen a otro tipo de gasto. */
+  splits?: TripSplitDto[];
   items: ShoppingTripItemDto[];
 }
 
@@ -180,12 +210,16 @@ export interface UpdateShoppingTripDto {
   notes?: string;
   /** Re-clasificar un ticket ya guardado (un restaurante que entró como super). */
   kind?: ExpenseKind;
+  /** Si viene, REEMPLAZA los splits del ticket; `[]` los borra todos. */
+  splits?: TripSplitDto[];
   /** When present, the trip's purchases are rewritten with a fresh allocation. */
   items?: ShoppingTripItemDto[];
 }
 
 export interface ShoppingTripDetail extends ShoppingTrip {
   items: ProductPurchase[];
+  /** En el detalle siempre vienen, aunque estén vacías. */
+  splits: TripSplit[];
 }
 
 export interface CreateShoppingTripResponse {

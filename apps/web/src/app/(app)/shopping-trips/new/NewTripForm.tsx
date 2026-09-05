@@ -20,6 +20,8 @@ import { useToast } from '@/components/ui/Toast';
 import ScopePicker from '@/components/ui/ScopePicker';
 import KindPicker from '@/components/ui/KindPicker';
 import { detectExpenseKind, type ExpenseKind } from '@/lib/expense-kind';
+import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
+import { normalizeSplits, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 import { notifyGoalImpact } from '@/lib/notify-goal-impact';
 
 interface Props {
@@ -79,6 +81,13 @@ export default function NewTripForm({ products }: Readonly<Props>) {
    * sería pelearse con él.
    */
   const [kindTouched, setKindTouched] = useState(false);
+  /**
+   * Las partes del ticket que NO son del tipo principal.
+   *
+   * Un carrito con la despensa y las medicinas es un solo recibo y dos gastos
+   * distintos; sin esto había que elegir uno y mentirle a la otra mitad.
+   */
+  const [splits, setSplits] = useState<TripSplitInput[]>([]);
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -286,9 +295,14 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   const unlinkedCount = isGrocery ? items.length - linkedItems.length : 0;
 
   const storeNameValid = storeName.trim().length > 0;
+  // Repartir más de lo que costó el ticket deja el gasto del mes descuadrado:
+  // se corta aquí, con el motivo a la vista, en vez de guardarlo y que aparezca
+  // como un error del servidor.
+  const splitError = validateSplits(totalValid ? parsedTotal : 0, splits);
   const canSubmit =
     storeNameValid &&
     totalValid &&
+    splitError === null &&
     !submitting;
 
   async function handleSubmit() {
@@ -303,6 +317,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         currency,
         businessShare,
         kind,
+        splits: normalizeSplits(splits),
         allocationStrategy: 'manual_partial',
         items: linkedItems.map((it) => {
           const qty = Number.parseFloat(it.quantity);
@@ -465,6 +480,18 @@ export default function NewTripForm({ products }: Readonly<Props>) {
             de una reunión, la gasolina de los repartos. Vive aquí y no dentro
             del bloque de productos porque no depende de que los haya. Viene en
             «Personal», así que no estorba a quien no lo use. */}
+        {/* Repartir el ticket va JUNTO al tipo, no dentro de los productos:
+            es la misma decisión —a qué gasto pertenece esto— y solo tiene
+            sentido cuando ya se sabe el total. */}
+        {totalValid && (
+          <TripSplitsEditor
+            total={parsedTotal}
+            mainKind={kind}
+            splits={splits}
+            onChange={setSplits}
+          />
+        )}
+
         <ScopePicker
           value={businessShare}
           onChange={setBusinessShare}
