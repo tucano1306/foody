@@ -85,6 +85,47 @@ export interface FinanceGoal {
   status: GoalStatus;
   note: string | null;
   createdAt: string;
+  /**
+   * Tarjeta o crédito que esta meta se propone liquidar.
+   *
+   * Con esto puesto, el objetivo y lo abonado NO se escriben a mano: se leen
+   * de la deuda. Eran dos copias del mismo dinero y derivaban solas — una meta
+   * decía «llevas $157» sobre una tarjeta que no había bajado un centavo.
+   */
+  debtId?: string | null;
+}
+
+/** Lo que hace falta saber de una deuda para alimentar la meta que la persigue. */
+export interface GoalDebtLink {
+  originalAmount: number;
+  currentBalance: number;
+}
+
+/**
+ * Una meta que persigue una tarjeta lee sus cifras DE la tarjeta.
+ *
+ * El problema que resuelve: la meta y la deuda eran dos copias del mismo
+ * dinero, cada una con su número escrito a mano, y derivaban solas. En datos
+ * reales una meta decía «llevas $157 de $11,440» sobre una tarjeta que no
+ * había bajado un centavo, y otra apuntaba a $1,014 cuando la deuda era de
+ * $1,026.54. Ninguna de las dos cifras era falsa cuando se escribió: lo que
+ * faltaba era que una siguiera a la otra.
+ *
+ * Con el enganche puesto, abonar en Deudas mueve la meta sin tocar nada más,
+ * y registrar un consumo la mueve al revés. Es la misma deuda vista desde el
+ * plan.
+ *
+ * `target = max(original, saldo)` y no `original` a secas: un consumo nuevo
+ * puede dejar el saldo POR ENCIMA de lo que se debía al abrir la deuda, y
+ * entonces «llevas abonado» saldría negativo y el objetivo sería menor que lo
+ * que falta. Así el objetivo crece con la deuda, que es lo que de verdad pasó.
+ */
+export function goalWithDebt(goal: FinanceGoal, debt: GoalDebtLink | null | undefined): FinanceGoal {
+  if (!goal.debtId || !debt) return goal;
+  const dinero = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0);
+  const saldo = dinero(debt.currentBalance);
+  const target = round2(Math.max(dinero(debt.originalAmount), saldo));
+  return { ...goal, targetAmount: target, savedAmount: round2(Math.max(0, target - saldo)) };
 }
 
 /** Un pago mensual recurrente ya registrado en la sección Pagos. */
@@ -235,6 +276,14 @@ export type Feasibility =
 
 export interface GoalProjection {
   goalId: string;
+  /**
+   * Tarjeta que esta meta liquida, si la persigue.
+   *
+   * La pantalla lo necesita para no ofrecer «Aportar»: en una meta enganchada
+   * lo abonado se LEE de la deuda, asi que un aporte a la meta no moveria
+   * nada. Se abona en Deudas, y la meta se mueve sola.
+   */
+  debtId?: string | null;
   name: string;
   emoji: string;
   kind: GoalKind;
@@ -550,6 +599,7 @@ function projectGoal(goal: FinanceGoal, now: Date): GoalProjection {
 
   return {
     goalId: goal.id,
+    debtId: goal.debtId ?? null,
     name: goal.name,
     emoji: goal.emoji,
     kind: goal.kind,

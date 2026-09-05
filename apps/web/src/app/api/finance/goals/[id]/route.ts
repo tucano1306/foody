@@ -43,6 +43,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       target_amount    = ${input.targetAmount},
       saved_amount     = ${input.savedAmount},
       target_date      = ${input.targetDate},
+      -- Enganchar o desenganchar la tarjeta que esta meta persigue. Con
+      -- enganche, target_amount y saved_amount de arriba dejan de mandar: se
+      -- leen de la deuda al cargar el plan (ver goalWithDebt).
+      debt_id          = ${input.debtId},
       -- COALESCE y no asignación directa: el formulario ya no manda prioridad,
       -- y editar el nombre de una meta no puede deshacer el orden que el
       -- usuario armó arrastrando las tarjetas.

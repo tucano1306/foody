@@ -154,7 +154,10 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-linear-to-r from-sky-400 to-blue-400 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-bold shadow-sm transition"
         >
           <PlusCircleIcon className="w-4 h-4" />
-          Aportar
+          {/* Una meta enganchada a una tarjeta no se aporta: se abona la
+              tarjeta, y la meta se mueve sola. Ofrecer «Aportar» aqui seria
+              un boton que no mueve nada, que es peor que no tenerlo. */}
+          {goal.debtId ? 'Abonar la tarjeta' : 'Aportar'}
         </button>
         {done && (
           <button
