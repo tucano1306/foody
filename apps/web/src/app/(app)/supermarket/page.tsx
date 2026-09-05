@@ -17,10 +17,17 @@ function fmt(value: number): string {
 }
 
 export default async function SupermarketPage() {
-  const [items, topStores] = await Promise.all([
+  const [items, topStores, catalogo] = await Promise.all([
     api.shoppingList.get().catch(() => []),
     api.shoppingTrips.byStore().catch(() => []),
+    // Las categorías de TODA la despensa, no solo las de lo pendiente: el
+    // desplegable listaba las de los 7 productos por comprar y, al lado de
+    // Productos, parecía que le faltaban.
+    api.products.listWithoutPhotos().catch(() => []),
   ]);
+  const allCategories = [
+    ...new Set(catalogo.map((p) => p.category?.trim()).filter((c): c is string => !!c)),
+  ];
 
   // Skip the "Sin tienda" bucket: it isn't a real store the user can favor
   // or pick from the suggestions list.
@@ -68,7 +75,7 @@ export default async function SupermarketPage() {
       )}
 
       {/* ─── Shopping list ──────────────────────────────────────────────────── */}
-      <SupermarketView initialItems={items} pastStoreNames={pastStoreNames} />
+      <SupermarketView allCategories={allCategories} initialItems={items} pastStoreNames={pastStoreNames} />
     </div>
   );
 }

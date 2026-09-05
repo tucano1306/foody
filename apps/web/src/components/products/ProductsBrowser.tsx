@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
+import CategorySelect from '@/components/ui/CategorySelect';
 import { categoryEmoji, categoryOrder } from '@/lib/categories';
 import { matchesWords, searchWords } from '@/lib/text-search';
 
@@ -89,110 +90,6 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
         {cfg.label}
         {emptyCount > 0 && ` · ${emptyCount} agotado${emptyCount === 1 ? '' : 's'}`}
       </p>
-    </div>
-  );
-}
-
-/**
- * Category picker as a single scrollable row of chips.
- * Beats a <select> here: the categories you own are visible without opening
- * anything, each one carries its count, and one tap browses a whole aisle —
- * which is what fills the space where the "escribe para buscar" hint used to sit.
- */
-function CategoryChips({
-  categories,
-  counts,
-  total,
-  value,
-  onChange,
-}: {
-  readonly categories: readonly string[];
-  readonly counts: ReadonlyMap<string, number>;
-  readonly total: number;
-  readonly value: string;
-  readonly onChange: (value: string) => void;
-}) {
-  const chip = (active: boolean) =>
-    `shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm whitespace-nowrap transition ${
-      active
-        ? 'bg-brand-500 border-brand-500 text-white shadow-sm'
-        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 hover:border-slate-300'
-    }`;
-
-  const badge = (active: boolean) =>
-    `text-[11px] font-semibold tabular-nums px-1.5 py-px rounded-full ${
-      active ? 'bg-white/25 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-    }`;
-
-  const allActive = value === ALL_CATEGORIES;
-
-  // Edge fades tell you there are more aisles off-screen, and vanish once you
-  // reach that end. A mask (not a gradient overlay) so it works on any
-  // background — this row sits on a white card at home, on the page bg elsewhere.
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ start: false, end: false });
-
-  const syncEdges = useCallback(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    const next = { start: el.scrollLeft > 4, end: el.scrollLeft < max - 4 };
-    // Bail on no-ops: this runs on every scroll frame.
-    setEdges((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
-  }, []);
-
-  // A ResizeObserver, not a window resize listener: the row is inside a Reveal
-  // wrapper that can still be laid out at zero width on mount, and measuring
-  // then would leave the "more aisles →" fade permanently off.
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    syncEdges();
-    const ro = new ResizeObserver(syncEdges);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [syncEdges, categories]);
-
-  const mask = `linear-gradient(to right, ${
-    edges.start ? 'transparent 0, black 28px' : 'black 0'
-  }, ${edges.end ? 'black calc(100% - 28px), transparent 100%' : 'black 100%'})`;
-
-  return (
-    <div
-      ref={scrollerRef}
-      onScroll={syncEdges}
-      style={{ maskImage: mask, WebkitMaskImage: mask }}
-      className="flex gap-2 overflow-x-auto scroll-row py-0.5"
-      role="group"
-      aria-label="Filtrar por categoría"
-    >
-      <button
-        type="button"
-        onClick={() => onChange(ALL_CATEGORIES)}
-        aria-pressed={allActive}
-        className={chip(allActive)}
-      >
-        <span aria-hidden="true">🗂️</span>
-        Todas
-        <span className={badge(allActive)}>{total}</span>
-      </button>
-
-      {categories.map((cat) => {
-        const active = value === cat;
-        return (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => onChange(active ? ALL_CATEGORIES : cat)}
-            aria-pressed={active}
-            className={chip(active)}
-          >
-            <span aria-hidden="true">{categoryEmoji(cat)}</span>
-            {cat}
-            <span className={badge(active)}>{counts.get(cat) ?? 0}</span>
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -539,14 +436,16 @@ export default function ProductsBrowser(props: Readonly<Props>) {
         )}
       </div>
 
-      {/* Category chips — one tap browses a whole aisle (lácteos, bebidas…) */}
+      {/* Elegir pasillo. Era una fila de chips que se desplazaba en horizontal:
+          con 17 categorías solo se veían cinco y el resto quedaba fuera de
+          pantalla, así que «todas» y «las cinco primeras» se veían igual. */}
       {availableCategories.length > 1 && (
-        <CategoryChips
+        <CategorySelect
           categories={availableCategories}
           counts={categoryCounts}
           total={displayProducts.length}
-          value={categoryFilter}
-          onChange={onCategoryChange}
+          value={categoryFilter === ALL_CATEGORIES ? null : categoryFilter}
+          onChange={(cat) => onCategoryChange(cat ?? ALL_CATEGORIES)}
         />
       )}
 
