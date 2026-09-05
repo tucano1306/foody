@@ -64,6 +64,13 @@ export interface GoalInput {
    * editar cualquier meta. Ver goal-order.ts.
    */
   priority: number | null;
+  /**
+   * Deuda que esta meta liquida, o `null` para desengancharla.
+   *
+   * Con enganche, el objetivo y lo abonado se LEEN de la deuda, asi que lo que
+   * mande el cliente en esos dos campos deja de mandar. Ver goalWithDebt.
+   */
+  debtId: string | null;
   monthlyOverride: number | null;
   status: GoalStatus;
   note: string | null;
@@ -119,6 +126,10 @@ export function validateGoalBody(body: Record<string, unknown>): GoalInput | Val
     savedAmount,
     targetDate,
     priority,
+    debtId:
+      typeof body.debtId === 'string' && /^[0-9a-f-]{36}$/i.test(body.debtId.trim())
+        ? body.debtId.trim()
+        : null,
     monthlyOverride,
     status,
     note: parseText(body.note, 1000) || null,

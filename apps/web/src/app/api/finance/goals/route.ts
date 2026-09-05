@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   const id = randomUUID();
   const rows = await sql`
     INSERT INTO finance_goals
-      (id, user_id, name, emoji, kind, target_amount, saved_amount, target_date, priority, monthly_override, status, note, created_at, updated_at)
+      (id, user_id, name, emoji, kind, target_amount, saved_amount, target_date, priority, monthly_override, status, note, debt_id, created_at, updated_at)
     VALUES (
       ${id}, ${user.userId}, ${input.name}, ${input.emoji}, ${input.kind},
       ${input.targetAmount}, ${input.savedAmount}, ${input.targetDate},
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         -- después dónde va arrastrándola, y mientras tanto no desordena nada.
         (SELECT COALESCE(MAX(priority), 0) + 1 FROM finance_goals WHERE user_id = ${user.userId})
       ),
-      ${input.monthlyOverride}, ${input.status}, ${input.note},
+      ${input.monthlyOverride}, ${input.status}, ${input.note}, ${input.debtId},
       NOW(), NOW()
     )
     RETURNING *

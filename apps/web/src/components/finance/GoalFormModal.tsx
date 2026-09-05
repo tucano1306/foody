@@ -17,6 +17,8 @@ export interface GoalPayload {
   monthlyOverride: number | null;
   status: 'active' | 'paused' | 'done';
   note: string | null;
+  /** Tarjeta o crédito que esta meta liquida. `null` = una meta normal. */
+  debtId: string | null;
 }
 
 interface Props {
@@ -25,6 +27,8 @@ interface Props {
   readonly preset?: GoalKind;
   /** Dinero libre mensual del plan — sirve para avisar si la meta no cabe. */
   readonly monthlyAvailable: number;
+  /** Las deudas vivas, para poder enganchar la meta a una de ellas. */
+  readonly debts: readonly { id: string; name: string; balance: number }[];
   readonly onSave: (payload: GoalPayload) => Promise<void>;
   readonly onClose: () => void;
 }
@@ -51,7 +55,7 @@ const inputCls =
 
 const labelCls = 'block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide';
 
-export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, onClose }: Props) {
+export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, onSave, onClose }: Props) {
   const editing = goal !== null;
   const [kind, setKind] = useState<GoalKind>(goal?.kind ?? preset ?? 'trip');
   const [emoji, setEmoji] = useState(
@@ -59,6 +63,9 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
   );
   const [name, setName] = useState(goal?.name ?? '');
   const [target, setTarget] = useState(goal ? String(goal.targetAmount) : '');
+  const [debtId, setDebtId] = useState<string | null>(goal?.debtId ?? null);
+  /** La deuda enganchada manda sobre lo tecleado: sus cifras son la verdad. */
+  const linked = debts.find((d) => d.id === debtId) ?? null;
   const [saved, setSaved] = useState(goal ? String(goal.savedAmount) : '');
   const [date, setDate] = useState(goal?.targetDate ?? '');
   const [override, setOverride] = useState(goal?.monthlyOverride ? String(goal.monthlyOverride) : '');
@@ -108,6 +115,7 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
         emoji,
         kind,
         targetAmount,
+        debtId,
         savedAmount: parseMoney(saved) ?? 0,
         targetDate: date || null,
         monthlyOverride: parseMoney(override),
@@ -203,8 +211,47 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
           </div>
         </div>
 
+        {/* ─── La tarjeta que esta meta liquida ───────────────────────────
+            Solo para metas de deuda, y solo si hay deudas que enganchar.
+
+            Con enganche, las dos cifras de abajo dejan de escribirse a mano:
+            se leen de la tarjeta. Eran dos copias del mismo dinero y derivaban
+            solas — una meta llegó a decir «llevas $157» sobre una tarjeta que
+            no había bajado un centavo. */}
+        {kind === 'debt' && debts.length > 0 && (
+          <div>
+            <span className={labelCls}>¿Qué tarjeta estás pagando?</span>
+            <div className="space-y-1.5">
+              {debts.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => { haptic(6); setDebtId(debtId === d.id ? null : d.id); }}
+                  aria-pressed={debtId === d.id}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                    debtId === d.id
+                      ? 'bg-sky-500 text-white'
+                      : 'bg-white text-slate-600 ring-1 ring-sky-200'
+                  }`}
+                >
+                  <span className="min-w-0 truncate text-sm font-bold">{d.name}</span>
+                  <span className="shrink-0 text-sm font-black tabular-nums">
+                    {fmtMoneyFine(d.balance)}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {linked && (
+              <p className="mt-1.5 rounded-xl bg-sky-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600">
+                El objetivo y lo abonado se leen de <strong>{linked.name}</strong>. Cada abono o
+                consumo que registres en Deudas mueve esta meta solo.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Montos */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className={`grid grid-cols-2 gap-3 ${linked ? 'opacity-50' : ''}`}>
           <div>
             <label className={labelCls} htmlFor="goal-target">¿Cuánto cuesta?</label>
             <div className="relative">
@@ -213,8 +260,9 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
                 id="goal-target"
                 type="text"
                 inputMode="decimal"
-                value={target}
+                value={linked ? linked.balance.toFixed(2) : target}
                 onChange={(e) => setTarget(e.target.value)}
+                readOnly={linked !== null}
                 placeholder="2300"
                 className={`${inputCls} pl-7 font-bold`}
               />
@@ -228,8 +276,9 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, onSave, 
                 id="goal-saved"
                 type="text"
                 inputMode="decimal"
-                value={saved}
+                value={linked ? '0.00' : saved}
                 onChange={(e) => setSaved(e.target.value)}
+                readOnly={linked !== null}
                 placeholder="0"
                 className={`${inputCls} pl-7`}
               />

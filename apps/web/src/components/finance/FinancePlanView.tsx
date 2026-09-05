@@ -659,6 +659,13 @@ export default function FinancePlanView({ initialData }: Props) {
           goal={modal.goal}
           preset={modal.preset}
           monthlyAvailable={cash.goalsBudget}
+          // Solo las que aun se deben: enganchar una meta a una tarjeta ya
+          // liquidada la daria por cumplida en el mismo instante.
+          debts={data.credits.filter((c) => c.balance > 0).map((c) => ({
+            id: c.id,
+            name: c.name,
+            balance: c.balance,
+          }))}
           onSave={saveGoal}
           onClose={closeModal}
         />

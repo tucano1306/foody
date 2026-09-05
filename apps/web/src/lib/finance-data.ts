@@ -33,6 +33,7 @@ import {
 } from '@/lib/other-spend';
 import {
   buildFinancePlan,
+  goalWithDebt,
   type CreditInput,
   type FinanceGoal,
   type FinancePlan,
@@ -125,6 +126,17 @@ export async function ensureFinanceSchema(): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_goals_user ON finance_goals (user_id, status)`;
+  // La deuda que esta meta liquida. ON DELETE SET NULL: borrar la tarjeta no
+  // borra la meta, la desengancha — el usuario decidió perseguir ese objetivo,
+  // y eso sobrevive a que deje de seguir la deuda en la app.
+  await sql`ALTER TABLE finance_goals ADD COLUMN IF NOT EXISTS debt_id UUID`;
+  await sql`
+    DO $$ BEGIN
+      ALTER TABLE finance_goals ADD CONSTRAINT fk_goals_debt
+        FOREIGN KEY (debt_id) REFERENCES debts(id) ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    WHEN undefined_table THEN NULL;
+    END $$`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS finance_goal_contributions (
@@ -186,6 +198,7 @@ export function mapGoalRow(row: Record<string, unknown>): FinanceGoal {
     targetAmount: num(row.target_amount),
     savedAmount: num(row.saved_amount),
     targetDate: dateKey(row.target_date),
+    debtId: (row.debt_id as string | null | undefined) ?? null,
     priority: Math.trunc(num(row.priority, 2)),
     monthlyOverride: row.monthly_override == null ? null : num(row.monthly_override),
     status: GOAL_STATUSES.includes(status) ? status : 'active',
@@ -465,7 +478,15 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     groceriesBusinessShare, otherSpend, otherBusinessShare,
   ] = await Promise.all([
       sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
-      sql`SELECT * FROM finance_goals WHERE user_id = ${userId} ORDER BY priority ASC, target_date ASC NULLS LAST, created_at ASC`,
+      // Con la deuda enganchada al lado: una meta que persigue una tarjeta lee
+      // sus cifras DE ella, y asi abonar en Deudas mueve el plan sin tocar nada.
+      sql`
+        SELECT g.*, d.original_amount AS debt_original, d.current_balance AS debt_balance
+          FROM finance_goals g
+          LEFT JOIN debts d ON d.id = g.debt_id AND d.user_id = g.user_id
+         WHERE g.user_id = ${userId}
+         ORDER BY g.priority ASC, g.target_date ASC NULLS LAST, g.created_at ASC
+      `,
       sql`SELECT * FROM finance_goal_contributions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`,
       loadFixedPayments(userId),
       getBudgetData(userId),
@@ -482,7 +503,15 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
-  const goals = goalRows.map((r) => mapGoalRow(r as Record<string, unknown>));
+  const goals = goalRows.map((r) => {
+    const row = r as Record<string, unknown>;
+    return goalWithDebt(
+      mapGoalRow(row),
+      row.debt_original == null && row.debt_balance == null
+        ? null
+        : { originalAmount: num(row.debt_original), currentBalance: num(row.debt_balance) },
+    );
+  });
   const contributions = contributionRows.map((r) => mapContributionRow(r as Record<string, unknown>));
 
   // El plan resta lo que REALMENTE se gasta en super: el historial de tickets
