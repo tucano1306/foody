@@ -150,3 +150,35 @@ describe('amountForKind y splitsTotal', () => {
     expect(splitsTotal([])).toBe(0);
   });
 });
+
+/**
+ * El ticket que destapo el hueco: Publix $35.71, con $21.94 mandados a
+ * farmacia y solo $13.77 de despensa (dos productos: huevos $6.58, mayonesa
+ * $7.19).
+ *
+ * El reparto estaba BIEN guardado y el plan lo sumaba bien. Lo que fallaba era
+ * que ninguna pantalla lo enseñaba: el detalle decia «$35.71 · 2 productos» y
+ * la lista de Compras contaba los $35.71 enteros como super. El usuario hizo
+ * el reparto y la app se lo escondio, asi que lo logico era pensar que ese
+ * dinero se habia perdido.
+ */
+describe('el ticket de Publix', () => {
+  const PUBLIX = { total: 35.71, splits: [{ kind: 'pharmacy' as const, amount: 21.94 }] };
+
+  it('deja en despensa exactamente lo que suman los productos', () => {
+    // 6.58 de huevos + 7.19 de mayonesa = 13.77
+    expect(remainderFor(PUBLIX.total, PUBLIX.splits)).toBe(13.77);
+  });
+
+  it('manda los 21.94 a farmacia, no a la despensa', () => {
+    expect(tripKindAmounts('grocery', PUBLIX.total, PUBLIX.splits)).toEqual([
+      { kind: 'grocery', amount: 13.77 },
+      { kind: 'pharmacy', amount: 21.94 },
+    ]);
+  });
+
+  it('las partes suman el recibo entero: no se pierde ni se inventa un centavo', () => {
+    const partes = tripKindAmounts('grocery', PUBLIX.total, PUBLIX.splits);
+    expect(partes.reduce((s, p) => s + p.amount, 0)).toBeCloseTo(35.71, 2);
+  });
+});

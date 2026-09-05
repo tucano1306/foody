@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import KindPicker from '@/components/ui/KindPicker';
 import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
-import { normalizeSplits, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
+import { normalizeSplits, tripKindAmounts, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 
 interface Props {
   readonly trip: ShoppingTripDetail;
@@ -23,13 +23,6 @@ interface EditItem {
   quantity: string;
   price: string; // '' = sin precio manual (Foody lo estima del total)
 }
-
-const STRATEGY_LABELS: Record<string, string> = {
-  manual_partial: 'Mixto',
-  by_quantity: 'Por cantidad',
-  equal: 'Igual',
-  none: 'Sin precios',
-};
 
 function formatCurrency(value: number, currency: string): string {
   try {
@@ -136,6 +129,8 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
   // Repartir más de lo que costó el ticket lo dejaría descuadrado: se corta
   // aquí, con el motivo a la vista.
   const splitError = validateSplits(totalValid ? parsedTotal : 0, splits);
+  /** Cuánto de este ticket cuenta en cada sitio, con el MISMO cálculo que el plan. */
+  const desglose = tripKindAmounts(trip.kind, trip.totalAmount, trip.splits ?? []);
   const canSave = storeValid && totalValid && splitError === null && !saving;
 
   function startEdit() {
@@ -285,9 +280,16 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold">
                 {expenseKindMeta(trip.kind).emoji} {expenseKindMeta(trip.kind).label}
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                {STRATEGY_LABELS[trip.allocationStrategy] ?? trip.allocationStrategy}
-              </span>
+              {/* Que este ticket está repartido, dicho como tal.
+                  Aquí había un chip con la estrategia de reparto de PRECIOS
+                  («Mixto» = manual_partial), un detalle interno que, junto al
+                  chip «Súper», se leía como «este ticket es súper y mixto» —
+                  justo la frase que ahora significa otra cosa. */}
+              {desglose.length > 1 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                  ✂️ Repartido
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -365,6 +367,31 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 {formatCurrency(trip.totalAmount, trip.currency)}
               </p>
             </div>
+
+            {/* A dónde fue cada parte de este ticket.
+                Sin esto, un ticket repartido se veía EXACTAMENTE igual que uno
+                que no lo estaba: el titular decía «$35.71» y «2 productos», y
+                los $21.94 que el usuario mandó a farmacia no aparecían por
+                ninguna parte. Hizo el reparto y la app se lo escondió, así que
+                lo lógico era pensar que se habían perdido. */}
+            {desglose.length > 1 && (
+              <div className="mt-3 divide-y divide-slate-100 rounded-xl bg-slate-50 px-3.5 ring-1 ring-slate-100">
+                {desglose.map((parte) => (
+                  <div key={parte.kind} className="flex items-center justify-between gap-3 py-2">
+                    <span className="text-xs font-semibold text-slate-600">
+                      <span aria-hidden="true">{expenseKindMeta(parte.kind).emoji}</span>{' '}
+                      {expenseKindMeta(parte.kind).groupLabel}
+                      {parte.kind !== trip.kind && (
+                        <span className="ml-1 text-slate-400">· fuera del súper</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-bold tabular-nums text-slate-900">
+                      {formatCurrency(parte.amount, trip.currency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </header>

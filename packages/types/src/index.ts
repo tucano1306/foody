@@ -153,6 +153,14 @@ export interface ShoppingTrip {
    * se pidieron». El detalle sí las trae siempre.
    */
   splits?: TripSplit[];
+  /**
+   * Cuánto de este ticket se repartió a OTROS tipos de gasto.
+   *
+   * Viaja en el listado porque sin él la lista de Compras enseña el total del
+   * recibo como si todo fuera despensa: un Publix de $35.71 con $21.94 de
+   * farmacia aparecía como $35.71 de súper.
+   */
+  splitTotal?: number;
   userId: string;
   createdAt: string;
   updatedAt: string;
