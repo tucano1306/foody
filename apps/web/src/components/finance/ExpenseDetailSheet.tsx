@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { TrashIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { haptic } from '@/lib/haptic';
 import { useToast } from '@/components/ui/Toast';
@@ -15,6 +16,15 @@ interface Expense {
   date: string;
   total: number;
   kind: ExpenseKind;
+  /**
+   * Esta fila es una PARTE de un ticket de otro tipo, no el ticket entero.
+   *
+   * Un Publix de $35.71 con $21.94 mandados a farmacia aparece aqui por esos
+   * $21.94. Editar el importe desde aqui reescribiria el total del recibo
+   * entero, y borrar se llevaria el ticket de super con sus productos: por eso
+   * estas filas no abren el editor, llevan al ticket.
+   */
+  fromSplit?: boolean;
 }
 
 interface Props {
@@ -60,6 +70,7 @@ function todayInput(): string {
  */
 export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: Props) {
   const toast = useToast();
+  const router = useRouter();
   const meta = expenseKindMeta(expenseKind);
 
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
@@ -320,16 +331,24 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
               <div key={e.id} className="overflow-hidden rounded-2xl bg-white">
                 <button
                   type="button"
-                  onClick={() => (open ? setEditing(null) : startEdit(e))}
-                  aria-expanded={open}
+                  onClick={() => {
+                    // Una parte de otro ticket no se edita aqui: se abre el
+                    // ticket, que es donde vive su reparto.
+                    if (e.fromSplit) { haptic(); router.push(`/shopping-trips/${e.id}`); return; }
+                    if (open) setEditing(null); else startEdit(e);
+                  }}
+                  aria-expanded={e.fromSplit ? undefined : open}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left transition active:scale-[0.99]"
                 >
-                  <span className="shrink-0 text-xl" aria-hidden="true">🏪</span>
+                  <span className="shrink-0 text-xl" aria-hidden="true">{e.fromSplit ? '✂️' : '🏪'}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold text-slate-800">
                       {e.storeName ?? 'Sin nombre'}
                     </span>
-                    <span className="block text-[11px] text-slate-500">{fmtDate(e.date)}</span>
+                    <span className="block text-[11px] text-slate-500">
+                      {fmtDate(e.date)}
+                      {e.fromSplit && ' · parte de un ticket'}
+                    </span>
                   </span>
                   <span className="shrink-0 text-sm font-black tabular-nums text-black">
                     {fmtMoneyFine(e.total)}
@@ -342,7 +361,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                   </span>
                 </button>
 
-                {open && (
+                {open && !e.fromSplit && (
                   <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
                     <label className="block">
                       <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">

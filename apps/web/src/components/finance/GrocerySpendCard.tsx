@@ -8,7 +8,7 @@ import { haptic } from '@/lib/haptic';
 import { CATEGORY_EMOJI } from '@/lib/categories';
 import type { GroceryInsight, MonthTotal } from '@/lib/grocery-insights';
 import CategoryDetailSheet from './CategoryDetailSheet';
-import { fmtMoney } from './finance-ui';
+import { fmtMoney, fmtMoneyFine } from './finance-ui';
 
 interface Props {
   readonly groceries: GroceryInsight;
@@ -63,7 +63,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
         </div>
         <div className="shrink-0 text-right">
           <p className="text-xl font-black text-black tabular-nums leading-none">
-            {fmtMoney(g.spentThisMonth)}
+            {fmtMoneyFine(g.spentThisMonth)}
           </p>
           {/* Mismo criterio que el consejero: con un solo mes cerrado —o con el
               mes recién empezado— el porcentaje compara contra ruido. La
@@ -91,7 +91,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
           <span className="text-2xl" aria-hidden="true">🧾</span>
           <p className="text-sm text-slate-600">
             {g.spentThisMonth > 0
-              ? `Llevas ${fmtMoney(g.spentThisMonth)} este mes.`
+              ? `Llevas ${fmtMoneyFine(g.spentThisMonth)} este mes.`
               : 'Aún no hay compras este mes.'}
           </p>
         </div>
@@ -102,7 +102,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
             Ritmo del mes · día {g.daysElapsed} de {g.daysInMonth}
           </span>
           <span className="text-xs font-bold tabular-nums text-black">
-            {fmtMoney(g.dailyPace)}/día
+            {fmtMoneyFine(g.dailyPace)}/día
           </span>
         </div>
 
@@ -125,12 +125,12 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
         <div className="grid grid-cols-3 gap-2 mt-3 text-center">
           <div>
             <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Llevas</p>
-            <p className="text-sm font-black text-black tabular-nums">{fmtMoney(g.spentThisMonth)}</p>
+            <p className="text-sm font-black text-black tabular-nums">{fmtMoneyFine(g.spentThisMonth)}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Cerrarás en</p>
             <p className="text-sm font-black tabular-nums text-black">
-              {fmtMoney(g.projectedMonthEnd)}
+              {fmtMoneyFine(g.projectedMonthEnd)}
             </p>
           </div>
           <div>
@@ -138,7 +138,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
               {g.limit > 0 ? 'Tu límite' : 'Tu promedio'}
             </p>
             <p className="text-sm font-black text-black tabular-nums">
-              {fmtMoney(g.limit > 0 ? g.limit : g.avgMonthly)}
+              {fmtMoneyFine(g.limit > 0 ? g.limit : g.avgMonthly)}
             </p>
           </div>
         </div>
@@ -146,8 +146,8 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
         {g.limit > 0 && (
           <p className="text-xs mt-2.5 text-slate-700">
             {overLimit
-              ? `⚠️ A este ritmo te pasas ${fmtMoney(g.overLimit)} — ese dinero deja de ir a tus metas.`
-              : `✅ Vas ${fmtMoney(Math.abs(g.overLimit))} por debajo del límite: es dinero libre para tus metas.`}
+              ? `⚠️ A este ritmo te pasas ${fmtMoneyFine(g.overLimit)} — ese dinero deja de ir a tus metas.`
+              : `✅ Vas ${fmtMoneyFine(Math.abs(g.overLimit))} por debajo del límite: es dinero libre para tus metas.`}
           </p>
         )}
       </div>
@@ -199,7 +199,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
               «En qué se va este mes» no decía ni que era solo el super, ni que
               sumaba justo esos $82 — parecía una lista de gastos cualquiera. */}
           <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
-            Tus {fmtMoney(g.spentThisMonth)} de super, por categoría
+            Tus {fmtMoneyFine(g.spentThisMonth)} de super, por categoría
           </p>
           <ul className="space-y-1">
             {[...g.categories.slice(0, 4), ...(g.unitemized ? [g.unitemized] : [])].map((c) => (
@@ -229,7 +229,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
                         )}
                       </span>
                       <span className="text-xs font-black text-black tabular-nums shrink-0">
-                        {fmtMoney(c.currentMonth)}
+                        {fmtMoneyFine(c.currentMonth)}
                         {c.deltaPct !== null && Math.abs(c.deltaPct) >= 10 && (
                           <span className={`ml-1.5 font-bold ${c.deltaPct > 0 ? 'text-blue-700' : 'text-sky-700'}`}>
                             {c.deltaPct > 0 ? '+' : ''}{Math.round(c.deltaPct)}%
@@ -269,8 +269,8 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
             "¿y esto qué tiene que ver con mis metas?", no la portada. */}
         <p className="text-[11px] text-slate-500 min-w-0">
           {g.baselineSource === 'limit'
-            ? <>Sin compras aún: el plan usa tu límite de <span className="font-bold text-slate-700">{fmtMoney(g.baseline)}</span>.</>
-            : <>El plan resta <span className="font-bold text-slate-700">{fmtMoney(g.baseline)}</span> al mes de super
+            ? <>Sin compras aún: el plan usa tu límite de <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span>.</>
+            : <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span> al mes de super
                 {g.baselineSource === 'average' ? ', tu promedio real.' : ', según tus tickets.'}</>}
         </p>
         {/* Atajo directo al escáner: es la vía por la que entran los datos que
@@ -280,7 +280,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
           className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-sky-500 active:bg-sky-600 active:scale-95 text-white text-sm font-bold shadow-sm transition"
         >
           <CameraIcon className="w-5 h-5" />
-          Escanear factura
+          Escanear ticket
         </Link>
       </div>
     </section>
