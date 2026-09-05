@@ -22,7 +22,6 @@ interface Props {
   readonly showActions?: boolean;
   readonly compact?: boolean;
   readonly showStockFilter?: boolean;
-  readonly pageSize?: number;
   readonly emptyState?: React.ReactNode;
   readonly searchOnly?: boolean;
   readonly lastPurchaseMap?: Readonly<Record<string, { purchasedAt: string; storeName: string | null }>>;
@@ -230,7 +229,6 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     showActions = false,
     compact = false,
     showStockFilter = false,
-    pageSize = 12,
     emptyState,
     searchOnly = false,
     lastPurchaseMap,
@@ -247,7 +245,6 @@ export default function ProductsBrowser(props: Readonly<Props>) {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES);
   const [stockFilter, setStockFilter] = useState<StockFilter>(initialFilter);
-  const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('categories');
   const [scanOpen, setScanOpen] = useState(false);
 
@@ -312,29 +309,32 @@ export default function ProductsBrowser(props: Readonly<Props>) {
   const trimmedQuery = query.trim();
   const categoryActive = categoryFilter !== ALL_CATEGORIES;
   const anyFilterActive = Boolean(trimmedQuery) || categoryActive;
-  // searchOnly always renders the flat, paginated grid — the view toggle isn't
-  // shown there, so the meta line and pager have to follow the grid, not the
-  // (unreachable) 'grid' view mode.
+  // `searchOnly` siempre pinta la rejilla plana: ahi no se ofrece el conmutador
+  // de vista, asi que la linea de resultados tiene que seguir a la REJILLA y no
+  // a un `viewMode` que en esa pantalla no se puede cambiar.
   const gridMode = searchOnly || viewMode === 'grid';
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const visible = filtered.slice(start, start + pageSize);
+  /**
+   * Se enseña TODO lo filtrado, sin paginar.
+   *
+   * El pager partia los resultados de doce en doce y, en Casa, se pintaba
+   * incluso cuando la rejilla estaba oculta: «Pagina 1 de 8» debajo de una
+   * lista vacia, paginando algo que no se veia. La vista por categorias nunca
+   * pagino, asi que ademas las dos vistas de la misma pantalla contaban cosas
+   * distintas.
+   */
+  const visible = filtered;
 
   const onQueryChange = (value: string) => {
     setQuery(value);
-    setPage(1);
   };
 
   const onFilterChange = (key: StockFilter) => {
     setStockFilter(key);
-    setPage(1);
   };
 
   const onCategoryChange = (value: string) => {
     setCategoryFilter(value);
-    setPage(1);
   };
 
   // Camera search found a product: clear filters that could hide it and let
@@ -343,7 +343,6 @@ export default function ProductsBrowser(props: Readonly<Props>) {
     setScanOpen(false);
     setStockFilter('all');
     setQuery(product.name);
-    setPage(1);
   };
 
   return (
@@ -481,7 +480,7 @@ export default function ProductsBrowser(props: Readonly<Props>) {
           <p className="truncate">
             {filtered.length === 0
               ? 'Sin resultados'
-              : `Mostrando ${start + 1}–${Math.min(start + pageSize, filtered.length)} de ${filtered.length}`}
+              : `${filtered.length} producto${filtered.length === 1 ? '' : 's'}`}
           </p>
           {anyFilterActive && (
             <button
@@ -489,7 +488,6 @@ export default function ProductsBrowser(props: Readonly<Props>) {
               onClick={() => {
                 setQuery('');
                 setCategoryFilter(ALL_CATEGORIES);
-                setPage(1);
               }}
               className="shrink-0 font-semibold text-brand-500 hover:text-brand-600 hover:underline"
             >
@@ -504,30 +502,6 @@ export default function ProductsBrowser(props: Readonly<Props>) {
         ? renderGrouped({ filtered, emptyState, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete, currentUserId })
         : renderGrid({ searchOnly, trimmedQuery, categoryActive, filtered, emptyState, visible, showActions, compact, lastPurchaseMap, onLevelChange: handleLevelChange, onDelete: handleDelete, currentUserId })}
 
-      {/* Pagination — only in grid mode */}
-      {gridMode && totalPages > 1 && (
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition"
-          >
-            ← Anterior
-          </button>
-          <span className="text-sm text-slate-500">
-            Página {currentPage} de {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition"
-          >
-            Siguiente →
-          </button>
-        </div>
-      )}
     </div>
   );
 }
