@@ -20,7 +20,6 @@ import type {
   CreateShoppingTripResponse,
   CreatePaymentDto,
   CreateProductDto,
-  CreateStoreDto,
   MonthlyPayment,
   PaymentRecord,
   Product,
@@ -29,9 +28,7 @@ import type {
   ShoppingTrip,
   ShoppingTripDetail,
   StockLevel,
-  Store,
   UpdateProductDto,
-  UpdateStoreDto,
 } from '@foody/types';
 
 /** Lo mínimo que el buscador rápido necesita de un producto — sin la foto. */
@@ -258,21 +255,6 @@ function mapShoppingListItem(row: Record<string, unknown>): ShoppingListItem {
     quantityNeeded: asNumber(row.quantity_needed, 1),
     isInCart: Boolean(row.is_in_cart),
     isPurchased: Boolean(row.is_purchased),
-    userId: String(row.user_id),
-    createdAt: asIsoString(row.created_at),
-    updatedAt: asIsoString(row.updated_at),
-  };
-}
-
-function mapStore(row: Record<string, unknown>): Store {
-  return {
-    id: String(row.id),
-    name: asText(row.name),
-    chain: (row.chain as string | null | undefined) ?? null,
-    location: (row.location as string | null | undefined) ?? null,
-    currency: asText(row.currency, 'USD'),
-    color: (row.color as string | null | undefined) ?? null,
-    icon: (row.icon as string | null | undefined) ?? null,
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
@@ -791,44 +773,6 @@ export const api = {
     leave: async () => {
       const { userId } = await getAuthContext();
       await sql`UPDATE users SET household_id = NULL WHERE id = ${userId}`;
-    },
-  },
-  stores: {
-    list: async () => {
-      const { userId } = await getAuthContext();
-      const rows = await sql`SELECT * FROM stores WHERE user_id = ${userId} ORDER BY name ASC`;
-      return rows.map((row) => mapStore(row as Record<string, unknown>));
-    },
-    get: async (id: string) => {
-      const rows = await sql`SELECT * FROM stores WHERE id = ${id} LIMIT 1`;
-      return rows[0] ? mapStore(rows[0] as Record<string, unknown>) : null;
-    },
-    create: async (data: CreateStoreDto) => {
-      const { userId, householdId } = await getAuthContext();
-      const id = randomUUID();
-      const rows = await sql`
-        INSERT INTO stores (id, name, chain, location, currency, color, icon, user_id, household_id, created_at, updated_at)
-        VALUES (${id}, ${data.name}, ${data.chain ?? null}, ${data.location ?? null}, ${data.currency ?? 'USD'}, ${data.color ?? null}, ${data.icon ?? null}, ${userId}, ${householdId}, NOW(), NOW())
-        RETURNING *
-      `;
-      return mapStore(rows[0] as Record<string, unknown>);
-    },
-    update: async (id: string, data: UpdateStoreDto) => {
-      const rows = await sql`
-        UPDATE stores SET
-          name = COALESCE(${data.name ?? null}, name),
-          chain = COALESCE(${data.chain ?? null}, chain),
-          location = COALESCE(${data.location ?? null}, location),
-          currency = COALESCE(${data.currency ?? null}, currency),
-          color = COALESCE(${data.color ?? null}, color),
-          icon = COALESCE(${data.icon ?? null}, icon),
-          updated_at = NOW()
-        WHERE id = ${id} RETURNING *
-      `;
-      return mapStore(rows[0] as Record<string, unknown>);
-    },
-    delete: async (id: string) => {
-      await sql`DELETE FROM stores WHERE id = ${id}`;
     },
   },
   shoppingTrips: {

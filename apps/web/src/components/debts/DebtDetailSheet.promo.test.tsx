@@ -93,6 +93,7 @@ function tarjeta6791(cuota?: number): DebtWithProjection {
     },
     advice: [],
     daysUntilDue: 25,
+    isOverdue: false,
     utilization: 99,
   };
 }

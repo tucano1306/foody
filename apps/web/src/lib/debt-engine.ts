@@ -276,6 +276,32 @@ function dueDatesUntil(end: Date, hoy: Date, dueDay: number): { count: number; l
   return { count, last };
 }
 
+/**
+ * ¿Se le paso el dia de pago a esta deuda sin que entrara un abono?
+ *
+ * En Pagos este estado existe desde hace meses; en Deudas no habia forma de
+ * leerlo, porque `daysUntilDue` NUNCA es negativo: pasado el dia, rueda al mes
+ * siguiente. Asi que «atrasada» se deriva del libro mayor, igual que Pagos
+ * deriva su `isPaidThisMonth`.
+ *
+ * Las tres condiciones hacen falta a la vez. Sin la del abono, todas las
+ * tarjetas con saldo pareceerian atrasadas el mes entero, y un aviso que
+ * siempre esta encendido no avisa de nada.
+ *
+ * El dia se recorta a los del mes: un vencimiento el 31 vence el 28 en
+ * febrero. Sin recortarlo, esa deuda no se atrasaria jamas en febrero.
+ */
+export function isDebtOverdue(
+  debt: { currentBalance: number; dueDay: number },
+  paidThisMonth: number,
+  now: Date = new Date(),
+): boolean {
+  if (safeAmount(debt.currentBalance) <= 0) return false;
+  if (safeAmount(paidThisMonth) > 0) return false;
+  const diasDelMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return now.getDate() > Math.min(Math.trunc(debt.dueDay), diasDelMes);
+}
+
 // ─── Cuotas ───────────────────────────────────────────────────────────────────
 
 /**

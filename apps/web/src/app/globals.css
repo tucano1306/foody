@@ -548,6 +548,31 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent
   animation: foody-pendiente 4s ease-in-out infinite;
 }
 
+/* La misma respiración para una deuda ATRASADA: se le pasó el día de pago y no
+   hay ningún abono este mes (ver `isOverdue` en debt-data.ts).
+
+   Necesita su propio ciclo y no puede reusar el de arriba porque la tarjeta de
+   una deuda reposa en BLANCO, no en el azul de la de un pago: con los colores
+   de reposo de aquella, el ciclo cerraría dando un salto de blanco a azul cada
+   cuatro segundos. Los `0%/100%` son exactamente `bg-white` y `border-sky-100`.
+
+   El rojo crema del 50 % es el mismo, así que las dos secciones avisan igual.
+   `prefers-reduced-motion` la apaga junto con todo lo demás. */
+@keyframes foody-atrasada {
+  0%,
+  100% {
+    background-color: rgb(255 255 255);
+    border-color: rgb(224 242 254);
+  }
+  50% {
+    background-color: rgb(254 238 233 / 0.95);
+    border-color: rgb(250 203 193);
+  }
+}
+.pulse-overdue {
+  animation: foody-atrasada 4s ease-in-out infinite;
+}
+
 /* ─── Scroll reveal: sections slide+fade in as they enter the viewport ───── */
 .reveal-section {
   opacity: 0;

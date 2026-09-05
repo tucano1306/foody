@@ -66,6 +66,7 @@ function makeDebt(): DebtWithProjection {
     },
     advice: [],
     daysUntilDue: 5,
+    isOverdue: false,
     utilization: 40,
   };
 }

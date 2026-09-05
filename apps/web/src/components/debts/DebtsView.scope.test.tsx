@@ -66,6 +66,7 @@ function makeDebt(over: { id: string; name: string; balance: number; businessSha
     },
     advice: [],
     daysUntilDue: 20,
+    isOverdue: false,
     utilization: null,
   };
 }

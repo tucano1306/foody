@@ -18,6 +18,7 @@ import {
   buildPortfolio,
   allocatePayment,
   frenchInstallment,
+  isDebtOverdue,
   projectDebt,
   round2,
   safeAmount,
@@ -131,8 +132,20 @@ export interface DebtWithProjection extends Debt {
   projection: DebtProjection;
   breakdown: DebtBreakdown;
   advice: DebtAdvice[];
-  /** Días hasta el próximo día de pago (negativo = ya pasó). */
+  /**
+   * Días hasta el PRÓXIMO día de pago.
+   *
+   * Nunca es negativo: pasado el día, rueda al mes siguiente. Por eso «esta
+   * deuda está atrasada» no se puede leer de aquí — se lee de `isOverdue`.
+   */
   daysUntilDue: number;
+  /**
+   * El día de pago ya pasó este mes y no hay ningún abono registrado.
+   *
+   * Es el equivalente al `isPaidThisMonth` de Pagos, derivado del libro mayor.
+   * Se calcula y no se guarda: un estado guardado se queda viejo el día 1.
+   */
+  isOverdue: boolean;
   /** % de la línea usada — solo tarjetas con cupo declarado. */
   utilization: number | null;
 }
@@ -370,6 +383,8 @@ interface LedgerTotals {
   totalPaid: number;
   totalInterestPaid: number;
   totalPrincipalPaid: number;
+  /** Abonado en el mes en curso: lo que distingue «al día» de «atrasada». */
+  paidThisMonth: number;
 }
 
 /**
@@ -386,6 +401,8 @@ async function ledgerTotals(debtId: string): Promise<LedgerTotals> {
       COALESCE(SUM(CASE WHEN kind = 'fee' THEN amount ELSE 0 END), 0)
         - COALESCE(SUM(CASE WHEN kind = 'payment' THEN fees_part ELSE 0 END), 0) AS fees_owed,
       COALESCE(SUM(CASE WHEN kind = 'payment' THEN amount ELSE 0 END), 0) AS total_paid,
+      COALESCE(SUM(CASE WHEN kind = 'payment' AND occurred_at >= DATE_TRUNC('month', NOW())
+                        THEN amount ELSE 0 END), 0) AS paid_this_month,
       COALESCE(SUM(CASE WHEN kind = 'payment' THEN interest_part ELSE 0 END), 0) AS total_interest_paid,
       COALESCE(SUM(CASE WHEN kind = 'payment' THEN principal_part ELSE 0 END), 0) AS total_principal_paid
     FROM debt_movements WHERE debt_id = ${debtId}
@@ -396,6 +413,7 @@ async function ledgerTotals(debtId: string): Promise<LedgerTotals> {
     interestOwed: round2(Math.max(0, num(r.interest_owed))),
     feesOwed: round2(Math.max(0, num(r.fees_owed))),
     totalPaid: round2(num(r.total_paid)),
+    paidThisMonth: round2(Math.max(0, num(r.paid_this_month))),
     totalInterestPaid: round2(num(r.total_interest_paid)),
     totalPrincipalPaid: round2(num(r.total_principal_paid)),
   };
@@ -512,6 +530,7 @@ function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjecti
       projection,
     ),
     daysUntilDue: daysUntilDueDay(debt.dueDay, now),
+    isOverdue: isDebtOverdue(debt, totals.paidThisMonth, now),
     utilization:
       debt.creditLimit && debt.creditLimit > 0
         ? round2(Math.min(999, (debt.currentBalance / debt.creditLimit) * 100))
