@@ -184,7 +184,6 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
         ) : (
           <ProductsBrowser
             products={products}
-            pageSize={12}
             searchOnly
             compact
             lastPurchaseMap={lastPurchaseMap}
