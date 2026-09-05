@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import { parseMoney } from '@/lib/money-input';
+import CategorySelect from '@/components/ui/CategorySelect';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
@@ -25,6 +26,15 @@ const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { s
 interface Props {
   readonly initialItems: ShoppingListItem[];
   readonly pastStoreNames?: readonly string[];
+  /**
+   * Las categorías de toda la despensa.
+   *
+   * El desplegable se armaba solo con las de los productos PENDIENTES, así que
+   * al lado de Productos parecía que le faltaban la mitad. Se unen las dos: las
+   * que tienen algo por comprar llevan su número, y las demás salen igual —
+   * elegir una vacía enseña el estado vacío, que es una respuesta honesta.
+   */
+  readonly allCategories?: readonly string[];
 }
 
 type Filter = 'all' | 'urgent' | 'low';
@@ -150,7 +160,7 @@ export function resumenDeCompra(articulos: number, total: string): string {
     : cuantos;
 }
 
-export default function SupermarketView({ initialItems, pastStoreNames }: Props) {
+export default function SupermarketView({ initialItems, pastStoreNames, allCategories = [] }: Props) {
   const router = useRouter();
   const toast = useToast();
   const { celebrate } = useCelebration();
@@ -521,13 +531,25 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
     // Dedupe by normalized key so "Lácteos" and "lácteos" collapse into one
     // dropdown option (matches the accent/case-insensitive filter above).
     const seen = new Map<string, string>();
-    for (const i of items) {
-      const cat = i.product.category?.trim() || 'Sin categoría';
-      const key = normalizeText(cat);
-      if (!seen.has(key)) seen.set(key, cat);
+    for (const cat of [...items.map((i) => i.product.category?.trim() || 'Sin categoría'), ...allCategories]) {
+      const limpio = cat.trim();
+      if (!limpio) continue;
+      const key = normalizeText(limpio);
+      if (!seen.has(key)) seen.set(key, limpio);
     }
     return sortCategories([...seen.values()]);
-  }, [items]);
+  }, [items, allCategories]);
+
+  /** Cuántos productos PENDIENTES hay en cada categoría, para el desplegable. */
+  const categoryCounts = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const i of items) {
+      const cat = i.product.category?.trim() || 'Sin categoría';
+      const real = availableCategories.find((c) => normalizeText(c) === normalizeText(cat)) ?? cat;
+      n.set(real, (n.get(real) ?? 0) + 1);
+    }
+    return n;
+  }, [items, availableCategories]);
 
   const searching = q.length > 0 || categoryFilter !== null || filter !== 'all';
   const editorItem = editorItemId ? items.find((i) => i.id === editorItemId) ?? null : null;
@@ -700,23 +722,13 @@ export default function SupermarketView({ initialItems, pastStoreNames }: Props)
         </div>
 
         {availableCategories.length > 1 && (
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">📂</span>
-            <select
-              value={categoryFilter ?? ''}
-              onChange={(e) => setCategoryFilter(e.target.value || null)}
-              aria-label="Filtrar por categoría"
-              className="w-full appearance-none pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-300 transition cursor-pointer"
-            >
-              <option value="">Todas las categorías</option>
-              {availableCategories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {categoryEmoji(cat)} {cat}
-                </option>
-              ))}
-            </select>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">▾</span>
-          </div>
+          <CategorySelect
+            categories={availableCategories}
+            counts={categoryCounts}
+            total={items.length}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+          />
         )}
       </div>
 
