@@ -218,6 +218,9 @@ function mapShoppingTrip(row: Record<string, unknown>): ShoppingTrip {
     // Sin esto, Compras no puede separar lo personal de lo del negocio: la
     // columna existe en la base desde hace tiempo, pero se quedaba aquí.
     businessShare: normalizeShare(row.business_share),
+    // Solo viene cuando la consulta lo pide; sin él, el ticket entero es de su
+    // tipo, que es exactamente lo que era antes de existir el reparto.
+    ...(row.split_total === undefined ? {} : { splitTotal: asNumber(row.split_total) }),
     userId: String(row.user_id),
     createdAt: asIsoString(row.created_at),
     updatedAt: asIsoString(row.updated_at),
@@ -840,9 +843,14 @@ export const api = {
       const { userId } = await getAuthContext();
       await ensureTripSplitsSchema();
       const rows = await sql`
-        SELECT * FROM shopping_trips
-        WHERE user_id = ${userId} AND kind = 'grocery'
-        ORDER BY date DESC
+        SELECT t.*, COALESCE(s.repartido, 0) AS split_total
+        FROM shopping_trips t
+        LEFT JOIN (
+          SELECT trip_id, SUM(amount) AS repartido
+            FROM shopping_trip_splits GROUP BY trip_id
+        ) s ON s.trip_id = t.id
+        WHERE t.user_id = ${userId} AND t.kind = 'grocery'
+        ORDER BY t.date DESC
       `;
       return rows.map((row) => mapShoppingTrip(row as Record<string, unknown>));
     },

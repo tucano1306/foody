@@ -53,8 +53,31 @@ function formatDate(iso: string): string {
  * CONTEO no se reparte: medio ticket no existe, y una compra a medias entre la
  * casa y el negocio ocurrió una sola vez.
  */
-export default function TripsScopedList({ trips, initialScope = 'all' }: Props) {
+export default function TripsScopedList({ trips: recibidos, initialScope = 'all' }: Props) {
   const [scope, setScope] = useState<ScopeFilter>(initialScope);
+
+  /**
+   * Esta pantalla es «Compras del súper», así que el importe de un ticket es
+   * lo que fue A LA DESPENSA, no lo que costó el recibo.
+   *
+   * Un Publix de $35.71 con $21.94 mandados a farmacia salía aquí como $35.71
+   * de súper: el mismo dinero contado dos veces entre esta lista y el plan, y
+   * un gasto de despensa inflado en la mitad. El total del recibo se guarda
+   * aparte para poder enseñarlo como contexto.
+   */
+  const trips = useMemo(
+    () =>
+      recibidos.map((t) => {
+        const fuera = t.splitTotal ?? 0;
+        return {
+          ...t,
+          ticketTotal: t.totalAmount,
+          repartidoFuera: fuera,
+          totalAmount: Math.round(Math.max(0, t.totalAmount - fuera) * 100) / 100,
+        };
+      }),
+    [recibidos],
+  );
 
   const summary = useMemo(
     () =>
@@ -173,6 +196,14 @@ export default function TripsScopedList({ trips, initialScope = 'all' }: Props) 
                       <p className="font-bold text-brand-700">
                         {formatCurrency(trip.totalAmount, trip.currency)}
                       </p>
+                      {/* De dónde sale esa cifra cuando no es el recibo entero:
+                          sin esto, un ticket repartido parece que costó menos
+                          de lo que dice el papel. */}
+                      {trip.repartidoFuera > 0 && (
+                        <p className="text-[10px] text-slate-400">
+                          de {formatCurrency(trip.ticketTotal, trip.currency)}
+                        </p>
+                      )}
                       {trip.id === cheapestId && (
                         <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
                           🏆 Más ahorradora
