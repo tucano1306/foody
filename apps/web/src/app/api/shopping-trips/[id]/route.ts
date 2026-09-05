@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { allocate, resolveItems, round2 } from '@/lib/trip-allocation';
-import type { ShoppingTripItemDto } from '@foody/types';
+import type { ShoppingTripItemDto, TripSplitDto } from '@foody/types';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind, type ExpenseKind } from '@/lib/expense-kind';
-import { ensureExpenseKindSchema, ensureExpenseScopeSchema } from '@/lib/ensure-schema';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
+import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +29,7 @@ interface UpdateTripBody {
   businessShare?: number;
   /** Reclasificar el ticket: super, comida fuera, farmacia… */
   kind?: ExpenseKind;
+  splits?: TripSplitDto[];
   items?: ShoppingTripItemDto[];
 }
 
@@ -37,6 +40,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json() as UpdateTripBody;
   await ensureExpenseScopeSchema();
   await ensureExpenseKindSchema();
+  await ensureTripSplitsSchema();
 
   // Per-user isolation: fetch the current row first (also validates ownership).
   const existing = await sql`SELECT * FROM shopping_trips WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;
@@ -65,6 +69,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     );
   }
 
+  // El reparto se valida contra el total que va a QUEDAR, no contra el que
+  // había: bajar el total de un ticket ya repartido lo dejaría descuadrado.
+  const splits = body.splits === undefined ? null : normalizeSplits(body.splits);
+  if (splits !== null) {
+    const splitError = validateSplits(effectiveTotal, splits);
+    if (splitError) return NextResponse.json({ message: splitError }, { status: 400 });
+  }
+
   const rows = await sql`
     UPDATE shopping_trips SET
       store_name = COALESCE(${storeName}, store_name),
@@ -88,6 +100,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const effectiveDate = new Date(trip.date as string).toISOString();
   const currency = (trip.currency as string | null) ?? 'USD';
   const now = new Date().toISOString();
+
+  // `splits` ausente deja el reparto como estaba; `[]` lo borra. Se reescribe
+  // entero en vez de casar fila por fila: son pocas y sin identidad propia
+  // —nadie referencia «el split 3»—, así que emparejarlas solo añadiría formas
+  // de que el total deje de cuadrar.
+  if (splits !== null) {
+    await sql`DELETE FROM shopping_trip_splits WHERE trip_id = ${id} AND user_id = ${user.userId}`;
+    for (const part of splits) {
+      await sql`
+        INSERT INTO shopping_trip_splits (id, trip_id, user_id, kind, amount, note, created_at)
+        VALUES (${randomUUID()}, ${id}, ${user.userId}, ${part.kind}, ${part.amount}, ${part.note}, ${now})
+      `;
+    }
+  }
 
   if (items === null) {
     // Metadata-only edit: keep the trip's purchases consistent with the new

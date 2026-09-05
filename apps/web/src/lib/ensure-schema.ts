@@ -161,3 +161,69 @@ export async function ensureExpenseKindSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_trips_user_kind_date ON shopping_trips (user_id, kind, date DESC)`;
   kindEnsured = true;
 }
+
+let splitsEnsured = false;
+
+/**
+ * Un ticket, varios tipos de gasto.
+ *
+ * Un carrito de Walmart lleva la despensa de la semana y, en el mismo recibo,
+ * las medicinas y una extensión de cable. Con un solo `kind` por ticket había
+ * que elegir, y las dos opciones mienten: marcarlo súper infla el presupuesto
+ * de despensa con lo que no es comida; marcarlo farmacia saca la despensa
+ * entera de Compras y del comparador de precios.
+ *
+ * Cada fila aquí recorta del total la parte que pertenece a otro sitio. Lo que
+ * sobra se queda en el `kind` del ticket, así que un ticket SIN filas se
+ * comporta exactamente como antes — que es lo que hace seguro desplegar esto
+ * sobre los tickets ya guardados.
+ *
+ * La vista `trip_kind_amounts` es la que consume el resto de la app: devuelve
+ * una fila por (ticket, tipo) con su importe, de modo que sumar el gasto de un
+ * tipo es un `SUM(amount)` normal y no hay que repetir la resta en cada
+ * consulta. Sin ella, cada sitio que agrega gasto tendría que acordarse de
+ * descontar los splits, y el primero que lo olvide cuenta de más.
+ */
+export async function ensureTripSplitsSchema(): Promise<void> {
+  if (splitsEnsured) return;
+  await ensureExpenseScopeSchema();
+  await ensureExpenseKindSchema();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS shopping_trip_splits (
+      id         UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+      trip_id    UUID          NOT NULL REFERENCES shopping_trips(id) ON DELETE CASCADE,
+      user_id    UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      kind       VARCHAR(20)   NOT NULL,
+      amount     DECIMAL(10,2) NOT NULL,
+      note       TEXT          NULL,
+      created_at TIMESTAMPTZ   NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_trip_splits_trip ON shopping_trip_splits (trip_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_trip_splits_user_kind ON shopping_trip_splits (user_id, kind)`;
+
+  // GREATEST(...,0): repartir más de lo que costó el ticket se valida al
+  // guardar, pero si una fila vieja quedara descuadrada el resto sería
+  // negativo y ese ticket RESTARÍA del gasto del mes.
+  await sql`
+    CREATE OR REPLACE VIEW trip_kind_amounts AS
+      SELECT t.id AS trip_id, t.user_id, t.household_id, t.date, t.store_name,
+             t.business_share, t.currency, t.kind,
+             GREATEST(COALESCE(t.total_spent, 0) - COALESCE(s.repartido, 0), 0) AS amount
+        FROM shopping_trips t
+        LEFT JOIN (
+          SELECT trip_id, SUM(amount) AS repartido
+            FROM shopping_trip_splits GROUP BY trip_id
+        ) s ON s.trip_id = t.id
+       WHERE GREATEST(COALESCE(t.total_spent, 0) - COALESCE(s.repartido, 0), 0) > 0
+         OR s.repartido IS NULL
+      UNION ALL
+      SELECT sp.trip_id, t.user_id, t.household_id, t.date, t.store_name,
+             t.business_share, t.currency, sp.kind, sp.amount
+        FROM shopping_trip_splits sp
+        JOIN shopping_trips t ON t.id = sp.trip_id
+  `;
+
+  splitsEnsured = true;
+}

@@ -8,6 +8,8 @@ import { haptic } from '@/lib/haptic';
 import { useToast } from '@/components/ui/Toast';
 import KindPicker from '@/components/ui/KindPicker';
 import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
+import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
+import { normalizeSplits, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 
 interface Props {
   readonly trip: ShoppingTripDetail;
@@ -108,6 +110,10 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
   const [notes, setNotes] = useState(trip.notes ?? '');
   /** Reclasificar: un restaurante que entró como super tiene que poder mudarse. */
   const [kind, setKind] = useState<ExpenseKind>(trip.kind);
+  /** Cómo está repartido hoy este ticket; se puede rehacer al editar. */
+  const [splits, setSplits] = useState<TripSplitInput[]>(
+    (trip.splits ?? []).map((s) => ({ kind: s.kind, amount: s.amount, note: s.note })),
+  );
   const [items, setItems] = useState<EditItem[]>(() => itemsFromTrip(trip));
   const [search, setSearch] = useState('');
 
@@ -127,7 +133,10 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
   const parsedTotal = Number.parseFloat(total);
   const totalValid = Number.isFinite(parsedTotal) && parsedTotal > 0;
   const storeValid = store.trim().length > 0;
-  const canSave = storeValid && totalValid && !saving;
+  // Repartir más de lo que costó el ticket lo dejaría descuadrado: se corta
+  // aquí, con el motivo a la vista.
+  const splitError = validateSplits(totalValid ? parsedTotal : 0, splits);
+  const canSave = storeValid && totalValid && splitError === null && !saving;
 
   function startEdit() {
     setStore(trip.storeName ?? '');
@@ -135,6 +144,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
     setTotal(trip.totalAmount > 0 ? trip.totalAmount.toFixed(2) : '');
     setNotes(trip.notes ?? '');
     setKind(trip.kind);
+    setSplits((trip.splits ?? []).map((s) => ({ kind: s.kind, amount: s.amount, note: s.note })));
     setItems(itemsFromTrip(trip));
     setSearch('');
     setError(null);
@@ -179,6 +189,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
         storeName: store.trim(),
         purchasedAt: new Date(date).toISOString(),
         totalAmount: parsedTotal,
+        splits: normalizeSplits(splits),
         notes,
         kind,
         items: items.map((it) => {
@@ -286,6 +297,17 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
             {/* Reclasificar es la primera opción del editor a propósito: cambia
                 dónde vive el ticket, y todo lo demás depende de eso. */}
             <KindPicker value={kind} onChange={setKind} />
+
+            {/* Volver a repartir un ticket ya guardado: el reparto se decide
+                mirando el recibo, y eso pasa a menudo DESPUÉS de guardarlo. */}
+            {totalValid && (
+              <TripSplitsEditor
+                total={parsedTotal}
+                mainKind={kind}
+                splits={splits}
+                onChange={setSplits}
+              />
+            )}
             <label className="block">
               <span className="block text-xs font-semibold text-slate-500 mb-1">
                 Tienda <span className="text-blue-500">*</span>
