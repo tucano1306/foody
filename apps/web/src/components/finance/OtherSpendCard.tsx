@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { CameraIcon } from '@heroicons/react/24/solid';
 import { haptic } from '@/lib/haptic';
 import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import type { OtherSpendInsight } from '@/lib/other-spend';
 import ExpenseDetailSheet from './ExpenseDetailSheet';
 import { fmtMoneyFine } from './finance-ui';
+import ScanTicketButton from './ScanTicketButton';
 
 interface Props {
   readonly other: OtherSpendInsight;
@@ -136,13 +135,7 @@ export default function OtherSpendCard({ other: o, onChanged }: Props) {
             ? <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(o.baseline)}</span> al mes por esto.</>
             : 'Todavía no resta nada por este concepto.'}
         </p>
-        <Link
-          href="/shopping-trips/new"
-          className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-blue-500 active:bg-blue-600 active:scale-95 text-white text-sm font-bold shadow-sm transition"
-        >
-          <CameraIcon className="w-5 h-5" />
-          Escanear ticket
-        </Link>
+        <ScanTicketButton />
       </div>
 
       {openKind !== null && (

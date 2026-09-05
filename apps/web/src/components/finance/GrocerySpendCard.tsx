@@ -1,14 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { CameraIcon } from '@heroicons/react/24/solid';
 import { haptic } from '@/lib/haptic';
 import { CATEGORY_EMOJI } from '@/lib/categories';
 import type { GroceryInsight, MonthTotal } from '@/lib/grocery-insights';
 import CategoryDetailSheet from './CategoryDetailSheet';
 import { fmtMoney, fmtMoneyFine } from './finance-ui';
+import ScanTicketButton from './ScanTicketButton';
 
 interface Props {
   readonly groceries: GroceryInsight;
@@ -273,15 +272,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
             : <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span> al mes de super
                 {g.baselineSource === 'average' ? ', tu promedio real.' : ', según tus tickets.'}</>}
         </p>
-        {/* Atajo directo al escáner: es la vía por la que entran los datos que
-            alimentan todo el plan, y antes no había forma de llegar desde aquí. */}
-        <Link
-          href="/shopping-trips/new"
-          className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-2xl bg-sky-500 active:bg-sky-600 active:scale-95 text-white text-sm font-bold shadow-sm transition"
-        >
-          <CameraIcon className="w-5 h-5" />
-          Escanear ticket
-        </Link>
+        <ScanTicketButton />
       </div>
     </section>
   );
