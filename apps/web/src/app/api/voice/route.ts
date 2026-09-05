@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { randomUUID } from 'node:crypto';
+import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
 
 interface VoiceRequest {
   transcript: string;
@@ -116,12 +117,15 @@ async function handleStockQuery(userId: string): Promise<IntentResult> {
 }
 
 async function handleSpendingQuery(userId: string): Promise<IntentResult> {
+  await ensureTripSplitsSchema();
   const rows = await sql`
     SELECT
       TO_CHAR(date, 'Month YYYY') AS month_label,
-      SUM(total_spent) AS total,
+      SUM(amount) AS total,
       COUNT(*) AS trips
-    FROM shopping_trips
+    -- La voz responde con la MISMA cifra que la pantalla: leyendo la tabla,
+    -- «cuanto llevo gastado» contestaba $51.16 y Casa ensenaba $29.22.
+    FROM trip_kind_amounts
     WHERE user_id = ${userId} AND kind = 'grocery'
       AND date >= DATE_TRUNC('month', NOW())
     GROUP BY TO_CHAR(date, 'Month YYYY')

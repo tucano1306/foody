@@ -2,7 +2,7 @@ import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { sql } from '@/lib/db';
 import { buildStatsSummary } from '@/lib/stats-engine';
-import { ensureExpenseKindSchema } from '@/lib/ensure-schema';
+import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
 import ModernTitle from '@/components/layout/ModernTitle';
 import StatsContent from '@/components/stats/StatsContent';
 import type { Metadata } from 'next';
@@ -26,7 +26,7 @@ interface StatsData {
 async function getStats(userId: string): Promise<StatsData> {
   // Stats mide la DESPENSA: solo tickets de super. Comer fuera, la farmacia o
   // la gasolina son gasto del Plan Financiero y ensuciarían cada promedio.
-  await ensureExpenseKindSchema();
+  await ensureTripSplitsSchema();
 
   // Per-user isolation
   const productScope = sql`user_id = ${userId}`;
@@ -42,8 +42,12 @@ async function getStats(userId: string): Promise<StatsData> {
     sql`
       SELECT name, COUNT(*) AS trips, SUM(total) AS total_spent
       FROM (
-        SELECT COALESCE(store_name, 'Sin tienda') AS name, COALESCE(total_spent, 0) AS total
-        FROM shopping_trips WHERE user_id = ${userId} AND kind = 'grocery'
+        -- La VISTA y no la tabla: un ticket de super con una
+        -- parte repartida a farmacia cuenta aqui solo por lo que quedo EN
+        -- DESPENSA. Leyendo la tabla, Publix salia por $204.43 mientras Casa y
+        -- el plan decian $182.49 — la misma tienda, dos respuestas.
+        SELECT COALESCE(store_name, 'Sin tienda') AS name, amount AS total
+        FROM trip_kind_amounts WHERE user_id = ${userId} AND kind = 'grocery'
         UNION ALL
         SELECT COALESCE(store_name, 'Sin tienda') AS name,
           SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
@@ -56,8 +60,9 @@ async function getStats(userId: string): Promise<StatsData> {
     sql`
       SELECT month, SUM(total) AS total, COUNT(*) AS trips
       FROM (
-        SELECT TO_CHAR(date, 'YYYY-MM') AS month, COALESCE(total_spent, 0) AS total
-        FROM shopping_trips
+        -- Mismo motivo: septiembre salia $51.16 aqui y $29.22 en Casa.
+        SELECT TO_CHAR(date, 'YYYY-MM') AS month, amount AS total
+        FROM trip_kind_amounts
         WHERE user_id = ${userId} AND kind = 'grocery' AND date >= NOW() - INTERVAL '6 months'
         UNION ALL
         SELECT TO_CHAR(purchased_at, 'YYYY-MM') AS month,
