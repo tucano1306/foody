@@ -40,16 +40,15 @@ export default async function ShoppingTripsPage({
   return (
     <div className="space-y-4">
       <ModernTitle
-        title="🛒 Compras del super"
+        title="Compras"
         subtitle="Tickets y precios de tu despensa"
         action={
           <Link
             href="/shopping-trips/new"
             aria-label="Nueva compra"
-            className="rounded-xl bg-brand-600 text-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold shadow hover:bg-brand-700 transition whitespace-nowrap"
+            className="hidden md:inline-flex items-center gap-1.5 btn-primary rounded-2xl px-5 py-3 text-sm"
           >
-            <span className="sm:hidden">+ Nueva</span>
-            <span className="hidden sm:inline">+ Nueva compra</span>
+            + Nueva compra
           </Link>
         }
       />

@@ -3,17 +3,181 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ══════════════════════════════════════════════════════════════════════════
+   FOODY — SISTEMA DE DISEÑO
+   ══════════════════════════════════════════════════════════════════════════
+
+   Una sola gama azul (decisión tomada en «ux(app): el estándar visual llega a
+   las nueve secciones»), pero AHORA con estructura: cada color tiene un puesto
+   y un motivo. Antes había cuatro familias azules mezcladas —slate, sky, blue,
+   brand, navy— sin regla que dijera cuál usar dónde, y eso no se lee como
+   monocromo elegante: se lee como azul embarrado.
+
+   Las superficies son tokens semánticos (--surface, --ink, --line…) que
+   cambian solos en oscuro. Eso quita la necesidad de escribir `dark:` en cada
+   clase y, sobre todo, arregla un fallo real que tenía la app: en modo oscuro
+   las tarjetas eran marrón-negro (#1c1917) sobre un fondo azul marino
+   (#050e1d). Dos mundos de color distintos en la misma pantalla.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* ─── Marca: azul vivo ─────────────────────────────────────────────────
+     El azul anterior (#004b8d) era un navy corporativo apagado; en una
+     pantalla de móvil a plena luz se hundía contra el gris. Este mantiene la
+     identidad azul y sube la saturación hasta donde un botón se ve VIVO sin
+     perder contraste: blanco sobre brand-500 = 4.9:1, sobre brand-600 = 6.4:1. */
+  --color-brand-50:  #eef5ff;
+  --color-brand-100: #d9e7ff;
+  --color-brand-200: #b8d2ff;
+  --color-brand-300: #8ab5ff;
+  --color-brand-400: #5492fb;
+  --color-brand-500: #1a6ae8;
+  --color-brand-600: #1257cc;
+  --color-brand-700: #1145a3;
+  --color-brand-800: #133a81;
+  --color-brand-900: #14325f;
+
+  /* ─── Navy: fondos profundos (sidebar, hero, modo oscuro) ─────────────── */
+  --color-navy-50:  #eff3fa;
+  --color-navy-100: #dbe4f3;
+  --color-navy-200: #b3c4e2;
+  --color-navy-300: #8199c7;
+  --color-navy-400: #4f6ba3;
+  --color-navy-500: #2c4677;
+  --color-navy-600: #1e3358;
+  --color-navy-700: #152442;
+  --color-navy-800: #0e192f;
+  --color-navy-900: #070d18;
+
+  /* ─── Tipografía ───────────────────────────────────────────────────────
+     --font-inter lo inyecta next/font (Inter, auto-alojada) desde
+     app/layout.tsx; aquí solo queda la pila de respaldo por si no llega.
+     Antes esta línea pedía "Inter" sin que nadie la cargara nunca: la app
+     llevaba meses renderizando en la fuente por defecto del sistema, que es
+     justamente lo que hace que una interfaz no tenga cara propia. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /*
+   * Familia de LECTURA, para los párrafos que explican algo en vez de
+   * etiquetar un dato: hoy, los consejos del Plan Financiero. Es una serif a
+   * propósito — esos textos son prosa y en la misma sans que el resto se
+   * leían como un pie de foto más. Stack del sistema: cero peticiones.
+   */
+  --font-reading: "Iowan Old Style", "Palatino Linotype", "Palatino", "Georgia",
+                  "Noto Serif", "Times New Roman", ui-serif, serif;
+
+  /* ─── Radios ───────────────────────────────────────────────────────────
+     20 px en tarjeta y 28 px en hoja. Los 16 px anteriores, junto a fotos y
+     botones de 12, daban una silueta dura y desigual. */
+  --radius-card:  1.25rem;
+  --radius-sheet: 1.75rem;
+
+  /* ─── Curvas ───────────────────────────────────────────────────────────
+     --ease-out para lo que aparece; --ease-spring para lo que responde al
+     dedo (rebota un pelo y se siente físico). */
+  --ease-smooth: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* ─── Tokens semánticos: cambian solos en oscuro ──────────────────────────
+   Se declaran fuera de @theme a propósito. Así .dark puede reasignar la misma
+   variable y toda la app vira de golpe, sin un `dark:` por clase. */
+:root {
+  --page:        #f4f7fb;  /* fondo de la app */
+  --surface:     #ffffff;  /* tarjeta, hoja, modal */
+  --surface-2:   #f1f5f9;  /* relleno sutil: chips, inputs en reposo */
+  --surface-3:   #e6edf6;  /* relleno activo */
+  --line:        #e5ebf3;  /* borde de 1 px */
+  --line-strong: #cfd9e6;
+
+  --ink:         #0b1220;  /* texto principal */
+  --ink-muted:   #56677f;  /* secundario legible */
+  --ink-subtle:  #8496ac;  /* metadatos */
+
+  --accent:      #1a6ae8;
+  --accent-soft: #eef5ff;
+  --on-accent:   #ffffff;
+
+  /* Sombras suaves y tintadas del azul del texto: una sombra gris neutra
+     sobre un fondo azulado se ve sucia. */
+  --shadow-xs: 0 1px 2px rgb(11 18 32 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(11 18 32 / 0.04), 0 2px 8px -2px rgb(11 18 32 / 0.07);
+  --shadow-md: 0 2px 4px rgb(11 18 32 / 0.04), 0 10px 26px -10px rgb(11 18 32 / 0.14);
+  --shadow-lg: 0 10px 44px -14px rgb(11 18 32 / 0.22);
+
+  /* Muescas del dispositivo (iPhone con la PWA instalada). El layout declara
+     viewportFit: 'cover', así que sin esto la barra inferior queda debajo de
+     la barra de gestos del sistema. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+
+  /* Alto real de la barra de pestañas: lo usa el padding inferior de la
+     página para que la última tarjeta no quede tapada. */
+  --tabbar-h: calc(4.25rem + var(--safe-b));
+}
+
+html.dark {
+  --page:        #070d18;
+  --surface:     #0f1626;
+  --surface-2:   #182134;
+  --surface-3:   #212c44;
+  --line:        #1e2942;
+  --line-strong: #2b3859;
+
+  --ink:         #e9eef7;
+  --ink-muted:   #9aabc4;
+  --ink-subtle:  #6b7e99;
+
+  --accent:      #5492fb;
+  --accent-soft: #12243f;
+  --on-accent:   #071022;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px -2px rgb(0 0 0 / 0.45);
+  --shadow-md: 0 2px 4px rgb(0 0 0 / 0.35), 0 10px 26px -10px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 10px 44px -14px rgb(0 0 0 / 0.7);
+
+  color-scheme: dark;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
 @layer base {
-  /* Kill the mobile browsers' gray tap-flash overlay: the app gives its own
-     feedback (sounds, haptics, check pops) and the flash reads as flicker. */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
   html {
+    -webkit-text-size-adjust: 100%;
+    /* Mata el destello gris del navegador al tocar: la app da su propio
+       feedback (sonido, vibración, rebote) y el flash se lee como parpadeo. */
     -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--page);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Cifras de ancho fijo en toda la app: sin esto, un total que baja de
+       1.234 a 999 desplaza lateralmente toda la fila al re-renderizar. */
+    font-variant-numeric: tabular-nums;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Los titulares necesitan tracking negativo o se ven sueltos: a partir de
+     20 px, cada salto de tamaño pide un poco más de apretado. */
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
   }
 
   /* Objetivo táctil mínimo en móvil.
      Medido en la app: casi la mitad de los botones y enlaces quedaban entre
      34 y 38 px de alto — por debajo de los 44 px que necesita un dedo para
-     acertar sin fallar. Es `min-height`, así que solo crece lo que se queda
+     acertar sin fallar. Es min-height, así que solo crece lo que se queda
      corto y nada se recorta. Los enlaces dentro de texto corrido se excluyen:
      ahí estirar rompería el párrafo en vez de ayudar. */
   @media (max-width: 640px) {
@@ -23,375 +187,281 @@
          43 reales y no llega al umbral. */
       min-height: 46px;
     }
-    /* Escape para casos donde 44 px desencaja de verdad (iconos en línea). */
+    /* Escape para casos donde 46 px desencaja de verdad (iconos en línea). */
     .touch-auto-size {
       min-height: 0;
     }
   }
 }
 
-@theme {
-  /* ─── Brand colors (FPL-inspired: deep navy primary) ──────────────────── */
-  --color-brand-50:  #e6f0f9;
-  --color-brand-100: #c3d9ee;
-  --color-brand-200: #8fb5dc;
-  --color-brand-300: #5c90c9;
-  --color-brand-400: #2e6eb0;
-  --color-brand-500: #004b8d;
-  --color-brand-600: #003b71;
-  --color-brand-700: #002e58;
-  --color-brand-800: #002344;
-  --color-brand-900: #00172e;
+/* ─── Utilidades de superficie ────────────────────────────────────────────
+   Escritas como utilidades y no como componentes de React porque hay más de
+   sesenta sitios que ya montan su propia tarjeta con Tailwind; estas les dan
+   el mismo cuerpo sin reescribirlos uno a uno. */
+.surface     { background-color: var(--surface); }
+.surface-2   { background-color: var(--surface-2); }
+.hairline    { border: 1px solid var(--line); }
+.text-ink    { color: var(--ink); }
+.text-muted  { color: var(--ink-muted); }
+.text-subtle { color: var(--ink-subtle); }
 
-  /* ─── Navy palette (deeper hero/nav backgrounds) ──────────────────────── */
-  --color-navy-50:  #eef2f8;
-  --color-navy-100: #d5dfee;
-  --color-navy-200: #a7bcd9;
-  --color-navy-300: #7a97c2;
-  --color-navy-400: #4e73ab;
-  --color-navy-500: #1f3a68;
-  --color-navy-600: #142d59;
-  --color-navy-700: #0d2142;
-  --color-navy-800: #08162e;
-  --color-navy-900: #050e1d;
-
-  /* ─── Energy palette (FPL-inspired lime green CTA) ────────────────────── */
-  --color-energy-50:  #f4faea;
-  --color-energy-100: #e6f3cc;
-  --color-energy-200: #d0e89a;
-  --color-energy-300: #b9dc67;
-  --color-energy-400: #a7ce39;
-  --color-energy-500: #8fb836;
-  --color-energy-600: #739931;
-  --color-energy-700: #577628;
-  --color-energy-800: #3f561f;
-  --color-energy-900: #2a3a16;
-
-  /* ─── Supermarket mode colors ─────────────────────────────────────────── */
-  --color-market-50:  #f0fdf4;
-  --color-market-100: #dcfce7;
-  --color-market-200: #bbf7d0;
-  --color-market-300: #86efac;
-  --color-market-400: #4ade80;
-  --color-market-500: #22c55e;
-  --color-market-600: #16a34a;
-  --color-market-700: #15803d;
-  --color-market-800: #166534;
-  --color-market-900: #14532d;
-
-  /* ─── Status colors ───────────────────────────────────────────────────── */
-  --color-status-ok:      #8fb836;
-  --color-status-low:     #f59e0b;
-  --color-status-empty:   #ef4444;
-
-  /* ─── Typography ──────────────────────────────────────────────────────── */
-  --font-sans: "Inter", "system-ui", "sans-serif";
-
-  /*
-   * Familia de LECTURA, para los párrafos que explican algo en vez de
-   * etiquetar un dato: hoy, los consejos del Plan Financiero.
-   *
-   * Es una serif a propósito. Esos textos son prosa —dicen qué pasa, por qué y
-   * qué hacer— y en la misma sans que el resto de la interfaz se leían como un
-   * pie de foto más: pequeños, densos y salteables. Cambiar de familia (y de
-   * tamaño) los separa del cromo de la app y les da el registro que les toca,
-   * el de alguien explicándote algo.
-   *
-   * Stack del sistema: cero peticiones, cero bytes de fuente y ninguna
-   * dependencia de build. En iOS y macOS cae en Iowan/Palatino, en Android en
-   * Noto Serif, en Windows en Georgia.
-   */
-  --font-reading: "Iowan Old Style", "Palatino Linotype", "Palatino", "Georgia",
-                  "Noto Serif", "Times New Roman", ui-serif, serif;
-
-  /* ─── Radius ──────────────────────────────────────────────────────────── */
-  --radius-card: 1rem;
-
-  /* ─── Easing (smooth FPL-like motion) ─────────────────────────────────── */
-  --ease-smooth: cubic-bezier(0.22, 0.61, 0.36, 1);
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sm);
 }
 
-/* ─── Base styles ─────────────────────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
+/* Cristal esmerilado para lo que flota sobre el contenido: barra inferior,
+   cabecera pegajosa, píldoras de filtro. Es el gesto visual que más separa
+   una interfaz de 2026 de una de 2018 — el fondo se transparenta en vez de
+   taparse con un bloque opaco. */
+.glass {
+  background-color: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+/* Sin soporte de backdrop-filter, el translúcido deja ver el texto de debajo
+   y se vuelve ilegible: ahí se pinta opaco. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background-color: var(--surface); }
 }
 
-body {
-  font-family: var(--font-sans);
-  /* Soft blue-tinted white — harmonizes with the pastel-blue sidebar */
-  background-color: #f0f6fd;
-  color: #1c1917;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
+/* ─── Tipografía: una escala, no cuarenta tamaños sueltos ─────────────────
+   La app tenía 297 usos de tamaños arbitrarios entre 9 y 11 px, casi todos en
+   MAYÚSCULAS con tracking abierto. Ese es el look de un panel de control de
+   2015, y es también el motivo de que se perciba «mucha letra»: no es que
+   haya más palabras, es que hay cuatro tamaños diminutos compitiendo dentro
+   de la misma tarjeta. Estas cuatro clases cubren casi todos esos casos. */
+.t-label {
+  font-size: 0.75rem;      /* 12 px — el mínimo legible de verdad en móvil */
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0;       /* nada de tracking abierto en minúscula */
+  color: var(--ink-muted);
+}
+.t-meta {
+  font-size: 0.75rem;
+  line-height: 1.05rem;
+  font-weight: 500;
+  color: var(--ink-subtle);
+}
+.t-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+/* Título de pantalla. clamp() en vez de tres breakpoints: escala continua,
+   sin el salto brusco que daba `text-xl sm:text-3xl md:text-4xl`. */
+.t-display {
+  font-size: clamp(1.5rem, 1.15rem + 1.6vw, 2.125rem);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: var(--ink);
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
+/* ─── Compatibilidad con las clases Tailwind que ya usa la app ────────────
+   Cientos de componentes escriben bg-white, text-slate-500, border-slate-100…
+   Reasignarlas en oscuro es lo que ya hacía el archivo anterior; la
+   diferencia es que ahora apuntan a los tokens y por tanto al MISMO mundo de
+   color que el fondo, en vez de a un marrón-negro suelto. */
+html.dark .bg-white          { background-color: var(--surface); }
+html.dark .bg-slate-50       { background-color: var(--surface-2); }
+html.dark .bg-slate-100      { background-color: var(--surface-2); }
+html.dark .bg-slate-800      { background-color: var(--surface-2); }
+html.dark .bg-slate-900      { background-color: var(--surface); }
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-700,
+html.dark .border-slate-800  { border-color: var(--line); }
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700    { color: var(--ink); }
+html.dark .text-slate-600,
+html.dark .text-slate-500    { color: var(--ink-muted); }
+html.dark .text-slate-400    { color: var(--ink-subtle); }
 
-/* ─── Dark theme ──────────────────────────────────────────────────────────── */
-html.dark body {
-  background-color: #050e1d;
-  color: #e7e5e4;
-}
-
-html.dark {
-  color-scheme: dark;
-}
-
-/* Surface overrides for cards / inputs under dark mode */
-html.dark .bg-white {
-  background-color: #1c1917;
-}
-html.dark .bg-stone-50 {
-  background-color: #18130f;
-}
-html.dark .bg-stone-100 {
-  background-color: #292524;
-}
-html.dark .border-stone-100,
-html.dark .border-stone-200 {
-  border-color: #292524;
-}
-html.dark .text-stone-800 {
-  color: #f5f5f4;
-}
-html.dark .text-stone-700 {
-  color: #e7e5e4;
-}
-html.dark .text-stone-600 {
-  color: #d6d3d1;
-}
-html.dark .text-stone-500 {
-  color: #a8a29e;
-}
-html.dark .text-stone-400 {
-  color: #78716c;
-}
-
-/* ─── Scrollbar styling ───────────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* ─── Barra de desplazamiento ─────────────────────────────────────────────
+   Fina y del color de la línea: presente cuando hace falta, discreta el resto
+   del tiempo. El borde transparente con background-clip la deja flotando en
+   vez de pegada al borde de la caja. */
+::-webkit-scrollbar       { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
-  border-radius: 3px;
+  background: var(--line-strong);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a29e;
+  background: var(--ink-subtle);
+  background-clip: content-box;
 }
 
-/* Horizontal chip rows (category filters): no scrollbar — the edge fade on the
-   element itself is the "there's more" cue, and a 6px bar under the chips just
-   made the row taller. */
+/* Filas de chips horizontales: sin barra — el degradado del borde ya dice que
+   hay más, y 8 px bajo los chips solo hacían la fila más alta. */
 .scroll-row {
   scrollbar-width: none;
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
 }
-.scroll-row::-webkit-scrollbar {
-  display: none;
-}
+.scroll-row::-webkit-scrollbar { display: none; }
 
-/* ─── Utilities: subtle motion ───────────────────────────────────────────── */
-@keyframes foody-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-up {
-  animation: foody-fade-up 0.35s ease-out both;
-}
-
-/* Lightbox: backdrop fade + image spring-in */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes photoIn {
-  from { transform: scale(0.72); opacity: 0; }
-  to   { transform: scale(1);    opacity: 1; }
-}
-
-@keyframes foody-pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.06); }
-  100% { transform: scale(1); }
-}
-.animate-pop {
-  animation: foody-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-@keyframes foody-scan-line {
-  0%   { transform: translateY(0); opacity: 1; }
-  50%  { opacity: 0.7; }
-  100% { transform: translateY(136px); opacity: 1; }
-}
-.animate-scan-line {
-  animation: foody-scan-line 1.8s ease-in-out infinite alternate;
-}
-
-@keyframes foody-shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-}
-.skeleton {
-  background: linear-gradient(90deg, #f5f5f4 0%, #e7e5e4 40%, #f5f5f4 80%);
-  background-size: 800px 100%;
-  animation: foody-shimmer 1.4s linear infinite;
-  border-radius: 0.75rem;
-}
-html.dark .skeleton {
-  background: linear-gradient(90deg, #1c1917 0%, #292524 40%, #1c1917 80%);
-  background-size: 800px 100%;
-}
-
-/* ─── Microinteractions: press & focus (FPL-like smooth motion) ─────────── */
+/* ─── Microinteracción: presionar ─────────────────────────────────────────
+   Una sola regla para toda la app. La bajada dura 90 ms: por encima de unos
+   160 ms el dedo ya se levantó antes de que el botón termine de hundirse y el
+   gesto se siente con retraso. La vuelta sí es lenta y con rebote — así es
+   como se siente algo físico. */
 button,
 a,
 [role="button"] {
   transition:
-    transform 0.25s var(--ease-smooth),
-    box-shadow 0.3s var(--ease-smooth),
-    background-color 0.3s var(--ease-smooth),
-    color 0.25s var(--ease-smooth),
-    border-color 0.25s var(--ease-smooth),
-    opacity 0.25s var(--ease-smooth);
+    transform 0.32s var(--ease-spring),
+    box-shadow 0.24s var(--ease-out),
+    background-color 0.18s var(--ease-out),
+    color 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out),
+    opacity 0.18s var(--ease-out);
 }
 button:active:not(:disabled),
 a:active,
 [role="button"]:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  transition-duration: 0.09s;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-energy-400);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 0.5rem;
+  border-radius: 0.6rem;
 }
 
-/* ─── FPL-style primary CTA (lime-green energy button) ──────────────────── */
-.btn-energy {
-  background-color: var(--color-energy-400);
-  color: var(--color-brand-800);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  box-shadow: 0 1px 2px rgba(0, 59, 113, 0.08), 0 6px 14px -6px rgba(143, 184, 54, 0.45);
-}
-.btn-energy:hover:not(:disabled) {
-  background-color: var(--color-energy-500);
-  box-shadow: 0 2px 4px rgba(0, 59, 113, 0.1), 0 10px 22px -8px rgba(143, 184, 54, 0.55);
-  transform: translateY(-1px);
-}
-.btn-energy:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
-}
-
-/* ─── FPL-style primary brand button (navy) ─────────────────────────────── */
+/* ─── Botones ─────────────────────────────────────────────────────────────
+   La sombra de color bajo un botón (misma tinta que el relleno, muy difusa)
+   es lo que lo levanta del fondo sin tener que dibujarle un borde. */
 .btn-primary {
   background-color: var(--color-brand-600);
   color: #ffffff;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  box-shadow: 0 1px 2px rgba(0, 35, 68, 0.1), 0 6px 14px -6px rgba(0, 59, 113, 0.35);
+  letter-spacing: -0.005em;
+  box-shadow: 0 1px 2px rgb(17 69 163 / 0.16), 0 8px 20px -8px rgb(18 87 204 / 0.5);
 }
 .btn-primary:hover:not(:disabled) {
   background-color: var(--color-brand-700);
-  box-shadow: 0 2px 4px rgba(0, 35, 68, 0.15), 0 10px 22px -8px rgba(0, 59, 113, 0.45);
+  box-shadow: 0 2px 4px rgb(17 69 163 / 0.2), 0 12px 26px -8px rgb(18 87 204 / 0.6);
   transform: translateY(-1px);
 }
+.btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 
-/* ─── FPL-style stat card (colored accent bar + big number) ─────────────── */
+/* Variante suave: el azul de la marca sobre su propio tinte. Para acciones
+   secundarias que aun así quieren leerse como acción, no como texto. */
+.btn-soft {
+  background-color: var(--accent-soft);
+  color: var(--color-brand-700);
+  font-weight: 600;
+}
+.btn-soft:hover:not(:disabled) { background-color: var(--color-brand-100); }
+html.dark .btn-soft { color: var(--color-brand-300); }
+html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
+
+/* Alias histórico: btn-energy era el CTA verde lima de la paleta `energy`,
+   que el barrido a azul dejó sin uso. Se mantiene el nombre porque dos
+   pantallas lo llaman, apuntando ya al azul de la marca. */
+.btn-energy {
+  background-color: var(--color-brand-500);
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  box-shadow: 0 1px 2px rgb(17 69 163 / 0.16), 0 8px 20px -8px rgb(26 106 232 / 0.5);
+}
+.btn-energy:hover:not(:disabled) {
+  background-color: var(--color-brand-600);
+  transform: translateY(-1px);
+}
+.btn-energy:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+
+/* ─── Tarjeta de dato ─────────────────────────────────────────────────────── */
 .stat-card {
   position: relative;
-  background: #ffffff;
-  border-radius: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
   padding: 1.1rem 1rem 1rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px -6px rgba(15, 23, 42, 0.08);
-  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   transition:
-    transform 0.3s var(--ease-smooth),
-    box-shadow 0.3s var(--ease-smooth),
-    border-color 0.3s var(--ease-smooth);
+    transform 0.3s var(--ease-out),
+    box-shadow 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out);
 }
 .stat-card::before {
   content: '';
   position: absolute;
   inset: 0 auto 0 0;
-  width: 4px;
-  background: var(--color-brand-500);
-  border-radius: 4px 0 0 4px;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 3px 0 0 3px;
 }
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 12px 28px -10px rgba(15, 23, 42, 0.15);
-  border-color: var(--color-brand-200);
+@media (hover: hover) {
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-brand-200);
+  }
+  html.dark .stat-card:hover { border-color: var(--color-brand-700); }
 }
-.stat-card[data-accent="energy"]::before { background: var(--color-energy-400); }
-.stat-card[data-accent="warn"]::before   { background: var(--color-status-low); }
-.stat-card[data-accent="danger"]::before { background: var(--color-status-empty); }
-.stat-card[data-accent="brand"]::before  { background: var(--color-brand-500); }
+.stat-card[data-accent="energy"]::before { background: var(--color-brand-400); }
+.stat-card[data-accent="warn"]::before   { background: var(--color-brand-300); }
+.stat-card[data-accent="danger"]::before { background: var(--color-brand-600); }
+.stat-card[data-accent="brand"]::before  { background: var(--accent); }
 
-html.dark .stat-card {
-  background: #1c1917;
-  border-color: #292524;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px -6px rgba(0, 0, 0, 0.4);
-}
-html.dark .stat-card:hover {
-  border-color: var(--color-brand-600);
-}
-
-/* ─── FPL-style count-up animation for stat values ──────────────────────── */
 @keyframes foody-count-up {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .stat-value {
-  animation: foody-count-up 0.5s var(--ease-smooth) both;
+  animation: foody-count-up 0.5s var(--ease-out) both;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
 }
 
-/* ─── Neomorphism ────────────────────────────────────────────────────────── */
-.neo {
-  background: #fafaf9;
-  box-shadow:
-    8px 8px 20px rgba(214, 211, 209, 0.55),
-    -8px -8px 20px rgba(255, 255, 255, 0.9);
-  border-radius: 1.25rem;
+/* ─── Movimiento ──────────────────────────────────────────────────────────── */
+@keyframes foody-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.neo-inset {
-  background: #fafaf9;
-  box-shadow:
-    inset 5px 5px 12px rgba(214, 211, 209, 0.6),
-    inset -5px -5px 12px rgba(255, 255, 255, 0.9);
-  border-radius: 1rem;
+.animate-fade-up { animation: foody-fade-up 0.32s var(--ease-out) both; }
+
+/* Lightbox: fundido del fondo + entrada con rebote de la foto */
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes photoIn { from { transform: scale(0.72); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+@keyframes foody-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
 }
-html.dark .neo {
-  background: #1c1917;
-  box-shadow:
-    8px 8px 20px rgba(0, 0, 0, 0.5),
-    -4px -4px 14px rgba(68, 64, 60, 0.35);
+.animate-pop { animation: foody-pop 0.35s var(--ease-spring) both; }
+
+@keyframes foody-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
 }
-html.dark .neo-inset {
-  background: #1c1917;
-  box-shadow:
-    inset 5px 5px 12px rgba(0, 0, 0, 0.5),
-    inset -5px -5px 12px rgba(68, 64, 60, 0.3);
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 40%, var(--surface-2) 80%);
+  background-size: 800px 100%;
+  animation: foody-shimmer 1.4s linear infinite;
 }
 
-/* ─── Fun mode: floating food background ─────────────────────────────────── */
+/* ─── Fondo ambiental ─────────────────────────────────────────────────────
+   Antes: tres manchas con blur(70px) al 35 % MÁS doce emojis de comida
+   subiendo por la pantalla, en todas las secciones, siempre. Eso compite con
+   el contenido en cada scroll y quema batería en un móvil.
+
+   Ahora es una malla de degradados casi quieta y muy tenue: da profundidad al
+   fondo plano y desaparece en cuanto hay algo que leer encima. Los emojis
+   flotantes se fueron: eran lo que más delataba la edad de la interfaz. */
 .fun-bg {
   position: fixed;
   inset: 0;
@@ -399,78 +469,59 @@ html.dark .neo-inset {
   pointer-events: none;
   overflow: hidden;
 }
-
 .fun-blob {
   position: absolute;
-  width: 45vw;
-  height: 45vw;
-  min-width: 320px;
-  min-height: 320px;
+  width: 52vw;
+  height: 52vw;
+  min-width: 360px;
+  min-height: 360px;
   border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.35;
-  animation: foody-blob-drift 26s ease-in-out infinite alternate;
+  filter: blur(90px);
+  opacity: 0.5;
+  animation: foody-blob-drift 40s var(--ease-smooth) infinite alternate;
 }
-.fun-blob-1 { top: -12%; left: -10%; background: radial-gradient(circle, #bae6fd, transparent 65%); }
-.fun-blob-2 { top: 30%; right: -15%; background: radial-gradient(circle, #c7d2fe, transparent 65%); animation-delay: -9s; animation-duration: 32s; }
-.fun-blob-3 { bottom: -18%; left: 20%; background: radial-gradient(circle, #ddd6fe, transparent 65%); animation-delay: -18s; animation-duration: 38s; }
+.fun-blob-1 { top: -18%;    left: -12%;  background: radial-gradient(circle, #cfe2ff, transparent 68%); }
+.fun-blob-2 { top: 26%;     right: -18%; background: radial-gradient(circle, #dbe9ff, transparent 68%); animation-delay: -14s; animation-duration: 48s; }
+.fun-blob-3 { bottom: -22%; left: 24%;   background: radial-gradient(circle, #e4edfb, transparent 68%); animation-delay: -26s; animation-duration: 56s; }
 
-html.dark .fun-blob { opacity: 0.16; }
-html.dark .fun-blob-1 { background: radial-gradient(circle, #1f3a68, transparent 65%); }
-html.dark .fun-blob-2 { background: radial-gradient(circle, #312e81, transparent 65%); }
-html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent 65%); }
+html.dark .fun-blob   { opacity: 0.22; filter: blur(100px); }
+html.dark .fun-blob-1 { background: radial-gradient(circle, #16305c, transparent 68%); }
+html.dark .fun-blob-2 { background: radial-gradient(circle, #1a2a52, transparent 68%); }
+html.dark .fun-blob-3 { background: radial-gradient(circle, #102544, transparent 68%); }
 
 @keyframes foody-blob-drift {
   from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(6vw, -5vh) scale(1.15); }
+  to   { transform: translate(4vw, -4vh) scale(1.12); }
 }
 
-.fun-emoji {
-  position: absolute;
-  bottom: -8vh;
-  opacity: 0;
-  animation: foody-float-up linear infinite;
-  will-change: transform;
-  filter: saturate(0.9);
-}
-
-@keyframes foody-float-up {
-  0%   { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
-  10%  { opacity: 0.4; }
-  25%  { transform: translateY(-30vh) translateX(2vw) rotate(10deg); }
-  50%  { transform: translateY(-60vh) translateX(-2vw) rotate(-8deg); }
-  75%  { transform: translateY(-90vh) translateX(2vw) rotate(12deg); opacity: 0.4; }
-  100% { transform: translateY(-120vh) translateX(0) rotate(0deg); opacity: 0; }
-}
-
-/* ─── Fun mode: staggered card entrance ──────────────────────────────────── */
+/* ─── Entrada escalonada de tarjetas ──────────────────────────────────────
+   El desplazamiento bajó de 16 px a 10 y la escala se fue: una rejilla entera
+   creciendo desde 0.96 se lee como un rebote de juguete. */
 @keyframes foody-card-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.card-stagger > * {
-  animation: foody-card-in 0.45s var(--ease-smooth) both;
-}
+.card-stagger > * { animation: foody-card-in 0.42s var(--ease-out) both; }
 .card-stagger > *:nth-child(1)  { animation-delay: 0.02s; }
-.card-stagger > *:nth-child(2)  { animation-delay: 0.07s; }
-.card-stagger > *:nth-child(3)  { animation-delay: 0.12s; }
-.card-stagger > *:nth-child(4)  { animation-delay: 0.17s; }
-.card-stagger > *:nth-child(5)  { animation-delay: 0.22s; }
-.card-stagger > *:nth-child(6)  { animation-delay: 0.27s; }
-.card-stagger > *:nth-child(7)  { animation-delay: 0.32s; }
-.card-stagger > *:nth-child(8)  { animation-delay: 0.37s; }
-.card-stagger > *:nth-child(9)  { animation-delay: 0.42s; }
-.card-stagger > *:nth-child(10) { animation-delay: 0.47s; }
-.card-stagger > *:nth-child(11) { animation-delay: 0.52s; }
-.card-stagger > *:nth-child(12) { animation-delay: 0.57s; }
-.card-stagger > *:nth-child(n+13) { animation-delay: 0.62s; }
+.card-stagger > *:nth-child(2)  { animation-delay: 0.06s; }
+.card-stagger > *:nth-child(3)  { animation-delay: 0.10s; }
+.card-stagger > *:nth-child(4)  { animation-delay: 0.14s; }
+.card-stagger > *:nth-child(5)  { animation-delay: 0.18s; }
+.card-stagger > *:nth-child(6)  { animation-delay: 0.22s; }
+.card-stagger > *:nth-child(7)  { animation-delay: 0.26s; }
+.card-stagger > *:nth-child(8)  { animation-delay: 0.30s; }
+.card-stagger > *:nth-child(9)  { animation-delay: 0.34s; }
+.card-stagger > *:nth-child(10) { animation-delay: 0.38s; }
+.card-stagger > *:nth-child(11) { animation-delay: 0.42s; }
+.card-stagger > *:nth-child(12) { animation-delay: 0.46s; }
+.card-stagger > *:nth-child(n+13) { animation-delay: 0.5s; }
 
-/* ─── Fun mode: game-style progress bar (supermarket cart) ───────────────── */
+/* ─── Barra de progreso del carrito ───────────────────────────────────────── */
 .progress-fun {
-  /* --progress-from/--progress-to let each meter pick its own color scheme */
+  /* --progress-from/--progress-to dejan que cada medidor elija su gama */
   background-image:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.28) 0 10px, transparent 10px 20px),
-    linear-gradient(90deg, var(--progress-from, var(--color-market-400)), var(--progress-to, var(--color-market-600)));
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.24) 0 10px, transparent 10px 20px),
+    linear-gradient(90deg, var(--progress-from, var(--color-brand-400)), var(--progress-to, var(--color-brand-600)));
   animation: foody-stripes 1s linear infinite;
 }
 @keyframes foody-stripes {
@@ -478,61 +529,43 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent
   to   { background-position: 28.28px 0, 0 0; }
 }
 
-/* Pulsing glow for the "everything's in the cart" CTA */
+/* Latido del CTA «ya está todo en el carrito» */
 @keyframes foody-glow {
-  0%, 100% { box-shadow: 0 10px 25px -5px rgba(34, 197, 94, 0.45); }
-  50%      { box-shadow: 0 10px 40px 2px rgba(34, 197, 94, 0.75); }
+  0%, 100% { box-shadow: 0 10px 25px -5px rgb(26 106 232 / 0.45); }
+  50%      { box-shadow: 0 10px 40px 2px rgb(26 106 232 / 0.7); }
 }
-.animate-glow {
-  animation: foody-glow 1.6s ease-in-out infinite;
-}
+.animate-glow { animation: foody-glow 1.8s ease-in-out infinite; }
 
-/* ─── Fun mode: chart bars that grow in (stats) ──────────────────────────── */
-@keyframes foody-grow-x {
-  from { transform: scaleX(0); }
-  to   { transform: scaleX(1); }
-}
-@keyframes foody-grow-y {
-  from { transform: scaleY(0); }
-  to   { transform: scaleY(1); }
-}
-.grow-bar {
-  transform-origin: left;
-  animation: foody-grow-x 0.8s var(--ease-smooth) both;
-}
-.grow-bar-y {
-  transform-origin: bottom;
-  animation: foody-grow-y 0.8s var(--ease-smooth) both;
-}
+/* ─── Barras de gráfico que crecen ────────────────────────────────────────── */
+@keyframes foody-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes foody-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.grow-bar   { transform-origin: left;   animation: foody-grow-x 0.8s var(--ease-out) both; }
+.grow-bar-y { transform-origin: bottom; animation: foody-grow-y 0.8s var(--ease-out) both; }
 
-/* ─── Fun mode: shake (product just ran out) ─────────────────────────────── */
+/* ─── Sacudida (un producto se acaba de agotar) ───────────────────────────── */
 @keyframes foody-shake {
   10%, 90% { transform: translateX(-1px); }
   20%, 80% { transform: translateX(2px); }
   30%, 50%, 70% { transform: translateX(-4px); }
   40%, 60% { transform: translateX(4px); }
 }
-.animate-shake {
-  animation: foody-shake 0.5s ease both;
-}
+.animate-shake { animation: foody-shake 0.5s ease both; }
 
 /* ─── Pago pendiente: un aviso que respira ───────────────────────────────── */
 /* Un pago sin pagar tiene que distinguirse sin gritar. Un color fijo se vuelve
    invisible a los dos días —el ojo lo deja de registrar—, así que la tarjeta
-   respira muy despacio hacia un rojo crema y vuelve.
+   respira muy despacio hacia un azul cargado y vuelve.
 
    Los 4 s son a propósito. Más rápido parpadea y marea en una lista de diez
    pagos; a esta velocidad se percibe al pasar la vista por encima pero no
-   compite con lo que se esté leyendo. Los colores de reposo son exactamente los
-   de la tarjeta (`bg-sky-50/70`, `border-sky-100`) para que el ciclo cierre sin
-   un salto de color.
+   compite con lo que se esté leyendo. Los colores de reposo son exactamente
+   los de la tarjeta (bg-sky-50/70, border-sky-100) para que el ciclo cierre
+   sin un salto de color.
 
-   El bloque de `prefers-reduced-motion` del final de este archivo lo apaga
-   entero, así que quien tenga las animaciones desactivadas ve la tarjeta quieta.
-
-   Se quita en cuanto el pago pasa a pagado: el aviso deja de tener sentido y un
-   recordatorio que sigue insistiendo después de hacerle caso es peor que no
-   tenerlo. */
+   El bloque de prefers-reduced-motion del final de este archivo lo apaga
+   entero, así que quien tenga las animaciones desactivadas ve la tarjeta
+   quieta. Se quita en cuanto el pago pasa a pagado: un recordatorio que sigue
+   insistiendo después de hacerle caso es peor que no tenerlo. */
 @keyframes foody-pendiente {
   0%,
   100% {
@@ -540,24 +573,19 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent
     border-color: rgb(224 242 254);
   }
   50% {
-    background-color: rgb(254 238 233 / 0.95);
-    border-color: rgb(250 203 193);
+    background-color: rgb(217 231 255 / 0.95);
+    border-color: rgb(184 210 255);
   }
 }
-.pulse-pending {
-  animation: foody-pendiente 4s ease-in-out infinite;
-}
+.pulse-pending { animation: foody-pendiente 4s ease-in-out infinite; }
 
 /* La misma respiración para una deuda ATRASADA: se le pasó el día de pago y no
-   hay ningún abono este mes (ver `isOverdue` en debt-data.ts).
+   hay ningún abono este mes (ver isOverdue en debt-data.ts).
 
    Necesita su propio ciclo y no puede reusar el de arriba porque la tarjeta de
    una deuda reposa en BLANCO, no en el azul de la de un pago: con los colores
    de reposo de aquella, el ciclo cerraría dando un salto de blanco a azul cada
-   cuatro segundos. Los `0%/100%` son exactamente `bg-white` y `border-sky-100`.
-
-   El rojo crema del 50 % es el mismo, así que las dos secciones avisan igual.
-   `prefers-reduced-motion` la apaga junto con todo lo demás. */
+   cuatro segundos. Los 0 %/100 % son exactamente bg-white y border-sky-100. */
 @keyframes foody-atrasada {
   0%,
   100% {
@@ -565,43 +593,36 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #164e63, transparent
     border-color: rgb(224 242 254);
   }
   50% {
-    background-color: rgb(254 238 233 / 0.95);
-    border-color: rgb(250 203 193);
+    background-color: rgb(217 231 255 / 0.95);
+    border-color: rgb(184 210 255);
   }
 }
-.pulse-overdue {
-  animation: foody-atrasada 4s ease-in-out infinite;
-}
+.pulse-overdue { animation: foody-atrasada 4s ease-in-out infinite; }
 
-/* ─── Scroll reveal: sections slide+fade in as they enter the viewport ───── */
+/* ─── Aparición por scroll ────────────────────────────────────────────────── */
 .reveal-section {
   opacity: 0;
-  transform: translateY(22px) scale(0.985);
-  transition: opacity 0.6s var(--ease-smooth), transform 0.6s var(--ease-smooth);
+  transform: translateY(16px);
+  transition: opacity 0.55s var(--ease-out), transform 0.55s var(--ease-out);
   will-change: opacity, transform;
 }
 .reveal-section.reveal-visible {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 @media (prefers-reduced-motion: reduce) {
-  .reveal-section {
-    opacity: 1;
-    transform: none;
-  }
+  .reveal-section { opacity: 1; transform: none; }
 }
 
-/* Section cards lift softly on hover so each zone feels tactile */
+/* Las tarjetas de sección se levantan al pasar el ratón, para que cada zona se
+   sienta como un objeto y no como un rectángulo pintado. */
 .zone-card {
-  transition: transform 0.25s var(--ease-smooth), box-shadow 0.25s var(--ease-smooth);
+  transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
 }
 @media (hover: hover) {
   .zone-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 30px -12px rgba(28, 25, 23, 0.18);
-  }
-  html.dark .zone-card:hover {
-    box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--shadow-md);
   }
 }
 

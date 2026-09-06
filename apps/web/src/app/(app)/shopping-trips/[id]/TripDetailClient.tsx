@@ -272,12 +272,12 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
       {/* ── Encabezado del ticket ─────────────────────────────────────────── */}
       <header className="rounded-2xl bg-white p-5 shadow-sm border border-slate-100">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs uppercase tracking-wide text-brand-600 font-semibold">Ticket</p>
+          <p className="text-xs text-brand-600 font-semibold">Ticket</p>
           {!editing && (
             <div className="flex items-center gap-1.5">
               {/* Qué clase de gasto es, a la vista: es la diferencia entre
                   aparecer en Compras o en el plan, y hasta ahora era invisible. */}
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold">
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold">
                 {expenseKindMeta(trip.kind).emoji} {expenseKindMeta(trip.kind).label}
               </span>
               {/* Que este ticket está repartido, dicho como tal.
@@ -286,7 +286,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                   chip «Súper», se leía como «este ticket es súper y mixto» —
                   justo la frase que ahora significa otra cosa. */}
               {desglose.length > 1 && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
                   ✂️ Repartido
                 </span>
               )}
@@ -448,7 +448,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
+                    <span className="block text-[11px] text-slate-400 mb-0.5">
                       Cantidad
                     </span>
                     <input
@@ -462,7 +462,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                     />
                   </label>
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
+                    <span className="block text-[11px] text-slate-400 mb-0.5">
                       Precio unitario (opcional)
                     </span>
                     <input
@@ -535,7 +535,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
                       <>
                         {formatCurrency(item.unitPrice, item.currency)} c/u
                         {item.priceSource === 'allocated' && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded">
+                          <span className="text-[11px] px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded">
                             est.
                           </span>
                         )}

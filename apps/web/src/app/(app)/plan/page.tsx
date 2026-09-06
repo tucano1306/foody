@@ -16,8 +16,8 @@ export default async function PlanPage() {
   return (
     <div className="space-y-5">
       <ModernTitle
-        title="🧭 Plan financiero"
-        subtitle="Tus metas, tus deudas y el plan mes a mes para lograrlas"
+        title="Plan financiero"
+        subtitle="Tus metas y el camino hasta ellas"
       />
       <FinancePlanView initialData={data} />
     </div>

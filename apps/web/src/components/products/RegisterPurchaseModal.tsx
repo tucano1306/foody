@@ -137,7 +137,7 @@ export default function RegisterPurchaseModal(props: Readonly<Props>) {
         <section className="pointer-events-auto w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-fade-up max-h-[92vh] sm:max-h-[88vh] overflow-y-auto pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-brand-600 font-semibold">
+              <p className="text-xs text-brand-600 font-semibold">
                 🛒 Registrar compra
               </p>
               <h2 className="text-lg font-bold text-slate-800 truncate">{product.name}</h2>

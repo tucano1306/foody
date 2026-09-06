@@ -42,34 +42,31 @@ export default async function SupermarketPage() {
     <div className="space-y-6">
       {/* ─── Header (plain title, consistent with other pages) ──────────────── */}
       <ModernTitle
-        title="🛒 Modo Supermercado"
+        title="Modo Supermercado"
         subtitle={`${items.length} producto${items.length === 1 ? '' : 's'} para comprar`}
         action={<ModeToggle currentMode="supermarket" />}
       />
 
       {/* ─── Quick stats ────────────────────────────────────────────────────── */}
       {topStore && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-3">
+        <div className="card flex items-center gap-3 p-3.5">
           {topStoreLogo ? (
-            <span className="w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-slate-100 shrink-0">
-              <Image src={topStoreLogo} alt={topStore.storeName} width={44} height={44} className="object-contain w-full h-full" />
+            <span className="w-12 h-12 rounded-2xl overflow-hidden grid place-items-center bg-white border border-[var(--line)] shrink-0">
+              <Image src={topStoreLogo} alt="" width={48} height={48} className="object-contain w-full h-full" />
             </span>
           ) : (
-            <span className="w-11 h-11 rounded-xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-xl shrink-0" aria-hidden="true">
+            <span className="w-12 h-12 rounded-2xl bg-[var(--surface-2)] grid place-items-center text-xl shrink-0" aria-hidden="true">
               🏪
             </span>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">
-              Tu súper favorito
+            <p className="font-bold text-[var(--ink)] truncate">{topStore.storeName}</p>
+            {/* Antes: «Tu súper favorito» en micro-mayúsculas ENCIMA del nombre.
+                Una etiqueta que ocupaba más que el dato y que no hacía falta —
+                si es el único que sale aquí, ya se entiende cuál es. */}
+            <p className="t-meta truncate">
+              {topStore.count} {topStore.count === 1 ? 'visita' : 'visitas'} · {fmt(topStore.total)}
             </p>
-            <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{topStore.storeName}</p>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">
-              {topStore.count} {topStore.count === 1 ? 'visita' : 'visitas'}
-            </p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 tabular-nums">{fmt(topStore.total)} gastados</p>
           </div>
         </div>
       )}

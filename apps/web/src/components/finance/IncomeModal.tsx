@@ -143,7 +143,7 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
       footer={
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-slate-500 font-bold">
+            <p className="text-[11px] text-slate-500 font-bold">
               {oneTime > 0 ? 'Entra este mes' : 'Total mensual'}
             </p>
             <p className="text-xl font-black text-black tabular-nums">{fmtMoney(recurring + oneTime)}</p>

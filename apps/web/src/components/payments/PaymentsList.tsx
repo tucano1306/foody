@@ -283,7 +283,7 @@ export default function PaymentsList({ initialPayments }: Props) {
             {formatTotal(totalExpenses - totalPaid)}{mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
           </p>
           {totalSnoozed > 0 && (
-            <p className="text-slate-400 text-[10px] sm:text-xs mt-1 text-center leading-tight">
+            <p className="text-slate-400 text-[11px] sm:text-xs mt-1 text-center leading-tight">
               incl. {formatTotal(totalSnoozed)} pospuesto
             </p>
           )}

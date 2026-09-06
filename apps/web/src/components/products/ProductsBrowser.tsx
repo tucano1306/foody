@@ -4,6 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
+import {
+  CameraIcon,
+  FolderIcon,
+  MagnifyingGlassIcon,
+  Squares2X2Icon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from './ProductCard';
 import CategorySelect from '@/components/ui/CategorySelect';
@@ -59,9 +66,9 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
   const pct = Math.round((fullCount / total) * 100);
   const cfg = healthConfig(pct);
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+    <div className="card p-4">
       <div className="flex justify-between items-baseline mb-2">
-        <span className="text-sm font-semibold text-slate-700">
+        <span className="text-sm font-semibold text-[var(--ink)]">
           <motion.span
             key={cfg.emoji}
             initial={{ scale: 0.3, rotate: -20 }}
@@ -75,7 +82,7 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
         </span>
         <span className="text-xs font-bold tabular-nums" style={{ color: cfg.to }}>{pct}%</span>
       </div>
-      <div className="relative h-3 bg-slate-100 rounded-full">
+      <div className="relative h-3 bg-[var(--surface-2)] rounded-full overflow-hidden">
         <div
           className="progress-fun h-full rounded-full transition-all duration-700 ease-out"
           style={{
@@ -85,7 +92,7 @@ function PantryHealthMeter({ products }: { readonly products: readonly Product[]
           }}
         />
       </div>
-      <p className="text-[11px] text-slate-400 mt-1.5">
+      <p className="t-meta mt-1.5">
         {cfg.label}
         {emptyCount > 0 && ` · ${emptyCount} agotado${emptyCount === 1 ? '' : 's'}`}
       </p>
@@ -364,39 +371,34 @@ export default function ProductsBrowser(props: Readonly<Props>) {
           stays a single search affordance instead of three boxes. */}
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
-          <motion.span
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            whileHover={{ scale: 1.3, rotate: -15 }}
-            animate={
-              query
-                ? { scale: [1, 1.2, 1], rotate: [0, -10, 0], x: 0 }
-                : { x: [0, 5, -5, 5, 0], rotate: [0, -8, 8, -8, 0] }
-            }
-            transition={
-              query
-                ? { type: 'spring', stiffness: 400, damping: 15 }
-                : { duration: 2.4, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }
-            }
-          >
-            🔍
-          </motion.span>
+          {/*
+            La lupa era un emoji que se meneaba en bucle infinito
+            (repeat: Infinity) esperando a que escribieras. Un elemento
+            moviéndose para siempre en la esquina de la pantalla no invita:
+            distrae, y en un móvil gasta batería sin descanso. Ahora es el
+            mismo trazo que el resto de iconos de la app, y está quieta.
+          */}
+          <MagnifyingGlassIcon
+            aria-hidden="true"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--ink-subtle)] pointer-events-none"
+          />
           <input
             type="text"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Buscar productos…"
-            className={`w-full pl-11 py-3 bg-white border border-slate-200 rounded-2xl text-slate-700 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition ${query ? 'pr-20' : 'pr-14'}`}
+            placeholder="Buscar producto"
+            className={`w-full h-12 pl-11 bg-[var(--surface)] border border-[var(--line)] rounded-2xl text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] shadow-[var(--shadow-xs)] focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition ${query ? 'pr-[5.5rem]' : 'pr-12'}`}
           />
 
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
             {query && (
               <button
                 type="button"
                 onClick={() => onQueryChange('')}
-                className="w-8 h-8 grid place-items-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                className="w-9 h-9 grid place-items-center rounded-full text-[var(--ink-subtle)] hover:bg-[var(--surface-2)] touch-auto-size"
                 aria-label="Limpiar búsqueda"
               >
-                ✕
+                <XMarkIcon className="w-[18px] h-[18px]" />
               </button>
             )}
             {/* Camera search: photograph the product to find it in the pantry */}
@@ -405,31 +407,36 @@ export default function ProductsBrowser(props: Readonly<Props>) {
               onClick={() => setScanOpen(true)}
               aria-label="Buscar producto con la cámara"
               title="Buscar producto con la cámara"
-              className="w-9 h-9 grid place-items-center rounded-full text-base text-slate-500 hover:bg-slate-100 active:scale-95 transition"
+              className="w-9 h-9 grid place-items-center rounded-full text-[var(--ink-muted)] hover:bg-[var(--surface-2)] touch-auto-size"
             >
-              📷
+              <CameraIcon className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* View mode toggle */}
+        {/* Conmutador de vista: rejilla o por pasillos. Los caracteres sueltos
+            que había antes dependían de la fuente del sistema y se veían
+            distintos en cada teléfono; con iconos de trazo son el mismo dibujo
+            en todos. */}
         {!searchOnly && (
-          <div className="flex rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm shrink-0">
+          <div className="flex h-12 shrink-0 rounded-2xl border border-[var(--line)] overflow-hidden bg-[var(--surface)] shadow-[var(--shadow-xs)]">
             <button
               type="button"
               onClick={() => setViewMode('grid')}
               aria-label="Vista cuadrícula"
-              className={`px-3 py-3 text-base transition ${viewMode === 'grid' ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+              aria-pressed={viewMode === 'grid'}
+              className={`w-11 grid place-items-center touch-auto-size ${viewMode === 'grid' ? 'bg-brand-500 text-white' : 'text-[var(--ink-subtle)]'}`}
             >
-              ⊞
+              <Squares2X2Icon className="w-5 h-5" />
             </button>
             <button
               type="button"
               onClick={() => setViewMode('categories')}
               aria-label="Vista por categorías"
-              className={`px-3 py-3 text-base transition ${viewMode === 'categories' ? 'bg-brand-500 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+              aria-pressed={viewMode === 'categories'}
+              className={`w-11 grid place-items-center touch-auto-size ${viewMode === 'categories' ? 'bg-brand-500 text-white' : 'text-[var(--ink-subtle)]'}`}
             >
-              📂
+              <FolderIcon className="w-5 h-5" />
             </button>
           </div>
         )}
@@ -461,10 +468,10 @@ export default function ProductsBrowser(props: Readonly<Props>) {
                 whileHover={{ scale: 1.07 }}
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                className={`px-3 py-1 rounded-full text-sm border transition ${
+                className={`px-4 py-2 rounded-full text-sm font-semibold border touch-auto-size ${
                   active
-                    ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                    ? 'bg-brand-500 text-white border-brand-500 shadow-[var(--shadow-xs)]'
+                    : 'bg-[var(--surface)] border-[var(--line)] text-[var(--ink-muted)]'
                 }`}
               >
                 {f.label}

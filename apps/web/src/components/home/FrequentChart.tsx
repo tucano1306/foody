@@ -64,7 +64,7 @@ export default function FrequentChart({ items }: Readonly<Props>) {
             {/* Count + recency */}
             <span className="shrink-0 text-right tabular-nums">
               <span className="text-sm font-bold text-slate-700">{item.purchases}x</span>
-              <span className="block text-[10px] text-slate-400 leading-none">
+              <span className="block text-[11px] text-slate-400 leading-none">
                 {formatRelative(item.lastPurchasedAt)}
               </span>
             </span>

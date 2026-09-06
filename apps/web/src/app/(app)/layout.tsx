@@ -2,6 +2,8 @@ import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { api, type PaletteProduct } from '@/lib/api';
 import Navbar from '@/components/layout/Navbar';
+import BottomNav from '@/components/layout/BottomNav';
+import PrimaryAction from '@/components/layout/PrimaryAction';
 import OnboardingTour from '@/components/layout/OnboardingTour';
 import PullToRefresh from '@/components/layout/PullToRefresh';
 import CommandPalette from '@/components/layout/CommandPalette';
@@ -10,7 +12,6 @@ import OfflineSync from '@/components/pwa/OfflineSync';
 import FocusRefresh from '@/components/pwa/FocusRefresh';
 import PushNotifications from '@/components/pwa/PushNotifications';
 import FunBackground from '@/components/fx/FunBackground';
-import type { Product } from '@foody/types';
 
 export default async function AppLayout({ children }: { readonly children: React.ReactNode }) {
   const session = await getSession();
@@ -26,15 +27,28 @@ export default async function AppLayout({ children }: { readonly children: React
     // ignore — palette still works with nav-only commands
   }
 
+  const user = { name: session.name, avatarUrl: session.avatarUrl, email: session.email };
+
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-linear-to-br from-sky-50 via-blue-50/60 to-sky-100/70 dark:from-navy-900 dark:via-slate-950 dark:to-navy-900">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       <FunBackground />
       <PullToRefresh />
-      <Navbar user={{ name: session.name, avatarUrl: session.avatarUrl, email: session.email }} />
-      {/* relative z-10 keeps content above the decorative fixed background */}
-      <main className="relative z-10 flex-1 min-w-0 px-3 sm:px-4 lg:px-8 py-4 sm:py-6 max-w-5xl mx-auto w-full pb-6">
+      <Navbar user={user} />
+
+      {/*
+        El padding inferior deja sitio a la barra de pestañas del móvil
+        (--tabbar-h ya incluye la muesca de gestos del iPhone). Sin él, la
+        última tarjeta de cada lista queda debajo de la barra y no se puede
+        tocar. En escritorio no hay barra, así que vuelve a un margen normal.
+      */}
+      <main
+        className="relative z-10 flex-1 min-w-0 px-4 sm:px-5 lg:px-10 py-5 sm:py-7 max-w-5xl mx-auto w-full pb-[calc(var(--tabbar-h)+1.5rem)] md:pb-10"
+      >
         {children}
       </main>
+
+      <PrimaryAction />
+      <BottomNav user={user} />
       <CommandPalette products={products} />
       <OfflineSync />
       <FocusRefresh />

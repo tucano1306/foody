@@ -74,7 +74,7 @@ export default function ContributeModal({ goal, onContribute, onClose }: Props) 
     >
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide" htmlFor="contrib-amount">
+          <label className="block text-xs font-bold text-slate-600 mb-1.5" htmlFor="contrib-amount">
             Monto del aporte
           </label>
           <div className="relative">
@@ -111,7 +111,7 @@ export default function ContributeModal({ goal, onContribute, onClose }: Props) 
         {/* Cómo queda la meta */}
         <div className="rounded-2xl bg-white/70 p-4">
           <div className="flex items-baseline justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Quedaría en</span>
+            <span className="text-[11px] font-bold text-slate-500">Quedaría en</span>
             <span className="text-sm font-black text-black tabular-nums">
               {fmtMoneyFine(after)} <span className="text-slate-400 font-medium">/ {fmtMoney(goal.targetAmount)}</span>
             </span>
@@ -130,7 +130,7 @@ export default function ContributeModal({ goal, onContribute, onClose }: Props) 
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide" htmlFor="contrib-note">
+          <label className="block text-xs font-bold text-slate-600 mb-1.5" htmlFor="contrib-note">
             Nota (opcional)
           </label>
           <input

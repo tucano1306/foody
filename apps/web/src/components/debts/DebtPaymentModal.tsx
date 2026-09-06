@@ -249,7 +249,7 @@ export default function DebtPaymentModal({ debt, onClose, onPaid }: Props) {
                   }`}
                 >
                   <span className="text-lg" aria-hidden="true">{m.icon}</span>
-                  <span className="text-[10px] font-bold leading-tight">{m.shortLabel}</span>
+                  <span className="text-[11px] font-bold leading-tight">{m.shortLabel}</span>
                 </button>
               );
             })}

@@ -3,12 +3,11 @@
 import { useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Product, StockLevel } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
-import { burstFromElement, cameBackTo, ranOutFrom } from '@/lib/fx';
+import { cameBackTo, ranOutFrom } from '@/lib/fx';
 import { useSwipe } from '@/lib/useSwipe';
 import ActionSheet from '@/components/ui/ActionSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -25,14 +24,14 @@ interface LastPurchase {
 function ProductPhoto({ src, alt }: { readonly src: string; readonly alt: string }) {
   if (src.startsWith('data:')) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={alt} className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90" />;
+    return <img src={src} alt={alt} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />;
   }
   return (
     <Image
       src={src}
       alt={alt}
       fill
-      className="object-cover transition-all duration-500 group-hover:scale-110 group-hover:opacity-90"
+      className="object-cover transition-transform duration-500 group-hover:scale-105"
       sizes="(max-width: 640px) 50vw, 25vw"
     />
   );
@@ -53,42 +52,49 @@ interface Props {
   readonly currentUserId?: string;
 }
 
+/**
+ * Etiquetas de estado.
+ *
+ * La app va en una sola gama azul a propósito, así que el nivel no puede
+ * distinguirse por matiz: lo hace por INTENSIDAD. «Se acabó» es el azul más
+ * saturado y con más peso, «a la mitad» un azul medio y «tengo» un punto tenue
+ * que casi desaparece — porque tener algo no es una noticia. Ese orden hace
+ * que, de un vistazo a una rejilla de treinta productos, salten justo los que
+ * faltan.
+ */
 const LEVEL_CONFIG: Record<
   StockLevel,
-  { label: string; short: string; emoji: string; cls: string; activeCls: string; dot: string }
+  { label: string; short: string; emoji: string; dot: string; chip: string }
 > = {
   full: {
     label: 'Tengo',
     short: 'OK',
     emoji: '✅',
-    cls: 'text-sky-600 hover:bg-sky-50',
-    activeCls: 'bg-sky-500 text-white shadow-sm shadow-sky-500/30',
-    dot: 'bg-sky-500',
+    dot: 'bg-brand-300',
+    chip: 'bg-[var(--surface)]/90 text-[var(--ink-muted)]',
   },
   half: {
     label: 'A la mitad',
     short: 'Bajo',
     emoji: '⚠️',
-    cls: 'text-sky-600 hover:bg-sky-50',
-    activeCls: 'bg-sky-500 text-white shadow-sm shadow-sky-500/30',
-    dot: 'bg-sky-500',
+    dot: 'bg-brand-500',
+    chip: 'bg-[var(--surface)]/92 text-[var(--ink)]',
   },
   empty: {
     label: 'Se acabó',
     short: 'Vacío',
     emoji: '🚨',
-    cls: 'text-blue-600 hover:bg-blue-50',
-    activeCls: 'bg-blue-500 text-white shadow-sm shadow-blue-500/30',
-    dot: 'bg-blue-500',
+    dot: 'bg-white',
+    chip: 'bg-brand-600 text-white',
   },
 };
 
-const LEVEL_ORDER: StockLevel[] = ['full', 'half', 'empty'];
-
 function getBorderCls(level: StockLevel): string {
-  if (level === 'empty') return 'border-2 border-blue-400 ring-2 ring-blue-200 shadow-blue-100';
-  if (level === 'half') return 'border-sky-200';
-  return 'border-slate-100';
+  // Solo lo que FALTA se dibuja distinto. Antes los tres niveles tenían borde
+  // propio y una rejilla entera parecía un semáforo; el que ya está en casa no
+  // necesita llamar la atención.
+  if (level === 'empty') return 'border-brand-400 ring-2 ring-brand-100 dark:ring-brand-900/50';
+  return 'border-[var(--line)]';
 }
 
 function formatMoney(value: number, currency: string): string {
@@ -202,8 +208,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
     });
   }
 
-  const borderCls = getBorderCls(level);
-
   const swipe = useSwipe(
     compact ? {} : { onSwipeLeft: () => setLevel('empty'), onSwipeRight: () => setLevel('full') },
   );
@@ -220,215 +224,122 @@ export default function ProductCard({ product, showActions = false, compact = fa
     router.refresh();
   }
 
-  const sharedCls = `group relative bg-white rounded-2xl border shadow-md transition-all duration-300 ease-out hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.02] touch-pan-y select-none ${borderCls}${shaking ? ' animate-shake' : ''}`;
+  // La tarjeta se levanta 2 px y ya. Antes subía, crecía un 2 % y pasaba de
+  // shadow-md a shadow-2xl a la vez: tres cosas para decir «me puedes tocar».
+  const sharedCls = `group relative flex flex-col overflow-hidden bg-[var(--surface)] rounded-[var(--radius-card)] border shadow-[var(--shadow-sm)] transition-[transform,box-shadow] duration-300 ease-out hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5 touch-pan-y select-none ${getBorderCls(level)}${shaking ? ' animate-shake' : ''}`;
 
   // Clears the shake once its keyframes finish (other child animations bubble here too)
   function handleAnimationEnd(e: React.AnimationEvent) {
     if (e.animationName === 'foody-shake') setShaking(false);
   }
 
+  const purchasedAt = latestPurchaseDate(lastPurchase?.purchasedAt, current.lastPurchaseDate);
+
   const photoSection = (
-    <div className="aspect-4/3 bg-slate-50 relative overflow-hidden rounded-t-2xl">
+    <div className="aspect-square bg-[var(--surface-2)] relative overflow-hidden">
       {current.photoUrl ? (
         <ProductPhoto src={current.photoUrl} alt={current.name} />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-slate-100">
-          🥑
-        </div>
+        <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">🥑</div>
       )}
-      <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-slate-700 shadow-sm">
+      {/* Estado: punto + palabra sobre cristal. Una sola pieza, arriba a la
+          derecha, siempre en el mismo sitio de todas las tarjetas. */}
+      <span
+        className={`absolute top-2 right-2 flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-bold backdrop-blur-md shadow-[var(--shadow-xs)] ${cfg.chip}`}
+      >
         <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
         {cfg.short}
       </span>
       {!owned && (
-        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 bg-brand-500/90 text-white shadow-sm">
-          🤝 Compartido
+        <span className="absolute top-2 left-2 rounded-full bg-[var(--ink)]/80 px-2 py-1 text-[11px] font-bold text-white backdrop-blur-md">
+          Compartido
         </span>
-      )}
-      {level === 'empty' && (
-        <div className="absolute inset-0 bg-linear-to-t from-blue-500/15 to-transparent pointer-events-none" />
       )}
     </div>
   );
 
   const infoSection = (
-    <div className="p-2">
-      <p className="font-semibold text-slate-800 text-xs truncate">{current.name}</p>
-      {current.category && (
-        <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5 truncate">
-          {current.category}
-        </p>
-      )}
+    <div className="p-2.5 flex flex-col gap-0.5">
+      <p className="font-semibold text-[13px] leading-tight text-[var(--ink)] line-clamp-2">
+        {current.name}
+      </p>
       {current.lastPurchasePrice != null && (
-        <p className="mt-0.5 text-sm font-bold text-slate-900 leading-none">
+        <p className="t-num text-[15px] text-[var(--ink)] leading-none mt-0.5">
           {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
         </p>
       )}
-      {current.totalSpent > 0 && (
-        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-          <span className="text-slate-400">Total gastado</span>
-          <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
-        </div>
-      )}
-      {(lastPurchase || current.lastPurchaseDate) && (
-        <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-400">
-          <p className="text-slate-500 font-semibold mb-0.5">Última compra</p>
-          <p className="flex items-center gap-1">
-            <span>🕐</span>
-            <span>{formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, current.lastPurchaseDate)!)}</span>
-          </p>
-          {lastPurchase?.storeName && (
-            <p className="flex items-center gap-1 mt-0.5">
-              <span>🏪</span>
-              <span className="truncate">en {lastPurchase.storeName}</span>
-            </p>
-          )}
-        </div>
-      )}
-      {canManage && (
-        <div className="mt-2 pb-1 flex gap-1.5">
-          <Link
-            href={`/products/${current.id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-700 transition"
-          >
-            <span className="text-base leading-none">✏️</span>
-            <span className="text-[11px] font-semibold">Editar</span>
-          </Link>
-          {canDelete && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-              className="flex-1 flex items-center justify-center gap-1 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-600 transition"
-            >
-              <span className="text-base leading-none">🗑️</span>
-              <span className="text-[11px] font-semibold">Eliminar</span>
-            </button>
-          )}
-        </div>
+      {/*
+        En la rejilla densa (3 columnas de ~110 px en un móvil) los metadatos se
+        esconden. Antes se pintaban igual: categoría en mayúsculas, «Total
+        gastado» con su etiqueta, «Última compra» con hora y tienda en dos
+        líneas más… ocho elementos de texto en una tarjeta más estrecha que una
+        tarjeta de crédito. Ilegible y, sobre todo, ruidoso. Siguen estando a un
+        toque, en la ficha del producto.
+      */}
+      {!compact && (purchasedAt || current.totalSpent > 0) && (
+        <p className="t-meta truncate mt-1">
+          {purchasedAt && formatRelativeTime(purchasedAt)}
+          {purchasedAt && lastPurchase?.storeName && ` · ${lastPurchase.storeName}`}
+          {!purchasedAt && current.totalSpent > 0 &&
+            `Total ${formatMoney(current.totalSpent, current.currency ?? 'USD')}`}
+        </p>
       )}
     </div>
   );
 
-  if (compact) {
-    return (
-      <>
-        <div ref={rootRef} onAnimationEnd={handleAnimationEnd} className={`${sharedCls} flex flex-col`}>
-          {/* Photo → opens lightbox directly */}
-          <button ref={photoRef} type="button" onClick={openLightbox} className="w-full text-left focus:outline-none">
-            {photoSection}
-          </button>
-          {/* Info → opens action sheet (también para productos compartidos del hogar) */}
-          <button type="button" onClick={() => setSheetOpen(true)} className="w-full text-left focus:outline-none flex-1">
-            {infoSection}
-          </button>
-        </div>
-        <ActionSheet
-          open={sheetOpen}
-          onClose={() => setSheetOpen(false)}
-          title={current.name}
-          actions={[
-            { label: 'Tengo', emoji: '✅', current: level === 'full', onClick: () => setLevel('full') },
-            { label: 'A la mitad', emoji: '⚠️', current: level === 'half', onClick: () => setLevel('half') },
-            { label: 'Se acabó', emoji: '🚨', current: level === 'empty', onClick: () => setLevel('empty') },
-          ]}
-        />
-        {lightboxOpen && current.photoUrl && (
-          <PhotoLightbox
-            src={current.photoUrl}
-            alt={current.name}
-            originRect={lightboxOrigin}
-            onClose={() => setLightboxOpen(false)}
-          />
-        )}
-      </>
-    );
-  }
+  const stockActions = [
+    { label: 'Tengo', emoji: '✅', current: level === 'full', onClick: () => setLevel('full') },
+    { label: 'A la mitad', emoji: '⚠️', current: level === 'half', onClick: () => setLevel('half') },
+    { label: 'Se acabó', emoji: '🚨', current: level === 'empty', onClick: () => setLevel('empty') },
+  ];
 
   return (
-    <div {...swipe} ref={rootRef} onAnimationEnd={handleAnimationEnd} className={sharedCls}>
-      {/* ─── Photo ────────────────────────────────────────────────────── */}
-      <div className="aspect-4/3 bg-slate-50 relative overflow-hidden rounded-t-2xl">
+    <>
+      <div
+        {...(compact ? {} : swipe)}
+        ref={rootRef}
+        onAnimationEnd={handleAnimationEnd}
+        className={sharedCls}
+      >
+        {/* La foto abre el visor; el resto de la tarjeta abre las acciones.
+            Dos zonas grandes y sin ambigüedad, en vez de un menú escondido. */}
         {current.photoUrl ? (
           <button
             ref={photoRef}
             type="button"
             aria-label={`Ver foto de ${current.name}`}
             onClick={(e) => { e.stopPropagation(); openLightbox(); }}
-            className="absolute inset-0 w-full h-full focus:outline-none"
+            className="block w-full text-left focus:outline-none touch-auto-size"
           >
-            <ProductPhoto src={current.photoUrl} alt={current.name} />
+            {photoSection}
           </button>
         ) : (
           <button
             type="button"
             aria-label={`Opciones de ${current.name}`}
             onClick={() => setSheetOpen(true)}
-            className="absolute inset-0 w-full h-full flex items-center justify-center text-3xl opacity-40 bg-linear-to-br from-sky-50 to-slate-100 focus:outline-none"
-          />
+            className="block w-full text-left focus:outline-none touch-auto-size"
+          >
+            {photoSection}
+          </button>
         )}
-        <span className="absolute top-2 right-2 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-full flex items-center gap-1 bg-white/95 backdrop-blur-sm text-slate-700 shadow-sm">
-          <span key={popKey} className={`w-1.5 h-1.5 rounded-full ${cfg.dot} animate-pop`} />
-          {cfg.short}
-        </span>
-        {!owned && (
-          <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 bg-brand-500/90 text-white shadow-sm">
-            🤝 Compartido
-          </span>
-        )}
-        {level === 'empty' && (
-          <div className="absolute inset-0 bg-linear-to-t from-blue-500/15 to-transparent pointer-events-none" />
-        )}
-      </div>
 
-      {/* ─── Info ────────────────────────────────────────────────────────── */}
-      <button
-        type="button"
-        onClick={() => setSheetOpen(true)}
-        className="w-full text-left p-2 focus:outline-none"
-      >
-        <p className="font-semibold text-slate-800 text-xs truncate">{current.name}</p>
-        {current.category && (
-          <p className="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5 truncate">
-            {current.category}
-          </p>
-        )}
-        {current.lastPurchasePrice != null && (
-          <p className="mt-0.5 text-sm font-bold text-slate-900 leading-none">
-            {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
-          </p>
-        )}
-        {current.totalSpent > 0 && (
-          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Total gastado</span>
-            <span className="font-bold text-brand-700">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
-          </div>
-        )}
-        {(lastPurchase || current.lastPurchaseDate) && (
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-400">
-            <p className="text-slate-500 font-semibold mb-0.5">Última compra</p>
-            <p className="flex items-center gap-1">
-              <span>🕐</span>
-              <span>{formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, current.lastPurchaseDate)!)}</span>
-            </p>
-            {lastPurchase?.storeName && (
-              <p className="flex items-center gap-1 mt-0.5">
-                <span>🏪</span>
-                <span className="truncate">en {lastPurchase.storeName}</span>
-              </p>
-            )}
-          </div>
-        )}
-      </button>
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          aria-label={`Opciones de ${current.name}`}
+          className="w-full flex-1 text-left focus:outline-none touch-auto-size"
+        >
+          {infoSection}
+        </button>
+      </div>
 
       <ActionSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         title={current.name}
         actions={[
-          { label: 'Marcar como "Tengo"', emoji: '✅', current: level === 'full', onClick: () => setLevel('full') },
-          { label: 'Marcar como "A la mitad"', emoji: '⚠️', current: level === 'half', onClick: () => setLevel('half') },
-          { label: 'Marcar como "Se acabó"', emoji: '🚨', current: level === 'empty', onClick: () => setLevel('empty') },
+          ...stockActions,
           ...(canManage ? [
             { label: 'Editar producto', emoji: '✏️', onClick: () => router.push(`/products/${current.id}`) },
             { label: 'Enviar a un amigo', emoji: '🎁', onClick: () => setGiftOpen(true) },
@@ -465,6 +376,6 @@ export default function ProductCard({ product, showActions = false, compact = fa
         onConfirm={performDelete}
         onCancel={() => setConfirmDelete(false)}
       />
-    </div>
+    </>
   );
 }

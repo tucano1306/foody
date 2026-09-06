@@ -127,12 +127,12 @@ export default function MemberSheet({
                   <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{member.email}</p>
                   <div className="flex gap-1.5 mt-1">
                     {isHouseholdOwner && (
-                      <span className="text-[10px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="text-[11px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold">
                         👑 Dueño
                       </span>
                     )}
                     {isSelf && (
-                      <span className="text-[10px] bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="text-[11px] bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400 px-1.5 py-0.5 rounded-full font-bold">
                         Tú
                       </span>
                     )}

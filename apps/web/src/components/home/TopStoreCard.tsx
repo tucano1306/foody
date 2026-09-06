@@ -53,7 +53,7 @@ export default async function TopStoreCard() {
 
       {/* Bar showing dominance vs other stores */}
       <div>
-        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+        <div className="flex justify-between text-[11px] text-slate-400 mb-1">
           <span>{pct}% de tus visitas</span>
           <span>{data.length} {data.length === 1 ? 'tienda' : 'tiendas'} en total</span>
         </div>

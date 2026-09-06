@@ -15,9 +15,13 @@ interface Props {
 }
 
 /**
- * Styled replacement for the native window.confirm(). Controlled via `open`.
- * Use for destructive actions (delete, leave) so the confirmation matches the
- * rest of the app instead of a jarring browser dialog.
+ * Sustituto con estilo del window.confirm() nativo. Se controla con `open`.
+ * Para acciones destructivas (borrar, salir), para que la confirmación se
+ * parezca al resto de la app en vez de a un diálogo del navegador.
+ *
+ * El botón de confirmar va SEGUNDO y con más peso; el de cancelar, primero y
+ * en hueco. En una hoja que sale de abajo, el pulgar cae sobre la derecha, y
+ * ahí es donde tiene que estar la acción que se buscaba.
  */
 export default function ConfirmDialog({
   open,
@@ -30,10 +34,6 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: Props) {
-  const confirmCls = destructive
-    ? 'bg-blue-600 hover:bg-blue-700'
-    : 'bg-brand-600 hover:bg-brand-700';
-
   return (
     <AnimatePresence>
       {open && (
@@ -44,7 +44,7 @@ export default function ConfirmDialog({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-default"
+            className="absolute inset-0 bg-black/45 backdrop-blur-[2px] cursor-default"
             onClick={onCancel}
             onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
           />
@@ -52,22 +52,23 @@ export default function ConfirmDialog({
             role="alertdialog"
             aria-modal="true"
             aria-label={title}
-            initial={{ y: 40, opacity: 0, scale: 0.97 }}
+            initial={{ y: 40, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 40, opacity: 0, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className="relative w-full sm:max-w-sm bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6"
+            exit={{ y: 40, opacity: 0, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+            className="relative w-full sm:max-w-sm bg-[var(--surface)] rounded-t-[var(--radius-sheet)] sm:rounded-[var(--radius-sheet)] shadow-[var(--shadow-lg)] p-6"
+            style={{ paddingBottom: 'calc(1.5rem + var(--safe-b))' }}
           >
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{title}</h2>
+            <h2 className="text-xl font-extrabold text-[var(--ink)]">{title}</h2>
             {message && (
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">{message}</p>
+              <p className="mt-2 text-[15px] leading-snug text-[var(--ink-muted)]">{message}</p>
             )}
             <div className="flex gap-3 mt-6">
               <button
                 type="button"
                 onClick={onCancel}
                 disabled={busy}
-                className="flex-1 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
+                className="flex-1 min-h-[52px] rounded-2xl bg-[var(--surface-2)] text-[var(--ink-muted)] font-semibold disabled:opacity-50"
               >
                 {cancelLabel}
               </button>
@@ -75,7 +76,9 @@ export default function ConfirmDialog({
                 type="button"
                 onClick={onConfirm}
                 disabled={busy}
-                className={`flex-1 py-3 rounded-2xl text-white font-bold text-sm transition disabled:opacity-50 ${confirmCls}`}
+                className={`flex-1 min-h-[52px] rounded-2xl font-bold text-white disabled:opacity-50 ${
+                  destructive ? 'bg-brand-700 hover:bg-brand-800' : 'btn-primary'
+                }`}
               >
                 {busy ? 'Procesando…' : confirmLabel}
               </button>

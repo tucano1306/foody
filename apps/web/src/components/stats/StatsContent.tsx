@@ -178,7 +178,7 @@ export default function StatsContent({
                     }
                     className="flex-1 flex flex-col items-center gap-1 group cursor-pointer"
                   >
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium group-hover:text-slate-700 dark:group-hover:text-slate-200 transition">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium group-hover:text-slate-700 dark:group-hover:text-slate-200 transition">
                       {formatCurrency(m.total)}
                     </span>
                     <div className="w-full flex items-end" style={{ height: '80px' }}>
@@ -192,7 +192,7 @@ export default function StatsContent({
                         title={`${m.trips} compras`}
                       />
                     </div>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
                       {formatMonth(m.month)}
                     </span>
                   </button>

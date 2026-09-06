@@ -85,7 +85,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-black text-black truncate">{goal.name}</h3>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${feas.chip}`}>
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${feas.chip}`}>
                 {feas.icon} {feas.label}
               </span>
             </div>
@@ -122,7 +122,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
           },
         ].map((cell) => (
           <div key={cell.label} className="text-center">
-            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">{cell.label}</p>
+            <p className="text-[11px] text-slate-400 font-bold">{cell.label}</p>
             <p className={`text-sm font-black tabular-nums ${cell.tone}`}>{cell.value}</p>
           </div>
         ))}

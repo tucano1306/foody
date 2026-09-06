@@ -42,7 +42,7 @@ export default function CloneProductButton({ shareId, productId }: Props) {
 
   return (
     <>
-      {error && <p className="text-[10px] text-blue-500 mb-1">{error}</p>}
+      {error && <p className="text-[11px] text-blue-500 mb-1">{error}</p>}
       <button
         type="button"
         disabled={isPending}

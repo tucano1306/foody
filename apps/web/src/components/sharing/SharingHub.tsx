@@ -343,7 +343,7 @@ function GiftCard({
             <StatusBadge status={direction === 'sent' && gift.status === 'declined' ? 'cancelled' : gift.status} />
           </div>
           {gift.product_category && (
-            <p className="text-[10px] uppercase tracking-wide text-slate-400">{gift.product_category}</p>
+            <p className="text-[11px] text-slate-400">{gift.product_category}</p>
           )}
           <p className="text-xs text-slate-500 mt-0.5">
             {direction === 'sent' ? `Para: ${person}` : `De: ${person}`}
@@ -454,7 +454,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
         >
           🏠 Despensa
           {pendingPantry > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white text-[11px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
           )}
         </button>
         <button
@@ -464,7 +464,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
         >
           🎁 Productos
           {pendingGifts > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white text-[10px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
+            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 bg-blue-500 text-white text-[11px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
           )}
         </button>
       </div>
@@ -484,7 +484,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
               >
                 {s === 'received' ? 'Recibidas' : 'Enviadas'}
                 {s === 'received' && pendingPantry > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[11px] font-bold rounded-full animate-pulse">{pendingPantry}</span>
                 )}
               </button>
             ))}
@@ -533,7 +533,7 @@ export default function SharingHub({ initialPantrySent, initialPantryReceived, i
               >
                 {s === 'received' ? 'Recibidos' : 'Enviados'}
                 {s === 'received' && pendingGifts > 0 && (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
+                  <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 bg-blue-500 text-white text-[11px] font-bold rounded-full animate-pulse">{pendingGifts}</span>
                 )}
               </button>
             ))}

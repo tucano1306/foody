@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDownIcon } from '@heroicons/react/24/solid';
 import { categoryEmoji } from '@/lib/categories';
 import { haptic } from '@/lib/haptic';
 
@@ -52,7 +53,7 @@ export default function CategorySelect({
     <div className={`relative ${className}`}>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-slate-400"
+        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 select-none"
       >
         🗂️
       </span>
@@ -60,7 +61,9 @@ export default function CategorySelect({
         value={value ?? ''}
         onChange={(e) => { haptic(6); onChange(e.target.value || null); }}
         aria-label={label}
-        className="w-full cursor-pointer appearance-none rounded-xl border border-sky-200 bg-white py-2.5 pl-9 pr-9 text-sm font-semibold text-slate-800 transition focus:outline-none focus:ring-2 focus:ring-sky-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        /* 16 px en el texto: por debajo de eso, Safari en iOS hace zoom al
+           abrir el desplegable y saca media pantalla de sitio. */
+        className="h-12 w-full cursor-pointer appearance-none rounded-2xl border border-[var(--line)] bg-[var(--surface)] pl-10 pr-10 text-base font-semibold text-[var(--ink)] shadow-[var(--shadow-xs)] transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
       >
         <option value="">
           {total === undefined ? 'Todas las categorías' : `Todas las categorías · ${total}`}
@@ -71,12 +74,13 @@ export default function CategorySelect({
           </option>
         ))}
       </select>
-      <span
+      {/* El «▾» era un carácter de texto: cambia de forma con la fuente del
+          sistema y en Android se veía como un triángulo relleno distinto al de
+          los demás desplegables de la app. */}
+      <ChevronDownIcon
         aria-hidden="true"
-        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 select-none text-slate-400"
-      >
-        ▾
-      </span>
+        className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-subtle)]"
+      />
     </div>
   );
 }

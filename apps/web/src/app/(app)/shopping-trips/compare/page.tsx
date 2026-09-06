@@ -88,7 +88,7 @@ export default async function PriceComparisonPage() {
   return (
     <div className="space-y-4">
       <ModernTitle
-        title="📊 Comparar precios"
+        title="Comparar precios"
         subtitle="Dónde sale más barato"
         action={
           <Link href="/shopping-trips" className="text-sm text-slate-500 hover:text-slate-700 font-medium">
@@ -138,7 +138,7 @@ export default async function PriceComparisonPage() {
                           {/* La marca, cuando se anotó: es la mitad de la
                               respuesta a «¿cuál me conviene?». */}
                           {entry.brand && (
-                            <span className="ml-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 align-middle">
+                            <span className="ml-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-700 align-middle">
                               {entry.brand}
                             </span>
                           )}

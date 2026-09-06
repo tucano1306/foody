@@ -22,12 +22,12 @@ function ChartsSkeleton() {
   return (
     <div className="space-y-5" aria-hidden="true">
       {[0, 1].map((i) => (
-        <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div key={i} className="card p-5">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
-            <div className="h-4 w-48 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+            <div className="w-9 h-9 rounded-xl skeleton" />
+            <div className="h-4 w-48 rounded skeleton" />
           </div>
-          <div className="mt-4 h-40 bg-slate-50 dark:bg-slate-800/50 rounded-xl animate-pulse" />
+          <div className="mt-4 h-40 rounded-xl skeleton" />
         </div>
       ))}
     </div>
@@ -55,15 +55,14 @@ export default async function HomePage() {
   const runningLow: Product[] = products.filter((p) => p.stockLevel === 'empty' || p.stockLevel === 'half');
 
   return (
-    <div className="space-y-10">
-      {/* ─── Header + Mode Toggle (plain title, consistent with other pages) ── */}
-      <div className="space-y-4">
+    <div className="space-y-8">
+      {/* ─── Cabecera: el saludo es la línea de entrada del título, no un
+             cartel aparte. El subtítulo se fue: decía «despensa y pagos» y los
+             pagos se mudaron al menú hace tiempo. ────────────────────────── */}
+      <div className="space-y-1">
         <GreetingToast firstName={firstName} />
-        {/* El subtítulo decía «despensa y pagos»: ya no hay pagos en esta
-            pantalla, y prometerlos mandaría a buscar algo que se mudó al menú. */}
         <ModernTitle
-          title="🏠 Modo Casa"
-          subtitle="Tu despensa y tus compras"
+          title="Modo Casa"
           action={<ModeToggle currentMode="home" />}
         />
       </div>
@@ -73,13 +72,7 @@ export default async function HomePage() {
 
       {/* ─── Stats y gráficas (resumen, debajo de lo accionable) ────────────── */}
       <Reveal className="space-y-5">
-        <SectionHeader
-          emoji="📊"
-          title="Resumen"
-          subtitle="Tus números y gráficas del mes"
-          tone="accent"
-          centered
-        />
+        <SectionHeader title="Tu mes" tone="brand" />
         <DashboardStats totalProducts={products.length} runningLowCount={runningLow.length} />
 
         {/* Charts each hit the DB; stream them in so the actionable content above

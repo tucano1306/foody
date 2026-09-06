@@ -44,13 +44,13 @@ export default function SimulatorCard({ planInput }: Props) {
 
   return (
     <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-50 to-blue-50 p-5">
-      <h2 className="text-sm font-black text-black uppercase tracking-wide">
+      <h2 className="text-sm font-black text-black">
         🔮 Simulador «¿y si…?»
       </h2>
 
       <div className="mt-4">
         <div className="flex items-baseline justify-between mb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
+          <span className="text-[11px] font-bold text-slate-600">
             Dinero extra al mes
           </span>
           <motion.span
@@ -96,7 +96,7 @@ export default function SimulatorCard({ planInput }: Props) {
       {/* Resultado de la simulación */}
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-2xl bg-white/70 py-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Salud</p>
+          <p className="text-[11px] text-slate-500 font-bold">Salud</p>
           <p className="text-lg font-black text-black tabular-nums">
             {simulated.healthScore}
             {simulated.healthScore !== base.healthScore && (
@@ -107,14 +107,14 @@ export default function SimulatorCard({ planInput }: Props) {
           </p>
         </div>
         <div className="rounded-2xl bg-white/70 py-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Metas a tiempo</p>
+          <p className="text-[11px] text-slate-500 font-bold">Metas a tiempo</p>
           <p className="text-lg font-black text-black tabular-nums">
             {healthyAfter}
             {healthyAfter > healthyBefore && <span className="text-xs text-sky-500 ml-1">+{healthyAfter - healthyBefore}</span>}
           </p>
         </div>
         <div className="rounded-2xl bg-white/70 py-3">
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Adelanto</p>
+          <p className="text-[11px] text-slate-500 font-bold">Adelanto</p>
           <p className="text-lg font-black text-black tabular-nums">
             {monthsSaved > 0 ? `${monthsSaved} ${monthsSaved === 1 ? 'mes' : 'meses'}` : '—'}
           </p>

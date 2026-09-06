@@ -267,7 +267,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
       {expenses !== null && adding && (
         <div className="rounded-2xl bg-white p-4">
           <label className="block">
-            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            <span className="mb-1 block text-[11px] font-bold text-slate-400">
               Dónde
             </span>
             <input
@@ -281,7 +281,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
           </label>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <span className="mb-1 block text-[11px] font-bold text-slate-400">
                 Importe
               </span>
               <input
@@ -294,7 +294,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <span className="mb-1 block text-[11px] font-bold text-slate-400">
                 Fecha
               </span>
               <input
@@ -364,7 +364,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                 {open && !e.fromSplit && (
                   <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
                     <label className="block">
-                      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      <span className="mb-1 block text-[11px] font-bold text-slate-400">
                         Dónde
                       </span>
                       <input
@@ -376,7 +376,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                     </label>
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <label className="block">
-                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        <span className="mb-1 block text-[11px] font-bold text-slate-400">
                           Importe
                         </span>
                         <input
@@ -388,7 +388,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                         />
                       </label>
                       <label className="block">
-                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        <span className="mb-1 block text-[11px] font-bold text-slate-400">
                           Fecha
                         </span>
                         <input
@@ -404,7 +404,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                         saca del plan y lo manda de vuelta a Compras. Es la
                         forma de deshacer una clasificación equivocada sin
                         borrar el ticket y volver a crearlo. */}
-                    <p className="mb-1.5 mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    <p className="mb-1.5 mt-3 text-[11px] font-bold text-slate-400">
                       Cambiar a
                     </p>
                     <div className="flex flex-wrap gap-1.5">

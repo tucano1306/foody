@@ -147,17 +147,17 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
 
       <div className="grid grid-cols-3 gap-3 card-stagger">
         <div className="stat-card" data-accent="brand">
-          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">🧾 Compras</p>
+          <p className="text-[11px] sm:text-xs font-semiboldr text-slate-500">🧾 Compras</p>
           <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900">{visibles.length}</p>
         </div>
         <div className="stat-card" data-accent="energy">
-          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">💰 Total</p>
+          <p className="text-[11px] sm:text-xs font-semiboldr text-slate-500">💰 Total</p>
           <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900 break-all">
             {formatCurrency(totalSpent, currency)}
           </p>
         </div>
         <div className="stat-card" data-accent="warn">
-          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500">📊 Promedio</p>
+          <p className="text-[11px] sm:text-xs font-semiboldr text-slate-500">📊 Promedio</p>
           <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900 break-all">
             {formatCurrency(avgSpent, currency)}
           </p>
@@ -200,17 +200,17 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
                           sin esto, un ticket repartido parece que costó menos
                           de lo que dice el papel. */}
                       {trip.repartidoFuera > 0 && (
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[11px] text-slate-400">
                           de {formatCurrency(trip.ticketTotal, trip.currency)}
                         </p>
                       )}
                       {trip.id === cheapestId && (
-                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                        <span className="inline-block mt-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
                           🏆 Más ahorradora
                         </span>
                       )}
                       {trip.id === priciestId && (
-                        <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                        <span className="inline-block mt-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">
                           💸 La más cara
                         </span>
                       )}

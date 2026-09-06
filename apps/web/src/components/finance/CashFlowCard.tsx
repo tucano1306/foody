@@ -146,7 +146,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
 
   return (
     <section className={`rounded-3xl shadow-sm p-5 ${CARD}`}>
-      <h2 className={`text-sm font-black uppercase tracking-wide mb-4 ${NUM}`}>💵 Tu mes</h2>
+      <h2 className={`text-sm font-black mb-4 ${NUM}`}>💵 Tu mes</h2>
 
       <div className="space-y-3">
         {rows.map((row, i) => {
@@ -186,7 +186,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       {/* Resultado */}
       <div className="mt-4 rounded-2xl p-4 flex items-center justify-between gap-3 bg-linear-to-r from-sky-100 to-blue-100">
         <div>
-          <p className={`text-[11px] uppercase tracking-wide font-bold ${LABEL}`}>
+          <p className={`text-[11px] font-bold ${LABEL}`}>
             {cash.available >= 0 ? 'Te queda libre' : 'Te falta cada mes'}
           </p>
           <p className={`text-2xl font-black tabular-nums ${NUM}`}>{fmtMoney(Math.abs(cash.available))}</p>

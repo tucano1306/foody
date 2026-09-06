@@ -608,7 +608,7 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
                       <tr key={r.month} className="bg-white">
                         <td className="px-3 py-2.5 text-left">
                           <span className="font-bold text-black">{r.month}</span>
-                          <span className="ml-1.5 text-[10px] text-slate-400">
+                          <span className="ml-1.5 text-[11px] text-slate-400">
                             {fmtDateKey(r.date)}
                           </span>
                         </td>

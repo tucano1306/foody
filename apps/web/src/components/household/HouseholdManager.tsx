@@ -205,8 +205,8 @@ export default function HouseholdManager() {
   if (loading) {
     return (
       <div className="space-y-6" aria-busy="true" aria-label="Cargando hogar">
-        <div className="skeleton h-44" />
-        <div className="skeleton h-32" />
+        <div className="skeleton h-44 rounded-2xl" />
+        <div className="skeleton h-32 rounded-2xl" />
       </div>
     );
   }
@@ -280,7 +280,7 @@ export default function HouseholdManager() {
               onKeyDown={(e) => { if (e.key === 'Enter') void handleJoin(); }}
               placeholder="ABC123"
               maxLength={10}
-              className={`${inputCls} uppercase tracking-widest text-center font-mono`}
+              className={`${inputCls}st text-center font-mono`}
             />
             <button
               type="button"
@@ -353,12 +353,12 @@ export default function HouseholdManager() {
                   <p className="font-medium text-slate-800 dark:text-slate-100 text-sm truncate">
                     {m.name ?? m.email}
                     {m.id === household.ownerId && (
-                      <span className="ml-2 text-[10px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="ml-2 text-[11px] bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full font-bold">
                         👑 Dueño
                       </span>
                     )}
                     {m.id === state.userId && (
-                      <span className="ml-1.5 text-[10px] bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400 px-1.5 py-0.5 rounded-full font-bold">
+                      <span className="ml-1.5 text-[11px] bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-400 px-1.5 py-0.5 rounded-full font-bold">
                         Tú
                       </span>
                     )}

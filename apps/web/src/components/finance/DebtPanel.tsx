@@ -88,7 +88,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
         <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-100 to-blue-100 p-5">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-wide text-black">
+              <h2 className="text-sm font-black text-black">
                 💳 Tarjetas y créditos
               </h2>
               <p className="mt-1 text-xs text-slate-600">
@@ -98,7 +98,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
               </p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Saldo</p>
+              <p className="text-[11px] font-bold text-slate-600">Saldo</p>
               <p className="text-xl font-black tabular-nums text-black">
                 {fmtMoney(debts.creditBalance)}
               </p>
@@ -133,7 +133,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
                         sumarían más que «Comprometido al mes» y parecería un
                         error de la app — justo lo contrario de lo que es. */}
                     {c.countedInPayments && (
-                      <span className="mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                      <span className="mt-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-700">
                         Ya contada en Pagos
                       </span>
                     )}
@@ -154,7 +154,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
 
           <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              <p className="text-[11px] font-bold text-slate-500">
                 Comprometido al mes
               </p>
               <p className="text-lg font-black tabular-nums text-black">
@@ -185,7 +185,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
     <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-100 to-blue-100 p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-sm font-black text-black uppercase tracking-wide">
+          <h2 className="text-sm font-black text-black">
             🔴 Plan de salida de deuda
           </h2>
           <p className="text-xs text-slate-600 mt-1">
@@ -193,7 +193,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-[10px] uppercase tracking-wide text-slate-600 font-bold">Total</p>
+          <p className="text-[11px] text-slate-600 font-bold">Total</p>
           <p className="text-xl font-black text-black tabular-nums">{fmtMoney(debts.overdueTotal)}</p>
         </div>
       </div>
@@ -239,7 +239,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
 
       <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
         <div>
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Abono sugerido</p>
+          <p className="text-[11px] text-slate-500 font-bold">Abono sugerido</p>
           <p className="text-lg font-black text-black tabular-nums">
             {fmtMoney(debts.monthlyCatchUp)}<span className="text-xs font-medium text-slate-400">/mes</span>
           </p>
