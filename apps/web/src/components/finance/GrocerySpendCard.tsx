@@ -51,7 +51,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
           que es donde el usuario pregunta por él. */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-black text-black uppercase tracking-wide">
+          <h2 className="text-sm font-black text-black">
             🛒 Tu super este mes
           </h2>
           <p className="text-xs text-slate-500 mt-1">
@@ -70,7 +70,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
               "vas por debajo del límite" parecían contradecirse. */}
           {g.paceIsMeaningful && g.trendPct !== null && g.monthsWithData >= 2 && Math.abs(g.trendPct) >= 5 && (
             <span
-              className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
+              className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-black ${
                 g.trendPct > 0
                   ? 'bg-blue-100 text-blue-700'
                   : 'bg-sky-100 text-sky-700'
@@ -97,7 +97,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
       ) : (
       <div className="rounded-2xl bg-white/70 p-4">
         <div className="flex items-baseline justify-between mb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          <span className="text-[11px] font-bold text-slate-500">
             Ritmo del mes · día {g.daysElapsed} de {g.daysInMonth}
           </span>
           <span className="text-xs font-bold tabular-nums text-black">
@@ -123,17 +123,17 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
 
         <div className="grid grid-cols-3 gap-2 mt-3 text-center">
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Llevas</p>
+            <p className="text-[11px] text-slate-400 font-bold">Llevas</p>
             <p className="text-sm font-black text-black tabular-nums">{fmtMoneyFine(g.spentThisMonth)}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Cerrarás en</p>
+            <p className="text-[11px] text-slate-400 font-bold">Cerrarás en</p>
             <p className="text-sm font-black tabular-nums text-black">
               {fmtMoneyFine(g.projectedMonthEnd)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">
+            <p className="text-[11px] text-slate-400 font-bold">
               {g.limit > 0 ? 'Tu límite' : 'Tu promedio'}
             </p>
             <p className="text-sm font-black text-black tabular-nums">
@@ -155,7 +155,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
       {/* Historial */}
       {history.length > 1 && (
         <div className="mt-4">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
+          <p className="text-[11px] font-bold text-slate-500 mb-2">
             Gasto por mes
           </p>
           {/* Las barras NO se veían. Su altura iba en % contra un padre de
@@ -177,10 +177,10 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
                     style={{ height: `${Math.max(6, (h.total / maxMonth) * 100)}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-bold text-slate-500 tabular-nums">
+                <span className="text-[11px] font-bold text-slate-500 tabular-nums">
                   {fmtMoney(h.total)}
                 </span>
-                <span className="text-[9px] text-slate-400 truncate">{monthLabel(h.month)}</span>
+                <span className="text-[11px] text-slate-400 truncate">{monthLabel(h.month)}</span>
               </div>
             ))}
           </div>
@@ -197,7 +197,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
           {/* El título dice de qué es el desglose y lo ata al número de arriba.
               «En qué se va este mes» no decía ni que era solo el super, ni que
               sumaba justo esos $82 — parecía una lista de gastos cualquiera. */}
-          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
+          <p className="text-[11px] font-bold text-slate-500 mb-2">
             Tus {fmtMoneyFine(g.spentThisMonth)} de super, por categoría
           </p>
           <ul className="space-y-1">

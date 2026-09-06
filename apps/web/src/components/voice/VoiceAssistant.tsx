@@ -274,7 +274,7 @@ export default function VoiceAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="max-w-xs bg-gray-900 text-white text-sm rounded-2xl px-4 py-3 shadow-xl border border-white/10 whitespace-pre-line"
+            className="max-w-xs bg-slate-900 text-white text-sm rounded-2xl px-4 py-3 shadow-xl border border-white/10 whitespace-pre-line"
           >
             {reply}
           </motion.div>
@@ -288,7 +288,7 @@ export default function VoiceAssistant() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="bg-gray-900 text-white text-xs px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5"
+            className="bg-slate-900 text-white text-xs px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-1.5"
           >
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
@@ -303,7 +303,7 @@ export default function VoiceAssistant() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="bg-gray-900 text-white text-xs px-3 py-1.5 rounded-full border border-white/10"
+            className="bg-slate-900 text-white text-xs px-3 py-1.5 rounded-full border border-white/10"
           >
             Procesando…
           </motion.div>

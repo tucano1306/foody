@@ -55,7 +55,7 @@ export default function BusinessPanel({ scopes, items }: Props) {
   return (
     <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-100 to-blue-100 p-5">
       <div className="mb-4">
-        <h2 className={`text-sm font-black uppercase tracking-wide ${NUM}`}>
+        <h2 className={`text-sm font-black ${NUM}`}>
           🏢 Personal y negocio
         </h2>
         <p className={`mt-1 text-xs ${LABEL}`}>
@@ -74,7 +74,7 @@ export default function BusinessPanel({ scopes, items }: Props) {
             className="rounded-2xl bg-white/70 px-3.5 py-3 text-left transition active:scale-[0.98] hover:bg-white"
           >
             <span className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              <span className="text-[11px] font-bold text-slate-500">
                 {t.emoji} {t.label}
               </span>
               <span aria-hidden="true" className="text-sm text-slate-300">›</span>
@@ -82,7 +82,7 @@ export default function BusinessPanel({ scopes, items }: Props) {
             <span className={`block text-base font-black tabular-nums ${NUM}`}>
               {fmtMoney(t.amount)}
             </span>
-            <span className="block text-[10px] text-slate-400">Ver de dónde sale</span>
+            <span className="block text-[11px] text-slate-400">Ver de dónde sale</span>
           </button>
         ))}
       </div>
@@ -92,7 +92,7 @@ export default function BusinessPanel({ scopes, items }: Props) {
           en vez de darlo por supuesto desde el título de la tarjeta. */}
       <div className="mt-4">
         <div className="mb-2 flex items-baseline justify-between gap-3">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          <p className="text-[11px] font-bold text-slate-500">
             Cómo le va al negocio
           </p>
           <p className="text-[11px] text-slate-500">

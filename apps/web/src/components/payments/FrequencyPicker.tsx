@@ -55,8 +55,8 @@ export default function FrequencyPicker({
   onChange,
   dark = false,
 }: Props) {
-  const label = dark ? 'text-xs font-semibold text-gray-400' : 'text-sm font-semibold text-slate-700';
-  const hint = dark ? 'text-xs text-gray-500' : 'text-xs text-slate-400';
+  const label = dark ? 'text-xs font-semibold text-slate-400' : 'text-sm font-semibold text-slate-700';
+  const hint = dark ? 'text-xs text-slate-500' : 'text-xs text-slate-400';
   const input = dark
     ? 'w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm'
     : 'w-full px-4 py-3 rounded-2xl border border-sky-200 text-black focus:outline-none focus:ring-2 focus:ring-brand-300 transition text-base';
@@ -68,7 +68,7 @@ export default function FrequencyPicker({
         {PAYMENT_FREQUENCIES.map((f) => {
           const active = frequency === f;
           const on = dark ? 'bg-brand-500 text-white' : 'bg-sky-500 text-white shadow-sm';
-          const off = dark ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-sky-50 text-slate-600 hover:bg-sky-100';
+          const off = dark ? 'bg-white/10 text-slate-300 hover:bg-white/20' : 'bg-sky-50 text-slate-600 hover:bg-sky-100';
           return (
             <button
               key={f}

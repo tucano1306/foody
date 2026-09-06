@@ -1,6 +1,6 @@
 export default function BudgetLoading() {
   return (
-    <div className="space-y-5 animate-pulse">
+    <div className="space-y-5">
       <div className="h-24 bg-slate-200 rounded-2xl" />
       <div className="bg-white rounded-2xl border border-slate-100 p-5">
         <div className="flex items-center gap-5">

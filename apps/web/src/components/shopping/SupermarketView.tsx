@@ -7,6 +7,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
+import {
+  CheckIcon,
+  MagnifyingGlassIcon,
+  MagnifyingGlassPlusIcon,
+  PlusIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { parseMoney } from '@/lib/money-input';
 import CategorySelect from '@/components/ui/CategorySelect';
 import type { ShoppingListItem } from '@foody/types';
@@ -627,7 +634,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-sky-600 uppercase tracking-wider mb-0.5">
+                <p className="text-[11px] font-semibold text-sky-600r mb-0.5">
                   🧮 {hasEstimated ? 'Estimado en carrito' : 'Total en carrito'}
                 </p>
                 <div className="flex items-baseline gap-1">
@@ -659,7 +666,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
                 >
                   {inCart.length}
                 </motion.span>
-                <span className="text-[10px] font-medium opacity-80 mt-0.5">
+                <span className="text-[11px] font-medium opacity-80 mt-0.5">
                   {pluralize(inCart.length, 'ítem', 'ítems')}
                 </span>
               </div>
@@ -672,35 +679,43 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
       <div className="space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1 min-w-0">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">🔍</span>
+            <MagnifyingGlassIcon
+              aria-hidden="true"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--ink-subtle)] pointer-events-none"
+            />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Busca un producto o categoría…"
+              placeholder="Buscar"
               aria-label="Buscar producto o categoría"
-              className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition"
+              /* 16 px de texto: por debajo, Safari en iOS hace zoom al enfocar
+                 y descoloca la pantalla — justo con el móvil en la mano y de
+                 pie en la tienda, que es como se usa esta sección. */
+              className="w-full h-12 pl-11 pr-11 rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] shadow-[var(--shadow-xs)] focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25 transition"
             />
             {search && (
               <button
                 type="button"
                 aria-label="Limpiar búsqueda"
                 onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 grid place-items-center rounded-full text-[var(--ink-subtle)] touch-auto-size"
               >
-                ✕
+                <XMarkIcon className="w-[18px] h-[18px]" />
               </button>
             )}
           </div>
           <button
             type="button"
             onClick={() => setShowAddSheet(true)}
-            className="shrink-0 px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold transition active:scale-95 shadow-sm"
+            aria-label="Agregar un producto a la lista"
+            className="btn-primary shrink-0 h-12 px-4 grid place-items-center rounded-2xl text-sm"
           >
-            ＋ Agregar
+            <PlusIcon className="w-5 h-5 sm:hidden" />
+            <span className="hidden sm:inline">Agregar</span>
           </button>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="scroll-row flex gap-2 overflow-x-auto -mx-1 px-1">
           {([
             { k: 'all', label: `Todos · ${notInCart.length}` },
             { k: 'urgent', label: `🚨 Se acabó · ${urgent.length}` },
@@ -710,9 +725,9 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
               key={k}
               onClick={() => setFilter(k)}
               aria-pressed={filter === k}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 ${
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold touch-auto-size ${
                 filter === k
-                  ? 'bg-sky-600 text-white shadow-sm'
+                  ? 'bg-brand-600 text-white shadow-[var(--shadow-xs)]'
                   : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-sky-300'
               }`}
             >
@@ -778,7 +793,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
       {visiblePending.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3 px-1">
-            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300">
               🛒 Por comprar
             </h2>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
@@ -816,7 +831,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
       {visiblePurchased.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3 px-1">
-            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+            <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300">
               ✔️ Comprados
             </h2>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
@@ -1169,9 +1184,9 @@ function ProductPurchaseCard({
             </span>
           ) : (
             <span
-              className={`absolute top-2 right-2 text-[9px] font-bold tracking-wide uppercase px-2 py-1 rounded-full bg-white/95 backdrop-blur-sm shadow-sm ${
-                urgent ? 'text-blue-600' : 'text-sky-600'
-              }`}
+              className={`absolute top-2 right-2 text-[11px] font-bold px-2 py-1 rounded-full bg-white/95 backdrop-blur-sm shadow-sm ${
+ urgent ? 'text-blue-600' : 'text-sky-600'
+ }`}
             >
               {urgent ? '🚨 Urgente' : '⚠️ Bajo'}
             </span>
@@ -1191,18 +1206,27 @@ function ProductPurchaseCard({
             {product.name}
           </span>
           {product.category && (
-            <span className="block text-[10px] text-slate-400 uppercase tracking-wide mt-0.5 truncate">{product.category}</span>
+            <span className="block text-[11px] text-slate-400 mt-0.5 truncate">{product.category}</span>
           )}
-          <span className="block text-[10px] text-slate-400 mt-0.5 tabular-nums">
+          <span className="block text-[11px] text-slate-400 mt-0.5 tabular-nums">
             {fmtQty(lineQty)} {product.unit || 'unid.'}
             {!inCart && product.lastPurchasePrice != null && ` · últ. $${product.lastPurchasePrice.toFixed(2)}`}
           </span>
-          <span className={`mt-1.5 mb-0.5 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold ${
+          {/*
+            Antes esta pastilla decía «Toca para comprar / precio» y, ya en el
+            carrito, «✓ Comprado · toca para opciones». Son instrucciones de uso
+            impresas en el producto: la tarjeta ENTERA es el botón, así que
+            explicar que se puede tocar sobra. Ahora la pastilla dice qué va a
+            pasar —«Comprar»— o en qué estado está —«Comprado»—, que es lo que
+            hace falta leer de reojo con el carro en la mano.
+          */}
+          <span className={`mt-1.5 mb-0.5 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold ${
             inCart
-              ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
-              : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+              ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+              : 'bg-brand-600 text-white'
           }`}>
-            {inCart ? '✓ Comprado · toca para opciones' : 'Toca para comprar / precio'}
+            {inCart ? <CheckIcon className="w-4 h-4" /> : <ShoppingCartIcon className="w-4 h-4" />}
+            {inCart ? 'Comprado' : 'Comprar'}
           </span>
         </span>
       </button>
@@ -1213,9 +1237,9 @@ function ProductPurchaseCard({
           type="button"
           aria-label={`Ver foto de ${product.name}`}
           onClick={() => onZoom(product.photoUrl!, photoRef.current?.getBoundingClientRect())}
-          className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/45 backdrop-blur-sm text-white flex items-center justify-center text-sm shadow focus:outline-none active:scale-90 transition"
+          className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/45 backdrop-blur-sm text-white grid place-items-center shadow focus:outline-none touch-auto-size"
         >
-          🔍
+          <MagnifyingGlassPlusIcon className="w-[18px] h-[18px]" />
         </button>
       )}
     </motion.div>
@@ -1298,7 +1322,7 @@ function PriceEditorSheet({
             {product.photoUrl ? (
               <>
                 <Image src={product.photoUrl} alt={product.name} fill className="object-cover" sizes="56px" />
-                <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-black/45 text-white text-[9px] flex items-center justify-center">🔍</span>
+                <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-black/45 text-white text-[11px] flex items-center justify-center">🔍</span>
               </>
             ) : (
               <span className="absolute inset-0 flex items-center justify-center text-xl">
@@ -1388,10 +1412,10 @@ function PriceEditorSheet({
                     placeholder={`${byWeight ? 'Paquete' : 'Empaque'} ${index + 1} · nota (ej. grande)`}
                     maxLength={30}
                     onChange={(e) => setEntry(index, { label: e.target.value })}
-                    className="flex-1 min-w-0 text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide bg-transparent border-b border-dashed border-slate-200 dark:border-slate-700 focus:outline-none focus:border-sky-400 placeholder:normal-case placeholder:font-normal placeholder:text-slate-400 pb-0.5"
+                    className="flex-1 min-w-0 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-transparent border-b border-dashed border-slate-200 dark:border-slate-700 focus:outline-none focus:border-sky-400 placeholder:normal-case placeholder:font-normal placeholder:text-slate-400 pb-0.5"
                   />
                 ) : (
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                  <span className="text-[11px] font-bold text-slate-400">
                     Cantidad y precio
                   </span>
                 )}
@@ -1419,7 +1443,7 @@ function PriceEditorSheet({
                         type="button"
                         aria-pressed={mode === 'unit'}
                         onClick={() => setEntry(index, { mode: 'unit' })}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition active:scale-95 ${
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition active:scale-95 ${
                           mode === 'unit'
                             ? 'bg-sky-600 text-white shadow-sm'
                             : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500'
@@ -1431,7 +1455,7 @@ function PriceEditorSheet({
                         type="button"
                         aria-pressed={mode === 'lb'}
                         onClick={() => setEntry(index, { mode: 'lb' })}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition active:scale-95 ${
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition active:scale-95 ${
                           mode === 'lb'
                             ? 'bg-sky-600 text-white shadow-sm'
                             : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500'
@@ -1474,7 +1498,7 @@ function PriceEditorSheet({
                         >
                           ＋
                         </button>
-                        <span className="text-[10px] text-slate-400 pr-1.5">{qtyLabel}</span>
+                        <span className="text-[11px] text-slate-400 pr-1.5">{qtyLabel}</span>
                       </div>
 
                       {/* Price per unit (unit) or price per pound (lb) — both × qty */}
@@ -1748,9 +1772,9 @@ function AddProductSheet({
   }
 
   function stockBadge(level: PantryPick['stockLevel']) {
-    if (level === 'empty') return <span className="text-[9px] font-bold uppercase text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full shrink-0">🚨 Se acabó</span>;
-    if (level === 'half') return <span className="text-[9px] font-bold uppercase text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full shrink-0">⚠️ Bajo</span>;
-    return <span className="text-[9px] font-bold uppercase text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full shrink-0">✅ Tengo</span>;
+    if (level === 'empty') return <span className="text-[11px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full shrink-0">🚨 Se acabó</span>;
+    if (level === 'half') return <span className="text-[11px] font-bold text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full shrink-0">⚠️ Bajo</span>;
+    return <span className="text-[11px] font-bold text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full shrink-0">✅ Tengo</span>;
   }
 
   return (
@@ -1775,7 +1799,10 @@ function AddProductSheet({
         </div>
 
         <div className="relative mb-3">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none select-none">🔍</span>
+          <MagnifyingGlassIcon
+            aria-hidden="true"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--ink-subtle)] pointer-events-none"
+          />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -1814,7 +1841,7 @@ function AddProductSheet({
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{p.name}</span>
                 {p.category && (
-                  <span className="block text-[10px] text-slate-400 uppercase tracking-wide truncate">{p.category}</span>
+                  <span className="block text-[11px] text-slate-400 truncate">{p.category}</span>
                 )}
               </span>
               {stockBadge(p.stockLevel)}

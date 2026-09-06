@@ -181,8 +181,7 @@ export default async function StatsPage() {
   return (
     <div className="space-y-6">
       <ModernTitle
-        title="📊 Estadísticas"
-        subtitle="Un vistazo a tus hábitos de compra y despensa."
+        title="Estadísticas"
       />
       <StatsContent
         stock={stock}

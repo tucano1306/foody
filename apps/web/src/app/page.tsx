@@ -110,7 +110,7 @@ export default async function Home() {
 
         <div className="relative max-w-6xl mx-auto px-6 py-20 md:py-28 grid md:grid-cols-2 gap-10 items-center">
           <div className="space-y-6">
-            <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-widest uppercase text-brand-300 bg-brand-500/10 border border-brand-400/30 rounded-full px-3 py-1">
+            <p className="inline-flex items-center gap-2 text-xs font-semiboldst text-brand-300 bg-brand-500/10 border border-brand-400/30 rounded-full px-3 py-1">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-400" />
               <span>Reconocida como la #1 app de despensa hogareña</span>
             </p>
@@ -149,7 +149,7 @@ export default async function Home() {
           <div className="relative">
             <div className="relative rounded-2xl bg-white text-navy-800 p-6 shadow-2xl border border-navy-100">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-bold uppercase tracking-widest text-brand-600">Panel en vivo</span>
+                <span className="text-xs font-boldst text-brand-600">Panel en vivo</span>
                 <span className="flex items-center gap-1 text-[11px] text-sky-600 font-semibold">
                   <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
                   <span>actualizado</span>
@@ -157,19 +157,19 @@ export default async function Home() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-navy-50 p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-navy-500 font-semibold">Ahorro / mes</p>
+                  <p className="text-[11px]r text-navy-500 font-semibold">Ahorro / mes</p>
                   <p className="text-3xl font-black text-navy-900 mt-1">$124</p>
                 </div>
                 <div className="rounded-xl bg-brand-50 p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-brand-700 font-semibold">Productos OK</p>
+                  <p className="text-[11px]r text-brand-700 font-semibold">Productos OK</p>
                   <p className="text-3xl font-black text-brand-700 mt-1">87%</p>
                 </div>
                 <div className="rounded-xl bg-sky-50 p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-sky-700 font-semibold">Tickets</p>
+                  <p className="text-[11px]r text-sky-700 font-semibold">Tickets</p>
                   <p className="text-3xl font-black text-sky-700 mt-1">24</p>
                 </div>
                 <div className="rounded-xl bg-sky-50 p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-sky-700 font-semibold">Por acabarse</p>
+                  <p className="text-[11px]r text-sky-700 font-semibold">Por acabarse</p>
                   <p className="text-3xl font-black text-sky-700 mt-1">3</p>
                 </div>
               </div>
@@ -188,14 +188,14 @@ export default async function Home() {
       {/* Trust band */}
       <section id="trust" className="bg-navy-50 border-y border-navy-100">
         <div className="max-w-6xl mx-auto px-6 py-10">
-          <p className="text-center text-sm font-semibold uppercase tracking-widest text-navy-500 mb-6">
+          <p className="text-center text-sm font-semiboldst text-navy-500 mb-6">
             Pensado para miles de hogares
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {TRUST_STATS.map((s) => (
               <div key={s.l}>
                 <p className="text-3xl md:text-4xl font-black text-navy-900">{s.v}</p>
-                <p className="text-xs md:text-sm text-navy-500 mt-1 uppercase tracking-wider font-semibold">
+                <p className="text-xs md:text-sm text-navy-500 mt-1r font-semibold">
                   {s.l}
                 </p>
               </div>
@@ -208,7 +208,7 @@ export default async function Home() {
       <section id="solutions" className="bg-white">
         <div className="max-w-6xl mx-auto px-6 py-20">
           <div className="max-w-3xl mb-12">
-            <p className="text-xs font-bold uppercase tracking-widest text-brand-600 mb-2">
+            <p className="text-xs font-boldst text-brand-600 mb-2">
               Una plataforma, todo bajo control
             </p>
             <h2 className="text-3xl md:text-4xl font-black tracking-tight text-navy-900">
@@ -237,7 +237,7 @@ export default async function Home() {
       <section id="features" className="bg-navy-900 text-white">
         <div className="max-w-6xl mx-auto px-6 py-20 grid md:grid-cols-2 gap-12 items-center">
           <div className="space-y-6">
-            <p className="text-xs font-bold uppercase tracking-widest text-brand-300">
+            <p className="text-xs font-boldst text-brand-300">
               IA integrada · Personalización predictiva
             </p>
             <h2 className="text-3xl md:text-4xl font-black tracking-tight">
@@ -258,7 +258,7 @@ export default async function Home() {
 
           <div className="relative">
             <div className="rounded-2xl bg-navy-800 border border-navy-700 p-6 shadow-2xl">
-              <p className="text-[11px] uppercase tracking-widest font-bold text-brand-400 mb-4">
+              <p className="text-[11px]st font-bold text-brand-400 mb-4">
                 ✨ Sugerencias para ti
               </p>
               <div className="space-y-2">
@@ -269,7 +269,7 @@ export default async function Home() {
                   >
                     <span className="text-lg">{p.e}</span>
                     <span className="flex-1 text-sm font-semibold">{p.n}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-navy-300">{p.s}</span>
+                    <span className="text-[11px]r text-navy-300">{p.s}</span>
                     <span className="text-brand-400 font-black">+</span>
                   </div>
                 ))}

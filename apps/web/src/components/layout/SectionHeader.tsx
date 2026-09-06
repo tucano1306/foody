@@ -1,89 +1,62 @@
-/** Color accents so each dashboard zone reads as its own area at a glance. */
-const TONES = {
-  neutral: {
-    pill: 'from-slate-100 via-white to-slate-100 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800',
-    ring: 'ring-slate-200/80 dark:ring-slate-700/70',
-    text: 'text-slate-600 dark:text-slate-300',
-    bar: 'via-slate-300 dark:via-slate-700',
-  },
-  brand: {
-    // The brand palette stops at 900 — no brand-950 to reach for here.
-    pill: 'from-sky-100 via-brand-50 to-sky-100 dark:from-brand-900/70 dark:via-navy-900 dark:to-brand-900/70',
-    ring: 'ring-sky-200/80 dark:ring-brand-800/70',
-    text: 'text-brand-600 dark:text-sky-300',
-    bar: 'via-sky-300 dark:via-brand-700',
-  },
-  ok: {
-    pill: 'from-sky-100 via-sky-50 to-sky-100 dark:from-sky-950/70 dark:via-sky-950/40 dark:to-sky-950/70',
-    ring: 'ring-sky-200/80 dark:ring-sky-900/70',
-    text: 'text-sky-700 dark:text-sky-300',
-    bar: 'via-sky-300 dark:via-sky-800',
-  },
-  warning: {
-    pill: 'from-sky-100 via-sky-50 to-sky-100 dark:from-sky-950/70 dark:via-sky-950/40 dark:to-sky-950/70',
-    ring: 'ring-sky-200/80 dark:ring-sky-900/70',
-    text: 'text-sky-700 dark:text-sky-300',
-    bar: 'via-sky-300 dark:via-sky-800',
-  },
-  accent: {
-    pill: 'from-sky-100 via-sky-50 to-sky-100 dark:from-sky-950/70 dark:via-sky-950/40 dark:to-sky-950/70',
-    ring: 'ring-sky-200/80 dark:ring-sky-900/70',
-    text: 'text-sky-700 dark:text-sky-300',
-    bar: 'via-sky-300 dark:via-sky-800',
-  },
-} as const;
+/** Se conserva la firma `tone` porque cuatro pantallas la pasan. Hoy todos los
+ *  tonos comparten la misma gama azul, así que lo único que cambia es si la
+ *  sección lleva marca de acento o no. */
+const ACCENTED: Record<string, boolean> = {
+  neutral: false,
+  brand: true,
+  ok: true,
+  warning: true,
+  accent: true,
+};
 
-export type SectionTone = keyof typeof TONES;
+export type SectionTone = 'neutral' | 'brand' | 'ok' | 'warning' | 'accent';
 
 /**
- * Labeled divider that separates the major zones of a dashboard page.
- * The colored pill + rules are deliberately loud: on a long scrolling page
- * they're the only cue that one zone ended and the next began.
+ * Separador entre las zonas grandes de una pantalla.
+ *
+ * Antes era una píldora con degradado y anillo, un emoji dentro de un círculo
+ * blanco con su propia sombra, el título en MAYÚSCULAS con tracking abierto y
+ * dos reglas degradadas a los lados. Seis elementos decorativos para decir una
+ * palabra: eso es cromo compitiendo con el contenido, no jerarquía.
+ *
+ * Un titular en su tamaño real, alineado a la izquierda como todo lo demás,
+ * separa igual de bien y deja el peso visual donde importa. La barrita de
+ * acento a la izquierda basta para que el ojo enganche el comienzo de zona al
+ * hacer scroll.
  */
 export default function SectionHeader({
   emoji,
   title,
   subtitle,
-  centered = false,
   tone = 'neutral',
 }: {
-  readonly emoji: string;
+  readonly emoji?: string;
   readonly title: string;
-  /** Optional one-liner shown under the pill — says what the zone is for. */
+  /** Una línea, solo si aporta un dato que el título no da. Si lo que dice es
+   *  «busca aquí» o «esto es una lista», sobra: eso lo dice el control. */
   readonly subtitle?: string;
+  /** Se acepta por compatibilidad con las llamadas existentes; ya no cambia la
+   *  maquetación, que ahora es siempre a la izquierda. */
   readonly centered?: boolean;
   readonly tone?: SectionTone;
 }) {
-  const t = TONES[tone];
-  const rule = `h-[3px] rounded-full bg-linear-to-r from-transparent ${t.bar} to-transparent`;
-
   return (
-    <div className={centered ? 'text-center' : ''}>
-      <div className="flex items-center gap-3 sm:gap-4">
-        {centered && <div className={`flex-1 ${rule}`} aria-hidden="true" />}
-
-        <div
-          className={`inline-flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0 rounded-full py-1.5 pl-1.5 pr-3.5 sm:pr-5 bg-linear-to-r ${t.pill} ring-1 ${t.ring} shadow-sm`}
-        >
-          <span
-            aria-hidden="true"
-            className={`grid place-items-center w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-full bg-white/90 dark:bg-slate-900/80 ring-1 ${t.ring} text-base sm:text-xl leading-none shadow-sm`}
-          >
-            {emoji}
-          </span>
-          <h2
-            className={`text-[13px] sm:text-base font-extrabold uppercase tracking-[0.08em] sm:tracking-[0.12em] truncate ${t.text}`}
-          >
-            {title}
-          </h2>
-        </div>
-
-        <div className={`flex-1 ${rule}`} aria-hidden="true" />
-      </div>
-
-      {subtitle && (
-        <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
+    <div className="flex items-start gap-3">
+      {ACCENTED[tone] && (
+        <span
+          aria-hidden="true"
+          className="mt-1 w-1 self-stretch min-h-6 rounded-full bg-[var(--accent)] shrink-0"
+        />
       )}
+      {emoji && (
+        <span aria-hidden="true" className="text-xl leading-7 shrink-0">
+          {emoji}
+        </span>
+      )}
+      <div className="min-w-0">
+        <h2 className="text-lg sm:text-xl font-extrabold text-[var(--ink)]">{title}</h2>
+        {subtitle && <p className="t-meta mt-0.5">{subtitle}</p>}
+      </div>
     </div>
   );
 }

@@ -125,19 +125,19 @@ export default function StatsWheel(props: Readonly<Props>) {
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-2">
           {active ? (
             <>
-              <span className="text-[9px] uppercase tracking-wide text-sky-500 font-bold text-center leading-tight line-clamp-1 w-full">
+              <span className="text-[11px] text-sky-500 font-bold text-center leading-tight line-clamp-1 w-full">
                 {active.label}
               </span>
               <span className="text-base font-extrabold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">
                 {formatValue ? formatValue(active.value) : active.value}
               </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium tabular-nums">
                 {active.pct.toFixed(0)}%
               </span>
             </>
           ) : (
             <>
-              <span className="text-[9px] uppercase tracking-wide text-slate-400 dark:text-slate-500 font-semibold">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold">
                 {totalLabel}
               </span>
               <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">

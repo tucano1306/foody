@@ -27,7 +27,7 @@ export default async function BudgetPage({
 
   return (
     <div className="space-y-5">
-      <ModernTitle title="💰 Presupuesto" subtitle="Controla tu gasto mensual en el supermercado" />
+      <ModernTitle title="Presupuesto" subtitle="Tu gasto del mes en el súper" />
       <BudgetView initialData={data} initialScope={readScope(scope)} />
     </div>
   );

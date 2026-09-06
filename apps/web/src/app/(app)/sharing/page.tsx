@@ -52,7 +52,7 @@ export default async function SharingPage() {
   return (
     <div className="space-y-6">
       <ModernTitle
-        title="🤝 Compartir"
+        title="Compartir"
         subtitle="Despensa compartida y regalos"
       />
       <SharingHub

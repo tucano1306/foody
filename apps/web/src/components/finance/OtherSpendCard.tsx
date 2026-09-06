@@ -38,7 +38,7 @@ export default function OtherSpendCard({ other: o, onChanged }: Props) {
     <section className="rounded-3xl border border-blue-100 bg-blue-50/60 shadow-sm p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-black text-black uppercase tracking-wide">
+          <h2 className="text-sm font-black text-black">
             🍔 Fuera del super
           </h2>
           <p className="text-xs text-slate-500 mt-1">
@@ -55,7 +55,7 @@ export default function OtherSpendCard({ other: o, onChanged }: Props) {
               contra ruido, igual criterio que en el super. */}
           {o.trendPct !== null && o.monthsWithData >= 2 && Math.abs(o.trendPct) >= 10 && (
             <span
-              className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
+              className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-black ${
                 o.trendPct > 0 ? 'bg-blue-100 text-blue-700' : 'bg-sky-100 text-sky-700'
               }`}
             >

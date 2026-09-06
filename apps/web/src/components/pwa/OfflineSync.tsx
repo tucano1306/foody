@@ -43,7 +43,7 @@ function getBannerContent(
   return {
     icon: '📵',
     text: `Sin conexión${getPendingText(pending)}`,
-    cls: 'bg-gray-900',
+    cls: 'bg-slate-900',
   };
 }
 

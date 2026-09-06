@@ -609,13 +609,13 @@ export default function PaymentDetailSheet({
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-white font-bold text-lg leading-tight truncate">{currentPayment.name}</h2>
-            <p className="text-gray-400 text-sm mt-0.5">{catName}</p>
+            <p className="text-slate-400 text-sm mt-0.5">{catName}</p>
           </div>
           <button
             type="button"
             aria-label="Cerrar"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-gray-400 hover:bg-white/20 transition shrink-0"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-slate-400 hover:bg-white/20 transition shrink-0"
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
@@ -623,25 +623,25 @@ export default function PaymentDetailSheet({
 
         {/* Amount */}
         <div className="bg-white/5 rounded-2xl p-4 mb-4">
-          <p className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-1 flex items-center gap-2">
+          <p className="text-slate-400 text-xs font-medium mb-1 flex items-center gap-2">
             {currentPayment.isVariableAmount ? 'Monto estimado' : 'Monto mensual'}
             {currentPayment.isVariableAmount && (
-              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 tracking-normal">
+              <span className="normal-case text-[11px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 tracking-normal">
                 ⚡ Variable
               </span>
             )}
             {currentPayment.isAutoPay && (
-              <span className="normal-case text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 tracking-normal">
+              <span className="normal-case text-[11px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 tracking-normal">
                 🤖 Auto
               </span>
             )}
           </p>
           <p className="text-white text-3xl font-extrabold">
-            {currentPayment.isVariableAmount && <span className="text-gray-400 mr-1">≈</span>}
+            {currentPayment.isVariableAmount && <span className="text-slate-400 mr-1">≈</span>}
             {currentPayment.currency} {currentPayment.amount.toFixed(2)}
           </p>
           {currentPayment.isVariableAmount && (
-            <p className="text-gray-500 text-[11px] mt-1">
+            <p className="text-slate-500 text-[11px] mt-1">
               El monto real se captura al pagar (recibo de consumo)
             </p>
           )}
@@ -651,7 +651,7 @@ export default function PaymentDetailSheet({
         {!isPaid && (currentPayment.unpaidMonths?.length ?? 0) > 0 && (
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 mb-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-blue-300 text-xs font-semibold uppercase tracking-wide">🚨 Acumulado</p>
+              <p className="text-blue-300 text-xs font-semibold">🚨 Acumulado</p>
               <p className="text-blue-300 text-lg font-extrabold">
                 {currentPayment.currency} {((currentPayment.unpaidMonths?.length ?? 0) * currentPayment.amount).toFixed(2)}
               </p>
@@ -701,7 +701,7 @@ export default function PaymentDetailSheet({
                 <button
                   type="button"
                   onClick={() => setInlineField(null)}
-                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-gray-400 text-xs font-semibold transition hover:bg-white/20"
+                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-slate-400 text-xs font-semibold transition hover:bg-white/20"
                 >
                   ✕
                 </button>
@@ -713,7 +713,7 @@ export default function PaymentDetailSheet({
               onClick={openInlineDueDay}
               className="bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-xl p-3 text-left transition w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 group"
             >
-              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center justify-between">
+              <p className="text-slate-400 text-xs font-medium mb-1 flex items-center justify-between">
                 Día de vencimiento
                 <PencilSquareIcon className="w-3 h-3 opacity-0 group-hover:opacity-60 transition" />
               </p>
@@ -743,8 +743,8 @@ export default function PaymentDetailSheet({
                   onChange={(e) => setInlineNotifyUnit(e.target.value as 'days' | 'months')}
                   className="px-2 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-xs shrink-0 focus:outline-none"
                 >
-                  <option value="days" className="bg-gray-900">días</option>
-                  <option value="months" className="bg-gray-900">meses</option>
+                  <option value="days" className="bg-slate-900">días</option>
+                  <option value="months" className="bg-slate-900">meses</option>
                 </select>
               </div>
               <div className="flex gap-1.5">
@@ -758,7 +758,7 @@ export default function PaymentDetailSheet({
                 <button
                   type="button"
                   onClick={() => setInlineField(null)}
-                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-gray-400 text-xs font-semibold transition hover:bg-white/20"
+                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-slate-400 text-xs font-semibold transition hover:bg-white/20"
                 >
                   ✕
                 </button>
@@ -770,7 +770,7 @@ export default function PaymentDetailSheet({
               onClick={openInlineNotify}
               className="bg-white/5 hover:bg-white/10 active:bg-white/15 rounded-xl p-3 text-left transition w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 group"
             >
-              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center justify-between">
+              <p className="text-slate-400 text-xs font-medium mb-1 flex items-center justify-between">
                 Avisar antes
                 <PencilSquareIcon className="w-3 h-3 opacity-0 group-hover:opacity-60 transition" />
               </p>
@@ -783,7 +783,7 @@ export default function PaymentDetailSheet({
 
         {/* Payment mode: automatic vs manual */}
         <div className="bg-white/5 rounded-2xl p-3.5 mb-4">
-          <p className="text-gray-400 text-xs font-medium uppercase tracking-wide mb-2">Modo de pago</p>
+          <p className="text-slate-400 text-xs font-medium mb-2">Modo de pago</p>
           <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-xl p-1" role="group" aria-label="Modo de pago">
             <button
               type="button"
@@ -793,7 +793,7 @@ export default function PaymentDetailSheet({
               className={`py-2.5 rounded-lg text-xs font-bold transition disabled:opacity-60 ${
                 currentPayment.isAutoPay
                   ? 'bg-sky-500 text-white shadow-md'
-                  : 'text-gray-400 hover:bg-white/10 active:bg-white/15'
+                  : 'text-slate-400 hover:bg-white/10 active:bg-white/15'
               }`}
             >
               🤖 Automático
@@ -805,14 +805,14 @@ export default function PaymentDetailSheet({
               aria-pressed={!currentPayment.isAutoPay}
               className={`py-2.5 rounded-lg text-xs font-bold transition disabled:opacity-60 ${
                 currentPayment.isAutoPay
-                  ? 'text-gray-400 hover:bg-white/10 active:bg-white/15'
+                  ? 'text-slate-400 hover:bg-white/10 active:bg-white/15'
                   : 'bg-brand-500 text-white shadow-md'
               }`}
             >
               ✋ Manual
             </button>
           </div>
-          <p className="text-gray-500 text-[11px] mt-2 leading-relaxed">
+          <p className="text-slate-500 text-[11px] mt-2 leading-relaxed">
             {currentPayment.isAutoPay
               ? `Se cobra solo: la app lo marcará como pagado el día ${currentPayment.dueDay} y te avisará.`
               : 'Tú registras el pago cada mes con el botón "Marcar como pagado".'}
@@ -825,7 +825,7 @@ export default function PaymentDetailSheet({
         {/* Description */}
         {currentPayment.description && (
           <div className="bg-white/5 rounded-xl p-3 mb-4">
-            <p className="text-gray-400 text-xs font-medium mb-1">Notas</p>
+            <p className="text-slate-400 text-xs font-medium mb-1">Notas</p>
             <p className="text-white text-sm leading-relaxed">{currentPayment.description}</p>
           </div>
         )}
@@ -839,10 +839,10 @@ export default function PaymentDetailSheet({
                 Pagado este mes
               </span>
               {currentPayment.daysUntilDue > 0 && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-white/5 text-gray-300">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-white/5 text-slate-300">
                   🔄 Próximo pago en {plural(currentPayment.daysUntilDue, 'día')}
                   {formatShortDate(currentPayment.nextDueDate) && (
-                    <span className="text-gray-500"> · {formatShortDate(currentPayment.nextDueDate)}</span>
+                    <span className="text-slate-500"> · {formatShortDate(currentPayment.nextDueDate)}</span>
                   )}
                 </span>
               )}
@@ -861,7 +861,7 @@ export default function PaymentDetailSheet({
             onClick={onPaidToggle}
             className={`w-full py-3 rounded-2xl font-bold text-sm transition ${
               isPaid
-                ? 'bg-white/10 text-gray-300 hover:bg-white/20'
+                ? 'bg-white/10 text-slate-300 hover:bg-white/20'
                 : 'bg-sky-500 text-white hover:bg-sky-600'
             }`}
           >
@@ -871,7 +871,7 @@ export default function PaymentDetailSheet({
             <button
               type="button"
               onClick={() => { setError(null); setMode('edit'); }}
-              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/10 text-gray-200 hover:bg-white/20 font-semibold text-sm transition"
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-white/10 text-slate-200 hover:bg-white/20 font-semibold text-sm transition"
             >
               <PencilSquareIcon className="w-4 h-4" />
               Editar
@@ -899,13 +899,13 @@ export default function PaymentDetailSheet({
     return (
       <div className="bg-brand-500/10 border border-brand-500/30 rounded-2xl p-3.5 mb-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <p className="text-brand-300 text-xs font-semibold uppercase tracking-wide">Método de pago</p>
+          <p className="text-brand-300 text-xs font-semibold">Método de pago</p>
           {currentPayment.paymentMethod && (
             <button
               type="button"
               onClick={() => setEditingMethod(false)}
               aria-label="Cerrar edición de método"
-              className="text-gray-400 hover:text-white transition"
+              className="text-slate-400 hover:text-white transition"
             >
               <XMarkIcon className="w-4 h-4" />
             </button>
@@ -925,7 +925,7 @@ export default function PaymentDetailSheet({
           <button
             type="button"
             onClick={() => setEditingMethod(false)}
-            className="flex-1 py-2.5 rounded-xl bg-white/10 text-gray-300 text-sm font-semibold hover:bg-white/20 transition"
+            className="flex-1 py-2.5 rounded-xl bg-white/10 text-slate-300 text-sm font-semibold hover:bg-white/20 transition"
           >
             Cancelar
           </button>
@@ -954,7 +954,7 @@ export default function PaymentDetailSheet({
           <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-xl shrink-0" aria-hidden="true">💳</div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-semibold">Agregar método de pago</p>
-            <p className="text-gray-500 text-xs">Banco, tarjeta o efectivo</p>
+            <p className="text-slate-500 text-xs">Banco, tarjeta o efectivo</p>
           </div>
           <span className="text-brand-400 text-lg shrink-0 group-hover:translate-x-0.5 transition" aria-hidden="true">＋</span>
         </button>
@@ -977,19 +977,19 @@ export default function PaymentDetailSheet({
           {info.icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-wide mb-0.5">Método de pago</p>
+          <p className="text-slate-400 text-[11px] font-semibold mb-0.5">Método de pago</p>
           <p className="text-white text-sm font-bold truncate">{info.label}</p>
           {hasDetail ? (
-            <p className="text-gray-400 text-xs truncate">
+            <p className="text-slate-400 text-xs truncate">
               {currentPayment.bankName && <span>{currentPayment.bankName}</span>}
-              {currentPayment.bankName && masked && <span className="text-gray-600"> · </span>}
+              {currentPayment.bankName && masked && <span className="text-slate-600"> · </span>}
               {masked && <span className="font-mono tracking-wider">{masked}</span>}
             </p>
           ) : (
-            <p className="text-gray-500 text-xs">Toca para añadir banco o tarjeta</p>
+            <p className="text-slate-500 text-xs">Toca para añadir banco o tarjeta</p>
           )}
         </div>
-        <PencilSquareIcon className="w-4 h-4 text-gray-500 group-hover:text-brand-400 transition shrink-0" />
+        <PencilSquareIcon className="w-4 h-4 text-slate-500 group-hover:text-brand-400 transition shrink-0" />
       </button>
     );
   }
@@ -1002,11 +1002,11 @@ export default function PaymentDetailSheet({
           <p className="text-blue-300 text-xs bg-blue-500/10 border border-blue-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
         )}
         <div>
-          <label htmlFor="rec-edit-amount" className="block text-[11px] font-semibold text-gray-400 mb-1">
+          <label htmlFor="rec-edit-amount" className="block text-[11px] font-semibold text-slate-400 mb-1">
             Monto pagado
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs select-none">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs select-none">
               {currentPayment.currency}
             </span>
             <input
@@ -1020,8 +1020,8 @@ export default function PaymentDetailSheet({
           </div>
         </div>
         <div>
-          <label htmlFor="rec-edit-notes" className="block text-[11px] font-semibold text-gray-400 mb-1">
-            Nota <span className="text-gray-600 font-normal">(opcional)</span>
+          <label htmlFor="rec-edit-notes" className="block text-[11px] font-semibold text-slate-400 mb-1">
+            Nota <span className="text-slate-600 font-normal">(opcional)</span>
           </label>
           <input
             id="rec-edit-notes"
@@ -1030,7 +1030,7 @@ export default function PaymentDetailSheet({
             maxLength={500}
             onChange={(e) => setRecNotes(e.target.value)}
             placeholder="Ej: Folio 123456"
-            className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
         <div className="flex gap-2 mt-0.5">
@@ -1056,7 +1056,7 @@ export default function PaymentDetailSheet({
           </button>
         </div>
         {recDeleteArmed && (
-          <p className="text-[10px] text-blue-400/80">
+          <p className="text-[11px] text-blue-400/80">
             Al eliminarlo, ese mes volverá a contar como pendiente y se restará del total pagado.
           </p>
         )}
@@ -1070,7 +1070,7 @@ export default function PaymentDetailSheet({
         <button
           type="button"
           onClick={openAddForm}
-          className="mt-2 w-full py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 text-xs font-semibold hover:border-brand-500/50 hover:text-brand-300 active:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          className="mt-2 w-full py-2.5 rounded-xl border border-dashed border-white/20 text-slate-400 text-xs font-semibold hover:border-brand-500/50 hover:text-brand-300 active:bg-white/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
         >
           ＋ Registrar pago de otro mes
         </button>
@@ -1083,7 +1083,7 @@ export default function PaymentDetailSheet({
           <p className="text-blue-300 text-xs bg-blue-500/10 border border-blue-500/30 rounded-lg px-2.5 py-1.5">{recError}</p>
         )}
         <div>
-          <label htmlFor="add-record-month" className="block text-[11px] font-semibold text-gray-400 mb-1">Mes</label>
+          <label htmlFor="add-record-month" className="block text-[11px] font-semibold text-slate-400 mb-1">Mes</label>
           <select
             id="add-record-month"
             value={addMonthKey}
@@ -1091,16 +1091,16 @@ export default function PaymentDetailSheet({
             className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             {buildMonthOptions().map((o) => (
-              <option key={o.key} value={o.key} className="bg-gray-900">
+              <option key={o.key} value={o.key} className="bg-slate-900">
                 {o.label}{o.taken ? ' · ya registrado' : ''}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label htmlFor="add-record-amount" className="block text-[11px] font-semibold text-gray-400 mb-1">Monto</label>
+          <label htmlFor="add-record-amount" className="block text-[11px] font-semibold text-slate-400 mb-1">Monto</label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs select-none">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs select-none">
               {currentPayment.currency}
             </span>
             <input
@@ -1117,7 +1117,7 @@ export default function PaymentDetailSheet({
           <button
             type="button"
             onClick={() => { setAddOpen(false); setRecError(null); }}
-            className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-xs font-semibold transition"
+            className="flex-1 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-semibold transition"
           >
             Cancelar
           </button>
@@ -1130,7 +1130,7 @@ export default function PaymentDetailSheet({
             {recBusy ? 'Guardando…' : '✓ Registrar'}
           </button>
         </div>
-        <p className="text-[10px] text-gray-500">
+        <p className="text-[11px] text-slate-500">
           Si eliges un mes ya registrado, se actualizará ese registro.
         </p>
       </div>
@@ -1141,7 +1141,7 @@ export default function PaymentDetailSheet({
     if (historyLoading && !history) {
       return (
         <div className="mt-6 pt-5 border-t border-white/10">
-          <p className="text-gray-500 text-xs">Cargando historial…</p>
+          <p className="text-slate-500 text-xs">Cargando historial…</p>
         </div>
       );
     }
@@ -1152,21 +1152,21 @@ export default function PaymentDetailSheet({
     return (
       <div className="mt-6 pt-5 border-t border-white/10">
         <div className="flex items-center justify-between gap-2 mb-3">
-          <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide">
+          <p className="text-slate-400 text-xs font-semibold">
             Historial reciente
           </p>
           {paidCount > 0 && (
-            <p className="text-[11px] text-gray-400 text-right">
+            <p className="text-[11px] text-slate-400 text-right">
               Pagado a la fecha:{' '}
               <span className="text-sky-300 font-bold">
                 {currentPayment.currency} {totalPaid.toFixed(2)}
               </span>
-              <span className="text-gray-500"> · {paidCount} {paidCount === 1 ? 'pago' : 'pagos'}</span>
+              <span className="text-slate-500"> · {paidCount} {paidCount === 1 ? 'pago' : 'pagos'}</span>
             </p>
           )}
         </div>
         {records.length === 0 ? (
-          <p className="text-gray-500 text-xs">Aún no hay pagos registrados.</p>
+          <p className="text-slate-500 text-xs">Aún no hay pagos registrados.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {records.slice(0, 6).map((rec) => {
@@ -1194,23 +1194,23 @@ export default function PaymentDetailSheet({
                         <p className="text-white text-sm font-semibold">{monthLabel}</p>
                         <p className="text-white text-sm font-bold flex items-center gap-1.5">
                           {currentPayment.currency} {(rec.actualAmount ?? rec.amount).toFixed(2)}
-                          <PencilSquareIcon className={`w-3.5 h-3.5 transition ${isExpanded ? 'text-brand-400' : 'text-gray-600 group-hover:text-gray-400'}`} />
+                          <PencilSquareIcon className={`w-3.5 h-3.5 transition ${isExpanded ? 'text-brand-400' : 'text-slate-600 group-hover:text-slate-400'}`} />
                         </p>
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-400 flex-wrap">
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 flex-wrap">
                         {methodInfo && <span>{methodInfo.label}</span>}
                         {rec.bankAccount && (
                           <>
-                            {methodInfo && <span className="text-gray-600">·</span>}
+                            {methodInfo && <span className="text-slate-600">·</span>}
                             <span className="truncate">{rec.bankAccount}</span>
                           </>
                         )}
                         {!methodInfo && !rec.bankAccount && (
-                          <span className="text-gray-500">Toca para editar o eliminar</span>
+                          <span className="text-slate-500">Toca para editar o eliminar</span>
                         )}
                       </div>
                       {rec.notes && !isExpanded && (
-                        <p className="text-[11px] text-gray-500 mt-1 italic line-clamp-2">{rec.notes}</p>
+                        <p className="text-[11px] text-slate-500 mt-1 italic line-clamp-2">{rec.notes}</p>
                       )}
                     </div>
                   </button>
@@ -1234,7 +1234,7 @@ export default function PaymentDetailSheet({
         </div>
         <div>
           <h2 className="text-white font-bold text-lg">¿Eliminar pago?</h2>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-slate-400 text-sm mt-1">
             Se eliminará <span className="text-white font-semibold">"{currentPayment.name}"</span> permanentemente.
           </p>
         </div>
@@ -1250,7 +1250,7 @@ export default function PaymentDetailSheet({
           <button
             type="button"
             onClick={() => setMode('view')}
-            className="w-full py-3 rounded-2xl bg-white/10 text-gray-300 font-semibold text-sm hover:bg-white/20 transition"
+            className="w-full py-3 rounded-2xl bg-white/10 text-slate-300 font-semibold text-sm hover:bg-white/20 transition"
           >
             Cancelar
           </button>
@@ -1268,7 +1268,7 @@ export default function PaymentDetailSheet({
           <button
             type="button"
             onClick={() => setMode('view')}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-gray-400 hover:bg-white/20 transition shrink-0"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 text-slate-400 hover:bg-white/20 transition shrink-0"
           >
             <ArrowLeftIcon className="w-5 h-5" />
           </button>
@@ -1283,7 +1283,7 @@ export default function PaymentDetailSheet({
 
         {/* Nombre */}
         <div>
-          <label htmlFor="edit-payment-name" className="block text-xs font-semibold text-gray-400 mb-1.5">
+          <label htmlFor="edit-payment-name" className="block text-xs font-semibold text-slate-400 mb-1.5">
             Nombre <span className="text-brand-400">*</span>
           </label>
           <input
@@ -1292,25 +1292,25 @@ export default function PaymentDetailSheet({
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Ej: Netflix, Renta, Luz…"
-            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
+            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
           />
         </div>
 
         {/* Monto + Moneda */}
         <div>
-          <label htmlFor="edit-payment-amount" className="block text-xs font-semibold text-gray-400 mb-1.5">
+          <label htmlFor="edit-payment-amount" className="block text-xs font-semibold text-slate-400 mb-1.5">
             {form.isVariableAmount ? 'Monto estimado' : 'Monto'} <span className="text-brand-400">*</span>
           </label>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm select-none">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">$</span>
               <MoneyInput
                 id="edit-payment-amount"
                 required
                 value={form.amount}
                 onChange={(amount) => setForm((f) => ({ ...f, amount }))}
                 placeholder="0.00"
-                className="w-full pl-8 pr-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
+                className="w-full pl-8 pr-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
               />
             </div>
             <select
@@ -1319,9 +1319,9 @@ export default function PaymentDetailSheet({
               className="px-3 py-3 rounded-xl bg-white/10 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm min-w-20"
             >
               {CURRENCIES.map((c) => (
-                <option key={c} value={c} className="bg-gray-900">{c}</option>
+                <option key={c} value={c} className="bg-slate-900">{c}</option>
               ))}
-              <option value="OTHER" className="bg-gray-900">Otra</option>
+              <option value="OTHER" className="bg-slate-900">Otra</option>
             </select>
           </div>
 
@@ -1337,7 +1337,7 @@ export default function PaymentDetailSheet({
             }`}
           >
             <div
-              className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 transition ${
+              className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[11px] font-bold shrink-0 transition ${
                 form.isVariableAmount ? 'bg-sky-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
               }`}
             >
@@ -1345,7 +1345,7 @@ export default function PaymentDetailSheet({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-white">⚡ Monto variable (por consumo)</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">
+              <p className="text-[11px] text-slate-400 mt-0.5">
                 Al pagar te pediremos el valor exacto del recibo.
               </p>
             </div>
@@ -1363,7 +1363,7 @@ export default function PaymentDetailSheet({
             }`}
           >
             <div
-              className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0 transition ${
+              className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[11px] font-bold shrink-0 transition ${
                 form.isAutoPay ? 'bg-sky-500 text-white' : 'bg-white/10 text-transparent border border-white/20'
               }`}
             >
@@ -1371,7 +1371,7 @@ export default function PaymentDetailSheet({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-white">🤖 Pago automatizado</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">
+              <p className="text-[11px] text-slate-400 mt-0.5">
                 Se cobra automáticamente. La app lo marcará como pagado el día de vencimiento y te avisará.
               </p>
             </div>
@@ -1393,7 +1393,7 @@ export default function PaymentDetailSheet({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="edit-payment-due-day" className="block text-xs font-semibold text-gray-400 mb-1.5">
+            <label htmlFor="edit-payment-due-day" className="block text-xs font-semibold text-slate-400 mb-1.5">
               Día vencimiento
             </label>
             <div className="relative">
@@ -1415,11 +1415,11 @@ export default function PaymentDetailSheet({
                 }}
                 className="w-full px-4 py-3 pr-10 rounded-xl bg-white/10 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs select-none">/mes</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs select-none">/mes</span>
             </div>
           </div>
           <div>
-            <label htmlFor="edit-notify-value" className="block text-xs font-semibold text-gray-400 mb-1.5">
+            <label htmlFor="edit-notify-value" className="block text-xs font-semibold text-slate-400 mb-1.5">
               Avisar antes
             </label>
             <div className="flex gap-1.5">
@@ -1430,15 +1430,15 @@ export default function PaymentDetailSheet({
                 value={notifyValue}
                 onChange={(e) => setNotifyValue(e.target.value)}
                 placeholder="—"
-                className="w-full px-3 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm min-w-0"
+                className="w-full px-3 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm min-w-0"
               />
               <select
                 value={notifyUnit}
                 onChange={(e) => setNotifyUnit(e.target.value as 'days' | 'months')}
                 className="px-2 py-3 rounded-xl bg-white/10 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-xs shrink-0"
               >
-                <option value="days" className="bg-gray-900">días</option>
-                <option value="months" className="bg-gray-900">meses</option>
+                <option value="days" className="bg-slate-900">días</option>
+                <option value="months" className="bg-slate-900">meses</option>
               </select>
             </div>
           </div>
@@ -1446,7 +1446,7 @@ export default function PaymentDetailSheet({
 
         {/* Categoría */}
         <div>
-          <span className="block text-xs font-semibold text-gray-400 mb-2">Categoría</span>
+          <span className="block text-xs font-semibold text-slate-400 mb-2">Categoría</span>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map((cat) => (
               <button
@@ -1457,7 +1457,7 @@ export default function PaymentDetailSheet({
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
                   form.category === cat.value
                     ? 'bg-brand-500 border-brand-500 text-white'
-                    : 'bg-white/5 border-white/10 text-gray-300 hover:border-brand-400 hover:bg-brand-500/10'
+                    : 'bg-white/5 border-white/10 text-slate-300 hover:border-brand-400 hover:bg-brand-500/10'
                 }`}
               >
                 <span>{cat.label}</span>
@@ -1469,8 +1469,8 @@ export default function PaymentDetailSheet({
 
         {/* Descripción */}
         <div>
-          <label htmlFor="edit-payment-description" className="block text-xs font-semibold text-gray-400 mb-1.5">
-            Notas <span className="text-gray-500 font-normal">(opcional)</span>
+          <label htmlFor="edit-payment-description" className="block text-xs font-semibold text-slate-400 mb-1.5">
+            Notas <span className="text-slate-500 font-normal">(opcional)</span>
           </label>
           <textarea
             id="edit-payment-description"
@@ -1478,13 +1478,13 @@ export default function PaymentDetailSheet({
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             placeholder="Ej: Incluye cuenta familiar…"
             rows={2}
-            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm resize-none"
+            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition text-sm resize-none"
           />
         </div>
 
         {/* Método de pago */}
         <div>
-          <span className="block text-xs font-semibold text-gray-400 mb-2">Método de pago habitual</span>
+          <span className="block text-xs font-semibold text-slate-400 mb-2">Método de pago habitual</span>
           <PaymentMethodPicker
             method={form.paymentMethod ?? null}
             bankName={form.bankName ?? ''}
@@ -1509,7 +1509,7 @@ export default function PaymentDetailSheet({
           <button
             type="button"
             onClick={() => setMode('view')}
-            className="w-full py-3 rounded-2xl bg-white/10 text-gray-300 font-semibold text-sm hover:bg-white/20 transition"
+            className="w-full py-3 rounded-2xl bg-white/10 text-slate-300 font-semibold text-sm hover:bg-white/20 transition"
           >
             Cancelar
           </button>
@@ -1525,7 +1525,7 @@ export default function PaymentDetailSheet({
       className="m-0 w-full max-w-none h-full max-h-none bg-transparent backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
       <div className="fixed inset-0 flex items-end sm:items-center justify-center pointer-events-none">
-        <section className="pointer-events-auto w-full max-w-sm bg-gray-900 rounded-t-3xl sm:rounded-3xl shadow-2xl animate-fade-up overflow-y-auto max-h-[92dvh] p-5">
+        <section className="pointer-events-auto w-full max-w-sm bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl animate-fade-up overflow-y-auto max-h-[92dvh] p-5">
           {mode === 'view' && renderView()}
           {mode === 'edit' && renderEdit()}
           {mode === 'confirm-delete' && renderConfirmDelete()}

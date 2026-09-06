@@ -53,12 +53,12 @@ export default async function SharedPantryPage({ params }: { readonly params: Pr
   return (
     <div className="space-y-6">
       <ModernTitle
-        title={`🏠 Despensa de ${ownerLabel}`}
+        title={`Despensa de ${ownerLabel}`}
         subtitle="Solo lectura"
       />
 
       {/* Owner card */}
-      <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
         {owner.owner_avatar ? (
           <Image src={owner.owner_avatar} alt={ownerLabel} width={48} height={48} className="w-12 h-12 rounded-full object-cover" />
         ) : (
@@ -67,14 +67,14 @@ export default async function SharedPantryPage({ params }: { readonly params: Pr
           </div>
         )}
         <div>
-          <p className="font-semibold text-gray-800">{ownerLabel}</p>
-          <p className="text-xs text-gray-400">{products.length} productos en su despensa</p>
+          <p className="font-semibold text-slate-800">{ownerLabel}</p>
+          <p className="text-xs text-slate-400">{products.length} productos en su despensa</p>
         </div>
       </div>
 
       {/* Products grid */}
       {products.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-slate-400">
           <div className="text-5xl mb-2">📦</div>
           <p>Esta despensa está vacía</p>
         </div>
@@ -84,21 +84,21 @@ export default async function SharedPantryPage({ params }: { readonly params: Pr
             const lvl = (p.stock_level ?? 'full') as keyof typeof STOCK_CONFIG;
             const cfg = STOCK_CONFIG[lvl] ?? STOCK_CONFIG.full;
             return (
-              <div key={p.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition">
+              <div key={p.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition">
                 <div className="aspect-4/3 bg-slate-50 relative overflow-hidden">
                   {p.photo_url ? (
                     <Image src={p.photo_url} alt={p.name} fill className="object-cover" sizes="25vw" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-3xl opacity-40">🥑</div>
                   )}
-                  <span className="absolute top-2 right-2 flex items-center gap-1 bg-white/95 rounded-full px-2 py-0.5 text-[10px] font-bold text-gray-700 shadow-sm">
+                  <span className="absolute top-2 right-2 flex items-center gap-1 bg-white/95 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-700 shadow-sm">
                     <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                     {cfg.label}
                   </span>
                 </div>
                 <div className="p-3">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
-                  {p.category && <p className="text-[10px] text-gray-400 uppercase tracking-wide">{p.category}</p>}
+                  <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+                  {p.category && <p className="text-[11px] text-slate-400">{p.category}</p>}
                   <div className="mt-2">
                     <CloneProductButton shareId={id} productId={p.id} />
                   </div>

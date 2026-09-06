@@ -112,11 +112,11 @@ export default function ScopePicker({
           {split && (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-white px-3 py-2">
-                <p className="text-[10px] font-semibold text-slate-500">Negocio</p>
+                <p className="text-[11px] font-semibold text-slate-500">Negocio</p>
                 <p className="text-sm font-extrabold text-black">{fmt(split.business)}</p>
               </div>
               <div className="rounded-xl bg-white px-3 py-2">
-                <p className="text-[10px] font-semibold text-slate-500">Personal</p>
+                <p className="text-[11px] font-semibold text-slate-500">Personal</p>
                 <p className="text-sm font-extrabold text-black">{fmt(split.personal)}</p>
               </div>
             </div>

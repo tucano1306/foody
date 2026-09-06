@@ -79,7 +79,7 @@ export default function StoreRankList({ data, metric, maxRows = 5 }: Props) {
                   )}
                 </div>
                 <span
-                  className={`absolute -top-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold shadow-sm ${
+                  className={`absolute -top-2 -left-2 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-extrabold shadow-sm ${
                     isLeader ? 'bg-sky-400 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200'
                   }`}
                 >

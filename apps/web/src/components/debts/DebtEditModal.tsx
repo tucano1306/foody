@@ -247,7 +247,7 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
                 }`}
               >
                 <span className="text-base leading-none" aria-hidden="true">{KIND_META[k].emoji}</span>
-                <span className="text-[10px] font-bold leading-tight">{KIND_META[k].label}</span>
+                <span className="text-[11px] font-bold leading-tight">{KIND_META[k].label}</span>
               </button>
             );
           })}
@@ -308,7 +308,7 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
                   <span className="text-xs font-bold">
                     <span aria-hidden="true">{STRATEGY_META[s].emoji}</span> {STRATEGY_META[s].label}
                   </span>
-                  <span className={`text-[10px] ${selected ? 'text-white/75' : 'text-slate-400'}`}>
+                  <span className={`text-[11px] ${selected ? 'text-white/75' : 'text-slate-400'}`}>
                     {STRATEGY_META[s].hint}
                   </span>
                 </button>

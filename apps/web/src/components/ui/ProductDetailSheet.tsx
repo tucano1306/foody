@@ -126,7 +126,7 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
               <div>
                 <h2 className="text-lg font-bold text-slate-900 truncate">{product.name}</h2>
                 {product.category && (
-                  <p className="text-xs text-slate-400 uppercase tracking-wide mt-0.5">{product.category}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{product.category}</p>
                 )}
                 {product.lastPurchasePrice != null && (
                   <p className="mt-1 text-2xl font-extrabold text-slate-900">
@@ -140,18 +140,18 @@ export default function ProductDetailSheet({ product, open, onClose, lastPurchas
                 <div className="flex gap-3">
                   {product.totalSpent > 0 && (
                     <div className="flex-1 rounded-xl bg-slate-50 p-3">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Total gastado</p>
+                      <p className="text-[11px] text-slate-400">Total gastado</p>
                       <p className="text-sm font-bold text-brand-700 mt-0.5">{formatMoney(product.totalSpent, product.currency ?? 'USD')}</p>
                     </div>
                   )}
                   {(lastPurchase || product.lastPurchaseDate) && (
                     <div className="flex-1 rounded-xl bg-slate-50 p-3">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Última compra</p>
+                      <p className="text-[11px] text-slate-400">Última compra</p>
                       <p className="text-sm font-semibold text-slate-700 mt-0.5">
                         {formatRelativeTime(latestPurchaseDate(lastPurchase?.purchasedAt, product.lastPurchaseDate)!)}
                       </p>
                       {lastPurchase?.storeName && (
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">🏪 {lastPurchase.storeName}</p>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">🏪 {lastPurchase.storeName}</p>
                       )}
                     </div>
                   )}

@@ -220,7 +220,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                   >
                     <span className="text-3xl leading-none" aria-hidden="true">{meta.emoji}</span>
                     <span className="text-xs font-bold text-black">{meta.label}</span>
-                    <span className="text-[10px] text-slate-400">{meta.hint}</span>
+                    <span className="text-[11px] text-slate-400">{meta.hint}</span>
                   </button>
                 );
               })}
@@ -301,7 +301,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                         {RATE_PERIOD_META[p].label}
                       </span>
                       <span
-                        className={`block text-[10px] ${selected ? 'text-white/70' : 'text-slate-400'}`}
+                        className={`block text-[11px] ${selected ? 'text-white/70' : 'text-slate-400'}`}
                       >
                         {RATE_PERIOD_META[p].hint}
                       </span>
@@ -349,7 +349,7 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                       <span className="text-sm font-bold">
                         <span aria-hidden="true">{meta.emoji}</span> {meta.label}
                       </span>
-                      <span className={`text-[10px] ${selected ? 'text-white/75' : 'text-slate-400'}`}>
+                      <span className={`text-[11px] ${selected ? 'text-white/75' : 'text-slate-400'}`}>
                         {meta.hint}
                       </span>
                     </button>

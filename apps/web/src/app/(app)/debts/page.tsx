@@ -67,8 +67,8 @@ export default async function DebtsPage({
       {/* Sin botón «volver a Pagos»: Deudas ya no cuelga de Pagos, es una
           sección propia con su entrada en el menú. */}
       <ModernTitle
-        title="💳 Deudas y Créditos"
-        subtitle="Cuánto debes, cuánto es interés y cuándo quedas libre"
+        title="Deudas"
+        subtitle="Cuánto debes y cuándo quedas libre"
       />
 
       <DebtsView initial={data} payments={payments} initialScope={readScope(scope)} />

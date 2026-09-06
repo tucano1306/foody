@@ -48,7 +48,7 @@ export default function ScopeDetailSheet({ side, data, onClose }: Props) {
         {data.expenseGroups.map((group) => (
           <div key={group.key} className="overflow-hidden rounded-2xl bg-white">
             <div className="flex items-center justify-between gap-3 border-b border-sky-100 bg-sky-50/70 px-4 py-2.5">
-              <span className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-600">
+              <span className="flex items-center gap-2 text-xs font-black text-slate-600">
                 <span aria-hidden="true">{group.emoji}</span>
                 {group.label}
               </span>
@@ -86,7 +86,7 @@ export default function ScopeDetailSheet({ side, data, onClose }: Props) {
       {/* El total, otra vez, al final: cierra la cuenta que se acaba de leer. */}
       {data.expenseGroups.length > 0 && (
         <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-linear-to-r from-sky-100 to-blue-100 px-4 py-3.5">
-          <span className="text-xs font-black uppercase tracking-wide text-slate-600">
+          <span className="text-xs font-black text-slate-600">
             Total {side === 'personal' ? 'personal' : 'del negocio'}
           </span>
           <span className="text-lg font-black tabular-nums text-black">
@@ -100,7 +100,7 @@ export default function ScopeDetailSheet({ side, data, onClose }: Props) {
       {data.incomeItems.length > 0 && (
         <div className="mt-3 overflow-hidden rounded-2xl bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-sky-100 bg-sky-50/70 px-4 py-2.5">
-            <span className="text-xs font-black uppercase tracking-wide text-slate-600">
+            <span className="text-xs font-black text-slate-600">
               💼 Lo que entra por este lado
             </span>
             <span className="text-sm font-black tabular-nums text-black">

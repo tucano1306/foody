@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { Product, StockLevel } from '@foody/types';
 import ProductCard from '@/components/products/ProductCard';
 import ProductsBrowser from '@/components/products/ProductsBrowser';
+import { ChevronDownIcon, PlusIcon } from '@heroicons/react/24/solid';
 import SectionHeader from '@/components/layout/SectionHeader';
 import Reveal from '@/components/layout/Reveal';
 
@@ -59,15 +60,22 @@ function ProductGrid({
   );
 }
 
-/** Tinted card treatment per urgency level so each pantry block reads as its own zone. */
+/**
+ * Las dos zonas de urgencia de la despensa.
+ *
+ * Comparten gama azul, así que se separan por PESO, no por matiz: lo que se
+ * acabó va sobre el tinte de marca y con una barra de acento sólida; lo que
+ * queda a la mitad reposa en la superficie normal. Así, al bajar por la
+ * pantalla, el bloque urgente es el único que empuja.
+ */
 const SECTION_TONES = {
   urgent: {
-    card: 'bg-blue-50/70 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/40',
-    toggle: 'border-blue-200 text-blue-500 hover:bg-blue-100/60 dark:border-blue-900/50 dark:text-blue-400 dark:hover:bg-blue-950/40',
+    card: 'bg-[var(--accent-soft)] border-brand-200 dark:border-brand-800/60',
+    bar: 'bg-[var(--accent)]',
   },
   warning: {
-    card: 'bg-sky-50/70 dark:bg-sky-950/20 border-sky-100 dark:border-sky-900/40',
-    toggle: 'border-sky-200 text-sky-600 hover:bg-sky-100/60 dark:border-sky-900/50 dark:text-sky-400 dark:hover:bg-sky-950/40',
+    card: 'bg-[var(--surface)] border-[var(--line)]',
+    bar: 'bg-brand-300',
   },
 } as const;
 
@@ -91,19 +99,31 @@ function CollapsibleSection({
   const hidden = items.length - DENSE_INITIAL_VISIBLE;
 
   const plural = hidden === 1 ? '' : 's';
-  const toggleLabel = expanded ? '▲ Mostrar menos' : `▼ Ver ${hidden} producto${plural} más`;
 
   return (
-    <section className={`zone-card rounded-2xl border p-4 sm:p-5 shadow-sm ${SECTION_TONES[tone].card}`}>
-      <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center justify-center gap-2 text-center">{title}</h2>
+    <section
+      className={`zone-card rounded-[var(--radius-card)] border p-4 sm:p-5 shadow-[var(--shadow-sm)] ${SECTION_TONES[tone].card}`}
+    >
+      <div className="flex items-center gap-3 mb-4">
+        <span aria-hidden="true" className={`w-1 self-stretch min-h-6 rounded-full shrink-0 ${SECTION_TONES[tone].bar}`} />
+        <h2 className="text-base sm:text-lg font-extrabold text-[var(--ink)] min-w-0">{title}</h2>
+      </div>
       <ProductGrid items={visible} onLevelChange={onLevelChange} lastPurchaseMap={lastPurchaseMap} dense currentUserId={currentUserId} />
       {hidden > 0 && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className={`mt-3 w-full py-2 rounded-xl border border-dashed text-sm transition ${SECTION_TONES[tone].toggle}`}
+          aria-expanded={expanded}
+          className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-[var(--surface-2)] text-sm font-semibold text-[var(--ink-muted)]"
         >
-          {toggleLabel}
+          {/* La flecha ERA texto («▲ Mostrar menos»): un carácter que cambia de
+              forma según la fuente del sistema y que no gira. Ahora es un icono
+              que rota, y el botón dice una cosa sola. */}
+          {expanded ? 'Mostrar menos' : `Ver ${hidden} más`}
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={`w-4 h-4 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          />
         </button>
       )}
     </section>
@@ -141,44 +161,39 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
   return (
     <>
-      {/* ─── Todos los productos (búsqueda + catálogo, primero) ──────────── */}
+      {/* ─── Todos los productos (búsqueda + catálogo, primero) ──────────────
+          Antes había DOS cabeceras seguidas para esta misma zona: una píldora
+          «Productos · Busca en tu despensa o explora por categoría» y, dentro
+          de la tarjeta, «🛒 Todos los productos (N)». Dos títulos y una
+          instrucción para una lista con su propio buscador a la vista. Queda
+          uno. */}
       <Reveal className="space-y-5">
-        <SectionHeader
-          emoji="🛒"
-          title="Productos"
-          subtitle="Busca en tu despensa o explora por categoría"
-          tone="brand"
-          centered
-        />
-        <section className="zone-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 sm:p-5 shadow-sm">
+        <section className="zone-card bg-[var(--surface)] rounded-[var(--radius-card)] border border-[var(--line)] p-4 sm:p-5 shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="flex items-center gap-2 min-w-0 text-base sm:text-lg font-bold text-slate-700 dark:text-slate-200">
-            <span
-              aria-hidden="true"
-              className="grid place-items-center w-8 h-8 shrink-0 rounded-xl bg-brand-50 dark:bg-brand-900/50 ring-1 ring-brand-100 dark:ring-brand-900/60 text-base"
-            >
-              🛒
-            </span>
-            <span className="truncate">Todos los productos</span>
-            <span className="shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+          <h2 className="flex items-baseline gap-2 min-w-0 text-lg sm:text-xl font-extrabold text-[var(--ink)]">
+            <span className="truncate">Productos</span>
+            <span className="shrink-0 rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs font-bold tabular-nums text-[var(--ink-muted)]">
               {products.length}
             </span>
           </h2>
           <Link
             href="/products/new"
             aria-label="Agregar producto"
-            className="shrink-0 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl transition-colors whitespace-nowrap shadow-sm"
+            /* Círculo con un «+» en móvil, y texto completo cuando hay
+                sitio. Con el botón entero de texto, a 375 px se comía un
+                tercio de la fila y pesaba más que el propio título. */
+            className="shrink-0 btn-primary grid place-items-center w-11 h-11 sm:w-auto sm:h-auto rounded-full sm:rounded-xl sm:px-4 sm:py-2 text-sm whitespace-nowrap touch-auto-size"
           >
-            <span className="sm:hidden">+</span>
-            <span className="hidden sm:inline">+ Agregar</span>
+            <PlusIcon className="w-5 h-5 sm:hidden" />
+            <span className="hidden sm:inline">Agregar</span>
           </Link>
         </div>
         {products.length === 0 ? (
-          <div className="text-center py-16 text-slate-400">
-            <p className="text-5xl mb-4">🥑</p>
-            <p className="text-lg font-medium">No hay productos todavía</p>
-            <Link href="/products/new" className="mt-3 inline-block text-brand-500 hover:underline">
-              Agrega tu primer producto
+          <div className="text-center py-16">
+            <p className="text-5xl mb-4 opacity-40">🥑</p>
+            <p className="text-lg font-semibold text-[var(--ink)]">Tu despensa está vacía</p>
+            <Link href="/products/new" className="btn-primary mt-5 inline-flex items-center rounded-2xl px-5 py-3 text-sm">
+              Agregar el primero
             </Link>
           </div>
         ) : (
@@ -198,17 +213,11 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
       {/* ─── Mi despensa (urgencias: agotados → queda poco) ──────────────── */}
       {(empty.length > 0 || low.length > 0) && (
         <Reveal className="space-y-5">
-          <SectionHeader
-            emoji="🥑"
-            title="Mi despensa"
-            subtitle="Lo que se acabó o está por acabarse"
-            tone="warning"
-            centered
-          />
+          <SectionHeader title="Hay que reponer" tone="brand" />
 
           {empty.length > 0 && (
             <CollapsibleSection
-              title={<><span className="text-blue-700 dark:text-blue-400">🚨 Se acabó — prioridad</span><span className="ml-1 text-sm font-normal text-blue-400">({empty.length})</span></>}
+              title={<>Se acabó <span className="text-[var(--accent)]">({empty.length})</span></>}
               tone="urgent"
               items={empty}
               onLevelChange={handleLevelChange}
@@ -219,7 +228,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
           {low.length > 0 && (
             <CollapsibleSection
-              title={<><span className="text-sky-700 dark:text-sky-400">⚠️ Queda poco</span><span className="ml-1 text-sm font-normal text-sky-400">({low.length})</span></>}
+              title={<>Queda poco <span className="text-[var(--ink-subtle)]">({low.length})</span></>}
               tone="warning"
               items={low}
               onLevelChange={handleLevelChange}

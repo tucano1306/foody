@@ -23,16 +23,15 @@ export default async function PaymentsPage() {
   return (
     <div className="space-y-6">
       <ModernTitle
-        title="💳 Pagos Mensuales"
+        title="Pagos"
         subtitle={`${paid.length}/${payments.length} pagados este mes`}
         action={
           <Link
             href="/payments/new"
             aria-label="Agregar pago"
-            className="inline-flex items-center bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold px-4 sm:px-5 py-3 rounded-2xl transition shadow-sm text-sm whitespace-nowrap"
+            className="hidden md:inline-flex items-center gap-1.5 btn-primary rounded-2xl px-5 py-3 text-sm"
           >
-            <span className="sm:hidden">+ Nuevo</span>
-            <span className="hidden sm:inline">+ Agregar</span>
+            + Agregar pago
           </Link>
         }
       />

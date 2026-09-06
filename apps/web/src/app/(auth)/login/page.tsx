@@ -14,7 +14,7 @@ export default async function LoginPage(props: Readonly<Props>) {
   const params = await searchParams;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-brand-50 to-brand-100">
+    <div className="min-h-screen flex items-center justify-center py-10">
       <LoginCard error={params.error} callbackUrl={params.callbackUrl} />
     </div>
   );

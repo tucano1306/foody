@@ -215,7 +215,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
               <label htmlFor="mark-paid-amount" className="block text-xs font-semibold text-slate-600 mb-1.5">
                 Monto pagado <span className="text-brand-500">*</span>
                 {payment.isVariableAmount && (
-                  <span className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
+                  <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
                     ⚡ Variable
                   </span>
                 )}
@@ -268,7 +268,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
                         <span>{m.shortLabel}</span>
                       </span>
                       {m.hint && (
-                        <span className={`text-[10px] ${selected ? 'text-white/80' : 'text-slate-400'}`}>
+                        <span className={`text-[11px] ${selected ? 'text-white/80' : 'text-slate-400'}`}>
                           {m.hint}
                         </span>
                       )}
@@ -283,7 +283,7 @@ export default function MarkPaidModal({ payment, open, onClose, onConfirmed, rec
               <div className="flex flex-col gap-2">
                 {recentBanks.length > 0 && (
                   <div>
-                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                    <p className="text-[11px] font-semibold text-slate-500 mb-1.5">
                       Bancos que ya usaste
                     </p>
                     <div className="flex flex-wrap gap-1.5">

@@ -101,14 +101,14 @@ function HistoryBars({ history, budgetLine, currentKey }: { readonly history: Mo
         const isCurrent = h.month === currentKey;
         return (
           <div key={h.month} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-            <span className={`text-[10px] tabular-nums ${isCurrent ? 'font-bold text-slate-700' : 'font-semibold text-slate-500'}`}>{fmt(h.total)}</span>
+            <span className={`text-[11px] tabular-nums ${isCurrent ? 'font-bold text-slate-700' : 'font-semibold text-slate-500'}`}>{fmt(h.total)}</span>
             <motion.div
               className={`w-full rounded-t-md ${overBudget ? 'bg-blue-400' : isCurrent ? 'bg-sky-500' : 'bg-sky-400'}`}
               style={{ height: 0 }}
               animate={{ height: `${Math.max(heightPct, 4)}%` }}
               transition={{ duration: 0.7, delay: 0.05 * history.indexOf(h), ease: 'easeOut' }}
             />
-            <span className={`text-[10px] ${isCurrent ? 'font-bold text-sky-700' : 'text-slate-400'}`}>
+            <span className={`text-[11px] ${isCurrent ? 'font-bold text-sky-700' : 'text-slate-400'}`}>
               {monthLabel(h.month)}{isCurrent ? ' ✦' : ''}
             </span>
           </div>
@@ -399,11 +399,11 @@ export default function BudgetView({ initialData, initialScope = 'all' }: Props)
             {data.monthlyLimit > 0 ? (
               <>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase tracking-wide">Límite mensual</p>
+                  <p className="text-[11px] text-slate-400">Límite mensual</p>
                   <p className="text-base font-bold text-slate-700">{fmt(data.monthlyLimit)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-slate-400 uppercase tracking-wide">
+                  <p className="text-[11px] text-slate-400">
                     {(figures.remaining ?? 0) >= 0 ? 'Disponible' : 'Exceso'}
                   </p>
                   <p className={`text-base font-bold ${(figures.remaining ?? 0) >= 0 ? 'text-sky-700' : 'text-blue-600'}`}>
@@ -459,12 +459,12 @@ export default function BudgetView({ initialData, initialScope = 'all' }: Props)
       {/* ─── Quick stats row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Este mes</p>
+          <p className="text-[11px] text-slate-400 mb-1">Este mes</p>
           <p className="text-xl font-black text-slate-800 tabular-nums">{fmt(figures.spentThisMonth)}</p>
           <p className="text-xs text-slate-400 mt-0.5">en supermercado</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Promedio</p>
+          <p className="text-[11px] text-slate-400 mb-1">Promedio</p>
           <p className="text-xl font-black text-slate-800 tabular-nums">
             {figures.avgMonthly > 0 ? fmt(figures.avgMonthly) : '—'}
           </p>

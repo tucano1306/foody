@@ -87,13 +87,13 @@ export default function StatsBars(props: Readonly<Props>) {
 
               {/* Label */}
               <span
-                className="text-[10px] sm:text-xs text-slate-500 font-medium truncate max-w-full leading-tight text-center"
+                className="text-[11px] sm:text-xs text-slate-500 font-medium truncate max-w-full leading-tight text-center"
                 title={item.label}
               >
                 {displayLabel}
               </span>
               {item.sublabel && (
-                <span className="text-[10px] text-slate-400 truncate max-w-full leading-tight">
+                <span className="text-[11px] text-slate-400 truncate max-w-full leading-tight">
                   {item.sublabel}
                 </span>
               )}

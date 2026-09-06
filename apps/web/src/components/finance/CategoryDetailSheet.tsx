@@ -347,7 +347,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
               <p className="text-sm font-black text-black">{picked.name}</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  <span className="mb-1 block text-[11px] font-bold text-slate-400">
                     Cantidad
                   </span>
                   <input
@@ -359,7 +359,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  <span className="mb-1 block text-[11px] font-bold text-slate-400">
                     Importe total
                   </span>
                   <input
@@ -423,7 +423,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
               </span>
               <span className="shrink-0 text-right">
                 <span className="block text-sm font-black tabular-nums text-black">{fmtMoneyFine(t.gap)}</span>
-                <span className="block text-[10px] text-slate-400">por detallar</span>
+                <span className="block text-[11px] text-slate-400">por detallar</span>
               </span>
               <span aria-hidden="true" className="shrink-0 text-slate-300">›</span>
             </button>
@@ -475,7 +475,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                   <div className="border-t border-sky-100 bg-sky-50/60 px-4 py-3">
                     <div className="grid grid-cols-2 gap-2">
                       <label className="block">
-                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        <span className="mb-1 block text-[11px] font-bold text-slate-400">
                           Cantidad
                         </span>
                         <input
@@ -487,7 +487,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                         />
                       </label>
                       <label className="block">
-                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        <span className="mb-1 block text-[11px] font-bold text-slate-400">
                           Importe
                         </span>
                         <input
@@ -503,7 +503,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                     {/* Mover de categoría. Es la acción que de verdad vacía los
                         cajones «Otro» y «Sin categoría», así que va a la vista
                         y no escondida detrás de otro menú. */}
-                    <p className="mb-1.5 mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    <p className="mb-1.5 mt-3 text-[11px] font-bold text-slate-400">
                       Mover a
                     </p>
                     <div className="flex flex-wrap gap-1.5">

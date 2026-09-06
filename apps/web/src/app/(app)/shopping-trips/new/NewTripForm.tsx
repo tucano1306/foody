@@ -507,7 +507,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         {/* Smart suggestions — predictive */}
         {smartSuggestions.length > 0 && (
           <div className="rounded-xl bg-brand-50/50 border border-brand-100 p-3">
-            <p className="text-[11px] uppercase tracking-wide font-semibold text-brand-700 mb-2 flex items-center gap-1">
+            <p className="text-[11px] font-semibold text-brand-700 mb-2 flex items-center gap-1">
               ✨ Sugerencias para ti{' '}
               <span className="text-slate-400 font-normal normal-case tracking-normal ml-1">
                 (productos bajos o agotados)
@@ -528,7 +528,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                 >
                   <span>{p.stockLevel === 'empty' ? '🚨' : '⚠️'}</span>
                   <span className="truncate max-w-36">{p.name}</span>
-                  <span className="text-[10px] text-slate-400">+</span>
+                  <span className="text-[11px] text-slate-400">+</span>
                 </button>
               ))}
             </div>
@@ -575,7 +575,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                     <div className="min-w-0">
                       <p className="font-medium text-slate-800 truncate">{it.name}</p>
                       {isUnlinked && (
-                        <p className="text-[10px] text-sky-700 mt-0.5">
+                        <p className="text-[11px] text-sky-700 mt-0.5">
                           Del recibo — vincula a un producto de tu catálogo
                         </p>
                       )}
@@ -632,7 +632,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                   )}
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <label className="block">
-                      <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
+                      <span className="block text-[11px] text-slate-400 mb-0.5">
                         Cantidad ({it.unit})
                       </span>
                       <input
@@ -648,7 +648,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                       />
                     </label>
                     <label className="block">
-                      <span className="block text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">
+                      <span className="block text-[11px] text-slate-400 mb-0.5">
                         Precio unitario (opcional)
                       </span>
                       <input

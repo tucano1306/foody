@@ -8,7 +8,7 @@ export default function HouseholdPage() {
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <ModernTitle
-        title="🏡 Mi hogar"
+        title="Mi hogar"
         subtitle="Tu familia, una sola despensa"
       />
       <HouseholdManager />

@@ -18,158 +18,158 @@ export interface GoalPayload {
   status: 'active' | 'paused' | 'done';
   note: string | null;
   /** Tarjeta o crédito que esta meta liquida. `null` = una meta normal. */
-  debtId: string | null;
+ debtId: string | null;
 }
 
 interface Props {
-  readonly goal: FinanceGoal | null;
-  /** Tipo elegido desde los atajos, para abrir el formulario ya encaminado. */
-  readonly preset?: GoalKind;
-  /** Dinero libre mensual del plan — sirve para avisar si la meta no cabe. */
-  readonly monthlyAvailable: number;
-  /** Las deudas vivas, para poder enganchar la meta a una de ellas. */
-  readonly debts: readonly { id: string; name: string; balance: number }[];
-  readonly onSave: (payload: GoalPayload) => Promise<void>;
-  readonly onClose: () => void;
+ readonly goal: FinanceGoal | null;
+ /** Tipo elegido desde los atajos, para abrir el formulario ya encaminado. */
+ readonly preset?: GoalKind;
+ /** Dinero libre mensual del plan — sirve para avisar si la meta no cabe. */
+ readonly monthlyAvailable: number;
+ /** Las deudas vivas, para poder enganchar la meta a una de ellas. */
+ readonly debts: readonly { id: string; name: string; balance: number }[];
+ readonly onSave: (payload: GoalPayload) => Promise<void>;
+ readonly onClose: () => void;
 }
 
 interface Template {
-  kind: GoalKind;
-  emoji: string;
-  label: string;
-  placeholder: string;
+ kind: GoalKind;
+ emoji: string;
+ label: string;
+ placeholder: string;
 }
 
 const TEMPLATES: readonly Template[] = [
-  { kind: 'trip',      emoji: '✈️', label: 'Viaje',   placeholder: 'Viaje a Argentina' },
-  { kind: 'debt',      emoji: '💳', label: 'Deuda',   placeholder: 'Tarjeta de crédito' },
-  { kind: 'project',   emoji: '🏗️', label: 'Proyecto', placeholder: 'Remodelar la cocina' },
-  { kind: 'purchase',  emoji: '🛍️', label: 'Compra',  placeholder: 'Laptop nueva' },
-  { kind: 'emergency', emoji: '🛟', label: 'Fondo',   placeholder: 'Fondo de emergencia' },
+ { kind: 'trip', emoji: '✈️', label: 'Viaje', placeholder: 'Viaje a Argentina' },
+ { kind: 'debt', emoji: '💳', label: 'Deuda', placeholder: 'Tarjeta de crédito' },
+ { kind: 'project', emoji: '🏗️', label: 'Proyecto', placeholder: 'Remodelar la cocina' },
+ { kind: 'purchase', emoji: '🛍️', label: 'Compra', placeholder: 'Laptop nueva' },
+ { kind: 'emergency', emoji: '🛟', label: 'Fondo', placeholder: 'Fondo de emergencia' },
 ];
 
 const EMOJI_CHOICES = ['✈️', '🏖️', '💳', '🏠', '🚗', '💻', '🎓', '💍', '🛟', '🎸', '🏥', '🎁'];
 
 const inputCls =
-  'w-full px-3 py-2.5 rounded-xl border border-sky-200 bg-white/70 text-black text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
+ 'w-full px-3 py-2.5 rounded-xl border border-sky-200 bg-white/70 text-black text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
 
-const labelCls = 'block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide';
+const labelCls = 'block text-xs font-bold text-slate-600 mb-1.5';
 
 export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, onSave, onClose }: Props) {
-  const editing = goal !== null;
-  const [kind, setKind] = useState<GoalKind>(goal?.kind ?? preset ?? 'trip');
-  const [emoji, setEmoji] = useState(
-    goal?.emoji ?? (preset ? (TEMPLATES.find((t) => t.kind === preset)?.emoji ?? '🎯') : '✈️'),
-  );
-  const [name, setName] = useState(goal?.name ?? '');
-  const [target, setTarget] = useState(goal ? String(goal.targetAmount) : '');
-  const [debtId, setDebtId] = useState<string | null>(goal?.debtId ?? null);
-  /** La deuda enganchada manda sobre lo tecleado: sus cifras son la verdad. */
-  const linked = debts.find((d) => d.id === debtId) ?? null;
-  const [saved, setSaved] = useState(goal ? String(goal.savedAmount) : '');
-  const [date, setDate] = useState(goal?.targetDate ?? '');
-  const [override, setOverride] = useState(goal?.monthlyOverride ? String(goal.monthlyOverride) : '');
-  const [note, setNote] = useState(goal?.note ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+ const editing = goal !== null;
+ const [kind, setKind] = useState<GoalKind>(goal?.kind ?? preset ?? 'trip');
+ const [emoji, setEmoji] = useState(
+ goal?.emoji ?? (preset ? (TEMPLATES.find((t) => t.kind === preset)?.emoji ?? '🎯') : '✈️'),
+ );
+ const [name, setName] = useState(goal?.name ?? '');
+ const [target, setTarget] = useState(goal ? String(goal.targetAmount) : '');
+ const [debtId, setDebtId] = useState<string | null>(goal?.debtId ?? null);
+ /** La deuda enganchada manda sobre lo tecleado: sus cifras son la verdad. */
+ const linked = debts.find((d) => d.id === debtId) ?? null;
+ const [saved, setSaved] = useState(goal ? String(goal.savedAmount) : '');
+ const [date, setDate] = useState(goal?.targetDate ?? '');
+ const [override, setOverride] = useState(goal?.monthlyOverride ? String(goal.monthlyOverride) : '');
+ const [note, setNote] = useState(goal?.note ?? '');
+ const [saving, setSaving] = useState(false);
+ const [error, setError] = useState<string | null>(null);
 
-  const template = TEMPLATES.find((t) => t.kind === kind) ?? TEMPLATES[0];
-  const meta = KIND_META[kind];
+ const template = TEMPLATES.find((t) => t.kind === kind) ?? TEMPLATES[0];
+ const meta = KIND_META[kind];
 
-  // Vista previa en vivo: el usuario ve el esfuerzo mensual ANTES de guardar.
-  const preview = useMemo(() => {
-    const targetAmount = parseMoney(target);
-    const savedAmount = parseMoney(saved) ?? 0;
-    if (targetAmount === null || targetAmount <= 0) return null;
+ // Vista previa en vivo: el usuario ve el esfuerzo mensual ANTES de guardar.
+ const preview = useMemo(() => {
+ const targetAmount = parseMoney(target);
+ const savedAmount = parseMoney(saved) ?? 0;
+ if (targetAmount === null || targetAmount <= 0) return null;
 
-    const remaining = Math.max(0, targetAmount - savedAmount);
-    if (remaining === 0) return { remaining, monthly: 0, weekly: 0, daily: 0, days: null, fits: true };
+ const remaining = Math.max(0, targetAmount - savedAmount);
+ if (remaining === 0) return { remaining, monthly: 0, weekly: 0, daily: 0, days: null, fits: true };
 
-    const days = date ? daysUntil(date) : null;
-    if (days === null) {
-      const monthly = remaining / 12;
-      return { remaining, monthly, weekly: monthly / 4.345, daily: monthly / DAYS_PER_MONTH, days: null, fits: monthly <= monthlyAvailable };
-    }
-    if (days <= 0) return { remaining, monthly: remaining, weekly: remaining, daily: remaining, days, fits: false };
+ const days = date ? daysUntil(date) : null;
+ if (days === null) {
+ const monthly = remaining / 12;
+ return { remaining, monthly, weekly: monthly / 4.345, daily: monthly / DAYS_PER_MONTH, days: null, fits: monthly <= monthlyAvailable };
+ }
+ if (days <= 0) return { remaining, monthly: remaining, weekly: remaining, daily: remaining, days, fits: false };
 
-    const monthly = remaining / (days / DAYS_PER_MONTH);
-    return { remaining, monthly, weekly: (remaining / days) * 7, daily: remaining / days, days, fits: monthly <= monthlyAvailable };
-  }, [target, saved, date, monthlyAvailable]);
+ const monthly = remaining / (days / DAYS_PER_MONTH);
+ return { remaining, monthly, weekly: (remaining / days) * 7, daily: remaining / days, days, fits: monthly <= monthlyAvailable };
+ }, [target, saved, date, monthlyAvailable]);
 
-  function pickTemplate(t: Template) {
-    setKind(t.kind);
-    setEmoji(t.emoji);
-    haptic(8);
-  }
+ function pickTemplate(t: Template) {
+ setKind(t.kind);
+ setEmoji(t.emoji);
+ haptic(8);
+ }
 
-  async function submit() {
-    const targetAmount = parseMoney(target);
-    if (!name.trim()) return setError('Ponle un nombre a tu meta');
-    if (targetAmount === null || targetAmount <= 0) return setError('El monto objetivo debe ser mayor a 0');
+ async function submit() {
+ const targetAmount = parseMoney(target);
+ if (!name.trim()) return setError('Ponle un nombre a tu meta');
+ if (targetAmount === null || targetAmount <= 0) return setError('El monto objetivo debe ser mayor a 0');
 
-    setError(null);
-    setSaving(true);
-    try {
-      await onSave({
-        name: name.trim(),
-        emoji,
-        kind,
-        targetAmount,
-        debtId,
-        savedAmount: parseMoney(saved) ?? 0,
-        targetDate: date || null,
-        monthlyOverride: parseMoney(override),
-        status: goal?.status ?? 'active',
-        note: note.trim() || null,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar');
-    } finally {
-      // También en éxito: si el cierre del modal se retrasara, el botón debe
-      // volver a estar utilizable en vez de quedarse en "Guardando…".
-      setSaving(false);
-    }
-  }
+ setError(null);
+ setSaving(true);
+ try {
+ await onSave({
+ name: name.trim(),
+ emoji,
+ kind,
+ targetAmount,
+ debtId,
+ savedAmount: parseMoney(saved) ?? 0,
+ targetDate: date || null,
+ monthlyOverride: parseMoney(override),
+ status: goal?.status ?? 'active',
+ note: note.trim() || null,
+ });
+ } catch (err) {
+ setError(err instanceof Error ? err.message : 'No se pudo guardar');
+ } finally {
+ // También en éxito: si el cierre del modal se retrasara, el botón debe
+ // volver a estar utilizable en vez de quedarse en "Guardando…".
+ setSaving(false);
+ }
+ }
 
-  return (
-    <ModalShell
-      title={editing ? 'Editar meta' : 'Nueva meta'}
-      emoji={emoji}
-      headerClass={meta.gradient}
-      onClose={onClose}
-      footer={
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3 rounded-2xl border border-sky-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={saving}
-            className="flex-[1.4] py-3 rounded-2xl bg-linear-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600 text-white font-bold text-sm shadow-lg shadow-sky-500/20 transition disabled:opacity-50"
-          >
-            {saving ? 'Guardando…' : editing ? '✓ Guardar cambios' : '✨ Crear meta'}
-          </button>
-        </div>
-      }
-    >
-      <div className="space-y-4">
-        {/* Tipo de meta */}
-        <div>
-          <span className={labelCls}>Tipo de meta</span>
-          <div className="grid grid-cols-5 gap-2">
-            {TEMPLATES.map((t) => {
-              const active = t.kind === kind;
-              return (
-                <button
-                  key={t.kind}
-                  type="button"
-                  onClick={() => pickTemplate(t)}
-                  className={`flex flex-col items-center gap-1 py-2.5 rounded-2xl border text-[11px] font-semibold transition ${
+ return (
+ <ModalShell
+ title={editing ? 'Editar meta' : 'Nueva meta'}
+ emoji={emoji}
+ headerClass={meta.gradient}
+ onClose={onClose}
+ footer={
+ <div className="flex gap-3">
+ <button
+ type="button"
+ onClick={onClose}
+ className="flex-1 py-3 rounded-2xl border border-sky-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+ >
+ Cancelar
+ </button>
+ <button
+ type="button"
+ onClick={() => void submit()}
+ disabled={saving}
+ className="flex-[1.4] py-3 rounded-2xl bg-linear-to-r from-sky-500 to-blue-500 hover:from-sky-600 hover:to-blue-600 text-white font-bold text-sm shadow-lg shadow-sky-500/20 transition disabled:opacity-50"
+ >
+ {saving ? 'Guardando…' : editing ? '✓ Guardar cambios' : '✨ Crear meta'}
+ </button>
+ </div>
+ }
+ >
+ <div className="space-y-4">
+ {/* Tipo de meta */}
+ <div>
+ <span className={labelCls}>Tipo de meta</span>
+ <div className="grid grid-cols-5 gap-2">
+ {TEMPLATES.map((t) => {
+ const active = t.kind === kind;
+ return (
+ <button
+ key={t.kind}
+ type="button"
+ onClick={() => pickTemplate(t)}
+ className={`flex flex-col items-center gap-1 py-2.5 rounded-2xl border text-[11px] font-semibold transition ${
                     active
                       ? `${KIND_META[t.kind].chip} border-transparent shadow-sm scale-[1.03]`
                       : 'bg-white/70 border-sky-200 text-slate-500 hover:bg-slate-100'
@@ -319,7 +319,7 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
               <p className="text-sm font-bold text-sky-700">🎉 ¡Ya tienes el monto completo!</p>
             ) : (
               <>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
+                <p className="text-[11px] font-bold text-slate-500 mb-2">
                   Para lograrlo necesitas apartar
                 </p>
                 <div className="grid grid-cols-3 gap-2 text-center">
@@ -332,7 +332,7 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
                       <p className="text-base font-black text-black tabular-nums leading-tight">
                         {fmtMoneyFine(Math.round(row.value * 100) / 100)}
                       </p>
-                      <p className="text-[10px] text-slate-500">{row.label}</p>
+                      <p className="text-[11px] text-slate-500">{row.label}</p>
                     </div>
                   ))}
                 </div>
