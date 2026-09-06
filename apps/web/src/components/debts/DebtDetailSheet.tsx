@@ -11,6 +11,7 @@ import ModalShell from '@/components/finance/ModalShell';
 import PayoffSimulator from './PayoffSimulator';
 import SplitBar from './SplitBar';
 import { parseMoney } from '@/lib/money-input';
+import MoneyInput from '@/components/ui/MoneyInput';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
@@ -70,6 +71,19 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
   const [chargeAmount, setChargeAmount] = useState('');
   const [chargeNote, setChargeNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /**
+   * El movimiento que se está corrigiendo, con lo tecleado.
+   *
+   * Antes solo se podía borrar y volver a crearlo: eso pierde la fecha
+   * original, mueve el orden del historial y deja la deuda descuadrada en el
+   * hueco entre las dos acciones.
+   */
+  const [editing, setEditing] = useState<{
+    id: string;
+    amount: number;
+    note: string;
+    date: string;
+  } | null>(null);
 
   /**
    * Corregir el saldo sin romper la invariante: en vez de sobrescribir la
@@ -201,6 +215,44 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
       .then((data: DebtMovement[]) => setMovements(Array.isArray(data) ? data : []))
       .catch(() => setMovements([]));
   }, [tab, movements, debt.id]);
+
+  /** El dia en formato del <input type=date>, sacado del ISO guardado. */
+  function dateInput(iso: string): string {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  async function saveMovement() {
+    if (!editing) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/debts/${debt.id}/movements/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: editing.amount,
+          note: editing.note.trim() || null,
+          // Mediodía y no medianoche: con la hora a cero, un huso al oeste de
+          // UTC corre la fecha al día anterior en cada guardado.
+          occurredAt: new Date(`${editing.date}T12:00:00`).toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? 'No se pudo guardar');
+      }
+      onChanged((await res.json()) as DebtWithProjection);
+      setEditing(null);
+      setMovements(null); // el historial se recarga con la corrección dentro
+      haptic();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function removeMovement(movementId: string) {
     setBusy(true);
@@ -650,12 +702,27 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
           {movements?.map((m) => {
             const meta = MOVEMENT_META[m.kind] ?? MOVEMENT_META.adjustment;
             return (
-              <div
-                key={m.id}
-                className="flex items-center gap-3 rounded-2xl bg-white px-3.5 py-3 ring-1 ring-sky-100"
-              >
+              <div key={m.id} className="rounded-2xl bg-white px-3.5 py-3 ring-1 ring-sky-100">
+              <div className="flex items-center gap-3">
                 <span className="text-xl" aria-hidden="true">{meta.emoji}</span>
-                <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic(6);
+                    setEditing(
+                      editing?.id === m.id
+                        ? null
+                        : {
+                            id: m.id,
+                            amount: Math.abs(m.amount),
+                            note: m.note ?? '',
+                            date: dateInput(m.occurredAt),
+                          },
+                    );
+                  }}
+                  aria-expanded={editing?.id === m.id}
+                  className="min-w-0 flex-1 text-left"
+                >
                   <p className="truncate text-sm font-bold text-black">
                     {meta.label}
                     {m.kind === 'payment' && m.principalPart > 0 && (
@@ -672,7 +739,7 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
                     })}
                     {m.note && ` · ${m.note}`}
                   </p>
-                </div>
+                </button>
                 <span className="shrink-0 text-sm font-extrabold text-black">
                   {meta.sign}
                   {fmtMoney(Math.abs(m.amount), debt.currency, 2)}
@@ -686,6 +753,59 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
                 >
                   <TrashIcon className="h-4 w-4" />
                 </button>
+              </div>
+
+              {/* Corregir en su sitio. Un abono no deja elegir su reparto entre
+                  interés y capital: eso lo decide lo que se debía de cada cosa,
+                  y se recalcula solo al guardar. */}
+              {editing?.id === m.id && (
+                <div className="mt-3 space-y-2 border-t border-sky-100 pt-3">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                        $
+                      </span>
+                      <MoneyInput
+                        aria-label={`Importe de ${meta.label}`}
+                        value={editing.amount}
+                        onChange={(amount) => setEditing({ ...editing, amount })}
+                        className="w-full rounded-xl border border-sky-200 bg-white py-2.5 pl-7 pr-3 text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-sky-300"
+                      />
+                    </div>
+                    <input
+                      type="date"
+                      aria-label="Fecha"
+                      value={editing.date}
+                      onChange={(e) => setEditing({ ...editing, date: e.target.value })}
+                      className="rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-300"
+                    />
+                  </div>
+                  <input
+                    value={editing.note}
+                    onChange={(e) => setEditing({ ...editing, note: e.target.value })}
+                    placeholder="¿Qué fue? (opcional)"
+                    maxLength={120}
+                    className="w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs text-slate-700 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-300"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditing(null)}
+                      className={`flex-1 rounded-xl py-2.5 text-xs ${BTN_SOFT}`}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void saveMovement()}
+                      className={`flex-1 rounded-xl py-2.5 text-xs ${BTN_PRIMARY} disabled:opacity-50`}
+                    >
+                      {busy ? 'Guardando…' : 'Guardar'}
+                    </button>
+                  </div>
+                </div>
+              )}
               </div>
             );
           })}

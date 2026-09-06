@@ -4,9 +4,15 @@
  * Regla de integridad: **el saldo NO se edita, se deriva**. Cada evento (un
  * consumo, un abono, el interés del mes, una comisión) es una fila inmutable en
  * `debt_movements`, y `debts.current_balance` es solo una caché que se recalcula
- * sumando el libro mayor después de cada escritura. Corregir un error no es
- * tocar un número: es añadir o borrar un movimiento. Eso hace que la sección sea
- * auditable y que el saldo nunca pueda "desincronizarse" de su historia.
+ * sumando el libro mayor después de cada escritura. El saldo no se escribe
+ * NUNCA a mano: se corrige tocando el movimiento que lo explica —añadiendo uno,
+ * borrándolo o editándolo—, y por eso la cifra nunca puede desincronizarse de
+ * su historia.
+ *
+ * Aquí decía que un movimiento era inmutable y que corregir era borrar y volver
+ * a crear. No era cierto ni siquiera entonces: la papelera existía. Y esa
+ * vuelta pierde la fecha original y deja la deuda descuadrada en el hueco entre
+ * las dos acciones. Ver `updateMovement`.
  *
  * La aritmética vive en debt-engine.ts (pura y probada); aquí solo hay SQL,
  * validación y orquestación.
@@ -961,6 +967,129 @@ export async function registerCharge(
   }
 
   await recomputeBalance(debtId);
+  await resnapshotLedger(debtId);
+  return getDebt(userId, debtId, now);
+}
+
+export interface UpdateMovementInput {
+  amount?: number;
+  note?: string | null;
+  occurredAt?: Date;
+}
+
+/**
+ * Reescribe los saldos que cada fila guarda como foto del momento.
+ *
+ * `balance_before` / `balance_after` son un retrato del saldo cuando se asentó
+ * la fila. En un libro que solo crece eso es cierto para siempre, pero aquí se
+ * puede BORRAR --y ahora editar-- una fila del medio, y a partir de ahí todas
+ * las de después guardan un saldo que no existió nunca.
+ *
+ * Nadie las pinta hoy, así que el fallo era invisible; pero son datos que
+ * viajan al cliente, y un dato guardado que miente acaba enseñándose. Recorrer
+ * el libro en orden y reescribirlas cuesta una consulta por deuda, y las deudas
+ * tienen decenas de movimientos, no miles.
+ */
+async function resnapshotLedger(debtId: string): Promise<void> {
+  const rows = await sql`
+    SELECT id, kind, amount FROM debt_movements
+    WHERE debt_id = ${debtId} ORDER BY occurred_at ASC, created_at ASC
+  `;
+  let saldo = 0;
+  for (const r of rows as Record<string, unknown>[]) {
+    const antes = saldo;
+    const importe = num(r.amount);
+    saldo = round2(Math.max(0, String(r.kind) === 'payment' ? antes - importe : antes + importe));
+    await sql`
+      UPDATE debt_movements SET balance_before = ${antes}, balance_after = ${saldo}
+      WHERE id = ${String(r.id)}
+    `;
+  }
+}
+
+/**
+ * Corrige un movimiento ya asentado, en su sitio.
+ *
+ * Antes solo se podía borrar y volver a crearlo. Esa vuelta pierde la fecha
+ * original, cambia el orden del historial y deja la deuda descuadrada en el
+ * hueco entre las dos acciones --si el usuario se distrae, el dinero se fue--.
+ * La regla que decía «nada se edita, corregir es añadir un movimiento» ya la
+ * rompía la propia papelera: si el libro fuera inmutable, no habría botón de
+ * borrar.
+ *
+ * Un ABONO no se puede cambiar solo de importe: su reparto entre comisiones,
+ * interés y capital depende de lo que se debía de cada cosa. Se recalcula con
+ * el mismo `allocatePayment` de siempre, sobre los totales SIN este abono --de
+ * ahí que se le sumen sus propias partes antes de repartir.
+ */
+export async function updateMovement(
+  userId: string,
+  debtId: string,
+  movementId: string,
+  input: UpdateMovementInput,
+  now: Date = new Date(),
+): Promise<DebtWithProjection | null> {
+  await ensureDebtSchema();
+  const found = await sql`
+    SELECT * FROM debt_movements
+    WHERE id = ${movementId} AND debt_id = ${debtId} AND user_id = ${userId} LIMIT 1
+  `;
+  if (found.length === 0) return null;
+  const actual = mapMovement(found[0] as Record<string, unknown>);
+
+  // Los ajustes pueden ser negativos (corrigen de menos); el resto, nunca.
+  const importe =
+    input.amount === undefined
+      ? actual.amount
+      : actual.kind === 'adjustment'
+        ? round2(num(input.amount))
+        : round2(safeAmount(input.amount));
+  const nota = input.note === undefined ? actual.note : (input.note?.trim() || null);
+  const cuando = input.occurredAt ? input.occurredAt.toISOString() : actual.occurredAt;
+
+  if (actual.kind === 'payment') {
+    const totals = await ledgerTotals(debtId);
+    // Los totales SIN este abono: lo que había que pagar antes de aplicarlo.
+    const interesDebido = round2(totals.interestOwed + actual.interestPart);
+    const comisionesDebidas = round2(totals.feesOwed + actual.feesPart);
+    const capitalDebido = round2(
+      Math.max(0, totals.balance + actual.amount - interesDebido - comisionesDebidas),
+    );
+    const split = allocatePayment({
+      balance: capitalDebido,
+      accruedInterest: interesDebido,
+      pendingFees: comisionesDebidas,
+      payment: importe,
+    });
+    const aplicado = round2(split.fees + split.interest + split.principal);
+    await sql`
+      UPDATE debt_movements SET
+        amount = ${aplicado}, interest_part = ${split.interest},
+        principal_part = ${split.principal}, fees_part = ${split.fees},
+        note = ${nota}, occurred_at = ${cuando}, period_key = ${toPeriodKey(new Date(cuando))}
+      WHERE id = ${movementId}
+    `;
+  } else {
+    await sql`
+      UPDATE debt_movements SET
+        amount = ${importe},
+        principal_part = ${actual.kind === 'charge' ? importe : 0},
+        note = ${nota}, occurred_at = ${cuando}
+      WHERE id = ${movementId}
+    `;
+    // Un consumo tambien mueve el capital de referencia del progreso, igual que
+    // al crearlo y al borrarlo.
+    if (actual.kind === 'charge') {
+      await sql`
+        UPDATE debts
+        SET original_amount = GREATEST(0, original_amount - ${actual.amount} + ${importe})
+        WHERE id = ${debtId}
+      `;
+    }
+  }
+
+  await recomputeBalance(debtId);
+  await resnapshotLedger(debtId);
   return getDebt(userId, debtId, now);
 }
 
@@ -992,5 +1121,6 @@ export async function deleteMovement(
   }
 
   await recomputeBalance(debtId);
+  await resnapshotLedger(debtId);
   return getDebt(userId, debtId, now);
 }
