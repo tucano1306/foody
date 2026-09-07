@@ -6,7 +6,13 @@ import type { ShoppingTrip } from '@foody/types';
 import { detectExpenseKind } from '@/lib/expense-kind';
 import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
 import ScopeTabs from '@/components/ui/ScopeTabs';
+import StatAmount from '@/components/ui/StatAmount';
 import ReclassifyChip from './ReclassifyChip';
+
+/** El tope de tamano de los tres numeros: el de siempre, text-xl / sm:text-2xl.
+    Por debajo encogen solos cuando el importe no cabe. */
+const NUM_CAJA =
+  'stat-value mt-1.5 font-extrabold text-slate-900 [--stat-max:1.25rem] sm:[--stat-max:1.5rem]';
 
 interface Props {
   readonly trips: readonly ShoppingTrip[];
@@ -147,20 +153,25 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
 
       <div className="grid grid-cols-3 gap-3 card-stagger">
         <div className="stat-card" data-accent="brand">
-          <p className="text-[11px] sm:text-xs font-semiboldr text-slate-500">🧾 Compras</p>
-          <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900">{visibles.length}</p>
+          <p className="text-[11px] sm:text-xs font-semibold text-slate-500">🧾 Compras</p>
+          <StatAmount
+            value={String(visibles.length)}
+            className={NUM_CAJA}
+          />
         </div>
         <div className="stat-card" data-accent="energy">
-          <p className="text-[11px] sm:text-xs font-semiboldr text-slate-500">💰 Total</p>
-          <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900 break-all">
-            {formatCurrency(totalSpent, currency)}
-          </p>
+          <p className="text-[11px] sm:text-xs font-semibold text-slate-500">💰 Total</p>
+          <StatAmount
+            value={formatCurrency(totalSpent, currency)}
+            className={NUM_CAJA}
+          />
         </div>
         <div className="stat-card" data-accent="warn">
-          <p className="text-[11px] sm:text-xs font-semiboldr text-slate-500">📊 Promedio</p>
-          <p className="stat-value mt-1.5 text-xl sm:text-2xl font-extrabold text-slate-900 break-all">
-            {formatCurrency(avgSpent, currency)}
-          </p>
+          <p className="text-[11px] sm:text-xs font-semibold text-slate-500">📊 Promedio</p>
+          <StatAmount
+            value={formatCurrency(avgSpent, currency)}
+            className={NUM_CAJA}
+          />
         </div>
       </div>
 

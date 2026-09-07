@@ -384,6 +384,8 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
 /* ─── Tarjeta de dato ─────────────────────────────────────────────────────── */
 .stat-card {
   position: relative;
+  /* Contenedor de consulta: `.stat-amount` mide contra este ancho. */
+  container-type: inline-size;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
@@ -424,6 +426,42 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
   animation: foody-count-up 0.5s var(--ease-out) both;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
+}
+
+/* Cualquier caja que quiera medir un importe contra su ancho. `.stat-card` ya
+   lo trae de serie; esto es para las que no son tarjeta de dato. */
+.stat-box { container-type: inline-size; }
+
+/* Un importe dentro de una caja estrecha.
+
+   Un numero no se parte y no se recorta: si no cabe, encoge. El tamano sale de
+   dividir el ancho util de la caja entre lo que hay que meter — de ahi el
+   `100cqi`, que es el ancho del contenedor, y `--stat-chars`, que lo pone
+   `<StatAmount>` contando el texto.
+
+   El 0.65 sale de medir: un digito de Inter 800 con este `letter-spacing`
+   ocupa 0.6155em en el navegador. Redondear hacia arriba deja ~7px de aire en
+   una tarjeta de 80px, que es lo que cubre el error del modelo y la tipografia
+   de reserva. Con 0.62 cabia por los pelos —3px— y con 0.68 el numero encoge
+   mas de lo que hace falta.
+
+   `nowrap` es la mitad importante: sin el, `break-all` partia «$720.73» en
+   «$720.7» y «3». Y quitar `break-all` a secas tampoco valia — un importe no
+   tiene espacios, asi que no se parte, se desborda, y `.stat-card` recorta con
+   `overflow: hidden`. Un numero cortado en silencio es peor que uno partido.
+
+   Si el elemento acaba fuera de un contenedor de consulta, `cqi` cae al ancho
+   de la ventana: sale enorme y el tope lo deja en su tamano normal. Se pierde
+   el encogido, nunca la integridad del numero. */
+.stat-amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  font-size: clamp(
+    0.7rem,
+    calc(100cqi / (var(--stat-chars, 6) * 0.65)),
+    var(--stat-max, 1.25rem)
+  );
 }
 
 /* ─── Movimiento ──────────────────────────────────────────────────────────── */
