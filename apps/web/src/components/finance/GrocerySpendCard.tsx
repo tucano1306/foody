@@ -1,67 +1,61 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { haptic } from '@/lib/haptic';
-import { CATEGORY_EMOJI } from '@/lib/categories';
 import type { GroceryInsight, MonthTotal } from '@/lib/grocery-insights';
-import CategoryDetailSheet from './CategoryDetailSheet';
 import { fmtMoney, fmtMoneyFine } from './finance-ui';
 import ScanTicketButton from './ScanTicketButton';
 
 interface Props {
   readonly groceries: GroceryInsight;
   readonly history: readonly MonthTotal[];
-  /** Se tocó algo dentro de una categoría: el plan tiene que recalcularse. */
-  readonly onChanged: () => void;
 }
 
 const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** «septiembre», para el título: el usuario pregunta por ESTE mes. */
+function mesLargo(d: Date): string {
+  try {
+    return new Intl.DateTimeFormat('es-MX', { month: 'long' }).format(d);
+  } catch {
+    return MONTHS_SHORT[d.getMonth()] ?? '';
+  }
+}
 
 function monthLabel(key: string): string {
   const m = Number(key.split('-')[1]);
   return MONTHS_SHORT[m - 1] ?? key;
 }
 
-function categoryEmoji(name: string): string {
-  return CATEGORY_EMOJI[name.toLowerCase()] ?? '🛒';
-}
-
 /**
  * Cómo tus compras reales afectan al plan: el ritmo del mes contra el límite,
  * la tendencia frente a tu promedio y en qué se está yendo el dinero.
  */
-export default function GrocerySpendCard({ groceries: g, history, onChanged }: Props) {
-  /** Categoría abierta en la hoja de detalle. null = ninguna. */
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
-
+export default function GrocerySpendCard({ groceries: g, history }: Props) {
   if (g.baselineSource === 'none') return null;
 
   const overLimit = g.limit > 0 && g.overLimit > 0;
   const paceWidth = g.limit > 0 ? Math.min(100, (g.projectedMonthEnd / g.limit) * 100) : 100;
   const spentWidth = g.limit > 0 ? Math.min(100, (g.spentThisMonth / g.limit) * 100) : 0;
   const maxMonth = Math.max(...history.map((h) => h.total), g.projectedMonthEnd, 1);
+  const mesEnCurso = mesLargo(new Date());
 
   return (
     <section className="rounded-3xl border border-sky-100 bg-sky-50/70 shadow-sm p-5">
-      {/* La cabecera dice UNA cosa: cuánto llevas de super este mes.
-          Antes abría con "el plan resta $274" mientras el cuerpo mostraba
-          $104, $459 y $500 — cuatro cifras distintas sin decir cuál era cuál.
-          Lo que el plan resta es un detalle del plan y ahora vive en el pie,
-          que es donde el usuario pregunta por él. */}
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="min-w-0">
-          <h2 className="text-sm font-black text-black">
-            🛒 Tu super este mes
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            {g.tripsThisMonth > 0
-              ? `${g.tripsThisMonth} ${g.tripsThisMonth === 1 ? 'compra' : 'compras'} de despensa registradas.`
-              : 'Sin compras de despensa registradas todavía.'}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-xl font-black text-black tabular-nums leading-none">
+      {/* La cabecera dice UNA cosa, grande: cuánto llevas de comida este mes.
+          El desglose por categoría vivía debajo y se fue a Estadísticas — el
+          plan responde «cuánto me queda para mis metas», no «en qué se me fue».
+          Lo que el plan resta es un detalle del plan y vive en el pie, que es
+          donde el usuario pregunta por él. */}
+      <div className="mb-4">
+        {/* El título entero en su línea: con el chip al lado se partía en
+            «Gastos en comida ·» / «septiembre». */}
+        <h2 className="text-sm font-black text-black">
+          🛒 Gastos en comida <span className="text-slate-500 font-bold">· {mesEnCurso}</span>
+        </h2>
+
+        {/* El chip va junto a la cifra, que es a lo que se refiere. */}
+        <div className="mt-2 flex items-end justify-between gap-3 flex-wrap">
+          <p className="text-4xl font-black text-black tabular-nums leading-none whitespace-nowrap">
             {fmtMoneyFine(g.spentThisMonth)}
           </p>
           {/* Mismo criterio que el consejero: con un solo mes cerrado —o con el
@@ -70,7 +64,7 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
               "vas por debajo del límite" parecían contradecirse. */}
           {g.paceIsMeaningful && g.trendPct !== null && g.monthsWithData >= 2 && Math.abs(g.trendPct) >= 5 && (
             <span
-              className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-black ${
+              className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-black ${
                 g.trendPct > 0
                   ? 'bg-blue-100 text-blue-700'
                   : 'bg-sky-100 text-sky-700'
@@ -80,6 +74,12 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
             </span>
           )}
         </div>
+
+        <p className="text-xs text-slate-500 mt-2">
+          {g.tripsThisMonth > 0
+            ? `${g.tripsThisMonth} ${g.tripsThisMonth === 1 ? 'compra' : 'compras'} de despensa registradas.`
+            : 'Sin compras de despensa registradas todavía.'}
+        </p>
       </div>
 
       {/* Ritmo del mes — solo cuando ya significa algo. Al arrancar el mes, sin
@@ -187,81 +187,6 @@ export default function GrocerySpendCard({ groceries: g, history, onChanged }: P
         </div>
       )}
 
-      {/* Categorías.
-          `unitemized` va en la MISMA lista y al final: es la parte del mes que
-          ningún producto explica —tickets guardados solo con su total— y sin
-          ella el desglose sumaba $23 de un mes de $104. Los tres tickets que el
-          usuario acababa de escanear simplemente no estaban en ninguna fila. */}
-      {(g.categories.length > 0 || g.unitemized !== null) && (
-        <div className="mt-4">
-          {/* El título dice de qué es el desglose y lo ata al número de arriba.
-              «En qué se va este mes» no decía ni que era solo el super, ni que
-              sumaba justo esos $82 — parecía una lista de gastos cualquiera. */}
-          <p className="text-[11px] font-bold text-slate-500 mb-2">
-            Tus {fmtMoneyFine(g.spentThisMonth)} de super, por categoría
-          </p>
-          <ul className="space-y-1">
-            {[...g.categories.slice(0, 4), ...(g.unitemized ? [g.unitemized] : [])].map((c) => (
-              <li key={c.category}>
-                {/* Cada fila abre lo que hay dentro. El chevron es toda la
-                    instrucción que necesita: se toca y se ve. */}
-                <button
-                  type="button"
-                  onClick={() => { haptic(); setOpenCategory(c.category); }}
-                  className="flex w-full items-center gap-2.5 rounded-xl -mx-1.5 px-1.5 py-1 text-left transition active:scale-[0.99] active:bg-white/70"
-                >
-                  <span className="text-base shrink-0" aria-hidden="true">
-                    {c === g.unitemized ? '🧾' : categoryEmoji(c.category)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      {/* Las categorías ya vienen con su capitalización correcta
-                          ("Condimentos y Salsas"): `capitalize` las estropearía. */}
-                      <span className="text-xs font-bold text-slate-700 truncate">
-                        {c.category}
-                        {/* El resto necesita explicarse: si no, parece una
-                            categoría más y el usuario se pregunta qué compró. */}
-                        {c === g.unitemized && (
-                          <span className="ml-1.5 font-normal text-slate-400">
-                            tickets sin productos
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs font-black text-black tabular-nums shrink-0">
-                        {fmtMoneyFine(c.currentMonth)}
-                        {c.deltaPct !== null && Math.abs(c.deltaPct) >= 10 && (
-                          <span className={`ml-1.5 font-bold ${c.deltaPct > 0 ? 'text-blue-700' : 'text-sky-700'}`}>
-                            {c.deltaPct > 0 ? '+' : ''}{Math.round(c.deltaPct)}%
-                          </span>
-                        )}
-                      </span>
-                    </span>
-                    <span className="block h-1.5 rounded-full bg-white mt-1 overflow-hidden">
-                      <motion.span
-                        className={`block h-full rounded-full bg-linear-to-r ${
-                          c === g.unitemized ? 'from-slate-200 to-slate-300' : 'from-sky-300 to-blue-300'
-                        }`}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${c.share}%` }}
-                        transition={{ duration: 0.7 }}
-                      />
-                    </span>
-                  </span>
-                  <span aria-hidden="true" className="shrink-0 text-slate-300 text-sm">›</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {openCategory !== null && (
-        <CategoryDetailSheet
-          category={openCategory}
-          onClose={() => setOpenCategory(null)}
-          onChanged={onChanged}
-        />
-      )}
 
       <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-sky-100">
         {/* La conexión con el plan, en una línea y al final: es la respuesta a

@@ -2,6 +2,8 @@ import { getSession } from '@/lib/session';
 import { redirect } from 'next/navigation';
 import { sql } from '@/lib/db';
 import { buildStatsSummary } from '@/lib/stats-engine';
+import { loadGroceryInsight } from '@/lib/finance-data';
+import { EMPTY_GROCERY_INSIGHT, type GroceryInsight } from '@/lib/grocery-insights';
 import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
 import ModernTitle from '@/components/layout/ModernTitle';
 import StatsContent from '@/components/stats/StatsContent';
@@ -10,7 +12,6 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = { title: 'Estadísticas — Foody' };
 
 interface TopProduct { name: string; purchases: number; totalQty: number; }
-interface CategorySpend { category: string; currentMonth: number; prevMonth: number; }
 
 interface StatsData {
   stock: { full: number; half: number; empty: number };
@@ -18,7 +19,7 @@ interface StatsData {
   monthlySpending: { month: string; total: number; trips: number }[];
   totalProducts: number;
   topProducts: TopProduct[];
-  categorySpend: CategorySpend[];
+  groceries: GroceryInsight;
   totalThisMonth: number;
   totalLastMonth: number;
 }
@@ -37,7 +38,7 @@ async function getStats(userId: string): Promise<StatsData> {
   // plus loose purchases with no trip (legacy scans), grouped into one
   // "visit" per shared batch timestamp. Counting raw product_purchases rows
   // would report line items as visits and re-count itemized trip contents.
-  const [stockRows, storeRows, monthRows, totalRows, topProductRows, categoryRows] = await Promise.all([
+  const [stockRows, storeRows, monthRows, totalRows, topProductRows, groceries] = await Promise.all([
     sql`SELECT stock_level, COUNT(*) AS count FROM products WHERE ${productScope} GROUP BY stock_level`,
     sql`
       SELECT name, COUNT(*) AS trips, SUM(total) AS total_spent
@@ -88,22 +89,11 @@ async function getStats(userId: string): Promise<StatsData> {
       ORDER BY purchases DESC
       LIMIT 8
     `,
-    sql`
-      SELECT
-        COALESCE(p.category, 'Sin categoría') AS category,
-        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW()) THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS current_month,
-        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month') THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS prev_month
-      FROM product_purchases pp
-      JOIN products p ON p.id = pp.product_id
-      -- Solo ítems de tickets de super: los de un ticket reclasificado a
-      -- "comida fuera" dejan de ser despensa.
-      LEFT JOIN shopping_trips t ON t.id = pp.trip_id
-      WHERE ${ppScope}
-        AND (pp.trip_id IS NULL OR t.kind = 'grocery')
-        AND pp.purchased_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
-      GROUP BY COALESCE(p.category, 'Sin categoría')
-      ORDER BY current_month DESC
-    `,
+    // El MISMO desglose que lee el Plan financiero. Cuando esta página tenía su
+    // propia consulta las dos derivaban: la copia de aquí no traía el arreglo de
+    // las categorías en cadena vacía y, sobre todo, no tenía la fila de «Sin
+    // detallar» — enseñaba $49.90 de un mes de $176.94 sin decir que faltaban.
+    loadGroceryInsight(userId),
   ]);
 
   const stock = { full: 0, half: 0, empty: 0 };
@@ -126,6 +116,7 @@ async function getStats(userId: string): Promise<StatsData> {
   const totalLastMonth = monthlySpending.find((m) => m.month === prevMonthKey)?.total ?? 0;
 
   return {
+    groceries,
     stock,
     topStores: (storeRows as { name: string; trips: string; total_spent: string }[]).map((r) => ({
       name: r.name,
@@ -138,11 +129,6 @@ async function getStats(userId: string): Promise<StatsData> {
       name: r.name,
       purchases: Number.parseInt(r.purchases, 10),
       totalQty: Number.parseFloat(r.total_qty ?? '0'),
-    })),
-    categorySpend: (categoryRows as { category: string; current_month: string; prev_month: string }[]).map((r) => ({
-      category: r.category,
-      currentMonth: Number.parseFloat(r.current_month ?? '0'),
-      prevMonth: Number.parseFloat(r.prev_month ?? '0'),
     })),
     totalThisMonth,
     totalLastMonth,
@@ -160,18 +146,20 @@ export default async function StatsPage() {
     data = {
       stock: { full: 0, half: 0, empty: 0 },
       topStores: [], monthlySpending: [], totalProducts: 0,
-      topProducts: [], categorySpend: [], totalThisMonth: 0, totalLastMonth: 0,
+      topProducts: [], groceries: EMPTY_GROCERY_INSIGHT, totalThisMonth: 0, totalLastMonth: 0,
     };
   }
 
-  const { stock, topStores, monthlySpending, totalProducts, topProducts, categorySpend, totalThisMonth, totalLastMonth } = data;
+  const { stock, topStores, monthlySpending, totalProducts, topProducts, groceries, totalThisMonth, totalLastMonth } = data;
   // Los cálculos viven en stats-engine.ts, probado aparte: porcentajes que
   // suman 100 exactos, divisores que nunca son 0 y conclusiones ordenadas por
   // magnitud (con tope de 4, que salgan las que más se movieron).
   const summary = buildStatsSummary({
     stock,
     months: monthlySpending,
-    categories: categorySpend,
+    // Las mismas categorías que se pintan: antes el resumen leía una
+    // consulta y la lista otra.
+    categories: groceries.categories,
     stores: topStores,
   });
   const { fullPct, halfPct, emptyPct } = summary.stock;
@@ -189,7 +177,7 @@ export default async function StatsPage() {
         monthlySpending={monthlySpending}
         totalProducts={totalProducts}
         topProducts={topProducts}
-        categorySpend={categorySpend}
+        groceries={groceries}
         totalThisMonth={totalThisMonth}
         insights={insights}
         fullPct={fullPct}

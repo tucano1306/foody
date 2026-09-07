@@ -5,6 +5,8 @@ import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StatsDetailSheet, { type ActiveDetail, type DetailType } from './StatsDetailSheet';
 import SectionHeader from '@/components/layout/SectionHeader';
+import GroceryCategoryBreakdown from '@/components/finance/GroceryCategoryBreakdown';
+import type { GroceryInsight } from '@/lib/grocery-insights';
 import { getStoreLogo } from '@/lib/store-logo';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -15,19 +17,13 @@ export interface TopProduct {
   totalQty: number;
 }
 
-export interface CategorySpend {
-  category: string;
-  currentMonth: number;
-  prevMonth: number;
-}
-
 export interface StatsContentProps {
   readonly stock: { full: number; half: number; empty: number };
   readonly topStores: { name: string; trips: number; totalSpent: number }[];
   readonly monthlySpending: { month: string; total: number; trips: number }[];
   readonly totalProducts: number;
   readonly topProducts: TopProduct[];
-  readonly categorySpend: CategorySpend[];
+  readonly groceries: GroceryInsight;
   readonly totalThisMonth: number;
   readonly insights: string[];
   readonly fullPct: number;
@@ -45,6 +41,11 @@ function formatCurrency(n: number) {
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+/** Con centavos: el total del subtítulo tiene que cuadrar con la lista. */
+function formatCurrencyFine(n: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 }
 
 function formatMonth(ym: string) {
@@ -93,7 +94,7 @@ export default function StatsContent({
   monthlySpending,
   totalProducts,
   topProducts,
-  categorySpend,
+  groceries,
   totalThisMonth,
   insights,
   fullPct,
@@ -246,51 +247,21 @@ export default function StatsContent({
           </section>
         )}
 
-        {/* ─── Category spend comparison ────────────────────────────────────── */}
-        {categorySpend.length > 0 && (
+        {/* ─── En qué se fue el super ──────────────────────────────────────
+            Esta lista vivía en el Plan financiero, que no es su sitio: el plan
+            responde «cuánto me queda para mis metas» y esto responde «en qué se
+            me fue». Aquí había una versión propia, más pobre: sin la fila de
+            «Sin detallar» enseñaba $49.90 de un mes de $176.94 y las cifras de
+            las dos pantallas no cuadraban. */}
+        {(groceries.categories.length > 0 || groceries.unitemized !== null) && (
           <section className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
             <CardHeader
               emoji="📂"
               chipClass="bg-sky-50 dark:bg-sky-950/40"
-              title="Gasto por categoría"
-              subtitle="Este mes vs mes anterior"
+              title="Gastos en comida por categoría"
+              subtitle={`Tus ${formatCurrencyFine(groceries.spentThisMonth)} de super este mes · vs mes anterior`}
             />
-            <div className="space-y-3">
-              {categorySpend.map((cat) => {
-                const diff =
-                  cat.prevMonth > 0
-                    ? Math.round(((cat.currentMonth - cat.prevMonth) / cat.prevMonth) * 100)
-                    : null;
-                return (
-                  <div
-                    key={cat.category}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <span className="text-slate-800 dark:text-slate-100 text-sm font-medium truncate flex-1">
-                      {cat.category}
-                    </span>
-                    <span className="text-slate-500 dark:text-slate-400 text-xs shrink-0">
-                      {formatCurrency(cat.currentMonth)}
-                    </span>
-                    {diff !== null &&
-                      (() => {
-                        let cls =
-                          'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400';
-                        if (diff < 0) cls = 'bg-sky-500/15 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300';
-                        else if (diff > 0) cls = 'bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300';
-                        return (
-                          <span
-                            className={`text-xs font-bold shrink-0 px-2 py-0.5 rounded-full ${cls}`}
-                          >
-                            {diff > 0 ? '+' : ''}
-                            {diff}%
-                          </span>
-                        );
-                      })()}
-                  </div>
-                );
-              })}
-            </div>
+            <GroceryCategoryBreakdown groceries={groceries} onChanged={refreshData} />
           </section>
         )}
 
