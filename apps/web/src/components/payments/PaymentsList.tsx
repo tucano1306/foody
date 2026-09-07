@@ -6,6 +6,7 @@ import Link from 'next/link';
 import type { MonthlyPayment } from '@foody/types';
 import { BanknotesIcon, CheckCircleIcon, ChevronDownIcon, ClockIcon } from '@heroicons/react/24/solid';
 import PaymentCard from '@/components/payments/PaymentCard';
+import StatAmount from '@/components/ui/StatAmount';
 import { haptic } from '@/lib/haptic';
 import { matchesFilter, summarizeByScope, totalForFilter, type ScopeFilter } from '@/lib/expense-scope';
 
@@ -216,7 +217,7 @@ export default function PaymentsList({ initialPayments }: Props) {
         <button
           type="button"
           onClick={() => setFilter('all')}
-          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 stat-box shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
             filter === 'all'
               ? 'border-[#0ea5e9] ring-2 ring-[#0ea5e9]/30 scale-[1.03]'
               : 'border-sky-100 hover:scale-105'
@@ -231,16 +232,19 @@ export default function PaymentsList({ initialPayments }: Props) {
           <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Total mensual
           </p>
-          <p className="text-black text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            {formatTotal(totalExpenses)}{mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
-          </p>
+          <StatAmount
+            value={formatTotal(totalExpenses)}
+            className="text-black font-bold mt-1 text-center leading-tight [--stat-max:1rem] sm:[--stat-max:1.5rem]"
+          >
+            {mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
+          </StatAmount>
         </button>
 
         {/* Pagado */}
         <button
           type="button"
           onClick={() => toggleFilter('paid')}
-          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 stat-box shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
             filter === 'paid'
               ? 'border-sky-500 ring-2 ring-sky-500/30 scale-[1.03]'
               : 'border-sky-100 hover:scale-105'
@@ -255,16 +259,19 @@ export default function PaymentsList({ initialPayments }: Props) {
           <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Pagado
           </p>
-          <p className="text-black text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            {formatTotal(totalPaid)}{mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
-          </p>
+          <StatAmount
+            value={formatTotal(totalPaid)}
+            className="text-black font-bold mt-1 text-center leading-tight [--stat-max:1rem] sm:[--stat-max:1.5rem]"
+          >
+            {mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
+          </StatAmount>
         </button>
 
         {/* Pendiente */}
         <button
           type="button"
           onClick={() => toggleFilter('pending')}
-          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
+          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 stat-box shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
             filter === 'pending'
               ? 'border-sky-400 ring-2 ring-sky-400/30 scale-[1.03]'
               : 'border-sky-100 hover:scale-105'
@@ -279,9 +286,12 @@ export default function PaymentsList({ initialPayments }: Props) {
           <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
             Pendiente
           </p>
-          <p className="text-black text-base sm:text-2xl font-bold mt-1 break-all text-center leading-tight">
-            {formatTotal(totalExpenses - totalPaid)}{mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
-          </p>
+          <StatAmount
+            value={formatTotal(totalExpenses - totalPaid)}
+            className="text-black font-bold mt-1 text-center leading-tight [--stat-max:1rem] sm:[--stat-max:1.5rem]"
+          >
+            {mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
+          </StatAmount>
           {totalSnoozed > 0 && (
             <p className="text-slate-400 text-[11px] sm:text-xs mt-1 text-center leading-tight">
               incl. {formatTotal(totalSnoozed)} pospuesto
