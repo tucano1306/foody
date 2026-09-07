@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   binarize,
   buildCandidates,
@@ -286,7 +287,11 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
   const manualNum = parseMoney(manual);
   const canConfirm = selected !== null || (manualNum !== null && manualNum > 0);
 
-  return (
+  // Colgado del <body>: dentro de `main` (relative z-10) la barra de
+  // pestañas se pinta ENCIMA y tapa la franja de abajo del escáner.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-60 flex items-end sm:items-center justify-center">
       <button
         type="button"
@@ -544,6 +549,7 @@ export default function PriceScannerModal({ productName, onPrice, onClose }: Pro
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

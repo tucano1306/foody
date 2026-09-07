@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
@@ -9,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { ShoppingCartIcon } from '@heroicons/react/24/solid';
 import {
   CheckIcon,
+  ChevronRightIcon,
   MagnifyingGlassIcon,
   MagnifyingGlassPlusIcon,
   PlusIcon,
@@ -137,6 +139,82 @@ function entriesTotal(entries: PriceEntry[] | undefined): number {
   return entries.reduce((s, e) => s + entryTotal(e), 0);
 }
 
+/**
+ * Una línea del carrito: un producto ya agarrado, cuánto se lleva y cuánto
+ * cuesta. `estimated` marca el importe que NO se tecleó en esta compra, sino
+ * que sale del último precio conocido: se suma —enseñar $0.00 sería mentir
+ * sobre lo que va a costar el carro— pero se dice que es una estimación.
+ */
+export interface CartLine {
+  readonly item: ShoppingListItem;
+  readonly qty: number;
+  readonly lineTotal: number;
+  readonly estimated: boolean;
+}
+
+export interface CartSummary {
+  readonly lines: CartLine[];
+  readonly total: number;
+  /** Productos con precio puesto en ESTA compra (tecleado o escaneado). */
+  readonly pricedCount: number;
+  readonly estimatedCount: number;
+}
+
+/**
+ * El carrito, línea a línea y sumado.
+ *
+ * Una sola función para el número gordo de arriba, la hoja del carrito y el
+ * resumen de «Comprados»: el mismo bucle vivía copiado en tres sitios, y con
+ * tocar uno los totales dejaban de cuadrar entre ellos.
+ */
+export function cartSummary(
+  items: readonly ShoppingListItem[],
+  entries: Record<string, PriceEntry[]>,
+): CartSummary {
+  const lines: CartLine[] = [];
+  let total = 0;
+  let pricedCount = 0;
+  let estimatedCount = 0;
+
+  for (const item of items) {
+    const list = entries[item.product.id];
+    const qty = entriesQty(list, Math.max(1, item.quantityNeeded));
+    const typed = entriesTotal(list);
+    let lineTotal = typed;
+    let estimated = false;
+
+    if (typed > 0) {
+      pricedCount += 1;
+    } else if (item.product.lastPurchasePrice != null) {
+      lineTotal = item.product.lastPurchasePrice * qty;
+      estimated = true;
+      estimatedCount += 1;
+    }
+
+    total += lineTotal;
+    lines.push({ item, qty, lineTotal, estimated });
+  }
+
+  return { lines, total, pricedCount, estimatedCount };
+}
+
+/**
+ * La capa de una hoja o un modal, colgada del <body>.
+ *
+ * `main` es `relative z-10`, así que crea un contexto de apilamiento: TODO lo
+ * que se pinte dentro —por alto que tenga el z-index— queda por debajo de la
+ * barra de pestañas (z-40, hermana de `main`), que tapa justo la franja de
+ * abajo, donde viven los botones de cada hoja. Colgándola del body vuelve a
+ * competir de tú a tú con la barra.
+ */
+function SheetLayer({ children }: { readonly children: React.ReactNode }) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">{children}</div>,
+    document.body,
+  );
+}
+
 function defaultEntries(item: ShoppingListItem): PriceEntry[] {
   return [{ qty: Math.max(1, item.quantityNeeded), total: null }];
 }
@@ -227,9 +305,10 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   const [removeTarget, setRemoveTarget] = useState<ShoppingListItem | null>(null);
   const [removing, setRemoving] = useState(false);
   const [showAddSheet, setShowAddSheet] = useState(false);
+  const [showCartSheet, setShowCartSheet] = useState(false);
 
   // Lock body scroll while a sheet/modal is open (mobile bottom sheets)
-  const anySheetOpen = showModal || editorItemId !== null || showAddSheet;
+  const anySheetOpen = showModal || editorItemId !== null || showAddSheet || showCartSheet;
   useEffect(() => {
     if (!anySheetOpen) return;
     return lockBodyScroll();
@@ -268,24 +347,22 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   }, [progress, items.length]);
 
   // ─── Totals ─────────────────────────────────────────────────────────────────
-  const { runningTotal, pricedCount, estimatedCount } = useMemo(() => {
-    let total = 0;
-    let priced = 0;
-    let estimated = 0;
-    for (const item of inCart) {
-      const lineTotal = entriesTotal(entries[item.product.id]);
-      if (lineTotal > 0) {
-        total += lineTotal;
-        priced += 1;
-      } else if (item.product.lastPurchasePrice !== null) {
-        total += item.product.lastPurchasePrice * entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded));
-        estimated += 1;
-      }
-    }
-    return { runningTotal: total, pricedCount: priced, estimatedCount: estimated };
-  }, [inCart, entries]);
+  // El carrito en orden de «lo último que agarraste va primero»: es como se
+  // enseña abajo y como lo lee la hoja del carrito.
+  const cartOrdered = useMemo(
+    () => [...inCart].sort((a, b) => (cartTimes[b.product.id] ?? 0) - (cartTimes[a.product.id] ?? 0)),
+    [inCart, cartTimes],
+  );
+  const cart = useMemo(() => cartSummary(cartOrdered, entries), [cartOrdered, entries]);
+  const { total: runningTotal, pricedCount, estimatedCount } = cart;
 
   const hasEstimated = estimatedCount > 0;
+
+  // Si el carrito se vacía con la hoja abierta —se devolvió lo último a «Por
+  // comprar»— la hoja se cierra sola: ya no tiene nada que enseñar.
+  useEffect(() => {
+    if (inCart.length === 0) setShowCartSheet(false);
+  }, [inCart.length]);
 
   // ─── Cart toggle ────────────────────────────────────────────────────────────
   function replaceItem(id: string, updated: ShoppingListItem) {
@@ -376,6 +453,13 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
       const current = prev[productId]?.length ? prev[productId] : defaultEntries(item);
       return { ...prev, [productId]: updater(current) };
     });
+  }
+
+  /** Abre el carrito por dentro: qué llevas ya y cuánto suma cada cosa. */
+  function openCartSheet() {
+    if (inCart.length === 0) return;
+    haptic(10);
+    setShowCartSheet(true);
   }
 
   // ─── Finalize ───────────────────────────────────────────────────────────────
@@ -511,27 +595,16 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   // Purchased: most recently grabbed first — the item just picked up is the
   // one whose price the user wants to type right now.
   const visiblePurchased = useMemo(() => {
-    const filtered = inCart.filter((i) => matches(i));
-    return [...filtered].sort((a, b) => (cartTimes[b.product.id] ?? 0) - (cartTimes[a.product.id] ?? 0));
+    return cartOrdered.filter((i) => matches(i));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inCart, q, categoryFilter, cartTimes]);
+  }, [cartOrdered, q, categoryFilter]);
 
   // Total of only the currently-visible purchased items — so a category filter
   // shows the sum of what's on screen, not the whole cart. When no filter is
   // active this equals runningTotal (visiblePurchased === inCart).
   const { visiblePurchasedTotal, visibleHasEstimated } = useMemo(() => {
-    let total = 0;
-    let estimated = 0;
-    for (const item of visiblePurchased) {
-      const lineTotal = entriesTotal(entries[item.product.id]);
-      if (lineTotal > 0) {
-        total += lineTotal;
-      } else if (item.product.lastPurchasePrice !== null) {
-        total += item.product.lastPurchasePrice * entriesQty(entries[item.product.id], Math.max(1, item.quantityNeeded));
-        estimated += 1;
-      }
-    }
-    return { visiblePurchasedTotal: total, visibleHasEstimated: estimated > 0 };
+    const { total, estimatedCount: estimados } = cartSummary(visiblePurchased, entries);
+    return { visiblePurchasedTotal: total, visibleHasEstimated: estimados > 0 };
   }, [visiblePurchased, entries]);
 
   const availableCategories = useMemo(() => {
@@ -630,14 +703,23 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 420, damping: 22 }}
-            className="bg-linear-to-br from-sky-50 to-sky-50 border border-sky-200 rounded-2xl px-4 py-3 shadow-sm overflow-hidden"
+            className="bg-linear-to-br from-sky-50 to-sky-50 border border-sky-200 rounded-2xl shadow-sm overflow-hidden"
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-sky-600r mb-0.5">
+            {/* La tarjeta ENTERA abre el carrito por dentro.
+                El número gordo contesta «¿cuánto llevo?», y es justo ahí donde
+                uno pregunta lo siguiente: «¿y qué llevo?». Antes había que
+                bajar por toda la rejilla de tarjetas para verlo. */}
+            <button
+              type="button"
+              onClick={openCartSheet}
+              aria-label={`Ver el carrito · ${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')}`}
+              className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition active:scale-[0.99] focus:outline-none"
+            >
+              <span className="flex-1 min-w-0">
+                <span className="block text-[11px] font-semibold text-sky-600 mb-0.5">
                   🧮 {hasEstimated ? 'Estimado en carrito' : 'Total en carrito'}
-                </p>
-                <div className="flex items-baseline gap-1">
+                </span>
+                <span className="flex items-baseline gap-1">
                   <span className="text-base font-bold text-sky-700">$</span>
                   <motion.span
                     key={Math.round(runningTotal * 100)}
@@ -648,15 +730,15 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
                   >
                     {runningTotal > 0 ? runningTotal.toFixed(2) : '0.00'}
                   </motion.span>
-                </div>
-                <p className="text-[11px] text-sky-600/70 mt-0.5">
+                </span>
+                <span className="block text-[11px] text-sky-600/70 mt-0.5">
                   {pricedCount === 0
                     ? `${inCart.length} en el carrito · toca 💵 en un producto para poner su precio`
                     : `${pricedCount} de ${inCart.length} con precio${hasEstimated ? ' · algunos estimados' : ''}`}
-                </p>
-              </div>
+                </span>
+              </span>
 
-              <div className="flex flex-col items-center justify-center bg-sky-600 text-white rounded-xl px-3 py-2 shrink-0 shadow-sm">
+              <span className="flex flex-col items-center justify-center bg-sky-600 text-white rounded-xl px-3 py-2 shrink-0 shadow-sm">
                 <motion.span
                   key={inCart.length}
                   initial={{ scale: 0.65, opacity: 0.5 }}
@@ -669,8 +751,10 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
                 <span className="text-[11px] font-medium opacity-80 mt-0.5">
                   {pluralize(inCart.length, 'ítem', 'ítems')}
                 </span>
-              </div>
-            </div>
+              </span>
+
+              <ChevronRightIcon aria-hidden="true" className="w-5 h-5 text-sky-600/70 shrink-0" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -861,8 +945,15 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
       )}
 
       {/* ─── Floating complete button ────────────────────────────────────────── */}
+      {/* Encima de la barra de pestañas, no debajo. `main` es `relative z-10` y
+          crea contexto de apilamiento, así que por alto que fuera el z-index de
+          aquí dentro, la barra (z-40, hermana de `main`) se pintaba ENCIMA: con
+          el móvil en la mano, «Finalizar» salía detrás de «Casa · Súper ·
+          Productos» y la compra no había manera de cerrarla. Se coloca como el
+          FAB y los avisos, a la altura de la barra más un respiro; --tabbar-h
+          ya incluye la muesca de gestos del iPhone. */}
       {inCart.length > 0 && (
-        <div className="fixed bottom-4 inset-x-4 z-40 md:left-auto md:right-8 md:w-96 pb-[env(safe-area-inset-bottom)]">
+        <div className="fixed inset-x-4 bottom-[calc(var(--tabbar-h)+0.75rem)] z-40 md:bottom-6 md:left-auto md:right-8 md:w-96">
           <motion.button
             onClick={openModal}
             disabled={completing}
@@ -882,6 +973,20 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
             )}
           </motion.button>
         </div>
+      )}
+
+      {/* ─── Cart sheet (qué llevas ya) ──────────────────────────────────────── */}
+      {showCartSheet && (
+        <CartSheet
+          lines={cart.lines}
+          total={runningTotal}
+          pricedCount={pricedCount}
+          estimatedCount={estimatedCount}
+          onEdit={(id) => setEditorItemId(id)}
+          onReturnToPending={(id) => toggleItem(id)}
+          onFinish={() => { setShowCartSheet(false); openModal(); }}
+          onClose={() => setShowCartSheet(false)}
+        />
       )}
 
       {/* ─── Price editor bottom sheet ───────────────────────────────────────── */}
@@ -961,7 +1066,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
 
       {/* ─── Completion modal ────────────────────────────────────────────────── */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <SheetLayer>
           <button
             type="button"
             aria-label="Cerrar"
@@ -1099,7 +1204,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
               </button>
             </div>
           </div>
-        </div>
+        </SheetLayer>
       )}
     </div>
   );
@@ -1247,6 +1352,149 @@ function ProductPurchaseCard({
   );
 }
 
+// ─── Cart sheet ───────────────────────────────────────────────────────────────
+
+/**
+ * El carrito por dentro: lo que ya agarraste, cuánto llevas de cada cosa, lo
+ * que va sumado y el botón de terminar.
+ *
+ * Se abre tocando el total. Antes, «¿qué llevo ya?» se contestaba bajando por
+ * toda la rejilla hasta «Comprados» —con el carro en una mano y el móvil en la
+ * otra— y el botón de finalizar quedaba aún más abajo. Aquí está todo en la
+ * misma hoja, y cada línea abre su precio de un toque.
+ */
+function CartSheet({
+  lines,
+  total,
+  pricedCount,
+  estimatedCount,
+  onEdit,
+  onReturnToPending,
+  onFinish,
+  onClose,
+}: {
+  readonly lines: readonly CartLine[];
+  readonly total: number;
+  readonly pricedCount: number;
+  readonly estimatedCount: number;
+  readonly onEdit: (itemId: string) => void;
+  readonly onReturnToPending: (itemId: string) => void;
+  readonly onFinish: () => void;
+  readonly onClose: () => void;
+}) {
+  const sinPrecio = lines.length - pricedCount;
+
+  return (
+    <SheetLayer>
+      <button
+        type="button"
+        aria-label="Cerrar"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm cursor-default"
+        onClick={onClose}
+        onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Tu carrito"
+        className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl p-5 max-h-[88dvh] flex flex-col"
+      >
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">🛒 Tu carrito</h2>
+            <p className="text-[11px] text-slate-400">
+              {lines.length} {pluralize(lines.length, 'producto', 'productos')}
+              {sinPrecio > 0 && ` · ${sinPrecio} sin precio`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
+          {lines.map(({ item, qty, lineTotal, estimated }) => (
+            <div key={item.id} className="flex items-center gap-1.5">
+              {/* Toda la línea abre el precio de ese producto: es lo único que
+                  queda por hacer con algo que ya está en el carro. */}
+              <button
+                type="button"
+                onClick={() => { haptic(8); onEdit(item.id); }}
+                className="flex-1 min-w-0 flex items-center gap-3 p-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-300 hover:bg-sky-50/40 dark:hover:bg-slate-800/60 transition text-left"
+              >
+                <span className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 relative">
+                  {item.product.photoUrl ? (
+                    <Image src={item.product.photoUrl} alt="" fill className="object-cover" sizes="44px" />
+                  ) : (
+                    <span className="absolute inset-0 flex items-center justify-center text-lg opacity-50">
+                      {categoryEmoji(item.product.category)}
+                    </span>
+                  )}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                    {item.product.name}
+                  </span>
+                  <span className="block text-[11px] text-slate-400 tabular-nums">
+                    {fmtQty(qty)} {item.product.unit || 'unid.'}
+                  </span>
+                </span>
+                {lineTotal > 0 ? (
+                  <span
+                    className={`shrink-0 text-sm font-bold tabular-nums ${
+                      estimated ? 'text-slate-400' : 'text-sky-700 dark:text-sky-300'
+                    }`}
+                  >
+                    {estimated ? '≈' : ''}${lineTotal.toFixed(2)}
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-base" aria-label="Sin precio">💵</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => onReturnToPending(item.id)}
+                aria-label={`Sacar ${item.product.name} del carrito`}
+                className="w-9 h-9 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition active:scale-95 text-sm"
+              >
+                ↩
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800"
+          style={{ paddingBottom: 'var(--safe-b)' }}
+        >
+          <div className="flex items-baseline justify-between mb-3">
+            <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+              {estimatedCount > 0 ? 'Estimado' : 'Total'}
+            </span>
+            <span className="text-2xl font-black text-sky-700 dark:text-sky-300 tabular-nums">
+              {estimatedCount > 0 ? '≈' : ''}${total.toFixed(2)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onFinish}
+            className="w-full py-3.5 rounded-2xl bg-linear-to-r from-sky-500 to-sky-700 hover:from-sky-600 hover:to-sky-800 text-white font-bold text-base transition active:scale-[0.98] shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2"
+          >
+            <ShoppingCartIcon className="w-5 h-5" />
+            Finalizar compra
+          </button>
+        </div>
+      </div>
+    </SheetLayer>
+  );
+}
+
 // ─── Price editor bottom sheet ────────────────────────────────────────────────
 
 function PriceEditorSheet({
@@ -1299,7 +1547,7 @@ function PriceEditorSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <SheetLayer>
       <button
         type="button"
         aria-label="Cerrar"
@@ -1632,7 +1880,7 @@ function PriceEditorSheet({
           )}
         </div>
       </div>
-    </div>
+    </SheetLayer>
   );
 }
 
@@ -1778,7 +2026,7 @@ function AddProductSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <SheetLayer>
       <button
         type="button"
         aria-label="Cerrar"
@@ -1852,6 +2100,6 @@ function AddProductSheet({
           ))}
         </div>
       </div>
-    </div>
+    </SheetLayer>
   );
 }
