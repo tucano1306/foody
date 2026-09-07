@@ -1,6 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
+import ModalLayer from './ModalLayer';
 
 interface Props {
   readonly open: boolean;
@@ -37,6 +38,7 @@ export default function ConfirmDialog({
   return (
     <AnimatePresence>
       {open && (
+        <ModalLayer>
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
           <motion.button
             type="button"
@@ -85,6 +87,7 @@ export default function ConfirmDialog({
             </div>
           </motion.div>
         </div>
+        </ModalLayer>
       )}
     </AnimatePresence>
   );

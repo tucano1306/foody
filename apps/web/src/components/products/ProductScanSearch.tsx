@@ -23,6 +23,7 @@ async function startPlainCamera(video: HTMLVideoElement): Promise<ScanControls> 
 import { rankProductsByScanText, type ScanCandidate } from '@/lib/scan-product-search';
 import { ocrScale } from '@/lib/price-scan';
 import { categoryEmoji } from '@/lib/categories';
+import ModalLayer from '@/components/ui/ModalLayer';
 
 /** Confidence reported by the AI recognizer, mapped onto candidate scores. */
 const AI_CONFIDENCE_SCORE: Readonly<Record<string, number>> = {
@@ -355,6 +356,7 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
   }, [setPreviewUrl]);
 
   return (
+    <ModalLayer>
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
       {/* ─── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-4 py-3 bg-black/80">
@@ -552,5 +554,6 @@ export default function ProductScanSearch({ products, onSelect, onClose }: Props
         )}
       </div>
     </div>
+    </ModalLayer>
   );
 }

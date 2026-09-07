@@ -11,6 +11,7 @@ import { summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
 import ScopeTabs from '@/components/ui/ScopeTabs';
 import type { BudgetMonthEntry as MonthEntry } from '@/lib/budget-history';
 import { parseMoney } from '@/lib/money-input';
+import ModalLayer from '@/components/ui/ModalLayer';
 
 interface BudgetData {
   monthlyLimit: number;
@@ -161,6 +162,7 @@ function EditBudgetDialog({
   }
 
   return (
+    <ModalLayer>
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <button
         type="button"
@@ -230,6 +232,7 @@ function EditBudgetDialog({
         </div>
       </motion.div>
     </div>
+    </ModalLayer>
   );
 }
 

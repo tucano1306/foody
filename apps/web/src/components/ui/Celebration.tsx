@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import ModalLayer from './ModalLayer';
 
 export interface CelebrationInput {
   /** El dibujo del momento: un emoji grande, que es toda la ilustración. */
@@ -89,6 +90,7 @@ function CelebrationOverlay({
   const reduced = useReducedMotion() ?? false;
 
   return (
+    <ModalLayer>
     <motion.div
       role="status"
       aria-live="polite"
@@ -130,6 +132,7 @@ function CelebrationOverlay({
         )}
       </motion.div>
     </motion.div>
+    </ModalLayer>
   );
 }
 
