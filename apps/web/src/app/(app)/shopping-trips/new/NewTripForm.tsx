@@ -374,7 +374,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   }
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-28">
       {scannerOpen && (
         <ReceiptScanner
           onResult={handleReceiptResult}
@@ -715,8 +715,12 @@ export default function NewTripForm({ products }: Readonly<Props>) {
         <p className="rounded-xl bg-blue-50 text-blue-700 text-sm px-3 py-2">{error}</p>
       )}
 
-      {/* Sticky submit */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-100 bg-white/95 backdrop-blur px-4 py-3">
+      {/* Barra de guardar, anclada ENCIMA de la barra de pestañas.
+          Estaba en `bottom-0` como la navegación, que ademas va en z-40: en el
+          movil «Guardar compra» quedaba tapado por Productos y Pagos, y el
+          total apenas se leia. `--tabbar-h` ya incluye la muesca de gestos del
+          iPhone; desde `md` la barra de pestañas no existe y vuelve al suelo. */}
+      <div className="fixed inset-x-0 bottom-[var(--tabbar-h)] md:bottom-0 z-30 border-t border-slate-100 bg-white/95 backdrop-blur px-4 py-3">
         <div className="container mx-auto max-w-5xl flex items-center justify-between gap-3">
           <div>
             <p className="text-xs text-slate-500">Total</p>

@@ -256,7 +256,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`space-y-4 ${editing ? 'pb-24' : ''}`}>
+    <div className={`space-y-4 ${editing ? 'pb-28' : ''}`}>
       {/* Volver a donde el ticket vive de verdad: si no es de super, Compras no
           lo lista y el enlace llevaría a una pantalla sin él. */}
       {trip.kind === 'grocery' ? (
@@ -582,7 +582,9 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
       {/* ── Barra fija de guardado (modo edición) ─────────────────────────── */}
       {editing && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-100 bg-white/95 backdrop-blur px-4 py-3">
+        // Encima de la barra de pestañas, igual que en el alta: en `bottom-0`
+        // la navegacion --que va en z-40-- tapaba «Guardar cambios».
+        <div className="fixed inset-x-0 bottom-[var(--tabbar-h)] md:bottom-0 z-30 border-t border-slate-100 bg-white/95 backdrop-blur px-4 py-3">
           <div className="container mx-auto max-w-5xl flex items-center justify-between gap-3">
             <div>
               <p className="text-xs text-slate-500">Total</p>
