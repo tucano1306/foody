@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensurePurchaseSchema } from '@/lib/ensure-schema';
+import { dedupeByProduct } from '@/lib/cart-dedupe';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { normalizeBrand } from '@/lib/product-brands';
 import { sendWebPush } from '@/lib/web-push';
@@ -179,7 +180,15 @@ export async function POST(request: NextRequest) {
   `;
   if (!rawItems.length) return NextResponse.json({ completed: 0 });
 
-  const items = rawItems as CartItem[];
+  // Una compra por PRODUCTO, no por fila de lista.
+  //
+  // El precio y la cantidad se buscan por `product_id`, así que dos filas del
+  // mismo producto generaban dos compras idénticas: el ticket salía al doble y
+  // «Más comprados» contaba ese artículo dos veces. Ya no debería haber filas
+  // repetidas —hay un índice único desde `ensurePurchaseSchema`—, pero esto es
+  // lo que hace que el error no pueda volver aunque la restricción falte en una
+  // base vieja o dos pestañas escriban a la vez.
+  const items = dedupeByProduct(rawItems as CartItem[]);
   const productIds = items.map((i) => i.product_id);
   const now = new Date().toISOString();
 

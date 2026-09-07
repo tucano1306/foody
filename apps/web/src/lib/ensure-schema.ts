@@ -58,6 +58,55 @@ export async function ensurePurchaseSchema(): Promise<void> {
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS trip_id UUID NULL`;
   await sql`ALTER TABLE product_purchases ADD COLUMN IF NOT EXISTS household_id UUID NULL`;
 
+  // Un producto, UNA fila en la lista.
+  //
+  // Los seis sitios que añaden a la lista —crear producto, marcar «se acaba»,
+  // cambiar el stock, añadir a mano, la voz, el catálogo— dicen desde siempre
+  // `ON CONFLICT DO NOTHING`. Ninguno funcionaba: sin una restricción única no
+  // hay conflicto que detectar, así que el guardián no guardaba nada y el mismo
+  // producto se acumulaba en la lista.
+  //
+  // Al completar la compra se inserta una compra por FILA de lista, pero el
+  // precio y la cantidad se buscan por PRODUCTO: dos filas del mismo producto
+  // producían dos compras idénticas, que inflaban el ticket, «Más comprados» y
+  // el histórico de precios de ese artículo.
+  //
+  // Se consolida antes de crear el índice, o la creación falla con los
+  // duplicados que ya existen. La fila que sobrevive es la más antigua, pero se
+  // queda con lo que supieran sus hermanas: si alguna estaba en el carrito, lo
+  // está; la cantidad mayor manda.
+  await sql`
+    WITH ordenadas AS (
+      SELECT id, user_id, product_id, is_in_cart, quantity_needed,
+             ROW_NUMBER() OVER (PARTITION BY user_id, product_id
+                                ORDER BY created_at ASC, id ASC) AS puesto
+        FROM shopping_list_items
+    ), resumen AS (
+      SELECT user_id, product_id,
+             bool_or(is_in_cart) AS en_carrito,
+             MAX(quantity_needed) AS cantidad
+        FROM ordenadas GROUP BY user_id, product_id HAVING COUNT(*) > 1
+    )
+    UPDATE shopping_list_items s
+       SET is_in_cart = r.en_carrito, quantity_needed = r.cantidad, updated_at = NOW()
+      FROM ordenadas o
+      JOIN resumen r ON r.user_id = o.user_id AND r.product_id = o.product_id
+     WHERE s.id = o.id AND o.puesto = 1
+  `;
+  await sql`
+    DELETE FROM shopping_list_items WHERE id IN (
+      SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, product_id
+                                      ORDER BY created_at ASC, id ASC) AS puesto
+          FROM shopping_list_items
+      ) x WHERE puesto > 1
+    )
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_shopping_list_user_product
+      ON shopping_list_items (user_id, product_id)
+  `;
+
   schemaEnsured = true;
 }
 
