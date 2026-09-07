@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { motion, useDragControls } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/solid';
 import { lockBodyScroll } from '@/lib/scroll-lock';
+import ModalLayer from '@/components/ui/ModalLayer';
 
 interface Props {
   readonly title: string;
@@ -53,6 +54,7 @@ export default function ModalShell({
     // cerrar el modal quedaba montado e invisible, con el fondo bloqueado
     // (overflow:hidden) y el overlay capturando los clics — la app parecía
     // congelada justo después de guardar una meta.
+    <ModalLayer>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -117,5 +119,6 @@ export default function ModalShell({
         )}
       </motion.div>
     </motion.div>
+    </ModalLayer>
   );
 }

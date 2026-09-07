@@ -10,6 +10,7 @@ import KindPicker from '@/components/ui/KindPicker';
 import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
 import { normalizeSplits, tripKindAmounts, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
+import ModalLayer from '@/components/ui/ModalLayer';
 
 interface Props {
   readonly trip: ShoppingTripDetail;
@@ -616,6 +617,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
       {/* ── Modal de confirmación de borrado ──────────────────────────────── */}
       {confirmingDelete && (
+        <ModalLayer>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <button
             type="button"
@@ -653,6 +655,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
             </div>
           </div>
         </div>
+        </ModalLayer>
       )}
     </div>
   );

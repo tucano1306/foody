@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import Image from 'next/image';
@@ -18,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { parseMoney } from '@/lib/money-input';
 import CategorySelect from '@/components/ui/CategorySelect';
+import ModalLayer from '@/components/ui/ModalLayer';
 import type { ShoppingListItem } from '@foody/types';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
@@ -208,10 +208,10 @@ export function cartSummary(
  * competir de tú a tú con la barra.
  */
 function SheetLayer({ children }: { readonly children: React.ReactNode }) {
-  if (typeof document === 'undefined') return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">{children}</div>,
-    document.body,
+  return (
+    <ModalLayer>
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">{children}</div>
+    </ModalLayer>
   );
 }
 

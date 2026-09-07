@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ModalLayer from '@/components/ui/ModalLayer';
 
 const STORAGE_KEY = 'foody-onboarding-done';
 
@@ -50,6 +51,7 @@ export default function OnboardingTour() {
   const isLast = step === STEPS.length - 1;
 
   return (
+    <ModalLayer>
     <dialog
       open
       aria-modal="true"
@@ -93,5 +95,6 @@ export default function OnboardingTour() {
         </div>
       </div>
     </dialog>
+    </ModalLayer>
   );
 }

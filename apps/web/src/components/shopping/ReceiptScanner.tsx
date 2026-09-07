@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { parseReceiptText } from '@/lib/receipt-parser';
 import type { ReceiptParseResult } from '@/lib/receipt-parser';
 import { isHeicFile, convertHeicToJpegBlob } from '@/lib/image-file';
+import ModalLayer from '@/components/ui/ModalLayer';
 export type { ReceiptParseResult } from '@/lib/receipt-parser';
 
 /**
@@ -234,6 +235,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
   const statusText = getStatusText(state, phase);
 
   return (
+    <ModalLayer>
     <dialog
       open
       className="fixed inset-0 z-50 flex flex-col bg-black/90 m-0 p-0 max-w-none max-h-none w-full h-full border-none"
@@ -356,6 +358,7 @@ export default function ReceiptScanner({ onResult, onClose }: Props) {
       </div>
 
     </dialog>
+    </ModalLayer>
   );
 }
 

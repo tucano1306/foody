@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { haptic } from '@/lib/haptic';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import ModalLayer from '@/components/ui/ModalLayer';
 
 export interface Member {
   id: string;
@@ -91,7 +92,8 @@ export default function MemberSheet({
           exiting sheet keeps the slot and the next member never renders. */}
       <AnimatePresence>
         {member && (
-          <div key={member.id} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <ModalLayer key={member.id}>
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
             <motion.button
               type="button"
               aria-label="Cerrar"
@@ -223,6 +225,7 @@ export default function MemberSheet({
               </button>
             </motion.div>
           </div>
+          </ModalLayer>
         )}
       </AnimatePresence>
 
