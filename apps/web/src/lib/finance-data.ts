@@ -404,6 +404,39 @@ async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
   return computeOtherSpend({ monthlyTotals, byKind, places });
 }
 
+/**
+ * El gasto de super del mes, ya interpretado.
+ *
+ * Vive aparte porque lo leen DOS pantallas: el Plan financiero, que resta este
+ * gasto de lo que queda para las metas, y Estadisticas, que enseña en que se
+ * fue. Cuando `/stats` tenia su propia consulta las dos derivaban: la copia de
+ * alli no traia el arreglo de las categorias en cadena vacia, y sobre todo no
+ * tenia la fila de «Sin detallar», asi que enseñaba $49.90 de un mes de
+ * $176.94 sin decir que faltaban $127.
+ */
+function groceryInsightFrom(
+  budget: { history: readonly MonthTotal[]; monthlyLimit: number },
+  breakdown: { categories: CategorySpendInput[]; stores: StoreSpend[] },
+): GroceryInsight {
+  return computeGroceryInsight({
+    monthlyTotals: budget.history,
+    categories: breakdown.categories,
+    stores: breakdown.stores,
+    limit: budget.monthlyLimit,
+  });
+}
+
+/** Lo mismo, cargando por su cuenta: para quien no monta el plan entero. */
+export async function loadGroceryInsight(userId: string): Promise<GroceryInsight> {
+  await ensureExpenseKindSchema();
+  await ensureTripSplitsSchema();
+  const [budget, breakdown] = await Promise.all([
+    getBudgetData(userId),
+    loadGroceryBreakdown(userId),
+  ]);
+  return groceryInsightFrom(budget, breakdown);
+}
+
 async function loadGroceryBreakdown(userId: string): Promise<{
   categories: CategorySpendInput[];
   stores: StoreSpend[];
@@ -516,12 +549,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
 
   // El plan resta lo que REALMENTE se gasta en super: el historial de tickets
   // manda sobre el límite declarado, que solo se usa si aún no hay compras.
-  const groceries = computeGroceryInsight({
-    monthlyTotals: budget.history,
-    categories: breakdown.categories,
-    stores: breakdown.stores,
-    limit: budget.monthlyLimit,
-  });
+  const groceries = groceryInsightFrom(budget, breakdown);
 
   // El mismo pago anotado en Pagos y en Deudas se restaba dos veces. Se
   // detecta con lo que ya está cargado —cero consultas extra— y solo se
