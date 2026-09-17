@@ -69,7 +69,7 @@ export default async function Home() {
       {/* Top nav */}
       <header className="sticky top-0 z-30 bg-navy-900/95 backdrop-blur border-b border-navy-800 text-white">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-black text-xl">
+          <Link href="/" className="flex items-center gap-2 font-black text-xl shrink-0">
             <Image
               src="/logo-fy.png"
               alt="Foody"
@@ -78,7 +78,7 @@ export default async function Home() {
               priority
               className="w-10 h-10 object-contain drop-shadow-md"
             />
-            <span className="tracking-tight">Foody</span>
+            <span className="tracking-tight whitespace-nowrap">Foody</span>
           </Link>
           <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-navy-100">
             <a href="#solutions" className="hover:text-white transition">Soluciones</a>
@@ -88,13 +88,13 @@ export default async function Home() {
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="text-sm font-semibold text-navy-100 hover:text-white px-3 py-1.5 transition"
+              className="hidden sm:inline-flex whitespace-nowrap text-sm font-semibold text-navy-100 hover:text-white px-3 py-1.5 transition"
             >
               Iniciar sesión
             </Link>
             <Link
               href="/login?mode=register"
-              className="text-sm font-bold rounded-md bg-brand-500 hover:bg-brand-400 text-navy-900 px-4 py-2 shadow-md shadow-brand-500/30 transition"
+              className="whitespace-nowrap text-sm font-bold rounded-md bg-brand-500 hover:bg-brand-400 text-navy-900 px-3 sm:px-4 py-2 shadow-md shadow-brand-500/30 transition"
             >
               Comenzar gratis
             </Link>
