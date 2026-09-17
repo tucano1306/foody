@@ -41,3 +41,6 @@ cookies.txt
 
 # Ajustes locales de Claude Code: son de esta maquina, no del proyecto.
 .claude/
+
+# Graphify: el grafo del proyecto. Puede llegar a cientos de MB.
+graphify-out/
