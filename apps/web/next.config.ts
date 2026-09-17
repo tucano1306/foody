@@ -1,9 +1,14 @@
 import type { NextConfig } from 'next';
 
+// React en modo desarrollo necesita eval() para reconstruir pilas de llamadas.
+// En produccion nunca lo usa, asi que 'unsafe-eval' se anade SOLO en dev: sin
+// esto la consola local escupe "eval() is not supported in this environment".
+const esDev = process.env.NODE_ENV !== 'production';
+
 const CSP = [
   "default-src 'self'",
   // unsafe-inline for Next.js; wasm-unsafe-eval for Tesseract.js WebAssembly; cdn.jsdelivr.net for Tesseract
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${esDev ? " 'unsafe-eval'" : ''} https://cdn.jsdelivr.net`,
   "style-src 'self' 'unsafe-inline'",
   // Fotos de productos (antes embebidas en la BD). El host real tiene DOS
   // niveles —"<store>.public.blob.vercel-storage.com"— y el comodín de CSP
