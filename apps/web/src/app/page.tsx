@@ -4,13 +4,6 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import RotatingWord from '@/components/home/RotatingWord';
 
-const TRUST_STATS = [
-  { v: '+6.000', l: 'hogares activos' },
-  { v: '1.2M', l: 'productos rastreados' },
-  { v: '24%', l: 'menos desperdicio' },
-  { v: '$180', l: 'ahorro promedio/mes' },
-];
-
 const SOLUTIONS = [
   {
     icon: '📦',
@@ -83,7 +76,6 @@ export default async function Home() {
           <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-navy-100">
             <a href="#solutions" className="hover:text-white transition">Soluciones</a>
             <a href="#features" className="hover:text-white transition">Características</a>
-            <a href="#trust" className="hover:text-white transition">Clientes</a>
           </nav>
           <div className="flex items-center gap-2">
             <Link
@@ -110,10 +102,6 @@ export default async function Home() {
 
         <div className="relative max-w-6xl mx-auto px-6 py-20 md:py-28 grid md:grid-cols-2 gap-10 items-center">
           <div className="space-y-6">
-            <p className="inline-flex items-center gap-2 text-xs font-semiboldst text-brand-300 bg-brand-500/10 border border-brand-400/30 rounded-full px-3 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400" />
-              <span>Reconocida como la #1 app de despensa hogareña</span>
-            </p>
             <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-[1.05]">
               Control inteligente para tu{' '}
               <RotatingWord
@@ -181,25 +169,6 @@ export default async function Home() {
             <div className="absolute -bottom-4 -right-4 rounded-xl bg-brand-500 text-navy-900 px-4 py-2 font-bold text-sm shadow-lg shadow-brand-500/30">
               –18% desperdicio
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Trust band */}
-      <section id="trust" className="bg-navy-50 border-y border-navy-100">
-        <div className="max-w-6xl mx-auto px-6 py-10">
-          <p className="text-center text-sm font-semiboldst text-navy-500 mb-6">
-            Pensado para miles de hogares
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {TRUST_STATS.map((s) => (
-              <div key={s.l}>
-                <p className="text-3xl md:text-4xl font-black text-navy-900">{s.v}</p>
-                <p className="text-xs md:text-sm text-navy-500 mt-1r font-semibold">
-                  {s.l}
-                </p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
