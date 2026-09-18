@@ -11,7 +11,7 @@
  * Framework-free and deterministic so it can be unit-tested.
  */
 
-import { meaningfulTokens, normalizeName, type MatchableProduct } from './receipt-match';
+import { canonicalName, meaningfulTokens, type MatchableProduct } from './receipt-match';
 
 export interface ScanCandidate<T> {
   readonly product: T;
@@ -45,7 +45,9 @@ export function rankProductsByScanText<T extends MatchableProduct>(
   products: readonly T[],
   limit = DEFAULT_LIMIT,
 ): ScanCandidate<T>[] {
-  const normText = normalizeName(text);
+  // Canónica y no solo normalizada: la etiqueta que lee la cámara puede estar
+  // en inglés («WHOLE MILK») y el catalogo en español.
+  const normText = canonicalName(text);
   const scanTokens = meaningfulTokens(text);
   if (scanTokens.length === 0) return [];
 
@@ -61,7 +63,7 @@ export function rankProductsByScanText<T extends MatchableProduct>(
 
     // Full coverage caps at 0.9; whole-name containment is the strongest signal.
     let score = (matched / productTokens.length) * 0.9;
-    const normProduct = normalizeName(p.name);
+    const normProduct = canonicalName(p.name);
     if (normProduct.length >= 4 && normText.includes(normProduct)) {
       score = Math.max(score, 0.95);
     }

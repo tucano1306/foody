@@ -1,5 +1,5 @@
 import NewTripForm from './NewTripForm';
-import { api } from '@/lib/api';
+import { api, type ProductAliasLookup } from '@/lib/api';
 import type { Product } from '@foody/types';
 
 export default async function NewShoppingTripPage() {
@@ -9,5 +9,16 @@ export default async function NewShoppingTripPage() {
   } catch {
     products = [];
   }
-  return <NewTripForm products={products} />;
+
+  // Los alias van aparte y con su propio catch: si esta consulta falla, el
+  // ticket se sigue registrando igual y solo se pierde el emparejado
+  // automático de los nombres aprendidos.
+  let aliases: ProductAliasLookup[] = [];
+  try {
+    aliases = await api.productAliases.list();
+  } catch {
+    aliases = [];
+  }
+
+  return <NewTripForm products={products} aliases={aliases} />;
 }

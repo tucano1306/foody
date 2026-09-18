@@ -2,7 +2,7 @@ import { getSession } from './session';
 import { sql } from './db';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
-import { ensureTripSplitsSchema, ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema } from './ensure-schema';
+import { ensureTripSplitsSchema, ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema, ensureProductAliasSchema } from './ensure-schema';
 import { normalizeShare } from './expense-scope';
 import { normalizeAnchorMonth, normalizeFrequency } from './payment-frequency';
 import { normalizeExpenseKind } from './expense-kind';
@@ -262,6 +262,12 @@ function mapShoppingListItem(row: Record<string, unknown>): ShoppingListItem {
 }
 
 // ─── Products ─────────────────────────────────────────────────────────────────
+/** Un alias aprendido, reducido a lo que el emparejador de recibos compara. */
+export interface ProductAliasLookup {
+  readonly productId: string;
+  readonly aliasNorm: string;
+}
+
 export const api = {
   products: {
     list: async (): Promise<Product[]> => {
@@ -930,6 +936,30 @@ export const api = {
         avgPrice: asNumber(row.avg_price),
         purchaseCount: asInteger(row.purchase_count),
         lastSeenAt: asIsoString(row.last_seen_at),
+      }));
+    },
+  },
+
+  productAliases: {
+    /**
+     * Los nombres con los que el recibo llama a cada producto, tal y como los
+     * fue enseñando el usuario al vincular líneas a mano.
+     *
+     * Solo salen `productId` y `aliasNorm` porque es lo único que necesita el
+     * emparejador; el texto crudo del ticket se guarda igualmente en la tabla,
+     * pero no hace falta cargarlo en cada pantalla de ticket nuevo.
+     */
+    list: async (): Promise<ProductAliasLookup[]> => {
+      const { userId } = await getAuthContext();
+      await ensureProductAliasSchema();
+      const rows = await sql`
+        SELECT product_id, alias_norm
+          FROM product_aliases
+         WHERE user_id = ${userId}
+      `;
+      return rows.map((row) => ({
+        productId: String(row.product_id),
+        aliasNorm: String(row.alias_norm),
       }));
     },
   },
