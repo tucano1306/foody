@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensureProductSharingSchema } from '@/lib/ensure-schema';
+import { findDuplicate } from '@/lib/product-dedupe';
 import { randomUUID } from 'node:crypto';
 
 // GET /api/products
@@ -65,6 +66,60 @@ export async function POST(request: NextRequest) {
   }
 
   await ensureProductSharingSchema();
+
+  // ── Ya lo tienes ──────────────────────────────────────────────────────────
+  // Crear un producto que ya existe no abre una ficha nueva: se devuelve la que
+  // hay, con el estado de despensa que el usuario acaba de indicar. Antes salían
+  // dos «Aguacate» y el historial de precios se repartía entre los dos sin que
+  // nada lo dijera; al leer las estadísticas ya era tarde.
+  //
+  // Se piden solo id y nombre: el `SELECT *` arrastraría `photo_url`, que es la
+  // columna que agotó la cuota de Neon, y aquí no se dibuja ninguna imagen.
+  const catalogo = await sql`
+    SELECT id, name FROM products WHERE user_id = ${user.userId}
+  `;
+  const repetido = findDuplicate(
+    name,
+    catalogo.map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),
+  );
+
+  if (repetido) {
+    const needsShoppingDup = body.needsShopping === true;
+    const isRunningLowDup = body.isRunningLow === true;
+    const descripcionDup =
+      typeof body.description === 'string' ? body.description.slice(0, 1000) : null;
+    const fotoDup = typeof body.photoUrl === 'string' ? body.photoUrl : null;
+    const categoriaDup = typeof body.category === 'string' ? body.category : null;
+
+    // El estado de stock SÍ se pisa —es lo que el usuario acaba de decir—, pero
+    // descripción, foto y categoría solo rellenan huecos: lo que ya había
+    // escrito vale más que un formulario a medio llenar.
+    const actualizado = await sql`
+      UPDATE products
+         SET needs_shopping   = ${needsShoppingDup},
+             is_running_low   = ${isRunningLowDup},
+             stock_level      = ${deriveStockLevel(needsShoppingDup, isRunningLowDup)},
+             stock_updated_at = NOW(),
+             description      = COALESCE(NULLIF(TRIM(description), ''), ${descripcionDup}),
+             photo_url        = COALESCE(photo_url, ${fotoDup}),
+             category         = COALESCE(NULLIF(TRIM(category), ''), ${categoriaDup}),
+             updated_at       = NOW()
+       WHERE id = ${repetido.id} AND user_id = ${user.userId}
+       RETURNING *
+    `;
+
+    if (needsShoppingDup || isRunningLowDup) {
+      await sql`
+        INSERT INTO shopping_list_items (id, product_id, user_id, household_id, created_at, updated_at)
+        VALUES (${randomUUID()}, ${repetido.id}, ${user.userId}, NULL, NOW(), NOW())
+        ON CONFLICT (user_id, product_id) DO NOTHING
+      `;
+    }
+
+    // 200 y no 201: no se ha creado nada. El cuerpo es el producto, igual que
+    // en el camino normal, así que el formulario sigue su curso.
+    return NextResponse.json(actualizado[0], { status: 200 });
+  }
 
   // Household pantry sharing: a product belongs to the creator's household
   // namespace, and `is_private` decides whether other members can see it.

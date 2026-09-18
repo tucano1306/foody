@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound, badRequest } from '@/lib/route-helpers';
+import { findDuplicate } from '@/lib/product-dedupe';
 import { ensureSharingSchema } from '@/lib/ensure-sharing-schema';
 import { randomUUID } from 'node:crypto';
 
@@ -66,6 +67,27 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   `;
   if (!source.length) return notFound('El producto original ya no existe');
   const p = source[0] as Record<string, unknown>;
+
+  // Si ya tiene ese producto, el regalo se engancha al suyo en vez de clonar
+  // una ficha gemela: aceptar un «Agua» regalado no puede dejarle dos aguas
+  // con el historial partido.
+  const propios = await sql`
+    SELECT id, name FROM products WHERE user_id = ${user.userId}
+  `;
+  const yaLoTiene = findDuplicate(
+    String(p.name ?? ''),
+    propios.map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),
+  );
+
+  if (yaLoTiene) {
+    await sql`
+      UPDATE product_gifts
+         SET status = 'accepted', accepted_product_id = ${yaLoTiene.id},
+             responded_at = now(), updated_at = now()
+       WHERE id = ${id}
+    `;
+    return NextResponse.json({ message: 'Regalo aceptado', productId: yaLoTiene.id });
+  }
 
   const newId = randomUUID();
   const cloned = await sql`
