@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound, badRequest } from '@/lib/route-helpers';
+import { findDuplicate } from '@/lib/product-dedupe';
 import { ensureSharingSchema } from '@/lib/ensure-sharing-schema';
 
 type Params = { params: Promise<{ id: string }> };
@@ -81,6 +82,20 @@ export async function POST(request: NextRequest, { params }: Params) {
   `;
   if (!source.length) return notFound('Producto no encontrado');
   const p = source[0] as Record<string, unknown>;
+
+  // Copiar de la despensa de otro tampoco duplica lo que ya se tiene: se
+  // devuelve la ficha propia y su historial sigue en una sola pieza.
+  const propios = await sql`
+    SELECT id, name FROM products WHERE user_id = ${user.userId}
+  `;
+  const yaLoTiene = findDuplicate(
+    String(p.name ?? ''),
+    propios.map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),
+  );
+  if (yaLoTiene) {
+    const mio = await sql`SELECT * FROM products WHERE id = ${yaLoTiene.id} LIMIT 1`;
+    return NextResponse.json(mio[0], { status: 200 });
+  }
 
   const { randomUUID } = await import('node:crypto');
   const newId = randomUUID();
