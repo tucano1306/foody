@@ -4,13 +4,6 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import RotatingWord from '@/components/home/RotatingWord';
 
-const TRUST_STATS = [
-  { v: '+6.000', l: 'hogares activos' },
-  { v: '1.2M', l: 'productos rastreados' },
-  { v: '24%', l: 'menos desperdicio' },
-  { v: '$180', l: 'ahorro promedio/mes' },
-];
-
 const SOLUTIONS = [
   {
     icon: '📦',
@@ -69,7 +62,7 @@ export default async function Home() {
       {/* Top nav */}
       <header className="sticky top-0 z-30 bg-navy-900/95 backdrop-blur border-b border-navy-800 text-white">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-black text-xl">
+          <Link href="/" className="flex items-center gap-2 font-black text-xl shrink-0">
             <Image
               src="/logo-fy.png"
               alt="Foody"
@@ -78,23 +71,22 @@ export default async function Home() {
               priority
               className="w-10 h-10 object-contain drop-shadow-md"
             />
-            <span className="tracking-tight">Foody</span>
+            <span className="tracking-tight whitespace-nowrap">Foody</span>
           </Link>
           <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-navy-100">
             <a href="#solutions" className="hover:text-white transition">Soluciones</a>
             <a href="#features" className="hover:text-white transition">Características</a>
-            <a href="#trust" className="hover:text-white transition">Clientes</a>
           </nav>
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="text-sm font-semibold text-navy-100 hover:text-white px-3 py-1.5 transition"
+              className="hidden sm:inline-flex whitespace-nowrap text-sm font-semibold text-navy-100 hover:text-white px-3 py-1.5 transition"
             >
               Iniciar sesión
             </Link>
             <Link
               href="/login?mode=register"
-              className="text-sm font-bold rounded-md bg-brand-500 hover:bg-brand-400 text-navy-900 px-4 py-2 shadow-md shadow-brand-500/30 transition"
+              className="whitespace-nowrap text-sm font-bold rounded-md bg-brand-500 hover:bg-brand-400 text-navy-900 px-3 sm:px-4 py-2 shadow-md shadow-brand-500/30 transition"
             >
               Comenzar gratis
             </Link>
@@ -110,10 +102,6 @@ export default async function Home() {
 
         <div className="relative max-w-6xl mx-auto px-6 py-20 md:py-28 grid md:grid-cols-2 gap-10 items-center">
           <div className="space-y-6">
-            <p className="inline-flex items-center gap-2 text-xs font-semiboldst text-brand-300 bg-brand-500/10 border border-brand-400/30 rounded-full px-3 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400" />
-              <span>Reconocida como la #1 app de despensa hogareña</span>
-            </p>
             <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-[1.05]">
               Control inteligente para tu{' '}
               <RotatingWord
@@ -181,25 +169,6 @@ export default async function Home() {
             <div className="absolute -bottom-4 -right-4 rounded-xl bg-brand-500 text-navy-900 px-4 py-2 font-bold text-sm shadow-lg shadow-brand-500/30">
               –18% desperdicio
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Trust band */}
-      <section id="trust" className="bg-navy-50 border-y border-navy-100">
-        <div className="max-w-6xl mx-auto px-6 py-10">
-          <p className="text-center text-sm font-semiboldst text-navy-500 mb-6">
-            Pensado para miles de hogares
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {TRUST_STATS.map((s) => (
-              <div key={s.l}>
-                <p className="text-3xl md:text-4xl font-black text-navy-900">{s.v}</p>
-                <p className="text-xs md:text-sm text-navy-500 mt-1r font-semibold">
-                  {s.l}
-                </p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
