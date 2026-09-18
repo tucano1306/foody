@@ -15,6 +15,8 @@
  * Framework-free and deterministic so it can be unit-tested.
  */
 
+import { canonicalWord, collapsePhrases } from './product-lexicon';
+
 export interface MatchableProduct {
   readonly id: string;
   readonly name: string;
@@ -42,9 +44,25 @@ export function normalizeName(s: string): string {
     .trim();
 }
 
+/**
+ * El nombre normalizado y ademas traducido a una sola lengua.
+ *
+ * El catalogo esta en espanol y los recibos del super son en ingles: sin este
+ * paso, «WATER» y «Agua» no comparten ni una palabra y la linea se queda sin
+ * vincular —que es como el usuario acababa metiendo cada compra a mano—. Ver
+ * `product-lexicon.ts` para el diccionario y sus limites.
+ */
+export function canonicalName(s: string): string {
+  return collapsePhrases(normalizeName(s))
+    .split(' ')
+    .map(canonicalWord)
+    .join(' ')
+    .trim();
+}
+
 /** Significant tokens only — no stop-words, no size/quantity tokens, ≥ 2 chars. */
 export function meaningfulTokens(s: string): string[] {
-  return normalizeName(s)
+  return canonicalName(s)
     .split(' ')
     .filter((t) => t.length >= 2 && !STOPWORDS.has(t) && !SIZE_OR_NUMBER.test(t));
 }
@@ -90,20 +108,49 @@ export interface ReceiptMatch<T> {
 }
 
 /**
+ * La clave con la que se guarda y se busca un alias aprendido.
+ *
+ * Tiene que ser la MISMA a un lado y otro —al guardar lo que el usuario
+ * vinculó y al leer la línea del próximo recibo—, así que pasa por la misma
+ * canonización. Gracias a eso «WATER 1GL» y «water» caen en la misma clave y
+ * enseñar el producto una vez vale para las dos formas.
+ */
+export function aliasKey(rawName: string): string {
+  return canonicalName(rawName);
+}
+
+/**
  * Best catalog match for a raw receipt name, or null when nothing clears the
  * acceptance threshold. Ties break toward the first product scanned.
+ *
+ * `aliases` son las vinculaciones que el usuario ya hizo a mano (clave de
+ * `aliasKey` → id de producto). Mandan sobre el parecido de las palabras y sin
+ * discusión: si el dueño de la despensa dijo que «GV PURIF WTR» es su Agua, no
+ * hay heurística que deba llevarle la contraria. Es lo que cubre lo que ningún
+ * diccionario sabe —sus marcas y las abreviaturas de su tienda—.
  */
 export function matchReceiptItem<T extends MatchableProduct>(
   rawName: string,
   products: readonly T[],
+  aliases?: ReadonlyMap<string, string>,
 ): ReceiptMatch<T> | null {
-  const normReceipt = normalizeName(rawName);
+  if (aliases !== undefined && aliases.size > 0) {
+    const aprendido = aliases.get(aliasKey(rawName));
+    if (aprendido !== undefined) {
+      const producto = products.find((p) => p.id === aprendido);
+      // Si el producto ya no existe (lo borró), el alias huérfano se ignora y
+      // se sigue por el camino normal.
+      if (producto !== undefined) return { product: producto, score: 1 };
+    }
+  }
+
+  const normReceipt = canonicalName(rawName);
   const receiptTokens = meaningfulTokens(rawName);
   if (receiptTokens.length === 0) return null;
 
   let best: ReceiptMatch<T> | null = null;
   for (const p of products) {
-    const normProduct = normalizeName(p.name);
+    const normProduct = canonicalName(p.name);
     const productTokens = meaningfulTokens(p.name);
     const score = scoreMatch(receiptTokens, productTokens, normReceipt, normProduct);
     if (score >= ACCEPT_THRESHOLD && (best === null || score > best.score)) {

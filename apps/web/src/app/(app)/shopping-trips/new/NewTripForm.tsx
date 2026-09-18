@@ -9,7 +9,7 @@ import type {
   Product,
 } from '@foody/types';
 import { haptic } from '@/lib/haptic';
-import { matchReceiptItem } from '@/lib/receipt-match';
+import { aliasKey, canonicalName, matchReceiptItem } from '@/lib/receipt-match';
 import type { ReceiptParseResult } from '@/components/shopping/ReceiptScanner';
 
 const ReceiptScanner = dynamic(
@@ -26,12 +26,24 @@ import { notifyGoalImpact } from '@/lib/notify-goal-impact';
 
 interface Props {
   readonly products: Product[];
+  /**
+   * Lo que el usuario ya enseñó: cómo llama su recibo a cada producto. Llega
+   * desde el servidor con la página para que el primer escaneo ya empareje,
+   * sin esperar a una petición del navegador.
+   */
+  readonly aliases?: ReadonlyArray<{ readonly productId: string; readonly aliasNorm: string }>;
 }
 
 interface LineItem {
   id: string;
   productId: string; // '' = item from receipt not yet linked to a catalog product
   name: string;
+  /**
+   * El texto crudo de la línea del recibo, cuando viene de un escaneo. Es lo
+   * que se aprende como alias si el usuario la vincula a mano: sin guardarlo
+   * aquí, al vincular ya se ha perdido —`name` pasa a ser el del producto—.
+   */
+  scannedName?: string;
   unit: string;
   quantity: string;
   price: string; // optional manual unit price
@@ -53,7 +65,7 @@ function formatCurrency(value: number, currency: string): string {
   }
 }
 
-export default function NewTripForm({ products }: Readonly<Props>) {
+export default function NewTripForm({ products, aliases = [] }: Readonly<Props>) {
   const router = useRouter();
   const toast = useToast();
 
@@ -152,6 +164,47 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     setKindAutoDetected(false);
   }
 
+  // Clave canónica → id de producto. El emparejador lo consulta antes que
+  // cualquier heurística: lo que el usuario dijo, va a misa.
+  const aliasMap = useMemo(
+    () => new Map(aliases.map((a) => [a.aliasNorm, a.productId])),
+    [aliases],
+  );
+
+  /**
+   * Búsqueda del desplegable de vincular, también bilingüe.
+   *
+   * Cuando el emparejador no acierta, el usuario acaba aquí escribiendo —y
+   * escribe lo que ve en el recibo—. Con un `includes` a secas, teclear
+   * "water" no encontraba "Agua" y había que traducir de cabeza antes de poder
+   * buscar.
+   */
+  function coincideConBusqueda(nombreProducto: string, consulta: string): boolean {
+    const q = consulta.trim();
+    if (q.length === 0) return false;
+    if (nombreProducto.toLowerCase().includes(q.toLowerCase())) return true;
+    const canonicaConsulta = canonicalName(q);
+    return (
+      canonicaConsulta.length >= 2 &&
+      canonicalName(nombreProducto).includes(canonicaConsulta)
+    );
+  }
+
+  /**
+   * Guarda cómo se llama ese producto en los recibos de ESTA tienda.
+   *
+   * Va sin await y se traga los errores a propósito: aprender un alias es una
+   * mejora para el próximo ticket, no parte de guardar este. Si la red falla,
+   * el usuario ni se entera y su compra se registra igual.
+   */
+  function recordarAlias(productId: string, scannedName: string): void {
+    void fetch('/api/proxy/product-aliases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId, alias: scannedName }),
+    }).catch(() => {});
+  }
+
   function handleReceiptResult(data: ReceiptParseResult) {
     setScannerOpen(false);
     // Pre-fill total
@@ -190,7 +243,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
     let unmatched = 0;
 
     for (const ri of data.items) {
-      const hit = matchReceiptItem(ri.name, products);
+      const hit = matchReceiptItem(ri.name, products, aliasMap);
       const qty = ri.quantity > 0 ? String(ri.quantity) : '1';
       const price = ri.unitPrice != null ? ri.unitPrice.toFixed(2) : '';
 
@@ -204,6 +257,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           unit: hit.product.unit,
           quantity: qty,
           price,
+          scannedName: ri.name,
         });
       } else if (!hit) {
         // No catalog match — keep the receipt name so the user can link it.
@@ -215,6 +269,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
           unit: 'units',
           quantity: qty,
           price,
+          scannedName: ri.name,
         });
       }
       // hit but already added → skip the duplicate line entirely.
@@ -263,6 +318,14 @@ export default function NewTripForm({ products }: Readonly<Props>) {
   }
 
   function linkItemToProduct(idx: number, p: Product) {
+    // Esta corrección es justo lo que ningún diccionario puede saber: que en su
+    // súper «GV PURIF DRNK WTR» es su Agua. Se aprende aquí, una vez, y el
+    // próximo recibo la vincula solo.
+    const linea = items[idx];
+    if (linea?.scannedName && aliasKey(linea.scannedName) !== aliasKey(p.name)) {
+      recordarAlias(p.id, linea.scannedName);
+    }
+
     setItems((prev) =>
       prev.map((it, i) =>
         i === idx
@@ -576,7 +639,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                       <p className="font-medium text-slate-800 truncate">{it.name}</p>
                       {isUnlinked && (
                         <p className="text-[11px] text-sky-700 mt-0.5">
-                          Del recibo — vincula a un producto de tu catálogo
+                          Del recibo — vincúlalo y lo recordaré la próxima vez
                         </p>
                       )}
                     </div>
@@ -605,7 +668,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                             .filter(
                               (p) =>
                                 !addedIds.has(p.id) &&
-                                p.name.toLowerCase().includes((linkSearch[it.id] ?? '').trim().toLowerCase()),
+                                coincideConBusqueda(p.name, linkSearch[it.id] ?? ''),
                             )
                             .slice(0, 6)
                             .map((p) => (
@@ -622,7 +685,7 @@ export default function NewTripForm({ products }: Readonly<Props>) {
                           {products.filter(
                             (p) =>
                               !addedIds.has(p.id) &&
-                              p.name.toLowerCase().includes((linkSearch[it.id] ?? '').trim().toLowerCase()),
+                              coincideConBusqueda(p.name, linkSearch[it.id] ?? ''),
                           ).length === 0 && (
                             <p className="px-3 py-2 text-xs text-slate-400">Sin coincidencias</p>
                           )}

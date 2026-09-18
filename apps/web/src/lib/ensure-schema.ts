@@ -193,7 +193,7 @@ let kindEnsured = false;
  * farmacia, gasolina, hogar, otro).
  *
  * DEFAULT 'grocery' no es un detalle: al desplegar, cada ticket que ya existía
- * sigue siendo exactamente lo que era —una compra de super— y ninguno se muda de
+ * sigue siendo exactamente lo que era —una compra de super— y ningúno se muda de
  * sección solo. Reclasificar es siempre una decisión explícita del usuario, y
  * eso vale también para el histórico.
  *
@@ -283,4 +283,52 @@ export async function ensureTripSplitsSchema(): Promise<void> {
   `;
 
   splitsEnsured = true;
+}
+
+let aliasesEnsured = false;
+
+/**
+ * Los alias que el usuario enseña al vincular a mano una línea de recibo.
+ *
+ * El catálogo está en español y los tickets del súper en inglés, así que
+ * «WATER» no encontraba «Agua» y cada compra había que meterla a mano. El
+ * diccionario de `product-lexicon.ts` cubre el vocabulario común; esta tabla
+ * cubre lo que ningún diccionario puede saber —las marcas de su tienda y las
+ * abreviaturas de su cadena, «GV PURIF DRNK WTR»— porque lo dice el dueño de
+ * la despensa una vez y queda dicho.
+ *
+ * `alias_norm` es la forma canónica (`aliasKey`) y NO el texto crudo: es lo
+ * único que se compara, y guardar las dos permite enseñarle al usuario que
+ * escribió su ticket sin que la búsqueda dependa de mayúsculas o acentos.
+ *
+ * El índice único sobre (user_id, alias_norm) no es decorativo: el upsert de la
+ * ruta usa ON CONFLICT, y sin una restricción que provoque el conflicto ese
+ * ON CONFLICT no hace absolutamente nada —ya pasó en shopping_list_items—.
+ * Vinculado a otro producto, el alias se REESCRIBE: la última palabra del
+ * usuario es la que vale.
+ */
+export async function ensureProductAliasSchema(): Promise<void> {
+  if (aliasesEnsured) return;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS product_aliases (
+      id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id    UUID        NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      product_id UUID        NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      alias      TEXT        NOT NULL,
+      alias_norm TEXT        NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_product_aliases_user_norm
+      ON product_aliases (user_id, alias_norm)
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_product_aliases_product
+      ON product_aliases (product_id)
+  `;
+
+  aliasesEnsured = true;
 }
