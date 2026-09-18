@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import {
   ArrowLeftStartOnRectangleIcon,
   EllipsisHorizontalIcon,
@@ -160,10 +160,19 @@ export default function BottomNav({
 /**
  * El resto de secciones, en una hoja que se arrastra hacia abajo para cerrar.
  *
- * Cada destino es una fila de 60 px con su icono: se acierta sin apuntar y se
+ * Cada destino es una fila de 56 px con su icono: se acierta sin apuntar y se
  * reconoce sin leer. Los tres grupos («Tu cocina», «Finanzas», «Tu mundo») son
  * los mismos que en la barra lateral de escritorio, así que quien use las dos
  * no tiene que aprender dos mapas.
+ *
+ * La hoja es una columna de tres piezas —asa, lista, cuenta— y NO scrollea
+ * entera: solo la lista del medio. Antes scrollaba todo dentro de un
+ * `max-h-[85vh]`, y en un móvil de 360×780 el contenido medía 699 px contra
+ * los 663 disponibles: el bloque de cuenta quedaba partido por el borde
+ * inferior —el email cortado a media línea— y eso parece un fallo de
+ * maquetación, no un «hay más abajo». Con el pie anclado, lo que se recorta
+ * cuando falta sitio es una fila de destino a media altura, que sí se lee como
+ * «desliza».
  */
 function MoreSheet({
   open,
@@ -177,6 +186,7 @@ function MoreSheet({
   readonly user: { name: string | null; avatarUrl: string | null; email: string };
 }) {
   const initial = (user.name ?? user.email).charAt(0).toUpperCase();
+  const dragControls = useDragControls();
 
   useEffect(() => {
     if (!open) return;
@@ -210,23 +220,34 @@ function MoreSheet({
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 36 }}
             drag="y"
+            // El gesto sale del asa y no de toda la hoja: con una lista
+            // scrollable dentro, arrastrar desde el medio es ambiguo —el dedo
+            // no sabe si mueve la hoja o la lista— y gana el que capture antes.
+            dragControls={dragControls}
+            dragListener={false}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.4 }}
             onDragEnd={(_, info) => {
               if (info.offset.y > 110 || info.velocity.y > 500) onClose();
             }}
-            className="relative w-full max-h-[85vh] overflow-y-auto rounded-t-[var(--radius-sheet)] bg-[var(--surface)] shadow-[var(--shadow-lg)] touch-pan-y"
-            style={{ paddingBottom: 'calc(1.25rem + var(--safe-b))' }}
+            className="relative flex w-full max-h-[88dvh] flex-col overflow-hidden rounded-t-[var(--radius-sheet)] bg-[var(--surface)] shadow-[var(--shadow-lg)]"
           >
             {/* El asa dice «me puedes arrastrar» sin una sola palabra. */}
-            <div className="sticky top-0 pt-3 pb-2 bg-[var(--surface)] rounded-t-[var(--radius-sheet)]">
+            <div
+              onPointerDown={(e) => dragControls.start(e)}
+              className="shrink-0 pt-3 pb-2.5 touch-none"
+            >
               <div className="mx-auto h-1.5 w-10 rounded-full bg-[var(--line-strong)]" aria-hidden="true" />
             </div>
 
-            <div className="px-4 pb-2 space-y-6">
+            {/* Lo único que scrollea. `min-h-0` porque un hijo flex no se
+                encoge por debajo de su contenido sin él, y sin encogerse no
+                aparece la barra de scroll: la lista empujaría el pie fuera de
+                la pantalla, que es justo lo que se intenta evitar. */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 space-y-5">
               {OVERFLOW_SECTIONS.map((section) => (
                 <div key={section.label}>
-                  <p className="t-label px-1 pb-2">{section.label}</p>
+                  <p className="t-label px-1 pb-1.5">{section.label}</p>
                   <div className="grid gap-1">
                     {section.items.map((item) => {
                       const active = isActivePath(pathname, item.href);
@@ -237,7 +258,7 @@ function MoreSheet({
                           href={item.href}
                           onClick={() => haptic(8)}
                           aria-current={active ? 'page' : undefined}
-                          className={`flex items-center gap-3.5 rounded-2xl px-3 min-h-[60px] font-semibold ${
+                          className={`flex items-center gap-3.5 rounded-2xl px-3 min-h-[56px] font-semibold ${
                             active
                               ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                               : 'text-[var(--ink)] active:bg-[var(--surface-2)]'
@@ -262,41 +283,47 @@ function MoreSheet({
                   </div>
                 </div>
               ))}
+            </div>
 
-              {/* ─── Cuenta ──────────────────────────────────────────────── */}
-              <div className="pt-1 border-t border-[var(--line)]">
-                <div className="flex items-center gap-3 pt-4">
-                  {user.avatarUrl ? (
-                    <Image
-                      src={user.avatarUrl}
-                      alt={user.name ?? user.email}
-                      width={44}
-                      height={44}
-                      className="rounded-full shrink-0"
-                    />
-                  ) : (
-                    <div className="w-11 h-11 rounded-full bg-brand-500 text-white grid place-items-center font-bold shrink-0">
-                      {initial}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-[var(--ink)] truncate">
-                      {user.name ?? user.email}
-                    </p>
-                    <p className="t-meta truncate">{user.email}</p>
+            {/* ─── Cuenta ─────────────────────────────────────
+                Fuera del scroll y con el hueco de la barra de gestos sumado
+                aquí: es la fila con «cerrar sesión», y llegar a ella no puede
+                depender de adivinar que la lista de arriba se desliza. */}
+            <div
+              className="shrink-0 border-t border-[var(--line)] px-4 pt-3"
+              style={{ paddingBottom: 'calc(0.75rem + var(--safe-b))' }}
+            >
+              <div className="flex items-center gap-3">
+                {user.avatarUrl ? (
+                  <Image
+                    src={user.avatarUrl}
+                    alt={user.name ?? user.email}
+                    width={44}
+                    height={44}
+                    className="rounded-full shrink-0"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-brand-500 text-white grid place-items-center font-bold shrink-0">
+                    {initial}
                   </div>
-                  <ThemeToggle />
-                  <form action="/api/auth/logout" method="POST" className="shrink-0">
-                    <button
-                      type="submit"
-                      title="Cerrar sesión"
-                      aria-label="Cerrar sesión"
-                      className="grid place-items-center w-11 h-11 rounded-full bg-[var(--surface-2)] text-[var(--ink-muted)] touch-auto-size"
-                    >
-                      <ArrowLeftStartOnRectangleIcon className="w-5 h-5" />
-                    </button>
-                  </form>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-[var(--ink)] truncate">
+                    {user.name ?? user.email}
+                  </p>
+                  <p className="t-meta truncate">{user.email}</p>
                 </div>
+                <ThemeToggle />
+                <form action="/api/auth/logout" method="POST" className="shrink-0">
+                  <button
+                    type="submit"
+                    title="Cerrar sesión"
+                    aria-label="Cerrar sesión"
+                    className="grid place-items-center w-11 h-11 rounded-full bg-[var(--surface-2)] text-[var(--ink-muted)] touch-auto-size"
+                  >
+                    <ArrowLeftStartOnRectangleIcon className="w-5 h-5" />
+                  </button>
+                </form>
               </div>
             </div>
           </motion.div>
