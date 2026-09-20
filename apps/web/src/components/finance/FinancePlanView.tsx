@@ -3,14 +3,15 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { PlusIcon, BriefcaseIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, BriefcaseIcon, ArrowPathIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { burstAt, confettiRain } from '@/lib/fx';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import type { FinancePlanPayload } from '@/lib/finance-data';
-import { buildFinancePlan, personalOnlyInput } from '@/lib/finance-engine';
+import { buildFinancePlan, explainHealthScore, personalOnlyInput } from '@/lib/finance-engine';
 import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
 import { topPlanChange } from '@/lib/plan-diff';
 import { applyOrder, moveInOrder } from '@/lib/goal-order';
@@ -22,6 +23,7 @@ import DebtPanel from './DebtPanel';
 import GoalReorderList from './GoalReorderList';
 import GoalFormModal, { type GoalPayload } from './GoalFormModal';
 import GrocerySpendCard from './GrocerySpendCard';
+import HealthDetailSheet from './HealthDetailSheet';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
 import OtherSpendCard from './OtherSpendCard';
 import SimulatorCard from './SimulatorCard';
@@ -36,7 +38,9 @@ type Modal =
   /** `preset` abre el formulario con ese tipo de meta ya elegido. */
   | { kind: 'goal'; goal: FinanceGoal | null; preset?: GoalKind }
   | { kind: 'income' }
-  | { kind: 'contribute'; goal: GoalProjection };
+  | { kind: 'contribute'; goal: GoalProjection }
+  /** Solo lectura: qué mide la nota de salud y de qué periodo habla. */
+  | { kind: 'health' };
 
 /** Atajos del estado vacío: tocar el tipo ES la instrucción. */
 const GOAL_SHORTCUTS: readonly { id: string; kind: GoalKind; emoji: string; label: string }[] = [
@@ -80,7 +84,7 @@ function HealthRing({ score }: { readonly score: number }) {
         >
           {score}
         </motion.span>
-        <span className={`text-[11px]st mt-1 ${LABEL}`}>salud</span>
+        <span className={`text-[11px] mt-1 ${LABEL}`}>salud</span>
       </div>
     </div>
   );
@@ -413,6 +417,16 @@ export default function FinancePlanView({ initialData }: Props) {
     Math.round((data.cashFlow.creditPayments - view.cashFlow.creditPayments) * 100) / 100,
   );
 
+  /**
+   * El desglose de la nota, calculado sobre `view` y no sobre `data`: con el
+   * negocio apagado el anillo ya enseña otra nota, y la explicación tiene que
+   * hablar de ESAS cifras o diría una cosa distinta de la que se ve.
+   */
+  const health = useMemo(
+    () => explainHealthScore(view.cashFlow, view.goals, view.debts),
+    [view],
+  );
+
   const doneGoals = view.goals.filter((g) => g.status === 'done');
   const cash = view.cashFlow;
   /** Sin ingreso no hay plan que calcular: la cabecera cambia de prioridad. */
@@ -423,11 +437,29 @@ export default function FinancePlanView({ initialData }: Props) {
       {/* ─── Hero: salud financiera ──────────────────────────────────────── */}
       <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-sky-100 via-blue-100 to-sky-50 border border-sky-200 p-5 shadow-sm">
         <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-white/40 blur-2xl" aria-hidden="true" />
-        <div className="relative flex items-center gap-5">
+        {/* Toda la cabecera es un solo botón.
+            El anillo era el elemento más llamativo de la pantalla y el único
+            que no se podía interrogar: «71 · Saludable» sin decir qué mide ni
+            de qué periodo habla. El blanco es el bloque entero —anillo, nota y
+            las dos cifras— porque todas responden a la misma pregunta y un
+            objetivo grande es lo que espera un dedo. El icono y el chevrón
+            hacen de invitación; no hace falta un «toca aquí» escrito. */}
+        <button
+          type="button"
+          onClick={() => { haptic(10); setModal({ kind: 'health' }); }}
+          aria-label={`Salud financiera: ${view.healthScore} de 100, ${healthLabel(view.healthScore)}. Ver cómo se calcula`}
+          className="relative flex w-full items-center gap-5 rounded-3xl text-left transition active:scale-[0.99] hover:bg-white/40"
+        >
           <HealthRing score={view.healthScore} />
           <div className="min-w-0 flex-1">
-            <p className={`text-[11px]st font-bold ${LABEL}`}>Salud financiera</p>
-            <h2 className={`text-2xl font-black leading-tight ${NUM}`}>{healthLabel(view.healthScore)}</h2>
+            <p className={`flex items-center gap-1 text-[11px] font-bold ${LABEL}`}>
+              Salud financiera
+              <InformationCircleIcon className="w-3.5 h-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+            </p>
+            <p className={`flex items-center gap-1 text-2xl font-black leading-tight ${NUM}`}>
+              {healthLabel(view.healthScore)}
+              <ChevronRightIcon className="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true" />
+            </p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
                 <p className={`text-[11px] font-bold ${LABEL}`}>
@@ -448,7 +480,7 @@ export default function FinancePlanView({ initialData }: Props) {
               </div>
             </div>
           </div>
-        </div>
+        </button>
 
         {/* Sin ingresos cargados, «Ingresos» es LA acción: se lleva el ancho y el
             color, y «Nueva meta» pasa a segundo plano. Es el mismo mensaje que
@@ -672,6 +704,14 @@ export default function FinancePlanView({ initialData }: Props) {
           onCreate={createIncome}
           onToggle={toggleIncome}
           onDelete={deleteIncome}
+          onClose={closeModal}
+        />
+      )}
+      {modal.kind === 'health' && (
+        <HealthDetailSheet
+          breakdown={health}
+          cash={cash}
+          businessIncluded={data.scopes.hasBusiness ? includeBusiness : null}
           onClose={closeModal}
         />
       )}

@@ -3,6 +3,7 @@ import {
   addMonths,
   buildFinancePlan,
   daysUntil,
+  explainHealthScore,
   monthlyEquivalent,
   monthsElapsedThisYear,
   monthsToReach,
@@ -819,6 +820,80 @@ describe('healthScore', () => {
 
   it('es 0 sin ingresos declarados', () => {
     expect(buildFinancePlan(plan({ incomes: [] })).healthScore).toBe(0);
+  });
+});
+
+describe('explainHealthScore', () => {
+  /** El desglose de un plan, tal como lo pide la hoja de detalle. */
+  function desglose(over: Partial<PlanInput> = {}) {
+    const p = buildFinancePlan(plan(over));
+    return { plan: p, breakdown: explainHealthScore(p.cashFlow, p.goals, p.debts) };
+  }
+
+  it('da la misma nota que el plan', () => {
+    const { plan: p, breakdown } = desglose();
+    expect(breakdown.score).toBe(p.healthScore);
+  });
+
+  it('sus tres partes suman exactamente la nota', () => {
+    // Varios planes distintos: el reparto de puntos enteros tiene que cuadrar
+    // en todos, no solo en el que da redondo.
+    const casos: Partial<PlanInput>[] = [
+      {},
+      { incomes: [income({ amount: 1500 })] },
+      { incomes: [income({ amount: 2137 })], fixedPayments: [payment({ amount: 811 })] },
+      { incomes: [income({ amount: 1500 })], fixedPayments: [payment({ accumulatedDebt: 1200, missedMonths: 4 })] },
+      { goals: [goal(), goal({ id: 'g2', name: 'Moto', targetAmount: 9000, targetDate: '2026-09-01' })] },
+    ];
+    for (const caso of casos) {
+      const { breakdown } = desglose(caso);
+      const suma = breakdown.parts.reduce((acc, part) => acc + part.points, 0);
+      expect(suma).toBe(breakdown.score);
+      // Y ninguna parte se pasa de su tope.
+      for (const part of breakdown.parts) expect(part.points).toBeLessThanOrEqual(part.maxPoints);
+    }
+  });
+
+  it('reparte los topes 40 / 30 / 30', () => {
+    const { breakdown } = desglose();
+    expect(breakdown.parts.map((p) => [p.key, p.maxPoints])).toEqual([
+      ['flow', 40],
+      ['debt', 30],
+      ['goals', 30],
+    ]);
+  });
+
+  it('no deja consejo en las partes que ya están al tope', () => {
+    // Plan sano: sin nada vencido, esa parte va completa y no hay nada que sugerir.
+    const { breakdown } = desglose();
+    const deuda = breakdown.parts.find((p) => p.key === 'debt');
+    expect(deuda?.points).toBe(30);
+    expect(deuda?.hint).toBeNull();
+  });
+
+  it('explica lo vencido con su importe y lo descuenta', () => {
+    const { breakdown } = desglose({
+      incomes: [income({ amount: 1500 })],
+      fixedPayments: [payment({ accumulatedDebt: 600, missedMonths: 2 })],
+    });
+    const deuda = breakdown.parts.find((p) => p.key === 'debt');
+    expect(deuda?.points).toBeLessThan(30);
+    expect(deuda?.detail).toContain('$600');
+    expect(deuda?.hint).toContain('$600');
+  });
+
+  it('sin ingresos marca hasIncome en falso y todo a cero', () => {
+    const { breakdown } = desglose({ incomes: [] });
+    expect(breakdown.hasIncome).toBe(false);
+    expect(breakdown.score).toBe(0);
+    expect(breakdown.parts.every((p) => p.points === 0 && p.ratio === 0)).toBe(true);
+  });
+
+  it('sin metas que seguir, esa parte va completa', () => {
+    const { breakdown } = desglose({ goals: [] });
+    const metas = breakdown.parts.find((p) => p.key === 'goals');
+    expect(metas?.points).toBe(30);
+    expect(metas?.hint).toBeNull();
   });
 });
 
