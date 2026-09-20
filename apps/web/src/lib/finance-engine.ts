@@ -904,22 +904,181 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
 }
 
 /**
- * Salud financiera 0–100. Tres tercios: flujo libre sobre el ingreso, ausencia
- * de deuda vencida y metas que van a tiempo.
+ * Una de las tres partes de la salud financiera, ya explicada.
+ *
+ * El número del anillo no se podía auditar: 71 sobre 100 no dice qué mira ni
+ * qué habría que mover para subirlo. Esto es el desglose que la pantalla
+ * enseña al tocarlo, calculado por el MISMO código que produce la nota —no
+ * una explicación escrita aparte que se desincroniza al primer ajuste.
  */
-function computeHealthScore(cash: CashFlow, goals: GoalProjection[], debts: DebtOverview): number {
-  if (cash.monthlyIncome <= 0) return 0;
+export interface HealthPart {
+  key: 'flow' | 'debt' | 'goals';
+  emoji: string;
+  /** Qué mide esta parte, en una frase corta. */
+  label: string;
+  /** Puntos obtenidos, ya redondeados para que las tres sumen la nota. */
+  points: number;
+  /** Tope de esta parte: 40 el flujo, 30 la deuda, 30 las metas. */
+  maxPoints: number;
+  /** points / maxPoints, 0–1 — para la barra. */
+  ratio: number;
+  /** La medida real detrás de los puntos, con las cifras del usuario. */
+  detail: string;
+  /** Qué haría subir esta parte. `null` cuando ya está al tope. */
+  hint: string | null;
+}
 
-  const flowScore = clamp(cash.savingsRate / 0.2, 0, 1) * 40; // 20% de ahorro = pleno
-  const debtScore = debts.overdueTotal <= 0
+export interface HealthBreakdown {
+  /** La misma nota 0–100 que `FinancePlan.healthScore`. */
+  score: number;
+  /** Las tres partes, en orden de peso. Sus puntos suman exactamente `score`. */
+  parts: HealthPart[];
+  /** Sin ingreso declarado no hay nota que calcular: todo vale 0. */
+  hasIncome: boolean;
+}
+
+/** 20 % de lo que entra: el margen libre que da los 40 puntos completos. */
+const HEALTHY_SAVINGS_RATE = 0.2;
+
+/**
+ * Reparte los puntos enteros de forma que las partes sumen la nota.
+ *
+ * Redondear cada parte por su cuenta hacía que 39,6 + 30 + 29,7 se enseñara
+ * como 40 + 30 + 30 = 100 debajo de un anillo que decía 99. El resto se da a
+ * las partes con la fracción más alta (mayor resto), así la suma cuadra
+ * siempre y ninguna parte se desvía más de un punto.
+ */
+function distributePoints(raw: readonly number[], total: number): number[] {
+  const floors = raw.map(Math.floor);
+  let left = total - floors.reduce((a, b) => a + b, 0);
+  const byRemainder = raw
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort((a, b) => b.remainder - a.remainder);
+  for (const { index } of byRemainder) {
+    if (left <= 0) break;
+    floors[index] += 1;
+    left -= 1;
+  }
+  return floors;
+}
+
+/**
+ * Salud financiera 0–100, desglosada. Tres partes: flujo libre sobre el
+ * ingreso (40), ausencia de deuda vencida (30) y metas que van a tiempo (30).
+ *
+ * Todo lo que mira es del MES EN CURSO: el ingreso del mes, los pagos vencidos
+ * que se arrastran hasta hoy y el ritmo que hoy llevan las metas. No es un
+ * histórico ni un promedio del año.
+ */
+export function explainHealthScore(
+  cash: CashFlow,
+  goals: GoalProjection[],
+  debts: DebtOverview,
+): HealthBreakdown {
+  if (cash.monthlyIncome <= 0) {
+    return {
+      score: 0,
+      hasIncome: false,
+      parts: [
+        {
+          key: 'flow',
+          emoji: '💧',
+          label: 'Lo que te queda libre',
+          points: 0,
+          maxPoints: 40,
+          ratio: 0,
+          detail: 'Sin ingresos cargados no se puede calcular.',
+          hint: 'Registra lo que ganas al mes y la nota aparece sola.',
+        },
+        {
+          key: 'debt',
+          emoji: '📌',
+          label: 'Ir al día con lo vencido',
+          points: 0,
+          maxPoints: 30,
+          ratio: 0,
+          detail: 'Sin ingresos cargados no se puede calcular.',
+          hint: null,
+        },
+        {
+          key: 'goals',
+          emoji: '🎯',
+          label: 'Metas que llegan a tiempo',
+          points: 0,
+          maxPoints: 30,
+          ratio: 0,
+          detail: 'Sin ingresos cargados no se puede calcular.',
+          hint: null,
+        },
+      ],
+    };
+  }
+
+  const flowRaw = clamp(cash.savingsRate / HEALTHY_SAVINGS_RATE, 0, 1) * 40;
+  const debtRaw = debts.overdueTotal <= 0
     ? 30
     : clamp(1 - debts.overdueTotal / Math.max(cash.monthlyIncome, 1), 0, 1) * 30;
 
   const tracked = goals.filter((g) => g.status === 'active' && g.remaining > 0);
   const healthyGoals = tracked.filter((g) => g.feasibility === 'on_track' || g.feasibility === 'tight').length;
-  const goalScore = tracked.length === 0 ? 30 : (healthyGoals / tracked.length) * 30;
+  const goalsRaw = tracked.length === 0 ? 30 : (healthyGoals / tracked.length) * 30;
 
-  return Math.round(clamp(flowScore + debtScore + goalScore, 0, 100));
+  const score = Math.round(clamp(flowRaw + debtRaw + goalsRaw, 0, 100));
+  const [flowPts, debtPts, goalPts] = distributePoints([flowRaw, debtRaw, goalsRaw], score);
+
+  const ratePct = Math.round(cash.savingsRate * 100);
+  const healthyAmount = cash.monthlyIncome * HEALTHY_SAVINGS_RATE;
+
+  const flow: HealthPart = {
+    key: 'flow',
+    emoji: '💧',
+    label: 'Lo que te queda libre',
+    points: flowPts,
+    maxPoints: 40,
+    ratio: flowRaw / 40,
+    detail: cash.available < 0
+      ? `Gastas ${money(Math.abs(cash.available))} más de lo que entra: no queda nada libre.`
+      : `Te queda libre el ${ratePct} % de lo que entra (${money(cash.available)} de ${money(cash.monthlyIncome)}).`,
+    hint: flowRaw >= 40
+      ? null
+      : `Los 40 puntos son al quedarte con el 20 % — ${money(healthyAmount)} al mes.`,
+  };
+
+  const debt: HealthPart = {
+    key: 'debt',
+    emoji: '📌',
+    label: 'Ir al día con lo vencido',
+    points: debtPts,
+    maxPoints: 30,
+    ratio: debtRaw / 30,
+    detail: debts.overdueTotal <= 0
+      ? 'No arrastras ningún pago vencido.'
+      : `Arrastras ${money(debts.overdueTotal)} de ${debts.overdueCount} ${debts.overdueCount === 1 ? 'pago vencido' : 'pagos vencidos'}.`,
+    hint: debtRaw >= 30
+      ? null
+      : `Se compara lo vencido con tu ingreso del mes: abonar esos ${money(debts.overdueTotal)} devuelve los 30 puntos.`,
+  };
+
+  const goalsPart: HealthPart = {
+    key: 'goals',
+    emoji: '🎯',
+    label: 'Metas que llegan a tiempo',
+    points: goalPts,
+    maxPoints: 30,
+    ratio: goalsRaw / 30,
+    detail: tracked.length === 0
+      ? 'Todavía no hay metas que seguir, así que esta parte va completa.'
+      : `${healthyGoals} de ${tracked.length} ${tracked.length === 1 ? 'meta va' : 'metas van'} a tiempo con lo que les asignas hoy.`,
+    hint: goalsRaw >= 30
+      ? null
+      : `Cada meta que vuelve a ir a tiempo suma ${Math.round(30 / tracked.length)} puntos: baja su objetivo, alarga la fecha o súbele el aporte.`,
+  };
+
+  return { score, hasIncome: true, parts: [flow, debt, goalsPart] };
+}
+
+function computeHealthScore(cash: CashFlow, goals: GoalProjection[], debts: DebtOverview): number {
+  return explainHealthScore(cash, goals, debts).score;
 }
 
 // ─── Consejos ─────────────────────────────────────────────────────────────────

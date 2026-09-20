@@ -143,12 +143,32 @@ export function healthColor(score: number): string {
   return '#93c5fd';
 }
 
+export interface HealthTier {
+  /** Nota mínima para estar en este escalón. */
+  min: number;
+  label: string;
+  /** Qué significa estar aquí, en una frase. */
+  meaning: string;
+}
+
+/**
+ * La escala entera, de peor a mejor.
+ *
+ * Está aquí y no dentro de `healthLabel` porque la hoja de detalle la
+ * ENSEÑA completa: saber que 71 es «Saludable» no dice nada si no se ve a
+ * qué distancia queda el escalón de arriba. Una sola lista para la palabra
+ * del anillo y para la escala dibujada.
+ */
+export const HEALTH_TIERS: readonly HealthTier[] = [
+  { min: 0,  label: 'Delicada',  meaning: 'El mes no cierra o lo vencido pesa demasiado.' },
+  { min: 45, label: 'Mejorable', meaning: 'Cubres el mes, pero queda poco margen libre.' },
+  { min: 70, label: 'Saludable', meaning: 'Sobra dinero cada mes y las metas avanzan.' },
+  { min: 85, label: 'Excelente', meaning: 'Margen holgado, nada vencido y metas a tiempo.' },
+];
+
 export function healthLabel(score: number): string {
-  if (score >= 85) return 'Excelente';
-  if (score >= 70) return 'Saludable';
-  if (score >= 45) return 'Mejorable';
-  if (score > 0) return 'Delicada';
-  return 'Sin datos';
+  if (score <= 0) return 'Sin datos';
+  return [...HEALTH_TIERS].reverse().find((t) => score >= t.min)?.label ?? 'Delicada';
 }
 
 /** Fecha de hoy en YYYY-MM-DD (hora local) para los <input type="date">. */
