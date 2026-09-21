@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { PaymentMethod } from '@foody/types';
 import type { DebtWithProjection } from '@/lib/debt-data';
-import { allocatePayment, minimumPayment } from '@/lib/debt-engine';
+import { additiveMinimumPayment, allocatePayment, minimumPayment } from '@/lib/debt-engine';
 import { PAYMENT_METHODS } from '@/lib/payment-methods';
 import { confettiRain } from '@/lib/fx';
 import { playSound } from '@/lib/sound';
@@ -62,12 +62,28 @@ export default function DebtPaymentModal({ debt, onClose, onPaid }: Props) {
 
   const quickAmounts = useMemo<QuickAmount[]>(() => {
     const owed = debt.breakdown.interestOwed + debt.breakdown.feesOwed;
-    const min = minimumPayment(
-      debt.currentBalance,
-      debt.projection.monthlyRate,
-      debt.minPercent ?? undefined,
-      debt.minFloor ?? 0,
-    );
+    /**
+     * El mínimo, con la fórmula del emisor.
+     *
+     * Con el mínimo aditivo se calcula desde el DESGLOSE y no desde el saldo:
+     * el 1 % va sobre el capital, y el interés y las comisiones se suman
+     * enteros encima. Es la cuenta exacta del estado de cuenta —$53.00 en la
+     * Cash Rewards del 10 de septiembre— y no una aproximación sobre el total.
+     */
+    const min = debt.minIncludesInterest
+      ? additiveMinimumPayment(
+          debt.breakdown.principalOwed,
+          debt.breakdown.interestOwed,
+          debt.minPercent ?? 1,
+          debt.minFloor ?? 0,
+          debt.breakdown.feesOwed,
+        )
+      : minimumPayment(
+          debt.currentBalance,
+          debt.projection.monthlyRate,
+          debt.minPercent ?? undefined,
+          debt.minFloor ?? 0,
+        );
     return [
       { id: 'installment', label: 'Tu cuota', emoji: '📆', value: debt.projection.installment },
       { id: 'minimum', label: 'Mínimo', emoji: '🪙', value: min },

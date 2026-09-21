@@ -60,11 +60,30 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
     debt.minPercent != null ? String(debt.minPercent) : '',
   );
   const [dueDay, setDueDay] = useState(debt.dueDay);
+  /**
+   * Si el emisor SUMA el interés al mínimo en vez de compararlo.
+   *
+   * Bank of America cobra 1 % del saldo + intereses + comisiones; el modelo de
+   * «el mayor entre el % y el interés» se queda decenas de dólares corto y
+   * proyecta años de más. Va aquí, pegado al %, porque son la misma decisión.
+   */
+  const [minIncludesInterest, setMinIncludesInterest] = useState(debt.minIncludesInterest);
   const [promoEndsOn, setPromoEndsOn] = useState(debt.promoEndsOn ?? '');
   const [rateAfterPromo, setRateAfterPromo] = useState(
     debt.rateAfterPromo != null ? String(debt.rateAfterPromo) : '',
   );
   const [cycleDays, setCycleDays] = useState(debt.cycleDays != null ? String(debt.cycleDays) : '');
+  /**
+   * El día del mes en que cierra el estado de cuenta.
+   *
+   * Existía en la base y en la API desde el principio, pero no había dónde
+   * escribirlo: quedaba siempre en nulo. Ahora el historial agrupa por ciclo de
+   * facturación cuando está puesto, así que sin este campo esa mitad de la
+   * función era inalcanzable.
+   */
+  const [statementDay, setStatementDay] = useState(
+    debt.statementDay != null ? String(debt.statementDay) : '',
+  );
   const [creditLimit, setCreditLimit] = useState(
     debt.creditLimit != null ? String(debt.creditLimit) : '',
   );
@@ -96,6 +115,7 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
         customPayment: hasCustom ? customNum : null,
         minPercent: parseDecimal(minPercent) || null,
         minFloor: debt.minFloor,
+        minIncludesInterest,
         extraMonthly: extraNum ?? 0,
         // La promoción se edita en este mismo formulario: sin pasarla aquí, la
         // vista previa seguía prometiendo «$0.00 de intereses» justo mientras
@@ -107,7 +127,7 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
         // la promo, así que moverlo cambia la proyección aquí mismo.
         dueDay,
       }),
-    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, extraNum, promoEndsOn, rateAfterPromo, cycleDays, dueDay],
+    [debt.currentBalance, debt.minFloor, rateNum, ratePeriod, strategy, termMonths, payoffDate, customNum, minPercent, minIncludesInterest, extraNum, promoEndsOn, rateAfterPromo, cycleDays, dueDay],
   );
 
   const status = STATUS_META[projection.status];
@@ -145,12 +165,14 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
           payoffDate: strategy === 'by_date' ? payoffDate : null,
           customPayment: hasCustom ? customNum : null,
           minPercent: parseDecimal(minPercent) || null,
+          minIncludesInterest,
           extraMonthly: hasExtra ? extraNum : 0,
           // La fecha sin la tasa posterior no sirve de nada: se manda el par o
           // no se manda ninguno.
           promoEndsOn: promoEndsOn || null,
           rateAfterPromo: promoEndsOn ? parseDecimal(rateAfterPromo) : null,
           cycleDays: parseDecimal(cycleDays) || null,
+          statementDay: parseDecimal(statementDay) || null,
           creditLimit: parseMoney(creditLimit) || null,
           dueDay,
           businessShare,
@@ -408,6 +430,38 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
               placeholder="5"
               className={inputCls}
             />
+
+            {/* Cómo combina el banco ese % con el interés: sumándolo o
+                comparándolo. No es un detalle fino — decide si el mínimo de
+                esta tarjeta son $35 o $53. */}
+            <button
+              type="button"
+              onClick={() => { haptic(); setMinIncludesInterest((v) => !v); }}
+              aria-pressed={minIncludesInterest}
+              className="mt-2 flex w-full items-center gap-3 rounded-2xl bg-white px-3.5 py-2.5 text-left ring-1 ring-sky-200 transition active:scale-[0.99] hover:bg-sky-50"
+            >
+              <span
+                className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+                  minIncludesInterest ? 'bg-sky-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    minIncludesInterest ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-bold text-slate-800">
+                  El mínimo suma el interés
+                </span>
+                <span className="block text-[11px] text-slate-500">
+                  {minIncludesInterest
+                    ? `${parseDecimal(minPercent) || 1} % del saldo + intereses + comisiones, como Bank of America`
+                    : `El mayor entre el ${parseDecimal(minPercent) || 5} %, el piso y el interés`}
+                </span>
+              </span>
+            </button>
           </div>
         )}
 
@@ -520,24 +574,43 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             que empiece a cobrar.
           </p>
 
-          <div className="mt-3">
-            <label htmlFor="edit-cycle-days" className="mb-1 block text-[11px] font-semibold text-slate-500">
-              Días del ciclo de facturación
-            </label>
-            <input
-              id="edit-cycle-days"
-              type="text"
-              inputMode="numeric"
-              value={cycleDays}
-              onChange={(e) => setCycleDays(e.target.value)}
-              placeholder="31"
-              className={inputCls}
-            />
-            <p className="mt-1 text-[11px] text-slate-500">
-              Con esto el interés se calcula como lo cobra el banco —tasa diaria por días del
-              ciclo— y la cifra cuadra al centavo con tu estado.
-            </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div>
+              <label htmlFor="edit-cycle-days" className="mb-1 block text-[11px] font-semibold text-slate-500">
+                Días del ciclo
+              </label>
+              <input
+                id="edit-cycle-days"
+                type="text"
+                inputMode="numeric"
+                value={cycleDays}
+                onChange={(e) => setCycleDays(e.target.value)}
+                placeholder="31"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-statement-day" className="mb-1 block text-[11px] font-semibold text-slate-500">
+                Día de corte
+              </label>
+              <input
+                id="edit-statement-day"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={31}
+                value={statementDay}
+                onChange={(e) => setStatementDay(e.target.value)}
+                placeholder="14"
+                className={inputCls}
+              />
+            </div>
           </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+            Con los días del ciclo el interés se calcula como lo cobra el banco —tasa diaria por
+            días del ciclo— y la cifra cuadra al centavo con tu estado. Con el día de corte, el
+            historial se agrupa por estado de cuenta en vez de por mes natural.
+          </p>
         </div>
 
         <ScopePicker

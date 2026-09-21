@@ -31,7 +31,7 @@ function tarjeta(): DebtWithProjection {
     originalAmount: 2301.42, currentBalance: 2174.4, rate: 18.49,
     ratePeriod: 'annual_nominal' as const, strategy: 'interest_only' as const,
     termMonths: null, payoffDate: null, customPayment: null, minPercent: null,
-    minFloor: 53, extraMonthly: 0, businessShare: 0, linkedPaymentId: null,
+    minFloor: 53, minIncludesInterest: false, extraMonthly: 0, businessShare: 0, linkedPaymentId: null,
     duplicateDismissed: false, promoEndsOn: null, rateAfterPromo: null,
     cycleDays: 31, statementDay: 10, creditLimit: 2200, dueDay: 7,
     openedAt: '2026-08-06', lastAccrualAt: '2026-09-06', status: 'active' as const,
@@ -61,6 +61,10 @@ function abrirHistorial() {
 }
 
 beforeEach(() => {
+  // El historial ya no es una lista corrida: abre por el ciclo en curso. Sin
+  // fijar el reloj, este movimiento del 6 de septiembre cae dentro o fuera
+  // según el día en que se corran los tests.
+  vi.useFakeTimers({ now: HOY, toFake: ['Date'] });
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === undefined) {
       return { ok: true, json: async () => MOVIMIENTOS } as unknown as Response;
@@ -69,7 +73,7 @@ beforeEach(() => {
   }));
 });
 
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('Historial — corregir un movimiento en su sitio', () => {
   it('tocar la fila abre el editor con lo que ya hay', async () => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   accrualCycles,
   accrueInterest,
+  additiveMinimumPayment,
   addMonths,
   allocatePayment,
   breakEvenPayment,
@@ -141,6 +142,82 @@ describe('minimumPayment', () => {
 
   it('es 0 sin saldo', () => {
     expect(minimumPayment(0, 0.03, 5)).toBe(0);
+  });
+});
+
+describe('additiveMinimumPayment — el mínimo que SUMA el interés', () => {
+  it('reproduce el estado de la Cash Rewards 8523 al centavo', () => {
+    // 1 % de $2,106.91 = $21.07 + $32.66 de interés = $53.73 → $53.00.
+    expect(additiveMinimumPayment(2106.91, 32.66, 1, 35)).toBe(53);
+  });
+
+  it('trunca al dólar, no redondea', () => {
+    // $53.73 no sube a $54: el banco se queda con el dólar entero de abajo.
+    expect(additiveMinimumPayment(2106.91, 32.66, 1, 0)).toBe(53);
+    expect(additiveMinimumPayment(100, 0.99, 1, 0)).toBe(1); // 1.99 → 1
+  });
+
+  it('suma también las comisiones', () => {
+    expect(additiveMinimumPayment(1000, 20, 1, 0, 39)).toBe(69); // 10 + 20 + 39
+  });
+
+  it('respeta el piso del emisor', () => {
+    expect(additiveMinimumPayment(500, 5, 1, 35)).toBe(35); // 5 + 5 = 10 → piso
+  });
+
+  it('nunca exige más de lo que se debe con su interés', () => {
+    expect(additiveMinimumPayment(20, 0.3, 1, 35)).toBe(20.3);
+  });
+
+  it('es 0 sin saldo ni interés', () => {
+    expect(additiveMinimumPayment(0, 0, 1, 35)).toBe(0);
+  });
+
+  it('siempre supera al interés, así que la deuda no puede crecer', () => {
+    for (const saldo of [100, 500, 2139.57, 10000]) {
+      const interes = saldo * (0.1849 / 12);
+      expect(additiveMinimumPayment(saldo, interes, 1, 35)).toBeGreaterThan(interes);
+    }
+  });
+});
+
+describe('estrategia mínimo con la regla aditiva', () => {
+  const tarjeta = {
+    balance: 2139.57,
+    rate: 18.49,
+    ratePeriod: 'annual_nominal' as const,
+    strategy: 'minimum' as const,
+    minPercent: 1,
+    minFloor: 35,
+    dueDay: 7,
+    now: NOW,
+  };
+
+  it('la cuota del mes es la del banco, no el piso', () => {
+    const conSuma = projectDebt({ ...tarjeta, minIncludesInterest: true });
+    const comparando = projectDebt({ ...tarjeta, minIncludesInterest: false });
+    expect(conSuma.baseInstallment).toBeGreaterThan(50);
+    expect(comparando.baseInstallment).toBe(35);
+  });
+
+  it('el plazo sale de recalcular el mínimo cada mes, no de congelarlo', () => {
+    const real = projectDebt({ ...tarjeta, minIncludesInterest: true });
+    // Con la cuota de hoy congelada serían ~45 meses; recalculándola baja
+    // cada mes y el plazo se estira hasta los ~9 años que advierte el banco.
+    expect(real.monthsToPayoff).toBeGreaterThan(95);
+    expect(real.monthsToPayoff).toBeLessThan(120);
+  });
+
+  it('el abono extra sigue contando encima del mínimo', () => {
+    const solo = projectDebt({ ...tarjeta, minIncludesInterest: true });
+    const conExtra = projectDebt({ ...tarjeta, minIncludesInterest: true, extraMonthly: 50 });
+    expect(conExtra.installment).toBe(round2(solo.baseInstallment + 50));
+    expect(conExtra.monthsToPayoff ?? 0).toBeLessThan(solo.monthsToPayoff ?? 0);
+  });
+
+  it('sin la regla, nada cambia para las demás tarjetas', () => {
+    const antes = projectDebt({ ...tarjeta, minPercent: 5, minFloor: 25 });
+    expect(antes.baseInstallment).toBe(minimumPayment(2139.57, toMonthlyRate(18.49, 'annual_nominal'), 5, 25));
   });
 });
 

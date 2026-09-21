@@ -22,7 +22,7 @@ function makeDebt(): DebtWithProjection {
     payoffDate: null,
     customPayment: null,
     minPercent: 5,
-    minFloor: 20,
+    minFloor: 20, minIncludesInterest: false,
     extraMonthly: 0,
     businessShare: 0,
     linkedPaymentId: null,

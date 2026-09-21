@@ -66,6 +66,16 @@ export interface Debt {
   customPayment: number | null;
   minPercent: number | null;
   minFloor: number | null;
+  /**
+   * El mínimo del emisor SUMA el interés del ciclo en vez de compararlo.
+   *
+   * Bank of America cobra 1 % del saldo + intereses + comisiones, truncado al
+   * dólar y con piso de $35; el modelo de «el mayor entre el % y el interés»
+   * se queda corto en decenas de dólares. Apagado por defecto: encenderlo
+   * cambia la cuota y el plazo, y eso lo decide quien tiene el estado de
+   * cuenta delante. Ver `additiveMinimumPayment`.
+   */
+  minIncludesInterest: boolean;
   extraMonthly: number;
   /** 0-100: qué parte de este crédito corresponde al negocio. */
   businessShare: number;
@@ -171,6 +181,7 @@ export interface CreateDebtInput {
   customPayment?: number | null;
   minPercent?: number | null;
   minFloor?: number | null;
+  minIncludesInterest?: boolean;
   extraMonthly?: number;
   businessShare?: number;
   promoEndsOn?: string | null;
@@ -262,6 +273,9 @@ export async function ensureDebtSchema(): Promise<void> {
   // dias del ciclo (el interes se cobra por dia, no por doceavo) y el dia en
   // que cierra el estado.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS cycle_days SMALLINT`;
+  await sql`
+    ALTER TABLE debts ADD COLUMN IF NOT EXISTS min_includes_interest BOOLEAN NOT NULL DEFAULT false
+  `;
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS statement_day SMALLINT`;
   // Fecha tope de la estrategia `by_date`: la tarjeta que hay que liquidar
   // antes de que empiecen a cobrar intereses.
@@ -343,6 +357,7 @@ function mapDebt(row: Record<string, unknown>): Debt {
     customPayment: numOrNull(row.custom_payment),
     minPercent: numOrNull(row.min_percent),
     minFloor: numOrNull(row.min_floor),
+    minIncludesInterest: row.min_includes_interest === true,
     extraMonthly: num(row.extra_monthly),
     businessShare: normalizeShare(row.business_share),
     linkedPaymentId: (row.linked_payment_id as string | null) ?? null,
@@ -632,7 +647,8 @@ export async function listCreditsForPlan(
   await ensureDebtSchema();
   const rows = await sql`
     SELECT id, name, current_balance, rate, rate_period, strategy,
-           term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share,
+           term_months, payoff_date, custom_payment, min_percent, min_floor,
+           min_includes_interest, extra_monthly, business_share,
            promo_ends_on, rate_after_promo, cycle_days,
            linked_payment_id, duplicate_dismissed, issuer
     FROM debts
@@ -652,6 +668,7 @@ export async function listCreditsForPlan(
       customPayment: numOrNull(row.custom_payment),
       minPercent: numOrNull(row.min_percent),
       minFloor: numOrNull(row.min_floor),
+      minIncludesInterest: row.min_includes_interest === true,
       extraMonthly: num(row.extra_monthly),
       // La promocion y los dias del ciclo: sin ellos la proyeccion trata un
       // 0 % temporal como eterno y el interes del mes no cuadra con el banco.
@@ -740,7 +757,8 @@ export async function createDebt(
     INSERT INTO debts (
       user_id, name, kind, issuer, account_last4, currency,
       original_amount, current_balance, rate, rate_period, strategy,
-      term_months, payoff_date, custom_payment, min_percent, min_floor, extra_monthly, business_share,
+      term_months, payoff_date, custom_payment, min_percent, min_floor, min_includes_interest,
+      extra_monthly, business_share,
       promo_ends_on, rate_after_promo, cycle_days, statement_day,
       credit_limit, due_day, last_accrual_at, opened_at, status, note, created_at, updated_at
     ) VALUES (
@@ -749,6 +767,7 @@ export async function createDebt(
       ${balance}, ${balance}, ${safeAmount(input.rate)}, ${input.ratePeriod ?? 'monthly'},
       ${strategy}, ${input.termMonths ?? null}, ${input.payoffDate || null},
       ${lockedPayment}, ${input.minPercent ?? null}, ${input.minFloor ?? null},
+      ${input.minIncludesInterest === true},
       ${safeAmount(input.extraMonthly)}, ${normalizeShare(input.businessShare)},
       ${input.promoEndsOn ?? null}, ${input.rateAfterPromo ?? null},
       ${input.cycleDays ?? null}, ${input.statementDay ?? null},
@@ -816,6 +835,9 @@ export async function updateDebt(
       custom_payment = ${nextPayment},
       min_percent    = ${input.minPercent === undefined ? current.minPercent : input.minPercent},
       min_floor      = ${input.minFloor === undefined ? current.minFloor : input.minFloor},
+      min_includes_interest = ${
+        input.minIncludesInterest === undefined ? current.minIncludesInterest : input.minIncludesInterest
+      },
       extra_monthly  = ${input.extraMonthly === undefined ? current.extraMonthly : safeAmount(input.extraMonthly)},
       business_share = ${input.businessShare === undefined ? current.businessShare : normalizeShare(input.businessShare)},
       linked_payment_id = ${input.linkedPaymentId === undefined ? current.linkedPaymentId : (input.linkedPaymentId || null)},

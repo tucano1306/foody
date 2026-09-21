@@ -175,6 +175,7 @@ export function parseCreateDebt(body: Record<string, unknown>): CreateDebtInput 
     customPayment,
     minPercent,
     minFloor: body.minFloor == null ? null : money(body.minFloor),
+    minIncludesInterest: body.minIncludesInterest === true,
     extraMonthly: money(body.extraMonthly) ?? 0,
     businessShare: normalizeShare(body.businessShare),
     // La promocion y el ciclo del estado de cuenta. La fecha sin la tasa
@@ -252,6 +253,7 @@ export function parseUpdateDebt(body: Record<string, unknown>): UpdateDebtInput 
     out.minPercent = Number.isFinite(p) && p > 0 ? Math.min(p, 100) : null;
   }
   if (body.minFloor !== undefined) out.minFloor = body.minFloor == null ? null : money(body.minFloor);
+  if (body.minIncludesInterest !== undefined) out.minIncludesInterest = body.minIncludesInterest === true;
   if (body.extraMonthly !== undefined) out.extraMonthly = money(body.extraMonthly) ?? 0;
   if (body.businessShare !== undefined) out.businessShare = normalizeShare(body.businessShare);
   if (body.promoEndsOn !== undefined) out.promoEndsOn = dateOrNull(body.promoEndsOn);

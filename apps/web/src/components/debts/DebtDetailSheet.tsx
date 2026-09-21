@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrashIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
 import type { DebtMovement, DebtWithProjection } from '@/lib/debt-data';
+import { listPeriods, summarizePeriod } from '@/lib/debt-cycles';
 import { buildSchedule, toMonthlyRate } from '@/lib/debt-engine';
 import { promoRisk } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
@@ -55,6 +56,16 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   );
 }
 
+/** Renglón de la cuenta del ciclo, como el del estado de cuenta. */
+function CycleRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
+      <span className="text-sm font-bold text-black tabular-nums">{value}</span>
+    </div>
+  );
+}
+
 /**
  * Hoja de detalle de una deuda, en tres pestañas: dónde estás (Resumen), a
  * dónde vas (Plan, con la tabla de amortización) y de dónde vienes (Historial,
@@ -63,6 +74,14 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, onPay, onEdit }: Props) {
   const [tab, setTab] = useState<Tab>('summary');
   const [movements, setMovements] = useState<DebtMovement[] | null>(null);
+  /**
+   * Qué ciclo se está mirando: 0 es el que corre ahora, 1 el anterior…
+   *
+   * Un índice y no una fecha: así al recargar el libro —tras un abono, una
+   * corrección— se sigue mirando «el ciclo pasado» y no una fecha que ya
+   * cambió de sitio.
+   */
+  const [periodIndex, setPeriodIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
@@ -208,13 +227,52 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
     [debt, promo],
   );
 
+  /**
+   * El tope de la consulta. Se pide el máximo que sirve la ruta porque el
+   * historial ya no es una lista de los últimos movimientos: se navega por
+   * ciclos hacia atrás, y con los 60 por defecto los ciclos viejos salían
+   * vacíos como si no hubiera pasado nada en ellos.
+   */
+  const LEDGER_LIMIT = 300;
+
   useEffect(() => {
     if (tab !== 'ledger' || movements !== null) return;
-    fetch(`/api/debts/${debt.id}/movements`, { credentials: 'include' })
+    fetch(`/api/debts/${debt.id}/movements?limit=${LEDGER_LIMIT}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: DebtMovement[]) => setMovements(Array.isArray(data) ? data : []))
       .catch(() => setMovements([]));
   }, [tab, movements, debt.id]);
+
+  /**
+   * Los ciclos navegables y el que se está mirando.
+   *
+   * El corte lo manda la tarjeta (`statementDay`); sin ese dato se agrupa por
+   * mes natural, que es lo único honesto que se puede hacer sin saber cuándo
+   * cierra el banco.
+   */
+  const periods = useMemo(
+    () => listPeriods(movements ?? [], debt.statementDay),
+    [movements, debt.statementDay],
+  );
+  const period = periods[Math.min(periodIndex, periods.length - 1)];
+  /** La anual nominal: la que el banco multiplica por días del ciclo. */
+  const annualNominal = toMonthlyRate(debt.rate, debt.ratePeriod) * 12 * 100;
+  const cycle = useMemo(
+    () =>
+      period
+        ? summarizePeriod(
+            movements ?? [],
+            period,
+            debt.currentBalance,
+            annualNominal,
+            new Date(),
+            debt.minIncludesInterest
+              ? { percent: debt.minPercent ?? 1, floor: debt.minFloor ?? 0 }
+              : null,
+          )
+        : null,
+    [movements, period, debt.currentBalance, annualNominal, debt.minIncludesInterest, debt.minPercent, debt.minFloor],
+  );
 
   /** El dia en formato del <input type=date>, sacado del ISO guardado. */
   function dateInput(iso: string): string {
@@ -688,18 +746,168 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
         </div>
       )}
 
-      {/* ── Historial: el libro mayor ── */}
+      {/* ── Historial: el libro mayor, ciclo a ciclo ── */}
       {tab === 'ledger' && (
         <div className="flex flex-col gap-2">
           {movements === null && (
             <p className="py-8 text-center text-sm text-slate-400">Cargando…</p>
           )}
+
+          {movements !== null && period && cycle && (
+            <>
+              {/* El navegador de ciclos.
+                  La pestaña enseñaba una lista corrida sin decir de cuándo
+                  era: para una tarjeta eso no es historial, porque la pregunta
+                  es «¿cuánto llevo ESTE ciclo?» y el ciclo no empieza el día 1.
+                  Las flechas son el acceso a los periodos anteriores. */}
+              <div className="flex items-center gap-1 rounded-2xl bg-white p-1.5 ring-1 ring-sky-100">
+                <button
+                  type="button"
+                  disabled={periodIndex >= periods.length - 1}
+                  onClick={() => { haptic(6); setPeriodIndex((i) => i + 1); }}
+                  aria-label="Ciclo anterior"
+                  className="shrink-0 rounded-xl p-2.5 text-slate-500 transition hover:bg-sky-50 active:scale-90 disabled:opacity-25"
+                >
+                  <ChevronLeftIcon className="h-5 w-5" />
+                </button>
+                <div className="min-w-0 flex-1 text-center">
+                  <p className="truncate text-sm font-extrabold text-black">{period.label}</p>
+                  <p className="truncate text-[11px] text-slate-500">
+                    {period.isCurrent ? 'Ciclo en curso' : 'Ciclo cerrado'}
+                    {' · '}
+                    {period.byStatement ? `corte el ${debt.statementDay}` : 'mes natural'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={periodIndex === 0}
+                  onClick={() => { haptic(6); setPeriodIndex((i) => Math.max(0, i - 1)); }}
+                  aria-label="Ciclo siguiente"
+                  className="shrink-0 rounded-xl p-2.5 text-slate-500 transition hover:bg-sky-50 active:scale-90 disabled:opacity-25"
+                >
+                  <ChevronRightIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Sin día de corte no hay por dónde cortar más que el mes
+                  natural. Se dice una vez, con el atajo para ponerlo. */}
+              {!period.byStatement && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="rounded-2xl bg-sky-50 px-3.5 py-2.5 text-left text-[11px] leading-relaxed text-slate-600 transition active:scale-[0.99] hover:bg-sky-100"
+                >
+                  Esta tarjeta no tiene día de corte, así que el historial va por mes natural.{' '}
+                  <span className="font-bold text-sky-600">Poner el día de corte →</span>
+                </button>
+              )}
+
+              {/* La cuenta del ciclo, en el MISMO orden que el estado de
+                  cuenta del banco: saldo anterior, lo que se abonó, lo que se
+                  gastó, el interés y el saldo nuevo. Así se puede poner el
+                  papel al lado y comparar renglón por renglón, que es lo que
+                  de verdad se hace con una tarjeta. */}
+              <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-sky-100">
+                <div className="divide-y divide-sky-50 px-4">
+                  <CycleRow
+                    label="Saldo anterior"
+                    value={cycle.openingBalance === null ? '—' : fmtMoney(cycle.openingBalance, debt.currency)}
+                  />
+                  {cycle.payments > 0 && (
+                    <CycleRow label="Pagos y créditos" value={`−${fmtMoney(cycle.payments, debt.currency)}`} />
+                  )}
+                  {cycle.charges > 0 && (
+                    <CycleRow label="Compras" value={`+${fmtMoney(cycle.charges, debt.currency)}`} />
+                  )}
+                  {cycle.fees > 0 && (
+                    <CycleRow label="Comisiones" value={`+${fmtMoney(cycle.fees, debt.currency)}`} />
+                  )}
+                  {cycle.interest > 0 && (
+                    <CycleRow label="Intereses" value={`+${fmtMoney(cycle.interest, debt.currency)}`} />
+                  )}
+                  {cycle.adjustments !== 0 && (
+                    <CycleRow
+                      label="Ajustes"
+                      value={`${cycle.adjustments > 0 ? '+' : '−'}${fmtMoney(Math.abs(cycle.adjustments), debt.currency)}`}
+                    />
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3 bg-sky-100/70 px-4 py-3">
+                  <span className="text-xs font-bold text-slate-600">
+                    {/* «Saldo hoy» y no «Debes hoy»: esa frase ya es la del
+                        encabezado de la hoja, y repetirla aquí hacía dudar de
+                        si eran dos cifras distintas. */}
+                    {period.isCurrent ? 'Saldo hoy' : 'Nuevo saldo al corte'}
+                  </span>
+                  <span className="text-lg font-extrabold text-black tabular-nums">
+                    {cycle.closingBalance === null ? '—' : fmtMoney(cycle.closingBalance, debt.currency)}
+                  </span>
+                </div>
+                {/* Lo que el banco exigió pagar por ese estado, con su propia
+                    fórmula. Es la cifra que se compara con el papel. */}
+                {cycle.statementMinimum !== null && (
+                  <div className="flex items-center justify-between gap-3 border-t border-sky-200/70 bg-sky-100/70 px-4 py-2.5">
+                    <span className="text-[11px] font-semibold text-slate-600">
+                      Pago mínimo del estado
+                    </span>
+                    <span className="text-sm font-bold text-black tabular-nums">
+                      {fmtMoney(cycle.statementMinimum, debt.currency)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Sobre qué se cobra el interés.
+                  El banco no lo cobra sobre el saldo final ni sobre el
+                  anterior: sobre el promedio de lo que se debió cada día. En
+                  un ciclo con un abono fuerte a mitad la diferencia es de
+                  dólares, y sin esta línea la cifra del estado de cuenta
+                  parecía salida de la nada. */}
+              {cycle.averageDailyBalance !== null && cycle.estimatedInterest !== null && (
+                <p className="px-1 text-[11px] leading-relaxed text-slate-500">
+                  Promedio diario{' '}
+                  <span className="font-bold text-black">
+                    {fmtMoney(cycle.averageDailyBalance, debt.currency)}
+                  </span>{' '}
+                  — el interés se cobra sobre esto: {fmtRate(debt.rate, debt.ratePeriod)} en {cycle.days}{' '}
+                  {cycle.days === 1 ? 'día' : 'días'} ≈{' '}
+                  {fmtMoney(cycle.estimatedInterest, debt.currency)}
+                </p>
+              )}
+
+              {cycle.net !== 0 && (
+                <p className="text-center text-[11px] text-slate-500">
+                  En este ciclo la deuda {cycle.net > 0 ? 'subió' : 'bajó'}{' '}
+                  <span className="font-bold text-black">{fmtMoney(Math.abs(cycle.net), debt.currency)}</span>
+                </p>
+              )}
+            </>
+          )}
+
           {movements?.length === 0 && (
             <p className="py-8 text-center text-sm text-slate-400">
               Aún no hay movimientos en esta deuda
             </p>
           )}
-          {movements?.map((m) => {
+          {/* Un ciclo vacío no puede ser un callejón sin salida: si la tarjeta
+              lleva un mes parada, lo que se quiere ver está en el anterior, y
+              el atajo lo lleva ahí sin buscar la flecha pequeña. */}
+          {movements !== null && movements.length > 0 && cycle?.movements.length === 0 && (
+            <div className="py-8 text-center">
+              <p className="text-sm text-slate-400">Sin movimientos en este ciclo</p>
+              {periodIndex < periods.length - 1 && (
+                <button
+                  type="button"
+                  onClick={() => { haptic(6); setPeriodIndex((i) => i + 1); }}
+                  className="mt-3 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-sky-600 ring-1 ring-sky-200 transition active:scale-95 hover:bg-sky-50"
+                >
+                  Ver el ciclo anterior →
+                </button>
+              )}
+            </div>
+          )}
+
+          {cycle?.movements.map((m) => {
             const meta = MOVEMENT_META[m.kind] ?? MOVEMENT_META.adjustment;
             return (
               <div key={m.id} className="rounded-2xl bg-white px-3.5 py-3 ring-1 ring-sky-100">
@@ -809,6 +1017,14 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
               </div>
             );
           })}
+
+          {/* El libro puede ser más largo que lo que trae una consulta: mejor
+              decirlo que dejar creer que antes de esa fecha no hubo nada. */}
+          {movements !== null && movements.length >= LEDGER_LIMIT && (
+            <p className="pt-2 text-center text-[11px] text-slate-400">
+              Se cargaron los {LEDGER_LIMIT} movimientos más recientes.
+            </p>
+          )}
         </div>
       )}
     </ModalShell>
