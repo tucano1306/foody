@@ -419,3 +419,125 @@ export function listPeriods(
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
+
+// ─── Devengo por ciclo de corte ───────────────────────────────────────────────
+
+export interface StatementAccrual {
+  /** Mes del cierre, YYYY-MM: la clave de idempotencia del libro mayor. */
+  periodKey: string;
+  period: BillingPeriod;
+  /** Lo que se debía al abrir el ciclo. */
+  openingBalance: number;
+  /** La base real del interés. */
+  averageDailyBalance: number;
+  days: number;
+  interest: number;
+  /** Saldo al cerrar, ya con el interés dentro. */
+  closingBalance: number;
+}
+
+/**
+ * Las fechas de corte que YA cerraron entre `from` (excluido) y `to`.
+ *
+ * Un corte cierra al acabar su día: el estado del 10 de septiembre incluye lo
+ * del propio día 10, así que hasta el 11 no hay nada que cobrar. Por eso el
+ * corte se sitúa a las 23:59:59.999 y solo cuenta si `to` ya lo pasó.
+ *
+ * Es barato a propósito —solo fechas, sin tocar el libro— porque el devengo lo
+ * llama en CADA lectura para saber si hay algo que hacer, y casi siempre no lo
+ * hay.
+ */
+export function statementCuts(
+  from: Date,
+  to: Date,
+  statementDay: number,
+  maxCuts = 36,
+): Date[] {
+  if (!(from instanceof Date) || !(to instanceof Date)) return [];
+  const cuts: Date[] = [];
+
+  let y = from.getFullYear();
+  let m = from.getMonth();
+  for (let i = 0; i <= maxCuts + 1 && cuts.length < maxCuts; i++) {
+    const cut = endOfDay(y, m, clampDay(statementDay, y, m));
+    if (cut.getTime() > from.getTime()) {
+      if (cut.getTime() > to.getTime()) break;
+      cuts.push(cut);
+    }
+    m += 1;
+    if (m > 11) { m = 0; y += 1; }
+  }
+  return cuts;
+}
+
+/**
+ * El interés que cobra el banco en cada ciclo cerrado desde `from`.
+ *
+ * Tres cosas lo separan del devengo mensual de siempre, y las tres salen del
+ * estado de cuenta real:
+ *
+ * 1. Cierra el DÍA DE CORTE, no en el aniversario del alta ni a fin de mes.
+ * 2. Cobra por DÍAS REALES del ciclo —tasa diaria × 31, o × 28 en febrero—,
+ *    no un doceavo de la anual.
+ * 3. Lo cobra sobre el SALDO PROMEDIO DIARIO, no sobre el saldo al cierre. En
+ *    un ciclo con un abono fuerte a mitad la diferencia es de dólares, y
+ *    siempre en contra del usuario si se usa el saldo final.
+ *
+ * Los ciclos se encadenan: el interés de uno entra en el saldo de apertura del
+ * siguiente, que es lo que hace que la deuda componga.
+ */
+export function statementAccruals(
+  movements: readonly DebtMovement[],
+  input: {
+    statementDay: number;
+    /** Tasa anual nominal (18.49 = 18,49 %). */
+    annualRate: number;
+    /** Último devengo: se cobran los cortes posteriores a esta fecha. */
+    from: Date;
+    to: Date;
+    /** Saldo de hoy, por si el ciclo no tiene de dónde deducir su apertura. */
+    currentBalance: number;
+  },
+): StatementAccrual[] {
+  const { statementDay, annualRate, from, to, currentBalance } = input;
+  if (!(annualRate > 0)) return [];
+
+  const cuts = statementCuts(from, to, statementDay);
+  if (cuts.length === 0) return [];
+
+  const diaria = annualRate / 100 / 365;
+  const out: StatementAccrual[] = [];
+  /** El cierre del ciclo anterior, para encadenar. `null` en el primero. */
+  let heredado: number | null = null;
+
+  for (const cut of cuts) {
+    const period = periodContaining(cut, statementDay, to);
+    const resumen = summarizePeriod(movements, period, currentBalance, 0, to);
+    const opening = heredado ?? resumen.openingBalance;
+    if (opening === null) continue;
+
+    const { average, days } = averageDailyBalance(resumen.movements, opening, period, to);
+    const interest = round2(average * diaria * days);
+    // El movimiento del propio interés no está todavía en el libro, así que el
+    // cierre se arma con lo que pasó en el ciclo más lo que se acaba de cobrar.
+    const cierre = round2(
+      Math.max(0, opening + resumen.charges + resumen.fees + resumen.adjustments - resumen.payments)
+        + interest,
+    );
+
+    if (interest > 0) {
+      out.push({
+        periodKey: `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, '0')}`,
+        period,
+        openingBalance: round2(opening),
+        averageDailyBalance: average,
+        days,
+        interest,
+        closingBalance: cierre,
+      });
+    }
+    heredado = cierre;
+  }
+
+  return out;
+}

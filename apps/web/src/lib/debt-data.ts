@@ -18,6 +18,7 @@
  * validación y orquestación.
  */
 import { sql } from './db';
+import { statementAccruals, statementCuts } from './debt-cycles';
 import {
   accrualCycles,
   buildDebtAdvice,
@@ -478,6 +479,11 @@ async function accrueDueInterest(debt: Debt, now: Date = new Date()): Promise<bo
   const monthlyRate = toMonthlyRate(debt.rate, debt.ratePeriod);
   if (monthlyRate <= 0) return false;
 
+  // Con día de corte declarado, el interés se cobra como lo cobra el banco.
+  if (debt.statementDay != null && debt.statementDay >= 1) {
+    return accrueByStatement(debt, monthlyRate, now);
+  }
+
   const cycles = accrualCycles({
     balance: debt.currentBalance,
     monthlyRate,
@@ -505,6 +511,74 @@ async function accrueDueInterest(debt: Debt, now: Date = new Date()): Promise<bo
     WHERE id = ${debt.id} AND last_accrual_at < ${lastClosed}
   `;
   await recomputeBalance(debt.id);
+  return true;
+}
+
+/**
+ * Devengo con el ciclo de la tarjeta: corte, días reales y saldo promedio.
+ *
+ * El camino de siempre cobra en el aniversario del alta un doceavo de la tasa
+ * anual sobre el saldo del momento. Ninguna de las tres cosas es lo que hace
+ * un banco con una tarjeta: cierra el día de corte, cobra tasa diaria por los
+ * días del ciclo y la aplica al saldo promedio diario. Ver `statementAccruals`.
+ *
+ * **La clave del apunte sigue siendo el MES del cierre** (`YYYY-MM`), la misma
+ * que usaba el camino viejo. Es deliberado: el índice único
+ * `uq_debt_interest_period` es por (deuda, período), así que un mes ya cobrado
+ * —por el devengo anterior o por un reintento— no se puede cobrar dos veces.
+ * Los intereses ya asentados se quedan donde están; esto solo cambia los
+ * ciclos que aún no han cerrado.
+ */
+async function accrueByStatement(debt: Debt, monthlyRate: number, now: Date): Promise<boolean> {
+  const desde = new Date(debt.lastAccrualAt);
+  const statementDay = debt.statementDay as number;
+
+  // Barato primero: si no ha cerrado ningún corte, no se toca el libro.
+  const cortes = statementCuts(desde, now, statementDay);
+  if (cortes.length === 0) return false;
+
+  const rows = await sql`
+    SELECT * FROM debt_movements
+    WHERE debt_id = ${debt.id}
+    ORDER BY occurred_at ASC, created_at ASC
+  `;
+  const movimientos = rows.map((r) => mapMovement(r as Record<string, unknown>));
+
+  const ciclos = statementAccruals(movimientos, {
+    statementDay,
+    // El devengo diario del banco va sobre la anual NOMINAL, no sobre la
+    // efectiva: es la misma conversión que usa la proyección.
+    annualRate: monthlyRate * 12 * 100,
+    from: desde,
+    to: now,
+    currentBalance: debt.currentBalance,
+  });
+  if (ciclos.length === 0) return false;
+
+  for (const ciclo of ciclos) {
+    await sql`
+      INSERT INTO debt_movements
+        (debt_id, user_id, kind, amount, interest_part, balance_before, balance_after, period_key, note, occurred_at)
+      VALUES (
+        ${debt.id}, ${debt.userId}, 'interest', ${ciclo.interest}, ${ciclo.interest},
+        ${ciclo.openingBalance}, ${ciclo.closingBalance}, ${ciclo.periodKey},
+        ${`Interés del ciclo ${ciclo.period.label}`}, ${ciclo.period.end.toISOString()}
+      )
+      ON CONFLICT DO NOTHING
+    `;
+  }
+
+  const ultimo = cortes[cortes.length - 1].toISOString();
+  await sql`
+    UPDATE debts SET last_accrual_at = ${ultimo}, updated_at = now()
+    WHERE id = ${debt.id} AND last_accrual_at < ${ultimo}
+  `;
+  await recomputeBalance(debt.id);
+  // El interés entra FECHADO EN EL CORTE, así que puede caer por detrás de
+  // movimientos ya asentados y dejar sus fotos del saldo mintiendo. Reescribir
+  // el libro en orden es lo que mantiene el «Saldo anterior» del historial
+  // cuadrado con el papel del banco.
+  await resnapshotLedger(debt.id);
   return true;
 }
 
