@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { DebtMovement } from './debt-data';
-import { periodContaining, summarizePeriod } from './debt-cycles';
+import {
+  periodContaining,
+  statementAccruals,
+  statementCuts,
+  summarizePeriod,
+} from './debt-cycles';
 import { additiveMinimumPayment, projectDebt } from './debt-engine';
 
 /**
@@ -100,6 +105,19 @@ const INTERES = mov(2026, 9, 10, 32.66, 'interest', 'Interés cargado por compra
  */
 const LIBRO: DebtMovement[] = (() => {
   const todos = [...PAGOS, ...COMPRAS, INTERES].sort(
+    (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
+  );
+  let saldo = APERTURA;
+  return todos.map((m) => {
+    const antes = saldo;
+    saldo = Math.round((m.kind === 'payment' ? antes - m.amount : antes + m.amount) * 100) / 100;
+    return { ...m, balanceBefore: antes, balanceAfter: saldo };
+  });
+})();
+
+/** El mismo libro pero sin el interés: lo que hay ANTES de devengarlo. */
+const LIBRO_SIN_INTERES: DebtMovement[] = (() => {
+  const todos = [...PAGOS, ...COMPRAS].sort(
     (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
   );
   let saldo = APERTURA;
@@ -228,5 +246,128 @@ describe('Cash Rewards 8523 — contra el estado de cuenta de Bank of America', 
     expect(s.openingBalance).toBe(2139.57); // hereda el cierre del anterior
     expect(s.movements).toHaveLength(0);
     expect(s.closingBalance).toBe(2139.57);
+  });
+});
+
+describe('statementCuts — cuándo hay algo que cobrar', () => {
+  it('el corte no cierra hasta que acaba su día', () => {
+    // A mediodía del 10 todavía no: el estado incluye lo del propio día 10.
+    expect(statementCuts(new Date(2026, 7, 11), new Date(2026, 8, 10, 12), 10)).toHaveLength(0);
+    // Al día siguiente, sí.
+    expect(statementCuts(new Date(2026, 7, 11), new Date(2026, 8, 11), 10)).toHaveLength(1);
+  });
+
+  it('devuelve un corte por mes cuando la tarjeta lleva meses sin mirarse', () => {
+    const cortes = statementCuts(new Date(2026, 5, 15), new Date(2026, 8, 20), 10);
+    expect(cortes.map((d) => [d.getMonth(), d.getDate()])).toEqual([
+      [6, 10], // 10 jul
+      [7, 10], // 10 ago
+      [8, 10], // 10 sep
+    ]);
+  });
+
+  it('en febrero el corte del 31 se recorta al último día', () => {
+    const cortes = statementCuts(new Date(2027, 0, 31, 23, 59, 59, 999), new Date(2027, 2, 1), 31);
+    expect(cortes.map((d) => [d.getMonth(), d.getDate()])).toEqual([[1, 28]]);
+  });
+
+  it('no cuenta el corte que aún no ha llegado', () => {
+    expect(statementCuts(new Date(2026, 8, 11), new Date(2026, 8, 20), 10)).toHaveLength(0);
+  });
+});
+
+describe('statementAccruals — el interés que cobraría el banco', () => {
+  const desdeElCorteAnterior = new Date(2026, 7, 10, 23, 59, 59, 999); // 10 ago
+
+  it('cobra un solo ciclo, el que cerró el 10 de septiembre', () => {
+    const ciclos = statementAccruals(LIBRO_SIN_INTERES, {
+      statementDay: 10,
+      annualRate: TASA,
+      from: desdeElCorteAnterior,
+      to: HOY,
+      currentBalance: 2106.91,
+    });
+
+    expect(ciclos).toHaveLength(1);
+    expect(ciclos[0].periodKey).toBe('2026-09');
+    expect(ciclos[0].period.label).toBe('11 ago – 10 sep 2026');
+    expect(ciclos[0].days).toBe(31);
+    expect(ciclos[0].openingBalance).toBe(2126.94);
+  });
+
+  it('el importe se acerca a los $32.66 del papel, y por el lado honesto', () => {
+    const [ciclo] = statementAccruals(LIBRO_SIN_INTERES, {
+      statementDay: 10,
+      annualRate: TASA,
+      from: desdeElCorteAnterior,
+      to: HOY,
+      currentBalance: 2106.91,
+    });
+
+    // El banco cobró $32.66 sobre su saldo sujeto a interés de $2,080.04.
+    expect(Math.abs(ciclo.interest - 32.66)).toBeLessThan(0.5);
+    // Sobre el saldo al cierre serían $33.60: el promedio diario es lo que
+    // recoge los $1,375 abonados a mitad de ciclo.
+    expect(ciclo.interest).toBeLessThan(2139.57 * (TASA / 100 / 365) * 31);
+    // Y el saldo que deja queda a menos de un dólar del «Nuevo Saldo Total».
+    expect(Math.abs(ciclo.closingBalance - CIERRE)).toBeLessThan(1);
+  });
+
+  it('el apunte se fecha EN el corte, no a fin de mes', () => {
+    const [ciclo] = statementAccruals(LIBRO_SIN_INTERES, {
+      statementDay: 10,
+      annualRate: TASA,
+      from: desdeElCorteAnterior,
+      to: HOY,
+      currentBalance: 2106.91,
+    });
+    expect(ciclo.period.end.getDate()).toBe(10);
+    expect(ciclo.period.end.getMonth()).toBe(8);
+  });
+
+  it('sin cortes cerrados no devenga nada', () => {
+    const ciclos = statementAccruals(LIBRO_SIN_INTERES, {
+      statementDay: 10,
+      annualRate: TASA,
+      from: new Date(2026, 8, 11),
+      to: HOY,
+      currentBalance: 2106.91,
+    });
+    expect(ciclos).toHaveLength(0);
+  });
+
+  it('sin tasa no inventa intereses', () => {
+    const ciclos = statementAccruals(LIBRO_SIN_INTERES, {
+      statementDay: 10,
+      annualRate: 0,
+      from: desdeElCorteAnterior,
+      to: HOY,
+      currentBalance: 2106.91,
+    });
+    expect(ciclos).toHaveLength(0);
+  });
+
+  it('al ponerse al día encadena los ciclos: el interés de uno entra en el siguiente', () => {
+    // Una tarjeta con un solo consumo y tres cortes sin mirar.
+    const consumo: DebtMovement = {
+      ...mov(2026, 6, 1, 1000, 'charge', 'Saldo inicial'),
+      balanceBefore: 0,
+      balanceAfter: 1000,
+    };
+    const ciclos = statementAccruals([consumo], {
+      statementDay: 10,
+      annualRate: 12, // 1 % mensual largo, fácil de seguir
+      from: new Date(2026, 5, 1),
+      to: new Date(2026, 8, 20),
+      currentBalance: 1000,
+    });
+
+    expect(ciclos.map((c) => c.periodKey)).toEqual(['2026-06', '2026-07', '2026-08', '2026-09']);
+    // El primero solo promedia los diez días que el saldo estuvo vivo.
+    expect(ciclos[0].averageDailyBalance).toBeLessThan(1000);
+    // A partir del segundo, el saldo ya es el del cierre anterior: compone.
+    expect(ciclos[1].openingBalance).toBe(ciclos[0].closingBalance);
+    expect(ciclos[2].openingBalance).toBe(ciclos[1].closingBalance);
+    expect(ciclos[3].interest).toBeGreaterThan(ciclos[1].interest);
   });
 });
