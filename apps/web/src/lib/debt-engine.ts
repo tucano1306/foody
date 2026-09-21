@@ -369,6 +369,47 @@ export function minimumPayment(
 }
 
 /**
+ * El mínimo de un emisor que SUMA el interés en vez de compararlo.
+ *
+ * Bank of America no cobra «el mayor entre el 1 % y el interés»: cobra el 1 %
+ * del saldo MÁS el interés del ciclo MÁS las comisiones, y lo trunca al dólar,
+ * con un piso de $35. Comprobado contra el estado de la Cash Rewards 8523 del
+ * 11 ago – 10 sep 2026:
+ *
+ *   1 % de $2,106.91 (el saldo antes del interés)  =  $21.07
+ *   + intereses cobrados                              $32.66
+ *   = $53.73  →  truncado al dólar  →  **$53.00**, que es lo que exige el papel.
+ *
+ * La diferencia con el modelo de máximo no es cosmética: en esta misma tarjeta
+ * el máximo da $35 al mes —dieciocho dólares menos que lo exigible— y proyecta
+ * quince años de deuda donde el propio banco dice nueve.
+ *
+ * El truncado al dólar es del banco, no un redondeo nuestro: $53.73 se cobra
+ * como $53.00.
+ */
+export function additiveMinimumPayment(
+  /** Saldo ANTES del interés de este ciclo: la base del porcentaje. */
+  balance: number,
+  /** Interés que se cobra en este ciclo. */
+  cycleInterest: number,
+  percent = 1,
+  floor = 0,
+  /** Comisiones, moras o anualidades cobradas en el ciclo. */
+  fees = 0,
+): number {
+  const b = safeAmount(balance);
+  const interest = safeAmount(cycleInterest);
+  const comisiones = safeAmount(fees);
+  if (b <= DUST && interest <= DUST) return 0;
+
+  const pct = Math.max(0, Number.isFinite(percent) ? percent : 1) / 100;
+  const exigido = Math.floor(b * pct + interest + comisiones);
+  const conPiso = Math.max(exigido, safeAmount(floor));
+  // Nunca más de lo que de verdad se debe con su interés.
+  return round2(Math.min(conPiso, b + interest + comisiones));
+}
+
+/**
  * La cuota más pequeña que SÍ amortiza: interés del ciclo + un centavo.
  * Es el número que convierte "estoy pagando y no baja" en una acción concreta.
  */
@@ -612,6 +653,15 @@ export interface ScheduleInput {
    * que no cuesta nada y calla la única fecha que de verdad importa.
    */
   rateAfter?: { afterMonths: number; monthlyRate: number };
+  /**
+   * Cuota que se RECALCULA cada mes porque el emisor la calcula así.
+   *
+   * Un mínimo aditivo baja conforme baja el saldo, así que congelar el de hoy
+   * durante todo el plazo miente en los dos sentidos: acorta el plazo y abarata
+   * el total. Con esta regla puesta manda ella y `payment` se ignora; el abono
+   * extra se sigue sumando encima.
+   */
+  minimumRule?: { percent: number; floor: number };
 }
 
 export interface Schedule {
@@ -652,7 +702,10 @@ export function buildSchedule(input: ScheduleInput): Schedule {
   // Con una promo que caduca esta comprobación no sirve: la tasa de hoy puede
   // ser 0 % y la de después no. Se deja que el bucle lo descubra — si al llegar
   // al tope sigue quedando saldo, devuelve `months: null` igual.
-  if (!rateAfter && monthsToPayoff(balance, monthlyRate, basePayment) === null) {
+  // Con mínimo aditivo no hace falta el atajo: esa cuota SIEMPRE supera al
+  // interés del mes —lo incluye—, así que la deuda muere sí o sí y el bucle lo
+  // resuelve solo. La fórmula cerrada, además, supone cuota constante.
+  if (!rateAfter && !input.minimumRule && monthsToPayoff(balance, monthlyRate, basePayment) === null) {
     return { rows, truncated: false, totalInterest: 0, totalPaid: 0, months: null };
   }
 
@@ -662,8 +715,16 @@ export function buildSchedule(input: ScheduleInput): Schedule {
     month += 1;
     const openingBalance = balance;
     const interest = openingBalance * rateFor(month);
+    const delMes = input.minimumRule
+      ? additiveMinimumPayment(
+          openingBalance,
+          interest,
+          input.minimumRule.percent,
+          input.minimumRule.floor,
+        ) + safeAmount(input.extraMonthly)
+      : basePayment;
     // Última cuota: solo lo que falta (capital + su interés).
-    const payment = Math.min(basePayment, openingBalance + interest);
+    const payment = Math.min(delMes, openingBalance + interest);
     const principal = payment - interest;
     balance = openingBalance - principal;
     if (balance < DUST) balance = 0;
@@ -718,6 +779,15 @@ export interface DebtInput {
   customPayment?: number | null;
   /** % del saldo que exige la tarjeta como mínimo. */
   minPercent?: number | null;
+  /**
+   * El mínimo del emisor SUMA el interés del ciclo en vez de compararlo.
+   *
+   * Es como lo cobra Bank of America (1 % del saldo + intereses + comisiones,
+   * truncado al dólar). Apagado por defecto: encenderlo cambia la cuota y el
+   * plazo de una tarjeta, y eso solo lo decide quien tiene el estado de cuenta
+   * delante.
+   */
+  minIncludesInterest?: boolean | null;
   /** Piso en dinero del pago mínimo. */
   minFloor?: number | null;
   /** Abono extra voluntario que el usuario suma cada mes. */
@@ -750,6 +820,7 @@ export interface DebtTerms {
   customPayment: number | null;
   minPercent: number | null;
   minFloor: number | null;
+  minIncludesInterest: boolean;
   extraMonthly: number;
   promoEndsOn: string | null;
   rateAfterPromo: number | null;
@@ -777,6 +848,7 @@ export function toDebtInput(debt: DebtTerms, now?: Date): DebtInput {
     customPayment: debt.customPayment,
     minPercent: debt.minPercent,
     minFloor: debt.minFloor,
+    minIncludesInterest: debt.minIncludesInterest,
     extraMonthly: debt.extraMonthly,
     promoEndsOn: debt.promoEndsOn,
     rateAfterPromo: debt.rateAfterPromo,
@@ -849,13 +921,28 @@ export function installmentFor(input: DebtInput): number {
       const months = monthsUntilDate(input.payoffDate, input.now ?? new Date());
       return frenchInstallment(balance, monthlyRate, months);
     }
-    case 'minimum':
+    case 'minimum': {
+      if (input.minIncludesInterest) {
+        // El interés del ciclo, con los días reales si se conocen: es la cifra
+        // que el usuario ve en su estado y la que el banco suma al mínimo.
+        const cycleInterest =
+          input.cycleDays && input.cycleDays > 0
+            ? cycleInterestOf(balance, monthlyRate * 12 * 100, input.cycleDays)
+            : monthlyInterestOf(balance, monthlyRate);
+        return additiveMinimumPayment(
+          balance,
+          cycleInterest,
+          input.minPercent ?? 1,
+          safeAmount(input.minFloor),
+        );
+      }
       return minimumPayment(
         balance,
         monthlyRate,
         input.minPercent ?? DEFAULT_MIN_PERCENT,
         safeAmount(input.minFloor),
       );
+    }
     case 'interest_only':
       return floorCents(monthlyInterestOf(balance, monthlyRate));
     case 'custom':
@@ -927,8 +1014,28 @@ export function projectDebt(input: DebtInput): DebtProjection {
   // proyección tiene que reflejarlo.
   // Con promo, el plazo lo dice la TABLA: la fórmula cerrada supone una tasa
   // constante, y aquí hay dos.
-  const scheduleForMonths = rateAfter
-    ? buildSchedule({ balance, monthlyRate, payment: installment, startDate: now, limit: 0, rateAfter })
+  /**
+   * Con mínimo aditivo la cuota baja cada mes, así que el plazo NO se puede
+   * sacar de la fórmula cerrada —supone cuota constante— ni de congelar la de
+   * hoy: hay que recorrer la tabla recalculando el mínimo, que es justo lo que
+   * hace el banco en su cuadro de «si paga solo el mínimo».
+   */
+  const minimumRule =
+    input.strategy === 'minimum' && input.minIncludesInterest
+      ? { percent: input.minPercent ?? 1, floor: safeAmount(input.minFloor) }
+      : undefined;
+
+  const scheduleForMonths = rateAfter || minimumRule
+    ? buildSchedule({
+        balance,
+        monthlyRate,
+        payment: installment,
+        extraMonthly: minimumRule ? extra : 0,
+        startDate: now,
+        limit: 0,
+        rateAfter,
+        minimumRule,
+      })
     : null;
   const months = scheduleForMonths ? scheduleForMonths.months : monthsToPayoff(balance, monthlyRate, installment);
   const neverPaysOff = balance > DUST && months === null;

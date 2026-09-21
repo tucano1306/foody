@@ -22,7 +22,7 @@ function makeDebt(over: { id: string; name: string; balance: number; businessSha
     payoffDate: null,
     customPayment: null,
     minPercent: 5,
-    minFloor: 20,
+    minFloor: 20, minIncludesInterest: false,
     extraMonthly: 0,
     businessShare: over.businessShare,
     linkedPaymentId: null,

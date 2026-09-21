@@ -42,7 +42,7 @@ function tarjeta6791(cuota?: number): DebtWithProjection {
     payoffDate: '2027-09-27',
     customPayment: cuota ?? null,
     minPercent: null,
-    minFloor: 62,
+    minFloor: 62, minIncludesInterest: false,
     extraMonthly: 0,
     businessShare: 0,
     linkedPaymentId: null,
