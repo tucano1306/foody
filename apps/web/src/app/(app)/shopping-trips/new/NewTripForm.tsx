@@ -19,7 +19,12 @@ const ReceiptScanner = dynamic(
 import { useToast } from '@/components/ui/Toast';
 import ScopePicker from '@/components/ui/ScopePicker';
 import KindPicker from '@/components/ui/KindPicker';
-import { detectExpenseKind, type ExpenseKind } from '@/lib/expense-kind';
+import {
+  DEFAULT_EXPENSE_KIND,
+  detectExpenseKind,
+  crossesBackToGrocery,
+  type ExpenseKind,
+} from '@/lib/expense-kind';
 import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
 import { normalizeSplits, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 import { notifyGoalImpact } from '@/lib/notify-goal-impact';
@@ -32,6 +37,12 @@ interface Props {
    * sin esperar a una petición del navegador.
    */
   readonly aliases?: ReadonlyArray<{ readonly productId: string; readonly aliasNorm: string }>;
+  /**
+   * Con qué tipo abre el formulario: lo dice la tarjeta desde la que se tocó
+   * «Escanear ticket». Sin esto siempre arrancaba en súper, así que escanear
+   * desde «Fuera del super» acababa registrando el gasto en Compras.
+   */
+  readonly kindInicial?: ExpenseKind;
 }
 
 interface LineItem {
@@ -65,7 +76,11 @@ function formatCurrency(value: number, currency: string): string {
   }
 }
 
-export default function NewTripForm({ products, aliases = [] }: Readonly<Props>) {
+export default function NewTripForm({
+  products,
+  aliases = [],
+  kindInicial = DEFAULT_EXPENSE_KIND,
+}: Readonly<Props>) {
   const router = useRouter();
   const toast = useToast();
 
@@ -81,10 +96,11 @@ export default function NewTripForm({ products, aliases = [] }: Readonly<Props>)
   /** 0-100: qué parte de esta compra es del negocio. Empieza en personal. */
   const [businessShare, setBusinessShare] = useState(0);
   /**
-   * Súper o gasto de otro tipo. Empieza en súper —el caso normal— y solo lo
-   * mueve el detector si reconoce la tienda o el usuario si lo toca.
+   * Súper o gasto de otro tipo. Empieza donde diga la tarjeta desde la que se
+   * entró —súper si no lo dice nadie, que es el caso normal— y a partir de ahí
+   * solo lo mueve el detector si reconoce la tienda, o el usuario si lo toca.
    */
-  const [kind, setKind] = useState<ExpenseKind>('grocery');
+  const [kind, setKind] = useState<ExpenseKind>(kindInicial);
   /** El tipo lo puso el detector y el usuario aún no lo ha corregido. */
   const [kindAutoDetected, setKindAutoDetected] = useState(false);
   /**
@@ -150,6 +166,7 @@ export default function NewTripForm({ products, aliases = [] }: Readonly<Props>)
     if (kindTouched) return kind;
     const detected = detectExpenseKind(name);
     if (detected === null) return kind;
+    if (crossesBackToGrocery(kindInicial, detected)) return kind;
     setKind(detected);
     setKindAutoDetected(true);
     // Se devuelve además de guardarse porque quien llama lo necesita YA: el

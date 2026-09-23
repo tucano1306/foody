@@ -135,7 +135,11 @@ export default function OtherSpendCard({ other: o, onChanged }: Props) {
             ? <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(o.baseline)}</span> al mes por esto.</>
             : 'Todavía no resta nada por este concepto.'}
         </p>
-        <ScanTicketButton />
+        {/* «Otro» y no «Comida»: esta tarjeta agrupa comida fuera, farmacia,
+            gasolina y hogar, así que adivinar cuál sería etiquetar mal el
+            ticket cuando el detector no reconozca la tienda. Lo que sí queda
+            decidido es lo que el usuario pidió: esto no es despensa. */}
+        <ScanTicketButton kind="other" />
       </div>
 
       {openKind !== null && (

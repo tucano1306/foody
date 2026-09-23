@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_EXPENSE_KIND,
   EXPENSE_KINDS,
+  crossesBackToGrocery,
   detectExpenseKind,
   expenseKindMeta,
   isGroceryKind,
@@ -106,5 +107,37 @@ describe('detectExpenseKind', () => {
     expect(detectExpenseKind('  publix  ')).toBe('grocery');
     expect(detectExpenseKind('PIZZA-HUT')).toBe('dining');
     expect(detectExpenseKind('Óptica Devlyn')).toBe('pharmacy');
+  });
+});
+
+describe('crossesBackToGrocery', () => {
+  /**
+   * El fallo: tocar «Escanear ticket» en la tarjeta «Fuera del super» abria el
+   * formulario en Super, asi que el gasto acababa registrado en Compras --justo
+   * lo contrario de lo que decia la tarjeta desde la que se habia entrado--.
+   *
+   * Sembrar el tipo no bastaba: si el detector reconocia la tienda podia
+   * devolver el ticket a Compras igual, y el usuario no veria por que.
+   */
+
+  it('protege al que entró desde «Fuera del super»', () => {
+    expect(crossesBackToGrocery('other', 'grocery')).toBe(true);
+    expect(crossesBackToGrocery('dining', 'grocery')).toBe(true);
+    expect(crossesBackToGrocery('fuel', 'grocery')).toBe(true);
+  });
+
+  it('deja al detector afinar entre los gastos que no son despensa', () => {
+    // «Iron Sushi» abierto como «Otro» tiene que poder volverse «Comida»: sigue
+    // sin ser despensa, que es lo único que el usuario decidió al entrar.
+    expect(crossesBackToGrocery('other', 'dining')).toBe(false);
+    expect(crossesBackToGrocery('other', 'pharmacy')).toBe(false);
+    expect(crossesBackToGrocery('dining', 'fuel')).toBe(false);
+  });
+
+  it('no estorba al flujo normal: desde súper el detector manda', () => {
+    // Quien entra por Compras no ha decidido nada; ahí el detector es lo único
+    // que hay, y un «Pollo Tropical» debe poder salirse de la despensa.
+    expect(crossesBackToGrocery('grocery', 'dining')).toBe(false);
+    expect(crossesBackToGrocery('grocery', 'grocery')).toBe(false);
   });
 });
