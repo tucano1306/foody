@@ -67,6 +67,22 @@ export function normalizeExpenseKind(value: unknown): ExpenseKind {
   return BY_KIND.has(clean) ? clean : DEFAULT_EXPENSE_KIND;
 }
 
+/**
+ * ¿Esta detección devolvería el ticket a Compras contra la voluntad del usuario?
+ *
+ * El formulario se abre con un tipo puesto según la tarjeta desde la que se
+ * tocó «Escanear ticket». Entrar por «Fuera del super» es una decisión suya;
+ * que la tienda se llame como un super es solo una conjetura del detector.
+ *
+ * Así que el detector puede afinar DENTRO de lo que no es despensa —«Iron
+ * Sushi» → Comida— pero no puede cruzar de vuelta: un ticket que se abrió
+ * precisamente para no acabar en Compras no puede acabar en Compras solo.
+ * Cambiarlo a mano sigue estando a un toque, y eso sí es explícito.
+ */
+export function crossesBackToGrocery(openedAs: ExpenseKind, detected: ExpenseKind): boolean {
+  return !isGroceryKind(openedAs) && isGroceryKind(detected);
+}
+
 /** Marcas diacríticas: "Café" y "Cafe" tienen que ser la misma palabra. */
 const DIACRITICS = /[\u0300-\u036f]/g;
 const NON_ALNUM = /[^a-z0-9&']+/g;
