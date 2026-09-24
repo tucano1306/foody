@@ -628,11 +628,6 @@ export const api = {
         purchaseCount: asInteger(row?.purchase_count),
       };
     },
-    completeShopping: async () => {
-      const { userId } = await getAuthContext();
-      await sql`DELETE FROM shopping_list_items WHERE user_id = ${userId} AND in_cart = true`;
-      return { message: 'Shopping completed' };
-    },
   },
   payments: {
     list: async (): Promise<MonthlyPayment[]> => {
