@@ -94,3 +94,96 @@ describe('TripsScopedList — filtro Personal / Negocio', () => {
     expect(screen.getByText(/Aún no registras compras/)).toBeInTheDocument();
   });
 })
+
+/**
+ * Compras era una sola lista de arriba abajo; con 22 tickets en cuatro meses
+ * ya era larga de recorrer con el dedo. Ahora cada mes es un bloque que se abre
+ * al tocarlo, con sus compras de cinco en cinco.
+ */
+describe('TripsScopedList — por meses', () => {
+  const de = (id: string, fecha: string, total = 10) => ({
+    ...trip({ id, store: `Tienda ${id}`, total, businessShare: 0 }),
+    purchasedAt: `${fecha}T00:00:00.000Z`,
+  });
+
+  /** Septiembre con 11 tickets (del 1 al 11), agosto con 2, junio con 1. */
+  const MESES = [
+    ...Array.from({ length: 11 }, (_, i) => de(`s${i + 1}`, `2026-09-${String(i + 1).padStart(2, '0')}`)),
+    de('a1', '2026-08-10', 20),
+    de('a2', '2026-08-22', 30),
+    de('j1', '2026-06-05', 38),
+  ];
+
+  const bloque = (mes: RegExp) => screen.getByRole('button', { name: mes });
+
+  it('un bloque por mes, el más reciente primero, con su cuenta y su total', () => {
+    render(<TripsScopedList trips={MESES} />);
+    const meses = [...document.querySelectorAll('button[aria-expanded]')];
+    expect(meses.map((b) => b.textContent)).toEqual([
+      expect.stringContaining('Septiembre de 2026'),
+      expect.stringContaining('Agosto de 2026'),
+      expect.stringContaining('Junio de 2026'),
+    ]);
+    expect(bloque(/Septiembre/)).toHaveTextContent('11 compras');
+    expect(bloque(/Septiembre/)).toHaveTextContent('$110');
+    expect(bloque(/Agosto/)).toHaveTextContent('2 compras');
+    expect(bloque(/Agosto/)).toHaveTextContent('$50');
+    expect(bloque(/Junio/)).toHaveTextContent('1 compra');
+  });
+
+  it('el mes más reciente viene abierto; los demás, cerrados', () => {
+    render(<TripsScopedList trips={MESES} />);
+    expect(bloque(/Septiembre/)).toHaveAttribute('aria-expanded', 'true');
+    expect(bloque(/Agosto/)).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Tienda a1')).not.toBeInTheDocument();
+  });
+
+  it('tocar un mes lo abre, y tocarlo otra vez lo cierra', () => {
+    render(<TripsScopedList trips={MESES} />);
+
+    fireEvent.click(bloque(/Agosto/));
+    expect(bloque(/Agosto/)).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Tienda a1')).toBeInTheDocument();
+    expect(screen.getByText('Tienda a2')).toBeInTheDocument();
+
+    fireEvent.click(bloque(/Agosto/));
+    expect(screen.queryByText('Tienda a1')).not.toBeInTheDocument();
+  });
+
+  it('dentro del mes, de cinco en cinco y el más reciente primero', () => {
+    render(<TripsScopedList trips={MESES} />);
+
+    // Página 1: del 11 al 7.
+    expect(screen.getByText('1 de 3')).toBeInTheDocument();
+    for (const id of ['s11', 's10', 's9', 's8', 's7']) {
+      expect(screen.getByText(`Tienda ${id}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Tienda s6')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Anterior/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }));
+    expect(screen.getByText('2 de 3')).toBeInTheDocument();
+    expect(screen.getByText('Tienda s6')).toBeInTheDocument();
+    expect(screen.queryByText('Tienda s11')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }));
+    expect(screen.getByText('3 de 3')).toBeInTheDocument();
+    expect(screen.getByText('Tienda s1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Siguiente/ })).toBeDisabled();
+  });
+
+  it('un mes corto no enseña paginador', () => {
+    render(<TripsScopedList trips={MESES} />);
+    fireEvent.click(bloque(/Septiembre/)); // cierra septiembre
+    fireEvent.click(bloque(/Agosto/));
+    expect(screen.queryByRole('navigation', { name: /Páginas/ })).not.toBeInTheDocument();
+  });
+
+  it('cerrar y volver a abrir un mes recuerda la página', () => {
+    render(<TripsScopedList trips={MESES} />);
+    fireEvent.click(screen.getByRole('button', { name: /Siguiente/ }));
+    fireEvent.click(bloque(/Septiembre/));
+    fireEvent.click(bloque(/Septiembre/));
+    expect(screen.getByText('2 de 3')).toBeInTheDocument();
+  });
+});
