@@ -310,6 +310,21 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   const [scanTarget, setScanTarget] = useState<{ productId: string; index: number } | null>(null);
   const [zoomItem, setZoomItem] = useState<{ src: string; alt: string; origin?: DOMRect } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ShoppingListItem | null>(null);
+  /**
+   * POR QUÉ se quita, que decide qué pasa en Casa.
+   *
+   * - `ya-no`: ya no lo quiere, o lo reemplazó por otra cosa. Sale de la lista
+   *   Y de los faltantes de Casa.
+   * - `hoy-no`: no estaba en el súper. Se aparta hasta finalizar la compra y
+   *   sigue como faltante en Casa.
+   *
+   * Solo existía el segundo, con la etiqueta «No estaba en el súper», y el
+   * usuario lo usaba para lo primero: quitó el Queso Fresco porque ya no lo
+   * quería y Casa seguía pidiendo «reponer 6» donde él esperaba 5. Los dos casos
+   * son reales —ALL lo quitó el mismo día y SÍ esperaba que siguiera contando—,
+   * así que se pregunta en vez de adivinar.
+   */
+  const [removeMode, setRemoveMode] = useState<'ya-no' | 'hoy-no'>('ya-no');
   const [removing, setRemoving] = useState(false);
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showCartSheet, setShowCartSheet] = useState(false);
@@ -413,18 +428,29 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
     startTransition(() => { void fetchToggle(id, original); });
   }
 
-  // ─── Remove from list ("no estaba en el súper") ─────────────────────────────
+  // ─── Quitar de la lista: «ya no lo necesito» o «no estaba en el súper» ────
   async function performRemove() {
     if (!removeTarget) return;
     const target = removeTarget;
+    const modo = removeMode;
     setRemoving(true);
     setItems((prev) => prev.filter((i) => i.id !== target.id));
     try {
-      const res = await fetch(`/api/proxy/shopping-list/${target.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.ok || res.status === 404) {
+      // «Ya no lo necesito» es lo mismo que el «ya tengo» de Casa: el producto
+      // pasa a lleno y pierde su fila. Por eso usa esa misma ruta y no otra
+      // — una sola manera de dejar de pedir que se reponga algo.
+      const res = modo === 'ya-no'
+        ? await fetch(`/api/proxy/products/${target.product.id}/mark-ok`, {
+            method: 'PATCH',
+            credentials: 'include',
+          })
+        : await fetch(`/api/proxy/shopping-list/${target.id}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+      if (modo === 'ya-no' && res.ok) {
+        toast.show(`"${target.product.name}" ya no está en tus faltantes`, 'success');
+      } else if (modo === 'hoy-no' && (res.ok || res.status === 404)) {
         // Si falta en casa, el servidor lo aparta en vez de borrarlo: vuelve al
         // finalizar la compra. Se nombra al pie para que no parezca perdido.
         if (target.product.stockLevel !== 'full') {
@@ -1033,7 +1059,9 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
           }
           onChange={(updater) => updateEntries(editorItem.product.id, updater, editorItem)}
           onScan={(index) => setScanTarget({ productId: editorItem.product.id, index })}
-          onRemoveFromList={!editorItem.isInCart ? () => setRemoveTarget(editorItem) : undefined}
+          onRemoveFromList={!editorItem.isInCart
+            ? (modo) => { setRemoveMode(modo); setRemoveTarget(editorItem); }
+            : undefined}
           onMarkBought={!editorItem.isInCart ? () => { toggleItem(editorItem.id); } : undefined}
           onReturnToPending={editorItem.isInCart ? () => { toggleItem(editorItem.id); } : undefined}
           onZoom={(src, origin) => setZoomItem({ src, alt: editorItem.product.name, origin })}
@@ -1087,9 +1115,13 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
       {/* ─── Remove-from-list confirm ────────────────────────────────────────── */}
       <ConfirmDialog
         open={removeTarget !== null}
-        title={`¿Quitar "${removeTarget?.product.name ?? ''}"?`}
-        message="Se quitará de la lista de compras de hoy (por ejemplo si no lo encontraste en el súper). Seguirá en tu despensa como faltante."
-        confirmLabel="Quitar de la lista"
+        title={removeMode === 'ya-no'
+          ? `¿Ya no necesitas "${removeTarget?.product.name ?? ''}"?`
+          : `¿"${removeTarget?.product.name ?? ''}" no estaba en el súper?`}
+        message={removeMode === 'ya-no'
+          ? 'Sale de la lista y de los faltantes de Casa. Sigue en Productos por si vuelves a comprarlo.'
+          : 'Sale de la lista hasta que finalices la compra. En Casa sigue como faltante.'}
+        confirmLabel={removeMode === 'ya-no' ? 'Ya no lo necesito' : 'Apartar por hoy'}
         destructive
         busy={removing}
         onConfirm={performRemove}
@@ -1550,7 +1582,7 @@ function PriceEditorSheet({
   readonly onBrandChange: (brand: string) => void;
   readonly onChange: (updater: (prev: PriceEntry[]) => PriceEntry[]) => void;
   readonly onScan: (index: number) => void;
-  readonly onRemoveFromList?: () => void;
+  readonly onRemoveFromList?: (modo: 'ya-no' | 'hoy-no') => void;
   readonly onMarkBought?: () => void;
   readonly onReturnToPending?: () => void;
   readonly onZoom: (src: string, origin?: DOMRect) => void;
@@ -1901,14 +1933,26 @@ function PriceEditorSheet({
           >
             ✓ Listo
           </button>
+          {/* Dos salidas porque son dos cosas distintas, y la de Casa depende de
+              cuál: «ya no lo necesito» lo saca también de los faltantes; «no
+              estaba en el súper» solo lo aparta de la lista de hoy. */}
           {onRemoveFromList && (
-            <button
-              type="button"
-              onClick={onRemoveFromList}
-              className="w-full py-2.5 rounded-2xl text-blue-500 font-semibold text-xs hover:bg-blue-50 dark:hover:bg-blue-950/30 transition"
-            >
-              🚫 No estaba en el súper — quitar de la lista
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onRemoveFromList('ya-no')}
+                className="py-2.5 rounded-2xl text-blue-600 font-semibold text-xs hover:bg-blue-50 dark:hover:bg-blue-950/30 transition"
+              >
+                ✕ Ya no lo necesito
+              </button>
+              <button
+                type="button"
+                onClick={() => onRemoveFromList('hoy-no')}
+                className="py-2.5 rounded-2xl text-slate-500 font-semibold text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                🚫 No estaba en el súper
+              </button>
+            </div>
           )}
         </div>
       </div>
