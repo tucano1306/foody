@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import type { PaletteProduct } from '@/lib/api';
 import { haptic } from '@/lib/haptic';
+import { matchesWords, searchWords } from '@/lib/text-search';
 import { OPEN_PALETTE_EVENT } from './command-palette-bus';
 
 interface Props {
@@ -78,7 +79,9 @@ export default function CommandPalette({ products }: Props) {
     { id: 'nav-household', icon: BuildingOfficeIcon, label: 'Mi hogar', run: () => router.push('/household') },
   ];
 
-  const productCommands: Command[] = products.slice(0, 50).map((p) => ({
+  // Todos, sin recortar: un `.slice(0, 50)` aquí escondía la mitad de la
+  // despensa en cuanto pasaba de cincuenta productos. Ver `listForPalette`.
+  const productCommands: Command[] = products.map((p) => ({
     id: `p-${p.id}`,
     icon: CubeIcon,
     label: p.name,
@@ -87,10 +90,13 @@ export default function CommandPalette({ products }: Props) {
   }));
 
   const all = [...navCommands, ...productCommands];
-  const q = query.trim().toLowerCase();
-  const filtered = q === ''
+  // Mismo buscador que Productos y Súper: por palabras sueltas y sin acentos.
+  // Con `.includes` a secas, «limon» no encontraba «Limón» y «queso blanco
+  // venezolano» no encontraba nada si se tecleaba en otro orden.
+  const words = searchWords(query);
+  const filtered = words.length === 0
     ? navCommands
-    : all.filter((c) => c.label.toLowerCase().includes(q) || (c.hint?.toLowerCase().includes(q) ?? false));
+    : all.filter((c) => matchesWords(`${c.label} ${c.hint ?? ''}`, words));
 
   function execute(c: Command) {
     haptic(10);

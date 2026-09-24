@@ -206,7 +206,10 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
     setAdding(true);
     if (catalog === null) {
       try {
-        const res = await fetch('/api/products?lite=true', { credentials: 'include' });
+        // `no-store`: el catálogo tiene que incluir lo que se acaba de crear. Sin
+        // esto el service worker servía la copia vieja y el producto nuevo no
+        // estaba entre los que se podían elegir.
+        const res = await fetch('/api/products?lite=true', { credentials: 'include', cache: 'no-store' });
         setCatalog(res.ok ? await res.json() : []);
       } catch {
         setCatalog([]);

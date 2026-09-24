@@ -8,6 +8,7 @@ import { categoryEmoji } from '@/lib/categories';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { useCelebration } from '@/components/ui/Celebration';
+import { useToast } from '@/components/ui/Toast';
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
@@ -333,6 +334,7 @@ async function uploadPhoto(dataUrl: string): Promise<string | null> {
 export default function ProductForm({ product, inHousehold, isOwner = true }: Props) {
   const router = useRouter();
   const { celebrate } = useCelebration();
+  const toast = useToast();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   // Opt-in sharing: new products start private; editing shows the product's
@@ -427,6 +429,23 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message ?? 'Error al guardar');
+      }
+
+      // Ya existía. El servidor no crea una segunda ficha para un nombre que ya
+      // tienes —partiría el historial de precios en dos— y lo dice con un 200
+      // en vez de 201. Antes el formulario lo ignoraba y celebraba «¡A la
+      // despensa!» igual: el usuario buscaba su producto nuevo, no lo
+      // encontraba, y volvía a darlo de alta con otro nombre («Mantequilla» →
+      // «Mantequilla butter»). Ahora se le dice y se le lleva a la ficha que ya
+      // tenía, que es la respuesta a «¿dónde está?».
+      if (!product && res.status === 200) {
+        const existente = (await res.json()) as { id?: unknown; name?: unknown };
+        const nombre = typeof existente.name === 'string' ? existente.name : form.name?.trim();
+        haptic(12);
+        toast.show(`Ya tenías «${nombre}». No creé otro: actualicé ese.`, 'info');
+        router.push(typeof existente.id === 'string' ? `/products/${existente.id}` : '/products');
+        router.refresh();
+        return;
       }
 
       // Navigate first, then refresh so the *destination* (/products) re-fetches

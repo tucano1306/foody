@@ -1,6 +1,6 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue, web push */
 
-const VERSION = 'foody-v37';
+const VERSION = 'foody-v38';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;
@@ -119,6 +119,14 @@ function isImage(req) {
 function isApiCall(url) {
   if (!url.pathname.startsWith('/api/')) return false;
   return /\/(products|shopping-list|users)(\/|$|\?)/.test(url.pathname);
+}
+
+/**
+ * El que llama pidió saltarse cachés: `no-store`, `reload` o `no-cache`.
+ * Un stale-while-revalidate que no mira esto rompe el contrato de `fetch`.
+ */
+function wantsFresh(req) {
+  return req.cache === 'no-store' || req.cache === 'reload' || req.cache === 'no-cache';
 }
 
 /**
@@ -346,6 +354,29 @@ globalThis.addEventListener('fetch', (event) => {
             })
             .catch(() => Response.error());
         }),
+      ),
+    );
+    return;
+  }
+
+  // API que pide lo de AHORA: red primero, caché solo sin conexión.
+  //
+  // `fetch(url, { cache: 'no-store' })` es quien llama diciendo «necesito la
+  // lista actual», y el stale-while-revalidate de abajo lo ignoraba: devolvía
+  // la copia vieja y guardaba la nueva para la vez SIGUIENTE. Así, en Súper,
+  // «añadir de tu despensa» no enseñaba el producto recién creado hasta que se
+  // cerraba y se volvía a abrir la hoja — «tardan mucho en aparecer».
+  //
+  // Sin señal sigue sirviendo la caché, que es para lo que existe.
+  if (isApiCall(url) && wantsFresh(req)) {
+    event.respondWith(
+      caches.open(RUNTIME_CACHE).then((cache) =>
+        fetch(req)
+          .then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          })
+          .catch(async () => (await cache.match(req)) || Response.error()),
       ),
     );
     return;
