@@ -2,13 +2,13 @@
 
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import type { Product, CreateProductDto } from '@foody/types';
 import { isHeicFile, withTimeout, convertHeicToJpegBlob, dataUrlToBlob } from '@/lib/image-file';
 import { categoryEmoji } from '@/lib/categories';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { useCelebration } from '@/components/ui/Celebration';
-import { useToast } from '@/components/ui/Toast';
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
@@ -334,7 +334,6 @@ async function uploadPhoto(dataUrl: string): Promise<string | null> {
 export default function ProductForm({ product, inHousehold, isOwner = true }: Props) {
   const router = useRouter();
   const { celebrate } = useCelebration();
-  const toast = useToast();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   // Opt-in sharing: new products start private; editing shows the product's
@@ -355,6 +354,19 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * El nombre ya está en la despensa y hay que preguntar: ¿otra marca, o la
+   * misma? El usuario da de alta el mismo nombre A PROPÓSITO cuando es otra
+   * marca («hay muchas marcas de mantequilla o de huevos»), así que ni se crea
+   * a ciegas ni se fusiona a sus espaldas. null = no hay nada que preguntar.
+   */
+  const [repetido, setRepetido] = useState<{
+    id: string;
+    name: string;
+    photoUrl: string | null;
+  } | null>(null);
+  /** La marca que distingue a esta de la que ya tiene. Opcional. */
+  const [marca, setMarca] = useState('');
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -391,7 +403,15 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
     }
   }
 
-  async function handleSubmit(e: { preventDefault: () => void }) {
+  async function handleSubmit(
+    e: { preventDefault: () => void },
+    /**
+     * Lo que se decidió al preguntar. `nombre` sustituye al del campo (el
+     * nombre con la marca añadida); `otraMarca` crea con el mismo nombre sin
+     * volver a preguntar.
+     */
+    decision: { nombre?: string; otraMarca?: boolean } = {},
+  ) {
     e.preventDefault();
 
     // The photo is still being compressed — submitting now would save the
@@ -423,29 +443,35 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
         credentials: 'include',
         // The sharing flag only travels when I own the product — the server
         // ignores it otherwise, but no need to send it at all.
-        body: JSON.stringify(isOwner ? { ...form, isPrivate } : form),
+        body: JSON.stringify({
+          ...(isOwner ? { ...form, isPrivate } : form),
+          ...(decision.nombre ? { name: decision.nombre } : {}),
+          ...(decision.otraMarca ? { otraMarca: true } : {}),
+        }),
       });
+
+      // Ese nombre ya existe: el servidor no ha escrito nada y devuelve cuál es.
+      // Se pregunta aquí mismo, en el sitio del botón de guardar.
+      if (!product && res.status === 409) {
+        const data = (await res.json()) as {
+          existing?: { id?: unknown; name?: unknown; photoUrl?: unknown };
+        };
+        const ex = data.existing;
+        if (ex && typeof ex.id === 'string') {
+          haptic(12);
+          setMarca('');
+          setRepetido({
+            id: ex.id,
+            name: typeof ex.name === 'string' ? ex.name : (form.name ?? '').trim(),
+            photoUrl: typeof ex.photoUrl === 'string' ? ex.photoUrl : null,
+          });
+          return;
+        }
+      }
 
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message ?? 'Error al guardar');
-      }
-
-      // Ya existía. El servidor no crea una segunda ficha para un nombre que ya
-      // tienes —partiría el historial de precios en dos— y lo dice con un 200
-      // en vez de 201. Antes el formulario lo ignoraba y celebraba «¡A la
-      // despensa!» igual: el usuario buscaba su producto nuevo, no lo
-      // encontraba, y volvía a darlo de alta con otro nombre («Mantequilla» →
-      // «Mantequilla butter»). Ahora se le dice y se le lleva a la ficha que ya
-      // tenía, que es la respuesta a «¿dónde está?».
-      if (!product && res.status === 200) {
-        const existente = (await res.json()) as { id?: unknown; name?: unknown };
-        const nombre = typeof existente.name === 'string' ? existente.name : form.name?.trim();
-        haptic(12);
-        toast.show(`Ya tenías «${nombre}». No creé otro: actualicé ese.`, 'info');
-        router.push(typeof existente.id === 'string' ? `/products/${existente.id}` : '/products');
-        router.refresh();
-        return;
       }
 
       // Navigate first, then refresh so the *destination* (/products) re-fetches
@@ -557,7 +583,11 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
           id="product-name"
           required
           value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, name: e.target.value }));
+            // Otro nombre, otra pregunta: la de «ya tienes X» ya no aplica.
+            setRepetido(null);
+          }}
           placeholder="Ej: Leche"
           className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
         />
@@ -637,13 +667,88 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
       )}
 
       {/* ─── Submit ───────────────────────────────────────────────────────── */}
-      <button
-        type="submit"
-        disabled={saving || uploading}
-        className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {getSubmitLabel(saving, Boolean(product))}
-      </button>
+      {repetido ? (
+        /* Ocupa el sitio del botón de guardar: es la misma decisión, y así no
+           hay un botón de «Agregar» que vuelva a chocar con el mismo nombre. */
+        <div
+          role="group"
+          aria-label={`Ya tienes ${repetido.name}`}
+          className="rounded-2xl border border-sky-200 bg-sky-50 p-4 space-y-3"
+        >
+          <div className="flex items-center gap-3">
+            {repetido.photoUrl ? (
+              // `next/image`, como las tarjetas de la despensa: sirve la foto desde
+              // el propio dominio. Con un `<img>` directo al host de Blob, en el
+              // navegador de pruebas la miniatura salía rota.
+              <span className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-white">
+                <Image src={repetido.photoUrl} alt="" fill sizes="48px" className="object-cover" />
+              </span>
+            ) : (
+              <span className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-2xl shrink-0" aria-hidden="true">
+                {categoryEmoji(form.category)}
+              </span>
+            )}
+            <p className="text-sm text-slate-700">
+              Ya tienes <span className="font-bold text-slate-900">«{repetido.name}»</span>.
+            </p>
+          </div>
+
+          {/* La marca es opcional, pero es lo que distingue las dos fichas en la
+              lista, en el súper y al leer un ticket: «Mantequilla» dos veces
+              solo se diferencia por la foto. */}
+          <input
+            aria-label="Marca"
+            value={marca}
+            onChange={(e) => setMarca(e.target.value)}
+            placeholder="Marca (opcional)"
+            className="w-full px-3 py-2.5 rounded-xl border border-sky-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-300 transition"
+          />
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                haptic(10);
+                router.push(`/products/${repetido.id}`);
+              }}
+              className="py-3 rounded-xl border border-sky-200 bg-white text-slate-700 text-sm font-semibold active:scale-[0.98] transition"
+            >
+              Es la misma
+            </button>
+            <button
+              type="button"
+              disabled={saving || uploading}
+              onClick={() => {
+                const conMarca = marca.trim();
+                const base = (form.name ?? '').trim();
+                if (conMarca) {
+                  // Con marca el nombre ya es otro, y se comprueba como uno
+                  // nuevo: si «Mantequilla Kerrygold» también existe, se vuelve
+                  // a preguntar en vez de duplicarla.
+                  const nombre = `${base} ${conMarca}`;
+                  setForm((f) => ({ ...f, name: nombre }));
+                  setRepetido(null);
+                  void handleSubmit({ preventDefault: () => undefined }, { nombre });
+                } else {
+                  setRepetido(null);
+                  void handleSubmit({ preventDefault: () => undefined }, { otraMarca: true });
+                }
+              }}
+              className="py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 active:scale-[0.98]"
+            >
+              Agregar otra marca
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="submit"
+          disabled={saving || uploading}
+          className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {getSubmitLabel(saving, Boolean(product))}
+        </button>
+      )}
     </form>
   );
 }
