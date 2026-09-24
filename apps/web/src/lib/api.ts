@@ -288,13 +288,21 @@ export const api = {
       return rows.map((row) => mapProduct(row as Record<string, unknown>));
     },
     /**
-     * Versión ligera para el buscador rápido (⌘K), que solo muestra nombre y
-     * categoría de los primeros 50 productos.
+     * Versión ligera para el buscador de la cabecera: nombre y categoría de
+     * TODOS los productos.
      *
      * Existe porque el layout de la app corre en CADA página: usar list() aquí
      * arrastraba la tabla entera —incluida la foto en base64 de cada fila— en
      * cada navegación a Presupuesto, Pagos, Stats… Eso solo agotó la cuota de
-     * transferencia de Neon. Aquí se piden 3 columnas y 50 filas, nunca la foto.
+     * transferencia de Neon. Aquí se piden 3 columnas y nunca la foto.
+     *
+     * Tuvo además un `LIMIT 50` por orden alfabético, y eso fue un error: al
+     * pasar de 50 productos, todo lo que iba después de «Marketside Bacon
+     * Caesar» dejó de existir para el buscador. El usuario agregaba «Remolachas»
+     * o «Queso blanco», los buscaba y no salían. El tope no ahorraba nada que
+     * importara —tres columnas cortas por fila son unos 60 bytes— y escondía la
+     * mitad de la despensa sin avisar. Si algún día la lista pesa de verdad, lo
+     * que toca es cargarla al abrir el buscador, no recortarla.
      */
     listForPalette: async (): Promise<PaletteProduct[]> => {
       const { userId, householdId } = await getAuthContext();
@@ -305,13 +313,11 @@ export const api = {
             WHERE user_id = ${userId}
                OR (household_id = ${householdId} AND is_private = false)
             ORDER BY name ASC
-            LIMIT 50
           `
         : await sql`
             SELECT id, name, category FROM products
             WHERE user_id = ${userId}
             ORDER BY name ASC
-            LIMIT 50
           `;
       return rows.map((row) => ({
         id: String(row.id),
