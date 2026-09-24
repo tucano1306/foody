@@ -1,8 +1,9 @@
 import { getSession } from './session';
 import { sql } from './db';
+import { syncFaltantesToList } from './shopping-list-sync';
 import { daysUntilNextDue, nextDueDate } from './payment-cycle';
 import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
-import { ensureTripSplitsSchema, ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema, ensureProductAliasSchema } from './ensure-schema';
+import { ensureTripSplitsSchema, ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema, ensureProductAliasSchema, ensureListSkipSchema } from './ensure-schema';
 import { normalizeShare } from './expense-scope';
 import { normalizeAnchorMonth, normalizeFrequency } from './payment-frequency';
 import { normalizeExpenseKind } from './expense-kind';
@@ -462,7 +463,10 @@ export const api = {
   },
   shoppingList: {
     get: async () => {
-      const { userId } = await getAuthContext();
+      const { userId, householdId } = await getAuthContext();
+      // Todo faltante tiene fila ANTES de leer: sin esto Casa contaba 6 y Súper
+      // enseñaba 4. Ver `shopping-list-sync.ts`.
+      await syncFaltantesToList(userId, householdId);
       // DISTINCT ON (product_id) collapses any duplicate rows for the same
       // product (e.g. created by rapid stock-level changes) so the shopping
       // list never shows the same product twice. We keep the row that is in
@@ -490,11 +494,36 @@ export const api = {
             -- Self-heal stale rows: a product that is fully stocked and not
             -- flagged as needed must never show in Modo Supermercado.
             AND (p.id IS NULL OR p.stock_level <> 'full' OR p.needs_shopping = true)
+            -- Apartado con «No estaba en el súper»: fuera hasta cerrar la compra.
+            AND (sli.skipped_until IS NULL OR sli.skipped_until <= NOW())
           ORDER BY sli.product_id, sli.is_in_cart DESC, sli.created_at ASC
         ) t
         ORDER BY t.created_at DESC
       `;
       return rows.map((row) => mapShoppingListItem(row as Record<string, unknown>));
+    },
+    /**
+     * Lo apartado hoy con «No estaba en el súper».
+     *
+     * Casa sigue contándolo como faltante —es la promesa del aviso— y Súper no
+     * lo enseña hasta cerrar la compra, así que durante la compra las dos
+     * pantallas cuentan distinto. Súper lo nombra al pie para que esa
+     * diferencia se vea y se explique sola, en vez de parecer un error.
+     */
+    skipped: async (): Promise<Array<{ productId: string; name: string }>> => {
+      const { userId } = await getAuthContext();
+      await ensureListSkipSchema();
+      const rows = await sql`
+        SELECT sli.product_id, p.name
+        FROM shopping_list_items sli
+        JOIN products p ON p.id = sli.product_id
+        WHERE sli.user_id = ${userId} AND sli.skipped_until > NOW()
+        ORDER BY p.name ASC
+      `;
+      return (rows as Array<{ product_id: string; name: string }>).map((r) => ({
+        productId: String(r.product_id),
+        name: String(r.name ?? ''),
+      }));
     },
     /** Product ids the user already grabbed at the store (is_in_cart). Casa
      * hides these from the "faltantes" sections so the pantry reflects the

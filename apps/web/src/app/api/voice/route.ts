@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { randomUUID } from 'node:crypto';
-import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
+import { ensureListSkipSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
 
 interface VoiceRequest {
   transcript: string;
@@ -69,10 +69,14 @@ async function handleAdd(userId: string, productName: string): Promise<IntentRes
 
   const product = rows[0] as { id: string; name: string };
 
+  // Pedirlo por voz es pedirlo a propósito: si estaba apartado con «No estaba
+  // en el súper», vuelve a la lista. Con `DO NOTHING` se quedaba fuera.
+  await ensureListSkipSchema();
   await sql`
     INSERT INTO shopping_list_items (id, product_id, user_id, household_id, note, created_at, updated_at)
     VALUES (${randomUUID()}, ${product.id}, ${userId}, NULL, NULL, NOW(), NOW())
-    ON CONFLICT DO NOTHING
+    ON CONFLICT (user_id, product_id) DO UPDATE
+      SET skipped_until = NULL, updated_at = NOW()
   `;
 
   // Flag the product as needed so the list filter (which hides fully stocked,

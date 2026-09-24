@@ -96,3 +96,56 @@ describe('SupermarketView · el carrito', () => {
     expect(screen.getByRole('heading', { name: /Finalizar compra/ })).toBeInTheDocument();
   });
 });
+
+/**
+ * Casa contaba 6 faltantes y Súper enseñaba 4. «No estaba en el súper» borraba
+ * la fila para siempre aunque el aviso prometía quitarlo solo «de hoy». Ahora
+ * se aparta hasta finalizar la compra, y mientras tanto se nombra al pie: si no
+ * se viera, la diferencia con Casa volvería a parecer un error.
+ */
+describe('SupermarketView · lo que no estaba en el súper', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 204, json: async () => ({}) })));
+    // La hoja del producto pregunta por `prefers-reduced-motion`; jsdom no
+    // trae `matchMedia`.
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false, media: query, onchange: null,
+      addEventListener: () => undefined, removeEventListener: () => undefined,
+      addListener: () => undefined, removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }));
+    // Las chispas usan la Web Animations API, que jsdom tampoco trae.
+    Element.prototype.animate ??= function animate() {
+      return { finished: Promise.resolve(), cancel: () => undefined, onfinish: null } as unknown as Animation;
+    };
+  });
+
+  it('nombra al pie lo apartado hoy y cuándo vuelve', () => {
+    render(
+      <SupermarketView
+        initialItems={ITEMS}
+        initialApartados={[{ productId: 'qf', name: 'Queso Fresco' }]}
+      />,
+    );
+    const pie = screen.getByText(/No estaban en el súper/);
+    expect(pie).toHaveTextContent('Queso Fresco');
+    expect(pie).toHaveTextContent('Vuelven a la lista al finalizar la compra');
+  });
+
+  it('sin nada apartado no hay pie', () => {
+    render(<SupermarketView initialItems={ITEMS} />);
+    expect(screen.queryByText(/No estaban en el súper/)).not.toBeInTheDocument();
+  });
+
+  it('quitar un faltante de la lista lo lleva al pie, no lo pierde', async () => {
+    render(<SupermarketView initialItems={ITEMS} />);
+
+    fireEvent.click(screen.getAllByText('Mantequilla')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /No estaba en el súper/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Quitar de la lista' }));
+
+    const pie = await screen.findByText(/No estaban en el súper/);
+    expect(pie).toHaveTextContent('Mantequilla');
+  });
+});

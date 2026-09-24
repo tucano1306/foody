@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
-import { ensurePurchaseSchema } from '@/lib/ensure-schema';
+import { ensureListSkipSchema, ensurePurchaseSchema } from '@/lib/ensure-schema';
 import { dedupeByProduct } from '@/lib/cart-dedupe';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { normalizeBrand } from '@/lib/product-brands';
@@ -220,6 +220,14 @@ export async function POST(request: NextRequest) {
   `;
 
   await sql`DELETE FROM shopping_list_items WHERE user_id = ${user.userId} AND is_in_cart = true`;
+
+  // La compra terminó: lo que «no estaba en el súper» vuelve a la lista para
+  // la próxima. Sigue faltando en casa, y la promesa era apartarlo solo hoy.
+  await ensureListSkipSchema();
+  await sql`
+    UPDATE shopping_list_items SET skipped_until = NULL
+    WHERE user_id = ${user.userId} AND skipped_until IS NOT NULL
+  `;
 
   await notifyShoppingComplete(user.userId, items.length, storeName).catch(() => undefined);
 
