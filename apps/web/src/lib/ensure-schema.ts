@@ -110,6 +110,38 @@ export async function ensurePurchaseSchema(): Promise<void> {
   schemaEnsured = true;
 }
 
+/**
+ * La promesa y no un booleano: Súper pide la lista y lo apartado a la vez, y
+ * con un booleano las dos llamadas veían «aún no» y lanzaban dos ALTER TABLE
+ * simultáneos en el arranque en frío. Así comparten uno.
+ */
+let listSkipEnsured: Promise<void> | null = null;
+
+/**
+ * `skipped_until`: hasta cuándo un producto está apartado de la lista del súper.
+ *
+ * «No estaba en el súper — quitar de la lista» promete quitarlo de la lista
+ * «de hoy» y que siga en la despensa como faltante. Se implementó borrando la
+ * fila, y eso no era «de hoy»: era para siempre. El producto seguía marcado
+ * como faltante en Casa y no volvía nunca a Súper — ALL llevaba fuera desde el
+ * 16 sep y Queso Fresco desde el 22 ago, y Casa contaba 6 donde Súper enseñaba
+ * 4. Ahora la fila se queda, apartada hasta que se cierra la compra (o como
+ * mucho unas horas si nadie la cierra). Ver `shopping-list-sync.ts`.
+ */
+export function ensureListSkipSchema(): Promise<void> {
+  listSkipEnsured ??= sql`
+    ALTER TABLE shopping_list_items ADD COLUMN IF NOT EXISTS skipped_until TIMESTAMPTZ
+  `.then(
+    () => undefined,
+    (err: unknown) => {
+      // Si falla, que el siguiente lo reintente en vez de heredar el error.
+      listSkipEnsured = null;
+      throw err;
+    },
+  );
+  return listSkipEnsured;
+}
+
 let sharingEnsured = false;
 
 /**

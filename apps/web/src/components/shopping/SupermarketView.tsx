@@ -44,6 +44,12 @@ interface Props {
    * elegir una vacía enseña el estado vacío, que es una respuesta honesta.
    */
   readonly allCategories?: readonly string[];
+  /**
+   * Lo apartado hoy con «No estaba en el súper». Casa lo sigue contando como
+   * faltante y aquí no sale hasta finalizar la compra; nombrarlo al pie es lo
+   * que hace que esa diferencia se entienda en vez de parecer un error.
+   */
+  readonly initialApartados?: ReadonlyArray<{ readonly productId: string; readonly name: string }>;
 }
 
 type Filter = 'all' | 'urgent' | 'low';
@@ -245,11 +251,12 @@ export function resumenDeCompra(articulos: number, total: string): string {
     : cuantos;
 }
 
-export default function SupermarketView({ initialItems, pastStoreNames, allCategories = [] }: Props) {
+export default function SupermarketView({ initialItems, pastStoreNames, allCategories = [], initialApartados = [] }: Props) {
   const router = useRouter();
   const toast = useToast();
   const { celebrate } = useCelebration();
   const [items, setItems] = useState(initialItems);
+  const [apartados, setApartados] = useState(initialApartados);
   const [, startTransition] = useTransition();
   const [completing, setCompleting] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
@@ -418,6 +425,15 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
         credentials: 'include',
       });
       if (res.ok || res.status === 404) {
+        // Si falta en casa, el servidor lo aparta en vez de borrarlo: vuelve al
+        // finalizar la compra. Se nombra al pie para que no parezca perdido.
+        if (target.product.stockLevel !== 'full') {
+          setApartados((prev) => (
+            prev.some((a) => a.productId === target.product.id)
+              ? prev
+              : [...prev, { productId: target.product.id, name: target.product.name }]
+          ));
+        }
         toast.show(`"${target.product.name}" quitado de la lista`, 'success');
       } else {
         setItems((prev) => [...prev, target]);
@@ -436,6 +452,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   // ─── Add a product to today's list ──────────────────────────────────────────
   function handleAdded(newItem: ShoppingListItem) {
     setItems((prev) => (prev.some((i) => i.product.id === newItem.product.id) ? prev : [newItem, ...prev]));
+    setApartados((prev) => prev.filter((a) => a.productId !== newItem.product.id));
     toast.show(`"${newItem.product.name}" agregado a la lista ✓`, 'success');
     // Gentle minor-ish tone: joining the shopping list means something ran out.
     playSound('low');
@@ -539,6 +556,8 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
         setShowModal(false);
         clearSession();
         setItems((prev) => prev.filter((i) => !i.isInCart));
+        // El servidor ya los devolvió a la lista; el refresco los trae.
+        setApartados([]);
         router.refresh();
       } else {
         toast.show('No se pudo completar la compra. Intenta de nuevo.', 'error');
@@ -909,6 +928,19 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
             Toca «Finalizar compra» abajo para registrarla
           </p>
         </div>
+      )}
+
+      {/* ─── Apartados hoy ─────────────────────────────────────────────────────
+          Casa los sigue contando como faltantes y aquí no salen: sin esta línea,
+          las dos pantallas parecían contar mal. */}
+      {apartados.length > 0 && !searching && (
+        <p className="px-1 text-[11px] text-slate-500 dark:text-slate-400">
+          🚫 No estaban en el súper:{' '}
+          <span className="font-semibold text-slate-600 dark:text-slate-300">
+            {apartados.map((a) => a.name).join(', ')}
+          </span>
+          . Vuelven a la lista al finalizar la compra.
+        </p>
       )}
 
       {/* ─── Comprados (recency-ordered card grid) ───────────────────────────── */}
