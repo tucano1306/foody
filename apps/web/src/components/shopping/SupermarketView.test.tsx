@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ShoppingListItem } from '@foody/types';
 import SupermarketView from './SupermarketView';
@@ -138,14 +138,76 @@ describe('SupermarketView · lo que no estaba en el súper', () => {
     expect(screen.queryByText(/No estaban en el súper/)).not.toBeInTheDocument();
   });
 
-  it('quitar un faltante de la lista lo lleva al pie, no lo pierde', async () => {
+  it('«no estaba en el súper» lo aparta: al pie, no perdido', async () => {
     render(<SupermarketView initialItems={ITEMS} />);
 
     fireEvent.click(screen.getAllByText('Mantequilla')[0]);
     fireEvent.click(await screen.findByRole('button', { name: /No estaba en el súper/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Quitar de la lista' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Apartar por hoy' }));
 
     const pie = await screen.findByText(/No estaban en el súper/);
     expect(pie).toHaveTextContent('Mantequilla');
+    const [url, init] = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(url).toBe('/api/proxy/shopping-list/li-mantequilla');
+    expect((init as RequestInit).method).toBe('DELETE');
+  });
+});
+
+/**
+ * El usuario quitó el Queso Fresco de la lista porque ya no lo quería —o lo
+ * había cambiado por otro queso— y Casa seguía pidiendo «reponer 6» donde él
+ * esperaba 5. El único botón que había era «No estaba en el súper», que lo
+ * apartaba y lo dejaba como faltante. Ahora se elige el motivo.
+ */
+describe('SupermarketView · «ya no lo necesito»', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) })));
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false, media: query, onchange: null,
+      addEventListener: () => undefined, removeEventListener: () => undefined,
+      addListener: () => undefined, removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }));
+    Element.prototype.animate ??= function animate() {
+      return { finished: Promise.resolve(), cancel: () => undefined, onfinish: null } as unknown as Animation;
+    };
+  });
+
+  it('la hoja ofrece los dos motivos', async () => {
+    render(<SupermarketView initialItems={ITEMS} />);
+    fireEvent.click(screen.getAllByText('Mantequilla')[0]);
+
+    expect(await screen.findByRole('button', { name: /Ya no lo necesito/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /No estaba en el súper/ })).toBeInTheDocument();
+  });
+
+  it('lo saca de los faltantes de Casa: el mismo «ya tengo» que usa Casa', async () => {
+    render(<SupermarketView initialItems={ITEMS} />);
+
+    fireEvent.click(screen.getAllByText('Mantequilla')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /Ya no lo necesito/ }));
+    // La confirmación dice la consecuencia, que es justo lo que confundía.
+    expect(await screen.findByText(/Sale de la lista y de los faltantes de Casa/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ya no lo necesito' }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      '/api/proxy/products/mantequilla/mark-ok',
+      expect.objectContaining({ method: 'PATCH' }),
+    ));
+    // Y no pasa por la ruta de apartar.
+    expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).includes('/shopping-list/'))).toBe(false);
+  });
+
+  it('y no lo deja apartado: no vuelve al finalizar la compra', async () => {
+    render(<SupermarketView initialItems={ITEMS} />);
+
+    fireEvent.click(screen.getAllByText('Mantequilla')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /Ya no lo necesito/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Ya no lo necesito' }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Ya no necesitas/ })).not.toBeInTheDocument());
+    expect(screen.queryByText(/No estaban en el súper/)).not.toBeInTheDocument();
   });
 });
