@@ -54,6 +54,17 @@ describe('<StatAmount>', () => {
     expect(p.className).toContain('mt-1');
   });
 
+  it('puede ir como <span> dentro de un párrafo con su etiqueta', () => {
+    const { container } = render(
+      <p>
+        Última <StatAmount as="span" value="$13.12" />
+      </p>,
+    );
+    const span = container.querySelector<HTMLElement>('p > span.stat-amount');
+    expect(span).not.toBeNull();
+    expect(span!.style.getPropertyValue('--stat-chars')).toBe('5.45');
+  });
+
   it('deja pasar un adorno detrás sin que cuente para la medida', () => {
     const { container } = render(
       <StatAmount value="$720.73">

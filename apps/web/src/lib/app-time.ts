@@ -50,18 +50,48 @@ export function formatFecha(
   return new Intl.DateTimeFormat(locale, { ...opts, timeZone: zonaDeLaFecha(iso) }).format(d);
 }
 
-/** Año, mes (1-12) y día de la fecha, en la zona que le toca. */
-export function diaDeLaFecha(iso: string): { year: number; month: number; day: number } | null {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
+type Dia = { year: number; month: number; day: number };
+
+function diaEn(d: Date, timeZone: string): Dia {
   const partes = new Intl.DateTimeFormat('en-US', {
-    timeZone: zonaDeLaFecha(iso),
+    timeZone,
     year: 'numeric',
     month: 'numeric',
     day: 'numeric',
   }).formatToParts(d);
   const valor = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value);
   return { year: valor('year'), month: valor('month'), day: valor('day') };
+}
+
+/** Año, mes (1-12) y día de la fecha, en la zona que le toca. */
+export function diaDeLaFecha(iso: string): Dia | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return diaEn(d, zonaDeLaFecha(iso));
+}
+
+/**
+ * Cuándo fue, en corto: «hoy», «ayer», «20 jul» o, si fue otro año, «oct 2025».
+ *
+ * Es lo que va debajo del precio en la tarjeta de producto, que en la rejilla
+ * de Casa deja ~70px útiles en un móvil de 360px. «hace 2 meses» ocupa 80 y
+ * «hace 11 meses» 88: salían cortados en «hace 2 mese…». Una fecha corta cabe
+ * siempre —la más ancha, «dic 2025», ronda los 52— y además dice más.
+ *
+ * Los días se cuentan en el calendario de Miami, no por horas: lo comprado
+ * anoche a las 23:00 es «ayer» aunque haya pasado una hora.
+ */
+export function cuandoFue(iso: string, ahora: Date = new Date()): string {
+  const dia = diaDeLaFecha(iso);
+  if (!dia) return '';
+  const hoy = diaEn(ahora, APP_TZ);
+  const numero = (d: Dia) => Date.UTC(d.year, d.month - 1, d.day) / 86_400_000;
+  const dias = numero(hoy) - numero(dia);
+  if (dias === 0) return 'hoy';
+  if (dias === 1) return 'ayer';
+  return dia.year === hoy.year
+    ? formatFecha(iso, { day: 'numeric', month: 'short' })
+    : formatFecha(iso, { month: 'short', year: 'numeric' });
 }
 
 /**

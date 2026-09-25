@@ -40,16 +40,22 @@ type Props = {
   readonly className?: string;
   /** Adorno que va detrás y no cuenta para la medida, p. ej. un asterisco. */
   readonly children?: React.ReactNode;
+  /**
+   * `span` para cuando el importe va dentro de un párrafo junto a su etiqueta
+   * —el precio de la tarjeta de producto—: un `<p>` dentro de otro no es HTML
+   * válido y el navegador lo saca fuera.
+   */
+  readonly as?: 'p' | 'span';
 };
 
-export default function StatAmount({ value, className = '', children }: Props) {
+export default function StatAmount({ value, className = '', children, as: Tag = 'p' }: Props) {
   return (
-    <p
+    <Tag
       className={`stat-amount ${className}`.trim()}
       style={{ '--stat-chars': anchoEnDigitos(value) } as React.CSSProperties}
     >
       {value}
       {children}
-    </p>
+    </Tag>
   );
 }
