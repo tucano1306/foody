@@ -11,6 +11,12 @@ describe('monthKey', () => {
     expect(monthKey('2026-08-31T23:59:59.999Z')).toBe('2026-08');
   });
 
+  it('una compra de Súper la noche del 30 de septiembre es de septiembre', () => {
+    // 02:00 UTC del 1 de octubre = 22:00 del 30 de septiembre en Miami. En UTC
+    // caía en octubre: el bloque y la fecha de la fila se contradecían.
+    expect(monthKey('2026-10-01T02:00:00.000Z')).toBe('2026-09');
+  });
+
   it('una fecha ilegible no rompe nada', () => {
     expect(monthKey('no es una fecha')).toBe(SIN_FECHA);
   });

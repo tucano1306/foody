@@ -9,6 +9,7 @@ import { EXPENSE_KINDS, expenseKindMeta, type ExpenseKind } from '@/lib/expense-
 import ModalShell from './ModalShell';
 import { fmtMoneyFine } from './finance-ui';
 import { parseMoney } from '@/lib/money-input';
+import { aCampoDeFecha, formatFecha } from '@/lib/app-time';
 
 interface Expense {
   id: string;
@@ -36,16 +37,21 @@ interface Props {
 
 function fmtDate(iso: string): string {
   try {
-    return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', timeZone: 'UTC' })
-      .format(new Date(iso));
+    // El día que era en Miami. Ver app-time.ts.
+    return formatFecha(iso, { day: '2-digit', month: 'short' });
   } catch {
     return iso.slice(0, 10);
   }
 }
 
-/** Una fecha ISO al `value` de un <input type="date">, sin corrimiento de zona. */
+/**
+ * Una fecha ISO al `value` de un <input type="date">.
+ *
+ * Cortar el ISO (`iso.slice(0, 10)`) daba el día en UTC: una compra de las
+ * 22:43 abría en el día siguiente, y guardarla sin tocar nada la movía.
+ */
 function toDateInput(iso: string): string {
-  return iso.slice(0, 10);
+  return aCampoDeFecha(iso);
 }
 
 /** Hoy, en la zona LOCAL: `toISOString()` daría ayer por la tarde en América. */

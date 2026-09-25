@@ -263,9 +263,18 @@ export default function ProductCard({ product, showActions = false, compact = fa
       <p className="font-semibold text-[13px] leading-tight text-[var(--ink)] line-clamp-2">
         {current.name}
       </p>
+      {/* Lo que pagaste la última vez, dicho. Iba el número solo, y en la
+          rejilla densa de Casa —donde se esconde «hace 3 días · Publix»— nadie
+          sabía qué era: ¿el precio de hoy?, ¿lo que llevas gastado? */}
       {current.lastPurchasePrice != null && (
-        <p className="t-num text-[15px] text-[var(--ink)] leading-none mt-0.5">
-          {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
+        <p
+          className="leading-none mt-0.5"
+          aria-label={`La última vez pagaste ${formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}`}
+        >
+          <span className="t-meta mr-1">Última</span>
+          <span className="t-num text-[15px] text-[var(--ink)] whitespace-nowrap">
+            {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
+          </span>
         </p>
       )}
       {/*

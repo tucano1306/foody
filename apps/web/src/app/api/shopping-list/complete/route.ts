@@ -7,6 +7,7 @@ import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { normalizeBrand } from '@/lib/product-brands';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
+import { refreshLastPurchase } from '@/lib/last-purchase';
 
 interface CompletionBody {
   storeName?: string;
@@ -211,6 +212,11 @@ export async function POST(request: NextRequest) {
       await sql`UPDATE shopping_trips SET total_spent = ${finalTotal} WHERE id = ${tripId}`.catch(() => undefined);
     }
   }
+
+  // El precio de la tarjeta. Esta vía guardaba cada compra con su precio y no
+  // se lo ponía al producto: 33 de los 35 productos comprados con precio
+  // salían sin él. Nunca puede tumbar el cierre de la compra.
+  await refreshLastPurchase(user.userId, productIds).catch(() => undefined);
 
   // Update stock for all products in the completed cart (IDs already validated via cart lookup)
   await sql`

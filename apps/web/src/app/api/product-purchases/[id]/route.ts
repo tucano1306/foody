@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound, badRequest } from '@/lib/route-helpers';
+import { refreshLastPurchase } from '@/lib/last-purchase';
 
 /**
  * Editar y borrar una línea de compra suelta.
@@ -95,9 +96,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const rows = await sql`
     DELETE FROM product_purchases
     WHERE id = ${id} AND user_id = ${user.userId}
-    RETURNING id
+    RETURNING id, product_id
   `;
   if (!rows.length) return notFound();
+
+  // Si era la última compra del producto, su tarjeta vuelve a la anterior; si
+  // no le queda ninguna, pierde el precio en vez de enseñar uno que ya no existe.
+  const productoId = (rows[0] as { product_id: string | null }).product_id;
+  if (productoId) {
+    await refreshLastPurchase(user.userId, [String(productoId)], { quitarSiNoQueda: true });
+  }
 
   // El total del ticket NO se toca a propósito: es lo que se pagó de verdad.
   // Borrar una línea mal leída del OCR no cambia lo que salió de la cuenta —
