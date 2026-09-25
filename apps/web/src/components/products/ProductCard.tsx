@@ -9,8 +9,10 @@ import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { cameBackTo, ranOutFrom } from '@/lib/fx';
 import { useSwipe } from '@/lib/useSwipe';
+import { cuandoFue } from '@/lib/app-time';
 import ActionSheet from '@/components/ui/ActionSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import StatAmount from '@/components/ui/StatAmount';
 
 // Loaded only when user taps a product photo or the gift button
 const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
@@ -107,19 +109,6 @@ function formatMoney(value: number, currency: string): string {
   } catch {
     return `${currency} ${value.toFixed(2)}`;
   }
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const hours = Math.floor(diff / 3_600_000);
-  const days = Math.floor(hours / 24);
-  if (hours < 1) return 'hace menos de 1 h';
-  if (hours < 24) return `hace ${hours} h`;
-  if (days === 1) return 'ayer';
-  if (days < 7) return `hace ${days} días`;
-  if (days < 30) return `hace ${Math.floor(days / 7)} sem.`;
-  const months = Math.floor(days / 30);
-  return `hace ${months} ${months === 1 ? 'mes' : 'meses'}`;
 }
 
 function latestPurchaseDate(a?: string | null, b?: string | null): string | null {
@@ -258,23 +247,36 @@ export default function ProductCard({ product, showActions = false, compact = fa
     </div>
   );
 
+  const lastPrice =
+    current.lastPurchasePrice == null ? null : formatMoney(current.lastPurchasePrice, current.currency ?? 'USD');
+
+  // `stat-box`: la tarjeta es un contenedor de consulta. Lo que cabe en ella se
+  // decide por SU ancho, no por el de la pantalla: la misma tarjeta mide ~100px
+  // en la rejilla de tres de Casa y ~160px en la de dos de Productos.
   const infoSection = (
-    <div className="p-2.5 flex flex-col gap-0.5">
+    <div className="stat-box p-2.5 flex flex-col gap-0.5">
       <p className="font-semibold text-[13px] leading-tight text-[var(--ink)] line-clamp-2">
         {current.name}
       </p>
       {/* Lo que pagaste la última vez, dicho. Iba el número solo, y en la
           rejilla densa de Casa —donde se esconde «hace 3 días · Publix»— nadie
-          sabía qué era: ¿el precio de hoy?, ¿lo que llevas gastado? */}
-      {current.lastPurchasePrice != null && (
+          sabía qué era: ¿el precio de hoy?, ¿lo que llevas gastado?
+
+          Etiqueta y precio en la misma línea solo cuando sobra sitio. En una
+          tarjeta de ~100px, «Última $13.12» ocupaba el ancho entero, de borde a
+          borde, y con un precio de tres cifras ya no cabía. Ahí la etiqueta va
+          encima. Y el precio, si aun así no cabe, encoge: no se corta. */}
+      {lastPrice && (
         <p
-          className="leading-none mt-0.5"
-          aria-label={`La última vez pagaste ${formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}`}
+          className="mt-0.5 flex flex-wrap items-baseline gap-x-1"
+          aria-label={`La última vez pagaste ${lastPrice}`}
         >
-          <span className="t-meta mr-1">Última</span>
-          <span className="t-num text-[15px] text-[var(--ink)] whitespace-nowrap">
-            {formatMoney(current.lastPurchasePrice, current.currency ?? 'USD')}
-          </span>
+          <span className="t-meta w-full @min-[8rem]:w-auto">Última</span>
+          <StatAmount
+            as="span"
+            value={lastPrice}
+            className="t-num leading-tight text-[var(--ink)] [--stat-max:15px]"
+          />
         </p>
       )}
       {/*
@@ -284,13 +286,25 @@ export default function ProductCard({ product, showActions = false, compact = fa
         líneas más… ocho elementos de texto en una tarjeta más estrecha que una
         tarjeta de crédito. Ilegible y, sobre todo, ruidoso. Siguen estando a un
         toque, en la ficha del producto.
+
+        Cuándo, en corto («hoy», «20 jul»), y la tienda solo si cabe. En la
+        tarjeta estrecha «hace 2 meses · Publix» se cortaba en «hace 2 mese…»:
+        se perdía la tienda Y el dato que sí importa.
       */}
-      {!compact && (purchasedAt || current.totalSpent > 0) && (
+      {!compact && purchasedAt && (
         <p className="t-meta truncate mt-1">
-          {purchasedAt && formatRelativeTime(purchasedAt)}
-          {purchasedAt && lastPurchase?.storeName && ` · ${lastPurchase.storeName}`}
-          {!purchasedAt && current.totalSpent > 0 &&
-            `Total ${formatMoney(current.totalSpent, current.currency ?? 'USD')}`}
+          {cuandoFue(purchasedAt)}
+          {lastPurchase?.storeName && (
+            <span className="hidden @min-[8rem]:inline">{` · ${lastPurchase.storeName}`}</span>
+          )}
+        </p>
+      )}
+      {/* Un importe no va dentro de un `truncate`: «Total $1,234.56» se quedaba
+          en «Total $1,23…», que es otro número. */}
+      {!compact && !purchasedAt && current.totalSpent > 0 && (
+        <p className="t-meta mt-1 flex flex-wrap gap-x-1">
+          <span>Total</span>
+          <span className="whitespace-nowrap">{formatMoney(current.totalSpent, current.currency ?? 'USD')}</span>
         </p>
       )}
     </div>

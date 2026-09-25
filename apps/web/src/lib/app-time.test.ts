@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { APP_TZ, aCampoDeFecha, diaDeLaFecha, esSoloFecha, formatFecha, zonaDeLaFecha } from './app-time';
+import { APP_TZ, aCampoDeFecha, cuandoFue, diaDeLaFecha, esSoloFecha, formatFecha, zonaDeLaFecha } from './app-time';
 
 const corto = { day: '2-digit', month: 'short' } as const;
 
@@ -70,6 +70,41 @@ describe('zonaDeLaFecha', () => {
     expect(APP_TZ).toBe('America/New_York');
     expect(zonaDeLaFecha('2026-09-07T02:43:00.000Z')).toBe(APP_TZ);
     expect(zonaDeLaFecha('2026-09-07T00:00:00.000Z')).toBe('UTC');
+  });
+});
+
+describe('cuandoFue — lo que cabe debajo del precio', () => {
+  // 12:00 del 25 de septiembre en Miami.
+  const MEDIODIA = new Date('2026-09-25T16:00:00.000Z');
+
+  it('lo de hoy es «hoy»', () => {
+    expect(cuandoFue('2026-09-25T14:00:00.000Z', MEDIODIA)).toBe('hoy');
+  });
+
+  it('lo de anoche a las 23:00 es «ayer», aunque haya pasado una hora', () => {
+    // 03:00 UTC del 25 = 23:00 del 24 en Miami; «ahora» es la 01:00 del 25.
+    expect(cuandoFue('2026-09-25T03:00:00.000Z', new Date('2026-09-25T05:00:00.000Z'))).toBe('ayer');
+  });
+
+  it('a las 22:00 de Miami sigue siendo hoy, aunque en UTC ya sea mañana', () => {
+    expect(cuandoFue('2026-09-25T14:00:00.000Z', new Date('2026-09-26T02:00:00.000Z'))).toBe('hoy');
+  });
+
+  it('un ticket del calendario de hoy es «hoy», no «ayer»', () => {
+    // Medianoche UTC = las 20:00 del día anterior en Miami, si se leyera como hora.
+    expect(cuandoFue('2026-09-25T00:00:00.000Z', MEDIODIA)).toBe('hoy');
+  });
+
+  it('lo de este año, con día y mes', () => {
+    expect(cuandoFue('2026-07-20T15:00:00.000Z', MEDIODIA)).toMatch(DIA('20', 'jul'));
+  });
+
+  it('lo de otro año, con mes y año: sin el año, «oct» sería el que viene', () => {
+    expect(cuandoFue('2025-10-20T15:00:00.000Z', MEDIODIA)).toMatch(/^oct\W+2025$/i);
+  });
+
+  it('una fecha ilegible no dice nada', () => {
+    expect(cuandoFue('basura', MEDIODIA)).toBe('');
   });
 });
 
