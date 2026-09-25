@@ -5,6 +5,7 @@ import { buildStatsSummary } from '@/lib/stats-engine';
 import { loadGroceryInsight } from '@/lib/finance-data';
 import { EMPTY_GROCERY_INSIGHT, type GroceryInsight } from '@/lib/grocery-insights';
 import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
+import { relojDelUsuario } from '@/lib/zona-servidor';
 import ModernTitle from '@/components/layout/ModernTitle';
 import StatsContent from '@/components/stats/StatsContent';
 import type { Metadata } from 'next';
@@ -28,6 +29,9 @@ async function getStats(userId: string): Promise<StatsData> {
   // Stats mide la DESPENSA: solo tickets de super. Comer fuera, la farmacia o
   // la gasolina son gasto del Plan Financiero y ensuciarían cada promedio.
   await ensureTripSplitsSchema();
+  // Los meses son los del dispositivo del usuario, no los del servidor (UTC):
+  // la última noche del mes, lo comprado desde Miami caía en el siguiente.
+  const { zona, ahora } = await relojDelUsuario();
 
   // Per-user isolation
   const productScope = sql`user_id = ${userId}`;
@@ -62,16 +66,18 @@ async function getStats(userId: string): Promise<StatsData> {
       SELECT month, SUM(total) AS total, COUNT(*) AS trips
       FROM (
         -- Mismo motivo: septiembre salia $51.16 aqui y $29.22 en Casa.
-        SELECT TO_CHAR(date, 'YYYY-MM') AS month, amount AS total
+        SELECT TO_CHAR(date AT TIME ZONE ${zona}::text, 'YYYY-MM') AS month, amount AS total
         FROM trip_kind_amounts
         WHERE user_id = ${userId} AND kind = 'grocery' AND date >= NOW() - INTERVAL '6 months'
         UNION ALL
-        SELECT TO_CHAR(purchased_at, 'YYYY-MM') AS month,
+        SELECT TO_CHAR(purchased_at AT TIME ZONE ${zona}::text, 'YYYY-MM') AS month,
           SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
         FROM product_purchases
         WHERE user_id = ${userId} AND trip_id IS NULL
           AND purchased_at >= NOW() - INTERVAL '6 months'
-        GROUP BY TO_CHAR(purchased_at, 'YYYY-MM'), purchased_at
+        -- Solo por el instante: el mes sale de él. Repetir la expresión con la
+        -- zona serían dos parámetros, y Postgres no las vería iguales.
+        GROUP BY purchased_at
       ) sessions
       GROUP BY month ORDER BY month ASC
     `,
@@ -108,7 +114,7 @@ async function getStats(userId: string): Promise<StatsData> {
     trips: Number.parseInt(r.trips, 10),
   }));
 
-  const now = new Date();
+  const now = ahora;
   const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;

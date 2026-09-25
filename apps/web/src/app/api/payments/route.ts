@@ -4,8 +4,9 @@ import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { normalizePaymentMethod, toLast4 } from '@/lib/payment-methods';
 import { normalizeShare } from '@/lib/expense-scope';
 import { ensureExpenseScopeSchema } from '@/lib/ensure-schema';
-import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
-import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from '@/lib/payment-aggregates';
+import { type PaidRecordInput } from '@/lib/payment-aggregates';
+import { paymentCalendar, type PaymentCalendar } from '@/lib/payment-calendar';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 import { randomUUID } from 'node:crypto';
 import { normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 
@@ -38,14 +39,26 @@ function toISOStringSafe(value: unknown): string {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-function mapPayment(
-  row: Record<string, unknown>,
-  aggregates: PaymentAggregates = EMPTY_AGGREGATES,
-) {
+/** El calendario del pago, con sus cobros, en la zona del usuario. */
+function calendarFor(row: Record<string, unknown>, paidRecords: readonly PaidRecordInput[], zona: string): PaymentCalendar {
+  const frequency = normalizeFrequency(row.frequency);
+  return paymentCalendar({
+    createdAt: new Date(row.created_at as string),
+    dueDay: asInteger(row.due_day, 1),
+    amount: asNumber(row.amount),
+    paidRecords,
+    frequency,
+    anchorMonth: normalizeAnchorMonth(row.anchor_month, frequency),
+    zona,
+  });
+}
+
+function mapPayment(row: Record<string, unknown>, calendario: PaymentCalendar) {
   const dueDay = asInteger(row.due_day, 1);
   const frequency = normalizeFrequency(row.frequency);
   const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
   const amount = asNumber(row.amount);
+  const aggregates = calendario.aggregates;
   const isPaidThisMonth = aggregates.isPaidThisMonth;
   return {
     id: String(row.id),
@@ -70,8 +83,8 @@ function mapPayment(
     updatedAt: toISOStringSafe(row.updated_at),
     isPaidThisMonth,
     // Cycle-aware: once paid this month, the countdown restarts toward next month's due day.
-    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth, new Date(), frequency, anchorMonth),
-    nextDueDate: nextDueDate(dueDay, isPaidThisMonth, new Date(), frequency, anchorMonth).toISOString(),
+    daysUntilDue: calendario.daysUntilDue,
+    nextDueDate: calendario.nextDueDate,
     snoozedUntil: row.snoozed_until == null ? null : new Date(row.snoozed_until as string).toISOString(),
     missedMonths: aggregates.missedMonths,
     accumulatedDebt: aggregates.accumulatedDebt,
@@ -87,6 +100,7 @@ export async function GET(request: NextRequest) {
   if (!user) return unauthorized();
 
   await ensureExpenseScopeSchema();
+  const zona = await zonaDelUsuario();
   const [rows, allRecords] = await Promise.all([
     sql`SELECT * FROM monthly_payments WHERE user_id = ${user.userId} AND is_active = true ORDER BY due_day ASC`,
     // All paid records for this user: accumulated debt + all-time totals
@@ -110,13 +124,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     rows.map((row) => {
       const pid = String(row.id);
-      const aggregates = buildPaymentAggregates({
-        createdAt: new Date(row.created_at as string),
-        dueDay: asInteger(row.due_day, 1),
-        amount: asNumber(row.amount),
-        paidRecords: paidByPayment.get(pid) ?? [],
-      });
-      return mapPayment(row as Record<string, unknown>, aggregates);
+      const fila = row as Record<string, unknown>;
+      return mapPayment(fila, calendarFor(fila, paidByPayment.get(pid) ?? [], zona));
     }),
   );
 }
@@ -197,7 +206,8 @@ export async function POST(request: NextRequest) {
         NOW(), NOW()
       ) RETURNING *
     `;
-    return NextResponse.json(mapPayment(rows[0] as Record<string, unknown>), { status: 201 });
+    const creado = rows[0] as Record<string, unknown>;
+    return NextResponse.json(mapPayment(creado, calendarFor(creado, [], await zonaDelUsuario())), { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Database error';
     return NextResponse.json({ message }, { status: 500 });

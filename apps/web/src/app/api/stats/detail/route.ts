@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 
 export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
@@ -63,7 +64,8 @@ export async function GET(request: NextRequest) {
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
       WHERE ${ppScope}
-        AND TO_CHAR(pp.purchased_at, 'YYYY-MM') = ${month}
+        -- El mes que se enseña en la gráfica: el del dispositivo del usuario.
+        AND TO_CHAR(pp.purchased_at AT TIME ZONE ${await zonaDelUsuario()}::text, 'YYYY-MM') = ${month}
       ORDER BY pp.purchased_at DESC
       LIMIT 50
     `;

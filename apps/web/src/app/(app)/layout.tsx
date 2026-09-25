@@ -12,6 +12,8 @@ import OfflineSync from '@/components/pwa/OfflineSync';
 import FocusRefresh from '@/components/pwa/FocusRefresh';
 import PushNotifications from '@/components/pwa/PushNotifications';
 import FunBackground from '@/components/fx/FunBackground';
+import { ZonaHorariaProvider } from '@/components/layout/ZonaHoraria';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 
 export default async function AppLayout({ children }: { readonly children: React.ReactNode }) {
   const session = await getSession();
@@ -28,8 +30,10 @@ export default async function AppLayout({ children }: { readonly children: React
   }
 
   const user = { name: session.name, avatarUrl: session.avatarUrl, email: session.email };
+  const zona = await zonaDelUsuario();
 
   return (
+    <ZonaHorariaProvider zonaServidor={zona}>
     <div className="min-h-screen flex flex-col lg:flex-row">
       <FunBackground />
       <PullToRefresh />
@@ -56,5 +60,6 @@ export default async function AppLayout({ children }: { readonly children: React
       <OnboardingTour />
       <PwaInstaller />
     </div>
+    </ZonaHorariaProvider>
   );
 }

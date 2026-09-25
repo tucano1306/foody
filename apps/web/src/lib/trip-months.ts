@@ -34,10 +34,10 @@ export interface MonthGroup<T> {
  * contradirían: un ticket del calendario del 1 de septiembre es de septiembre
  * aunque en Miami fueran las 8 de la noche del 31 de agosto; y una compra
  * cerrada en Súper a las 22:00 del 30 de septiembre es de septiembre aunque en
- * UTC ya fuera 1 de octubre.
+ * UTC ya fuera 1 de octubre. `zona` es la del dispositivo del usuario.
  */
-export function monthKey(iso: string): string {
-  const d = diaDeLaFecha(iso);
+export function monthKey(iso: string, zona: string): string {
+  const d = diaDeLaFecha(iso, zona);
   if (!d) return SIN_FECHA;
   return `${d.year}-${String(d.month).padStart(2, '0')}`;
 }
@@ -65,10 +65,11 @@ function tiempo(iso: string): number {
  */
 export function groupByMonth<T extends { readonly purchasedAt: string; readonly totalAmount: number }>(
   trips: readonly T[],
+  zona: string,
 ): MonthGroup<T>[] {
   const porMes = new Map<string, T[]>();
   for (const trip of trips) {
-    const key = monthKey(trip.purchasedAt);
+    const key = monthKey(trip.purchasedAt, zona);
     const lista = porMes.get(key);
     if (lista) lista.push(trip);
     else porMes.set(key, [trip]);

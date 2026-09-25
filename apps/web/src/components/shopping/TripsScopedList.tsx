@@ -10,6 +10,7 @@ import StatAmount from '@/components/ui/StatAmount';
 import { groupByMonth, paginate } from '@/lib/trip-months';
 import ReclassifyChip from './ReclassifyChip';
 import { formatFecha } from '@/lib/app-time';
+import { useZonaHoraria } from '@/components/layout/ZonaHoraria';
 
 /** El tope de tamano de los tres numeros: el de siempre, text-xl / sm:text-2xl.
     Por debajo encogen solos cuando el importe no cabe. */
@@ -34,11 +35,11 @@ function formatCurrency(value: number, currency: string): string {
   }
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, zona: string): string {
   try {
-    // El día que era en Miami: un ticket del calendario sigue en su día, y una
-    // compra cerrada en Súper por la noche ya no sale con el siguiente.
-    return formatFecha(iso, { day: '2-digit', month: 'short', year: 'numeric' });
+    // El día que era donde está el usuario: una compra cerrada en Súper por la
+    // noche ya no sale con el día siguiente.
+    return formatFecha(iso, { day: '2-digit', month: 'short', year: 'numeric' }, zona);
   } catch {
     return iso;
   }
@@ -112,7 +113,8 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
    * larga de recorrer. Cada mes es un bloque que se abre al tocarlo; el más
    * reciente viene abierto porque es el que se mira.
    */
-  const meses = useMemo(() => groupByMonth(visibles), [visibles]);
+  const zona = useZonaHoraria();
+  const meses = useMemo(() => groupByMonth(visibles, zona), [visibles, zona]);
   const [abiertos, setAbiertos] = useState<ReadonlySet<string>>(
     () => new Set(meses[0] ? [meses[0].key] : []),
   );
@@ -303,6 +305,7 @@ function TripRow({
   readonly cheapest: boolean;
   readonly priciest: boolean;
 }) {
+  const zona = useZonaHoraria();
   // Tickets de antes de que existiera la clasificación: nada se migró solo,
   // así que el nombre de la tienda es lo único que puede delatar que esto no
   // era una compra de despensa.
@@ -320,7 +323,7 @@ function TripRow({
           </span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-slate-800 truncate">{trip.storeName ?? 'Sin tienda'}</p>
-            <p className="text-xs text-slate-500">{formatDate(trip.purchasedAt)}</p>
+            <p className="text-xs text-slate-500">{formatDate(trip.purchasedAt, zona)}</p>
           </div>
           <div className="text-right shrink-0">
             <p className="font-bold text-brand-700">{formatCurrency(trip.totalAmount, trip.currency)}</p>

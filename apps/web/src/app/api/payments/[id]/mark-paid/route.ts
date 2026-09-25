@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
 import { listUnpaidMonths, monthKey } from '@/lib/payment-aggregates';
+import { normalizeAnchorMonth, normalizeFrequency, type PaymentFrequency } from '@/lib/payment-frequency';
+import { horaDePared } from '@/lib/zona';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
 
@@ -26,14 +29,21 @@ function parseString(value: unknown, max = 100): string | null {
 /**
  * The month a new payment settles: the oldest unpaid month whose due date
  * already passed, falling back to the current month when there is no debt.
+ *
+ * `createdAt` y `now` llegan en la hora de pared del usuario: con la del
+ * servidor, pagar la última noche del mes desde Miami apuntaba el pago al mes
+ * siguiente. Y con su frecuencia, igual que la pantalla: sin ella, pagar un
+ * seguro semestral lo apuntaba a un mes en que no tocaba cobrarlo.
  */
 function findTargetMonth(
   createdAt: Date,
   dueDay: number,
   paidKeys: Set<string>,
   now: Date,
+  frequency: PaymentFrequency,
+  anchorMonth: number | null,
 ): { month: number; year: number } {
-  const unpaid = listUnpaidMonths(createdAt, dueDay, paidKeys, now);
+  const unpaid = listUnpaidMonths(createdAt, dueDay, paidKeys, now, frequency, anchorMonth);
   return unpaid[0] ?? { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
@@ -42,7 +52,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!user) return unauthorized();
 
   const { id } = await params;
-  const now = new Date();
+  // El mes y el día son los del usuario, no los del servidor (UTC).
+  const zona = await zonaDelUsuario();
+  const now = horaDePared(new Date(), zona);
 
   const [paymentRows, allRecords] = await Promise.all([
     sql`SELECT * FROM monthly_payments WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`,
@@ -65,8 +77,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Determine which month to record: oldest unpaid first
   const paidKeys = new Set(allRecords.map((r) => monthKey(Number(r.year), Number(r.month))));
-  const createdAt = new Date(payment.created_at as string);
-  const { month, year } = findTargetMonth(createdAt, Number(payment.due_day), paidKeys, now);
+  const createdAt = horaDePared(new Date(payment.created_at as string), zona);
+  const frequency = normalizeFrequency(payment.frequency);
+  const { month, year } = findTargetMonth(
+    createdAt,
+    Number(payment.due_day),
+    paidKeys,
+    now,
+    frequency,
+    normalizeAnchorMonth(payment.anchor_month, frequency),
+  );
 
   const rows = await sql`
     INSERT INTO payment_records (
@@ -114,7 +134,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!user) return unauthorized();
 
   const { id } = await params;
-  const now = new Date();
+  // El mes y el día son los del usuario, no los del servidor (UTC).
+  const zona = await zonaDelUsuario();
+  const now = horaDePared(new Date(), zona);
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
   const removed = await sql`

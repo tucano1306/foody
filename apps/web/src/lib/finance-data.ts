@@ -16,7 +16,9 @@ import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { findDuplicateObligations, type DuplicateSuspect } from '@/lib/duplicate-obligations';
 import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
-import { buildPaymentAggregates, type PaidRecordInput } from '@/lib/payment-aggregates';
+import { type PaidRecordInput } from '@/lib/payment-aggregates';
+import { paymentCalendar } from '@/lib/payment-calendar';
+import { relojDelUsuario } from '@/lib/zona-servidor';
 import {
   computeGroceryInsight,
   type CategorySpendInput,
@@ -235,7 +237,7 @@ function mapContributionRow(row: Record<string, unknown>): GoalContribution {
 
 // ─── Pagos fijos (reutiliza los agregados de la sección Pagos) ────────────────
 
-async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
+async function loadFixedPayments(userId: string, zona: string): Promise<FixedPaymentInput[]> {
   const [rows, paidRows] = await Promise.all([
     sql`SELECT id, name, amount, due_day, created_at, business_share FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`,
     sql`SELECT payment_id, month, year, amount, actual_amount, paid_at FROM payment_records WHERE user_id = ${userId} AND status = 'paid'`,
@@ -269,13 +271,15 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
     const dueDay = Math.trunc(num(row.due_day, 1));
     const frequency = normalizeFrequency(row.frequency);
     const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
-    const aggregates = buildPaymentAggregates({
+    // El mismo calendario que la pantalla de Pagos, en la zona del usuario.
+    const { aggregates } = paymentCalendar({
       createdAt: new Date(row.created_at as string),
       dueDay,
       amount,
       paidRecords: paidByPayment.get(id) ?? [],
       frequency,
       anchorMonth,
+      zona,
     });
     return {
       id,
@@ -306,13 +310,14 @@ async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
  * que una de $10 al 100 %. Se calcula sobre las compras del mes en curso, que es
  * el período que el plan resta.
  */
-async function loadGroceryBusinessShare(userId: string): Promise<number> {
+async function loadGroceryBusinessShare(userId: string, zona: string): Promise<number> {
   const rows = await sql`
     SELECT
       COALESCE(SUM(amount * COALESCE(business_share, 0) / 100), 0) AS business,
       COALESCE(SUM(amount), 0) AS total
     FROM trip_kind_amounts
-    WHERE user_id = ${userId} AND kind = 'grocery' AND date >= DATE_TRUNC('month', NOW())
+    WHERE user_id = ${userId} AND kind = 'grocery'
+      AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
   `;
   const r = (rows[0] ?? {}) as Record<string, unknown>;
   const total = num(r.total);
@@ -320,13 +325,14 @@ async function loadGroceryBusinessShare(userId: string): Promise<number> {
 }
 
 /** Lo mismo para el gasto que no es super: su propio porcentaje de negocio. */
-async function loadOtherBusinessShare(userId: string): Promise<number> {
+async function loadOtherBusinessShare(userId: string, zona: string): Promise<number> {
   const rows = await sql`
     SELECT
       COALESCE(SUM(amount * COALESCE(business_share, 0) / 100), 0) AS business,
       COALESCE(SUM(amount), 0) AS total
     FROM trip_kind_amounts
-    WHERE user_id = ${userId} AND kind <> 'grocery' AND date >= DATE_TRUNC('month', NOW())
+    WHERE user_id = ${userId} AND kind <> 'grocery'
+      AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
   `;
   const r = (rows[0] ?? {}) as Record<string, unknown>;
   const total = num(r.total);
@@ -341,30 +347,33 @@ async function loadOtherBusinessShare(userId: string): Promise<number> {
  * dos veces: las compras sueltas de `product_purchases` sin ticket son siempre
  * de despensa y viven del otro lado.
  */
-async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
+async function loadOtherSpend(userId: string, zona: string, ahora: Date): Promise<OtherSpendInsight> {
+  // Los meses se cuentan en la zona del usuario. El GROUP BY va por el alias:
+  // repetir la expresión con la zona serían dos parámetros distintos, y
+  // Postgres no las reconocería como la misma columna.
   const [monthRows, kindRows, placeRows] = await Promise.all([
     sql`
       SELECT
-        TO_CHAR(DATE_TRUNC('month', date), 'YYYY-MM') AS month,
+        TO_CHAR(date AT TIME ZONE ${zona}::text, 'YYYY-MM') AS month,
         COALESCE(SUM(amount), 0) AS total,
         COUNT(DISTINCT trip_id) AS trips
       FROM trip_kind_amounts
       WHERE user_id = ${userId} AND kind <> 'grocery'
-        AND date >= DATE_TRUNC('month', NOW() - INTERVAL '5 months')
-      GROUP BY DATE_TRUNC('month', date)
+        AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', (NOW() AT TIME ZONE ${zona}::text) - INTERVAL '5 months')
+      GROUP BY month
       ORDER BY month ASC
     `,
     sql`
       SELECT
         kind,
-        COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW())
+        COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date AT TIME ZONE ${zona}::text) = DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
                           THEN amount ELSE 0 END), 0) AS current_month,
-        COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+        COALESCE(SUM(CASE WHEN DATE_TRUNC('month', date AT TIME ZONE ${zona}::text) = DATE_TRUNC('month', (NOW() AT TIME ZONE ${zona}::text) - INTERVAL '1 month')
                           THEN amount ELSE 0 END), 0) AS prev_month,
-        COUNT(*) FILTER (WHERE DATE_TRUNC('month', date) = DATE_TRUNC('month', NOW())) AS count
+        COUNT(*) FILTER (WHERE DATE_TRUNC('month', date AT TIME ZONE ${zona}::text) = DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)) AS count
       FROM trip_kind_amounts
       WHERE user_id = ${userId} AND kind <> 'grocery'
-        AND date >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+        AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', (NOW() AT TIME ZONE ${zona}::text) - INTERVAL '1 month')
       GROUP BY kind
       ORDER BY current_month DESC
     `,
@@ -375,7 +384,7 @@ async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
         COUNT(*) AS count
       FROM trip_kind_amounts
       WHERE user_id = ${userId} AND kind <> 'grocery'
-        AND date >= DATE_TRUNC('month', NOW())
+        AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
       GROUP BY COALESCE(NULLIF(TRIM(store_name), ''), 'Sin nombre')
       ORDER BY total DESC
       LIMIT 5
@@ -401,7 +410,7 @@ async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
     count: Math.trunc(num(r.count)),
   }));
 
-  return computeOtherSpend({ monthlyTotals, byKind, places });
+  return computeOtherSpend({ monthlyTotals, byKind, places, now: ahora });
 }
 
 /**
@@ -417,12 +426,14 @@ async function loadOtherSpend(userId: string): Promise<OtherSpendInsight> {
 function groceryInsightFrom(
   budget: { history: readonly MonthTotal[]; monthlyLimit: number },
   breakdown: { categories: CategorySpendInput[]; stores: StoreSpend[] },
+  ahora: Date,
 ): GroceryInsight {
   return computeGroceryInsight({
     monthlyTotals: budget.history,
     categories: breakdown.categories,
     stores: breakdown.stores,
     limit: budget.monthlyLimit,
+    now: ahora,
   });
 }
 
@@ -430,14 +441,15 @@ function groceryInsightFrom(
 export async function loadGroceryInsight(userId: string): Promise<GroceryInsight> {
   await ensureExpenseKindSchema();
   await ensureTripSplitsSchema();
+  const { zona, ahora } = await relojDelUsuario();
   const [budget, breakdown] = await Promise.all([
-    getBudgetData(userId),
-    loadGroceryBreakdown(userId),
+    getBudgetData(userId, zona),
+    loadGroceryBreakdown(userId, zona),
   ]);
-  return groceryInsightFrom(budget, breakdown);
+  return groceryInsightFrom(budget, breakdown, ahora);
 }
 
-async function loadGroceryBreakdown(userId: string): Promise<{
+async function loadGroceryBreakdown(userId: string, zona: string): Promise<{
   categories: CategorySpendInput[];
   stores: StoreSpend[];
 }> {
@@ -448,9 +460,9 @@ async function loadGroceryBreakdown(userId: string): Promise<{
         -- cadena VACÍA, que COALESCE deja pasar. Se colaban en el desglose
         -- como una fila con importe y sin nombre.
         COALESCE(NULLIF(TRIM(p.category), ''), 'Sin categoría') AS category,
-        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW())
+        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at AT TIME ZONE ${zona}::text) = DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
                  THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS current_month,
-        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at) = DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+        SUM(CASE WHEN DATE_TRUNC('month', pp.purchased_at AT TIME ZONE ${zona}::text) = DATE_TRUNC('month', (NOW() AT TIME ZONE ${zona}::text) - INTERVAL '1 month')
                  THEN COALESCE(pp.total_price, pp.unit_price * pp.quantity, 0) ELSE 0 END) AS prev_month
       FROM product_purchases pp
       JOIN products p ON p.id = pp.product_id
@@ -459,7 +471,7 @@ async function loadGroceryBreakdown(userId: string): Promise<{
       LEFT JOIN shopping_trips t ON t.id = pp.trip_id
       WHERE pp.user_id = ${userId}
         AND (pp.trip_id IS NULL OR t.kind = 'grocery')
-        AND pp.purchased_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+        AND (pp.purchased_at AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', (NOW() AT TIME ZONE ${zona}::text) - INTERVAL '1 month')
       GROUP BY COALESCE(NULLIF(TRIM(p.category), ''), 'Sin categoría')
       ORDER BY current_month DESC
     `,
@@ -468,13 +480,14 @@ async function loadGroceryBreakdown(userId: string): Promise<{
       FROM (
         SELECT COALESCE(store_name, 'Sin tienda') AS name, amount AS total
         FROM trip_kind_amounts
-        WHERE user_id = ${userId} AND kind = 'grocery' AND date >= DATE_TRUNC('month', NOW())
+        WHERE user_id = ${userId} AND kind = 'grocery'
+          AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
         UNION ALL
         SELECT COALESCE(store_name, 'Sin tienda') AS name,
                SUM(COALESCE(total_price, unit_price * quantity, 0)) AS total
         FROM product_purchases
         WHERE user_id = ${userId} AND trip_id IS NULL
-          AND purchased_at >= DATE_TRUNC('month', NOW())
+          AND (purchased_at AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
         GROUP BY COALESCE(store_name, 'Sin tienda'), purchased_at
       ) visits
       GROUP BY name
@@ -505,6 +518,9 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
   // y la vista tienen que existir antes.
   await ensureExpenseKindSchema();
   await ensureTripSplitsSchema();
+  // «Este mes» y «hoy» son los del dispositivo del usuario, no los del
+  // servidor: ver zona.ts.
+  const { zona, ahora } = await relojDelUsuario();
 
   const [
     incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits,
@@ -521,18 +537,18 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
          ORDER BY g.priority ASC, g.target_date ASC NULLS LAST, g.created_at ASC
       `,
       sql`SELECT * FROM finance_goal_contributions WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 50`,
-      loadFixedPayments(userId),
-      getBudgetData(userId),
-      loadGroceryBreakdown(userId),
+      loadFixedPayments(userId, zona),
+      getBudgetData(userId, zona),
+      loadGroceryBreakdown(userId, zona),
       // Las cuotas de tarjetas y créditos son compromiso mensual: sin ellas el
       // plan repartiría entre metas un dinero que ya está comprometido.
-      listCreditsForPlan(userId).catch(() => [] as CreditForPlan[]),
-      loadGroceryBusinessShare(userId).catch(() => 0),
+      listCreditsForPlan(userId, ahora).catch(() => [] as CreditForPlan[]),
+      loadGroceryBusinessShare(userId, zona).catch(() => 0),
       // Comer fuera, farmacia, gasolina: gasto real que hasta ahora no restaba
       // en ningún sitio. Si esta consulta falla, el plan sigue siendo el de
       // antes en vez de caerse entero.
-      loadOtherSpend(userId).catch(() => EMPTY_OTHER_SPEND),
-      loadOtherBusinessShare(userId).catch(() => 0),
+      loadOtherSpend(userId, zona, ahora).catch(() => EMPTY_OTHER_SPEND),
+      loadOtherBusinessShare(userId, zona).catch(() => 0),
     ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
@@ -549,7 +565,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
 
   // El plan resta lo que REALMENTE se gasta en super: el historial de tickets
   // manda sobre el límite declarado, que solo se usa si aún no hay compras.
-  const groceries = groceryInsightFrom(budget, breakdown);
+  const groceries = groceryInsightFrom(budget, breakdown, ahora);
 
   // El mismo pago anotado en Pagos y en Deudas se restaba dos veces. Se
   // detecta con lo que ya está cargado —cero consultas extra— y solo se
@@ -581,6 +597,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     otherSpend,
     duplicateObligations,
     extraMonthly,
+    now: ahora,
   };
 
   const plan = buildFinancePlan(input);

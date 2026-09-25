@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { randomUUID } from 'node:crypto';
 import { ensureListSkipSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 
 interface VoiceRequest {
   transcript: string;
@@ -122,26 +123,26 @@ async function handleStockQuery(userId: string): Promise<IntentResult> {
 
 async function handleSpendingQuery(userId: string): Promise<IntentResult> {
   await ensureTripSplitsSchema();
+  // «Este mes» es el del dispositivo del usuario, como en la pantalla.
+  const zona = await zonaDelUsuario();
   const rows = await sql`
     SELECT
-      TO_CHAR(date, 'Month YYYY') AS month_label,
-      SUM(amount) AS total,
+      COALESCE(SUM(amount), 0) AS total,
       COUNT(*) AS trips
     -- La voz responde con la MISMA cifra que la pantalla: leyendo la tabla,
     -- «cuanto llevo gastado» contestaba $51.16 y Casa ensenaba $29.22.
     FROM trip_kind_amounts
     WHERE user_id = ${userId} AND kind = 'grocery'
-      AND date >= DATE_TRUNC('month', NOW())
-    GROUP BY TO_CHAR(date, 'Month YYYY')
+      AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
   `;
 
-  if (rows.length === 0) {
+  const row = rows[0] as { total: string; trips: string } | undefined;
+  const total = Number.parseFloat(row?.total ?? '0');
+  const trips = Number.parseInt(row?.trips ?? '0', 10);
+
+  if (trips === 0) {
     return { reply: 'No tienes compras registradas este mes todavía.' };
   }
-
-  const row = rows[0] as { month_label: string; total: string; trips: string };
-  const total = Number.parseFloat(row.total ?? '0');
-  const trips = Number.parseInt(row.trips, 10);
 
   return {
     reply: `💰 Este mes llevas $${total.toFixed(2)} en ${trips} ${trips === 1 ? 'compra' : 'compras'}.`,

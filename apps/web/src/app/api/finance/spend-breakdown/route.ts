@@ -4,6 +4,7 @@ import { getRouteUser, unauthorized, badRequest } from '@/lib/route-helpers';
 import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { UNITEMIZED_LABEL } from '@/lib/grocery-insights';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 
 /**
  * GET /api/finance/spend-breakdown?category=Lácteos
@@ -47,6 +48,10 @@ export async function GET(request: NextRequest) {
   if (!kindParam && !category) return badRequest('Falta la categoría');
 
   await ensureTripSplitsSchema();
+  // «Este mes» es el del dispositivo del usuario, igual que en la tarjeta del
+  // Plan que abre esta hoja: si no, los dos dirían cifras distintas la última
+  // noche del mes.
+  const zona = await zonaDelUsuario();
 
   // ── `?kind=all`: la CLASIFICACIÓN de lo que no es super ───────────────────
   // Cuánto se fue en cada tipo este mes, sin bajar al ticket. Es la respuesta a
@@ -64,7 +69,7 @@ export async function GET(request: NextRequest) {
       FROM trip_kind_amounts
       WHERE user_id = ${user.userId}
         AND kind <> 'grocery'
-        AND date >= DATE_TRUNC('month', NOW())
+        AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
       GROUP BY kind
       ORDER BY total DESC
     `;
@@ -98,7 +103,7 @@ export async function GET(request: NextRequest) {
       FROM trip_kind_amounts
       WHERE user_id = ${user.userId}
         AND kind = ${expenseKind}
-        AND date >= DATE_TRUNC('month', NOW())
+        AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
       ORDER BY date DESC
     `;
 
@@ -141,7 +146,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN product_purchases pp ON pp.trip_id = t.id
       WHERE t.user_id = ${user.userId}
         AND t.kind = 'grocery'
-        AND t.date >= DATE_TRUNC('month', NOW())
+        AND (t.date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
       GROUP BY t.id, t.store_name, t.date, t.total_spent
       -- El mismo umbral que usa la tarjeta: por debajo de medio dólar el hueco
       -- es redondeo del reparto, no un ticket sin detallar.
@@ -190,7 +195,7 @@ export async function GET(request: NextRequest) {
     LEFT JOIN shopping_trips t ON t.id = pp.trip_id
     WHERE pp.user_id = ${user.userId}
       AND (pp.trip_id IS NULL OR t.kind = 'grocery')
-      AND pp.purchased_at >= DATE_TRUNC('month', NOW())
+      AND (pp.purchased_at AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
       AND COALESCE(NULLIF(TRIM(p.category), ''), 'Sin categoría') = ${category}
     ORDER BY pp.purchased_at DESC, p.name ASC
   `;

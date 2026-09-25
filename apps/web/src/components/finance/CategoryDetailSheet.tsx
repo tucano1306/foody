@@ -11,6 +11,7 @@ import ModalShell from './ModalShell';
 import { fmtMoneyFine } from './finance-ui';
 import { parseMoney, parseDecimal } from '@/lib/money-input';
 import { formatFecha } from '@/lib/app-time';
+import { useZonaHoraria } from '@/components/layout/ZonaHoraria';
 
 interface BreakdownItem {
   id: string;
@@ -58,10 +59,10 @@ interface Props {
   readonly onChanged: () => void;
 }
 
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, zona: string): string {
   try {
-    // El día que era en Miami. Ver app-time.ts.
-    return formatFecha(iso, { day: '2-digit', month: 'short' });
+    // El día que era donde está el usuario. Ver app-time.ts.
+    return formatFecha(iso, { day: '2-digit', month: 'short' }, zona);
   } catch {
     return iso.slice(0, 10);
   }
@@ -88,6 +89,7 @@ function emojiFor(category: string): string {
 export default function CategoryDetailSheet({ category, onClose, onChanged }: Props) {
   const router = useRouter();
   const toast = useToast();
+  const zona = useZonaHoraria();
 
   const [data, setData] = useState<Breakdown | null>(null);
   const [loading, setLoading] = useState(true);
@@ -420,7 +422,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                   {t.storeName ?? 'Sin tienda'}
                 </span>
                 <span className="block text-[11px] text-slate-500">
-                  {fmtDate(t.date)} · {t.itemCount === 0
+                  {fmtDate(t.date, zona)} · {t.itemCount === 0
                     ? 'sin productos'
                     : `${t.itemCount} ${t.itemCount === 1 ? 'producto' : 'productos'} de ${fmtMoneyFine(t.total)}`}
                 </span>
@@ -460,7 +462,7 @@ export default function CategoryDetailSheet({ category, onClose, onChanged }: Pr
                     </span>
                     <span className="block text-[11px] text-slate-500">
                       {item.quantity} × {item.unitPrice == null ? '—' : fmtMoneyFine(item.unitPrice)}
-                      {' · '}{fmtDate(item.purchasedAt)}
+                      {' · '}{fmtDate(item.purchasedAt, zona)}
                       {item.storeName ? ` · ${item.storeName}` : ''}
                     </span>
                   </span>

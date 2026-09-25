@@ -1,24 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { SIN_FECHA, TRIPS_PER_PAGE, groupByMonth, monthKey, monthLabel, paginate } from './trip-months';
 
+const MIAMI = 'America/New_York';
+
 const t = (id: string, purchasedAt: string, totalAmount = 10) => ({ id, purchasedAt, totalAmount });
 
 describe('monthKey', () => {
-  it('saca el mes en UTC, como la fecha que enseña la lista', () => {
+  it('un día del calendario es de su mes, se guardara a medianoche o a mediodía', () => {
     // Medianoche UTC del 1 de septiembre: en Florida aún es 31 de agosto, pero
     // la lista escribe «01 sep». El bloque tiene que ser septiembre.
-    expect(monthKey('2026-09-01T00:00:00.000Z')).toBe('2026-09');
-    expect(monthKey('2026-08-31T23:59:59.999Z')).toBe('2026-08');
+    expect(monthKey('2026-09-01T00:00:00.000Z', MIAMI)).toBe('2026-09');
+    expect(monthKey('2026-08-31T23:59:59.999Z', MIAMI)).toBe('2026-08');
   });
 
   it('una compra de Súper la noche del 30 de septiembre es de septiembre', () => {
     // 02:00 UTC del 1 de octubre = 22:00 del 30 de septiembre en Miami. En UTC
     // caía en octubre: el bloque y la fecha de la fila se contradecían.
-    expect(monthKey('2026-10-01T02:00:00.000Z')).toBe('2026-09');
+    expect(monthKey('2026-10-01T02:00:00.000Z', MIAMI)).toBe('2026-09');
   });
 
   it('una fecha ilegible no rompe nada', () => {
-    expect(monthKey('no es una fecha')).toBe(SIN_FECHA);
+    expect(monthKey('no es una fecha', MIAMI)).toBe(SIN_FECHA);
+  });
+
+  it('el mes es el de la zona del dispositivo: en Madrid, esa misma noche ya es octubre', () => {
+    expect(monthKey('2026-10-01T02:00:00.000Z', 'Europe/Madrid')).toBe('2026-10');
   });
 });
 
@@ -43,34 +49,34 @@ describe('groupByMonth', () => {
   ];
 
   it('el mes más reciente primero', () => {
-    expect(groupByMonth(trips).map((m) => m.key)).toEqual(['2026-09', '2026-08', '2026-06']);
+    expect(groupByMonth(trips, MIAMI).map((m) => m.key)).toEqual(['2026-09', '2026-08', '2026-06']);
   });
 
   it('dentro de cada mes, el ticket más reciente primero', () => {
-    const [sep, ago] = groupByMonth(trips);
+    const [sep, ago] = groupByMonth(trips, MIAMI);
     expect(sep.trips.map((x) => x.id)).toEqual(['c', 'b']);
     expect(ago.trips.map((x) => x.id)).toEqual(['e', 'a']);
   });
 
   it('el total del mes suma sus tickets, a centavos', () => {
-    const [sep, ago] = groupByMonth(trips);
+    const [sep, ago] = groupByMonth(trips, MIAMI);
     expect(sep.total).toBe(34.45);
     expect(ago.total).toBe(64.7);
   });
 
   it('no pierde ni duplica ningún ticket', () => {
-    const todos = groupByMonth(trips).flatMap((m) => m.trips.map((x) => x.id));
+    const todos = groupByMonth(trips, MIAMI).flatMap((m) => m.trips.map((x) => x.id));
     expect(todos.sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 
   it('los tickets sin fecha van juntos, al final', () => {
-    const meses = groupByMonth([t('x', 'basura'), ...trips]);
+    const meses = groupByMonth([t('x', 'basura'), ...trips], MIAMI);
     expect(meses.at(-1)?.key).toBe(SIN_FECHA);
     expect(meses.at(-1)?.trips.map((x) => x.id)).toEqual(['x']);
   });
 
   it('sin tickets, sin meses', () => {
-    expect(groupByMonth([])).toEqual([]);
+    expect(groupByMonth([], MIAMI)).toEqual([]);
   });
 });
 

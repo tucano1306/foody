@@ -28,6 +28,8 @@ import {
 import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
 import { normalizeSplits, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 import { notifyGoalImpact } from '@/lib/notify-goal-impact';
+import { aCampoDeFecha, deCampoDeFecha } from '@/lib/app-time';
+import { useZonaHoraria } from '@/components/layout/ZonaHoraria';
 
 interface Props {
   readonly products: Product[];
@@ -85,8 +87,11 @@ export default function NewTripForm({
   const toast = useToast();
 
   const [storeName, setStoreName] = useState<string>('');
-  const [purchasedAt, setPurchasedAt] = useState<string>(
-    new Date().toISOString().slice(0, 10),
+  const zona = useZonaHoraria();
+  // Hoy donde está el usuario. `toISOString().slice(0, 10)` es hoy en UTC, que
+  // a partir de las 8 de la noche de Miami ya es mañana.
+  const [purchasedAt, setPurchasedAt] = useState<string>(() =>
+    aCampoDeFecha(new Date().toISOString(), zona),
   );
   const [totalAmount, setTotalAmount] = useState<string>('');
   const [currency] = useState<string>('USD');
@@ -392,7 +397,8 @@ export default function NewTripForm({
     try {
       const dto: CreateShoppingTripDto = {
         storeName: storeName.trim(),
-        purchasedAt: new Date(purchasedAt).toISOString(),
+        // Mediodía UTC del día elegido: ver app-time.ts.
+        purchasedAt: deCampoDeFecha(purchasedAt) ?? new Date().toISOString(),
         totalAmount: totalValid ? parsedTotal : 0,
         currency,
         businessShare,

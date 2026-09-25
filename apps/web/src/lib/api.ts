@@ -1,8 +1,9 @@
 import { getSession } from './session';
 import { sql } from './db';
 import { syncFaltantesToList } from './shopping-list-sync';
-import { daysUntilNextDue, nextDueDate } from './payment-cycle';
-import { buildPaymentAggregates, EMPTY_AGGREGATES, type PaidRecordInput, type PaymentAggregates } from './payment-aggregates';
+import { type PaidRecordInput } from './payment-aggregates';
+import { paymentCalendar, type PaymentCalendar } from './payment-calendar';
+import { relojDelUsuario } from './zona-servidor';
 import { ensureTripSplitsSchema, ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureProductSharingSchema, ensureProductAliasSchema, ensureListSkipSchema } from './ensure-schema';
 import { normalizeShare } from './expense-scope';
 import { normalizeAnchorMonth, normalizeFrequency } from './payment-frequency';
@@ -20,7 +21,6 @@ import type {
   AllocationStrategy,
   CreateShoppingTripDto,
   CreateShoppingTripResponse,
-  CreatePaymentDto,
   CreateProductDto,
   MonthlyPayment,
   PaymentRecord,
@@ -133,9 +133,9 @@ function mapProductPurchase(row: Record<string, unknown>): ProductPurchase {
   };
 }
 
-function getCurrentMonthYear() {
-  const now = new Date();
-  return { month: now.getMonth() + 1, year: now.getFullYear() };
+/** El mes en curso según `ahora`, que llega ya en la hora de pared del usuario. */
+function getCurrentMonthYear(ahora: Date) {
+  return { month: ahora.getMonth() + 1, year: ahora.getFullYear() };
 }
 
 function mapPaymentRecord(row: Record<string, unknown>): PaymentRecord {
@@ -158,13 +158,13 @@ function mapPaymentRecord(row: Record<string, unknown>): PaymentRecord {
 
 function mapMonthlyPayment(
   row: Record<string, unknown>,
-  currentRecord?: PaymentRecord,
-  aggregates?: PaymentAggregates,
+  currentRecord: PaymentRecord | undefined,
+  calendario: PaymentCalendar,
 ): MonthlyPayment {
   const dueDay = asInteger(row.due_day, 1);
   const frequency = normalizeFrequency(row.frequency);
   const anchorMonth = normalizeAnchorMonth(row.anchor_month, frequency);
-  const aggr = aggregates ?? { ...EMPTY_AGGREGATES, isPaidThisMonth: currentRecord?.status === 'paid' };
+  const aggr = calendario.aggregates;
   const isPaidThisMonth = aggr.isPaidThisMonth;
   return {
     id: String(row.id),
@@ -189,8 +189,8 @@ function mapMonthlyPayment(
     updatedAt: asIsoString(row.updated_at),
     isPaidThisMonth,
     // Cycle-aware: once paid this month, the countdown restarts toward next month's due day.
-    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth),
-    nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
+    daysUntilDue: calendario.daysUntilDue,
+    nextDueDate: calendario.nextDueDate,
     currentRecord,
     snoozedUntil: row.snoozed_until === null || row.snoozed_until === undefined ? null : new Date(row.snoozed_until as string | number | Date).toISOString(),
     missedMonths: aggr.missedMonths,
@@ -606,15 +606,17 @@ export const api = {
     monthlyFoodSpending: async (): Promise<{ currentTotal: number; previousTotal: number; purchaseCount: number }> => {
       const { userId } = await getAuthContext();
       await ensureTripSplitsSchema();
+      // Los meses, en la zona del dispositivo del usuario (ver zona.ts).
+      const { zona } = await relojDelUsuario();
       // Igual que byStore/presupuesto: el total_spent de cada ticket es la
       // cifra autoritativa (un ticket sin items vinculados cuenta completo),
       // más las compras sueltas sin ticket agrupadas por sesión. Sumar
       // product_purchases a secas dejaba el mes en $0 con tickets sin items.
       const rows = await sql`
         SELECT
-          SUM(CASE WHEN d >= DATE_TRUNC('month', NOW()) THEN total ELSE 0 END) AS current_total,
-          SUM(CASE WHEN d >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
-                    AND d < DATE_TRUNC('month', NOW()) THEN total ELSE 0 END) AS prev_total,
+          SUM(CASE WHEN (d AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text) THEN total ELSE 0 END) AS current_total,
+          SUM(CASE WHEN (d AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text) - INTERVAL '1 month'
+                    AND (d AT TIME ZONE ${zona}::text) < DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text) THEN total ELSE 0 END) AS prev_total,
           COUNT(*) AS purchase_count
         FROM (
           SELECT date AS d, amount AS total
@@ -625,7 +627,7 @@ export const api = {
           WHERE user_id = ${userId} AND trip_id IS NULL
           GROUP BY purchased_at, COALESCE(store_name, '')
         ) visits
-        WHERE d >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+        WHERE (d AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text) - INTERVAL '1 month'
       `;
       const row = rows[0] as { current_total: unknown; prev_total: unknown; purchase_count: unknown } | undefined;
       return {
@@ -638,7 +640,8 @@ export const api = {
   payments: {
     list: async (): Promise<MonthlyPayment[]> => {
       const { userId } = await getAuthContext();
-      const { month, year } = getCurrentMonthYear();
+      const { zona, ahora } = await relojDelUsuario();
+      const { month, year } = getCurrentMonthYear(ahora);
       const [payments, records, paidRows] = await Promise.all([
         sql`SELECT * FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`,
         sql`SELECT * FROM payment_records WHERE user_id = ${userId} AND month = ${month} AND year = ${year}`,
@@ -670,15 +673,16 @@ export const api = {
         // La frecuencia decide QUE meses cuentan: sin ella, un recibo
         // semestral acumulaba cinco atrasos falsos por cada cobro real.
         const frecuencia = normalizeFrequency(paymentRow.frequency);
-        const aggregates = buildPaymentAggregates({
+        const calendario = paymentCalendar({
           createdAt: new Date(paymentRow.created_at as string),
           dueDay: asInteger(paymentRow.due_day, 1),
           amount: asNumber(paymentRow.amount),
           paidRecords: paidByPayment.get(paymentId) ?? [],
           frequency: frecuencia,
           anchorMonth: normalizeAnchorMonth(paymentRow.anchor_month, frecuencia),
+          zona,
         });
-        return mapMonthlyPayment(paymentRow, recordMap.get(paymentId), aggregates);
+        return mapMonthlyPayment(paymentRow, recordMap.get(paymentId), calendario);
       });
     },
     byCategory: async () => {
@@ -695,70 +699,6 @@ export const api = {
         total: asNumber(row.total),
         count: asInteger(row.count),
       }));
-    },
-    get: async (id: string) => {
-      const { userId } = await getAuthContext();
-      const rows = await sql`SELECT * FROM monthly_payments WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
-      if (!rows[0]) return null;
-
-      const { month, year } = getCurrentMonthYear();
-      const records = await sql`SELECT * FROM payment_records WHERE payment_id = ${id} AND user_id = ${userId} AND month = ${month} AND year = ${year} LIMIT 1`;
-      const currentRecord = records[0] ? mapPaymentRecord(records[0] as Record<string, unknown>) : undefined;
-      return mapMonthlyPayment(rows[0] as Record<string, unknown>, currentRecord);
-    },
-    create: async (data: CreatePaymentDto) => {
-      const { userId } = await getAuthContext();
-      const id = randomUUID();
-      const rows = await sql`
-        INSERT INTO monthly_payments (id, name, description, amount, currency, due_day, category, is_active, notification_days_before, payment_method, bank_name, account_last4, user_id, created_at, updated_at)
-        VALUES (${id}, ${data.name}, ${data.description ?? null}, ${data.amount}, ${data.currency ?? 'USD'}, ${data.dueDay}, ${data.category ?? null}, true, ${data.notificationDaysBefore ?? 3}, ${data.paymentMethod ?? null}, ${data.bankName ?? null}, ${data.accountLast4 ?? null}, ${userId}, NOW(), NOW())
-        RETURNING *
-      `;
-      return mapMonthlyPayment(rows[0] as Record<string, unknown>);
-    },
-    update: async (id: string, data: Partial<CreatePaymentDto>) => {
-      const { userId } = await getAuthContext();
-      const rows = await sql`
-        UPDATE monthly_payments SET
-          name = COALESCE(${data.name ?? null}, name),
-          description = COALESCE(${data.description ?? null}, description),
-          amount = COALESCE(${data.amount ?? null}, amount),
-          currency = COALESCE(${data.currency ?? null}, currency),
-          due_day = COALESCE(${data.dueDay ?? null}, due_day),
-          category = COALESCE(${data.category ?? null}, category),
-          notification_days_before = COALESCE(${data.notificationDaysBefore ?? null}, notification_days_before),
-          payment_method = COALESCE(${data.paymentMethod ?? null}, payment_method),
-          bank_name = COALESCE(${data.bankName ?? null}, bank_name),
-          account_last4 = COALESCE(${data.accountLast4 ?? null}, account_last4),
-          updated_at = NOW()
-        WHERE id = ${id} AND user_id = ${userId} RETURNING *
-      `;
-      return mapMonthlyPayment(rows[0] as Record<string, unknown>);
-    },
-    markPaid: async (id: string) => {
-      const { userId } = await getAuthContext();
-      const paymentRows = await sql`SELECT * FROM monthly_payments WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
-      if (!paymentRows[0]) throw new Error('Payment not found');
-
-      const payment = paymentRows[0] as Record<string, unknown>;
-      const { month, year } = getCurrentMonthYear();
-      const rows = await sql`
-        INSERT INTO payment_records (id, payment_id, month, year, paid_at, amount, status, user_id, created_at)
-        VALUES (gen_random_uuid(), ${id}, ${month}, ${year}, NOW(), ${asNumber(payment.amount)}, 'paid', ${userId}, NOW())
-        ON CONFLICT (payment_id, month, year)
-        DO UPDATE SET status = 'paid', paid_at = NOW(), amount = EXCLUDED.amount
-        RETURNING *
-      `;
-      return mapPaymentRecord(rows[0] as Record<string, unknown>);
-    },
-    markUnpaid: async (id: string) => {
-      const { userId } = await getAuthContext();
-      const { month, year } = getCurrentMonthYear();
-      await sql`DELETE FROM payment_records WHERE payment_id = ${id} AND user_id = ${userId} AND month = ${month} AND year = ${year}`;
-    },
-    delete: async (id: string) => {
-      const { userId } = await getAuthContext();
-      await sql`DELETE FROM monthly_payments WHERE id = ${id} AND user_id = ${userId}`;
     },
   },
   users: {
@@ -844,11 +784,12 @@ export const api = {
     otherKindsThisMonth: async (): Promise<{ count: number; total: number }> => {
       const { userId } = await getAuthContext();
       await ensureTripSplitsSchema();
+      const { zona } = await relojDelUsuario();
       const rows = await sql`
         SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total
         FROM trip_kind_amounts
         WHERE user_id = ${userId} AND kind <> 'grocery'
-          AND date >= DATE_TRUNC('month', NOW())
+          AND (date AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
       `;
       const row = rows[0] as { count: unknown; total: unknown } | undefined;
       return { count: asInteger(row?.count), total: asNumber(row?.total) };
