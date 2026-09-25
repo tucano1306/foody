@@ -10,6 +10,7 @@ import { normalizeExpenseKind } from '@/lib/expense-kind';
 import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
 import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
+import { refreshLastPurchase } from '@/lib/last-purchase';
 
 /**
  * Lista los tickets de SUPER. Los de otro tipo (comida fuera, farmacia…) no
@@ -111,26 +112,11 @@ export async function POST(request: NextRequest) {
       VALUES
         (${item.productId}, ${id}, ${item.quantity}, ${alloc.unitPrice}, ${alloc.totalPrice}, ${alloc.priceSource}, ${currency}, ${purchasedAt}, ${storeName}, ${user.userId}, ${now})
     `;
-
-    // Refresh the product's last-known price/date so predictions (the "prefill
-    // last price" suggestion, price displays) reflect this trip. Only advance
-    // it when this purchase is at least as recent as the stored one, so a
-    // back-dated trip never clobbers a newer price.
-    //
-    // Solo para el SUPER: lo que costó un plato en un restaurante no es el
-    // precio de despensa de nada, y dejarlo entrar envenenaría el comparador.
-    if (isGrocery && alloc.unitPrice != null && alloc.unitPrice > 0) {
-      await sql`
-        UPDATE products
-        SET last_purchase_price = ${alloc.unitPrice},
-            last_purchase_date = ${purchasedAt},
-            updated_at = NOW()
-        WHERE id = ${item.productId}
-          AND user_id = ${user.userId}
-          AND (last_purchase_date IS NULL OR last_purchase_date <= ${purchasedAt})
-      `;
-    }
   }
+
+  // El precio de la tarjeta sale del historial, con la misma regla en todas
+  // las vías: la última compra de súper con precio. Ver last-purchase.ts.
+  await refreshLastPurchase(user.userId, productIds);
 
   // Mark purchased products as full (they were just bought) and clear them
   // from the shopping list — a restocked product must not keep showing in

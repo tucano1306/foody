@@ -9,6 +9,7 @@ import { normalizeExpenseKind, type ExpenseKind } from '@/lib/expense-kind';
 import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSchema } from '@/lib/ensure-schema';
 import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
+import { refreshLastPurchase } from '@/lib/last-purchase';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
@@ -133,7 +134,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const resolved = resolveItems(items);
   const allocations = allocate(resolved, effectiveTotal, 'manual_partial');
 
-  await sql`DELETE FROM product_purchases WHERE trip_id = ${id} AND user_id = ${user.userId}`;
+  // Los productos que tenía el ticket antes de editarlo: si alguno sale, su
+  // precio tiene que volver a la compra anterior.
+  const antes = await sql`
+    DELETE FROM product_purchases WHERE trip_id = ${id} AND user_id = ${user.userId}
+    RETURNING product_id
+  `;
+  const productosAntes = (antes as Array<{ product_id: string }>).map((r) => String(r.product_id));
 
   const productIds: string[] = [];
   for (let i = 0; i < resolved.length; i += 1) {
@@ -146,23 +153,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       VALUES
         (${item.productId}, ${id}, ${item.quantity}, ${alloc.unitPrice}, ${alloc.totalPrice}, ${alloc.priceSource}, ${currency}, ${effectiveDate}, ${effectiveStore}, ${user.userId}, ${now})
     `;
-
-    // Refresh last-known price only when this trip is at least as recent as
-    // the stored one (same guard as POST — a back-dated edit never clobbers
-    // a newer price), y solo si el ticket es de super: el precio de un plato
-    // en un restaurante no es el precio de despensa de nada.
-    if (effectiveKind === 'grocery' && alloc.unitPrice != null && alloc.unitPrice > 0) {
-      await sql`
-        UPDATE products
-        SET last_purchase_price = ${alloc.unitPrice},
-            last_purchase_date = ${effectiveDate},
-            updated_at = NOW()
-        WHERE id = ${item.productId}
-          AND user_id = ${user.userId}
-          AND (last_purchase_date IS NULL OR last_purchase_date <= ${effectiveDate})
-      `;
-    }
   }
+
+  // Lo de antes y lo de ahora: un producto que sale del ticket vuelve a su
+  // compra anterior, y si no le queda ninguna, pierde el precio.
+  await refreshLastPurchase(user.userId, [...productosAntes, ...productIds], { quitarSiNoQueda: true });
 
   if (effectiveKind === 'grocery' && productIds.length > 0) {
     await sql`
@@ -190,9 +185,20 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   // Per-user isolation. Remove the trip's purchases first so stats and price
   // comparisons don't keep counting a deleted ticket.
-  await sql`DELETE FROM product_purchases WHERE trip_id = ${id} AND user_id = ${user.userId}`;
+  const borradas = await sql`
+    DELETE FROM product_purchases WHERE trip_id = ${id} AND user_id = ${user.userId}
+    RETURNING product_id
+  `;
   const rows = await sql`DELETE FROM shopping_trips WHERE id = ${id} AND user_id = ${user.userId} RETURNING id`;
   if (!rows.length) return notFound();
+  // Sus productos vuelven al precio de la compra anterior; si no les queda
+  // ninguna, lo pierden. Sin esto el precio del ticket borrado se quedaba en la
+  // tarjeta para siempre: así nacieron los de ALL y Paprika.
+  await refreshLastPurchase(
+    user.userId,
+    (borradas as Array<{ product_id: string }>).map((r) => String(r.product_id)),
+    { quitarSiNoQueda: true },
+  );
   // Borrar un ticket también mueve las cifras: si no se avisa, «Más comprados»
   // sigue contando productos de una compra que ya no existe.
   revalidateAfterPurchase();

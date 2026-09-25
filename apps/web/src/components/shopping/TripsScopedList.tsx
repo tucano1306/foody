@@ -9,6 +9,7 @@ import ScopeTabs from '@/components/ui/ScopeTabs';
 import StatAmount from '@/components/ui/StatAmount';
 import { groupByMonth, paginate } from '@/lib/trip-months';
 import ReclassifyChip from './ReclassifyChip';
+import { formatFecha } from '@/lib/app-time';
 
 /** El tope de tamano de los tres numeros: el de siempre, text-xl / sm:text-2xl.
     Por debajo encogen solos cuando el importe no cabe. */
@@ -35,13 +36,9 @@ function formatCurrency(value: number, currency: string): string {
 
 function formatDate(iso: string): string {
   try {
-    // Medianoche UTC formateada en hora local mostraría el día anterior.
-    return new Intl.DateTimeFormat('es-MX', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'UTC',
-    }).format(new Date(iso));
+    // El día que era en Miami: un ticket del calendario sigue en su día, y una
+    // compra cerrada en Súper por la noche ya no sale con el siguiente.
+    return formatFecha(iso, { day: '2-digit', month: 'short', year: 'numeric' });
   } catch {
     return iso;
   }

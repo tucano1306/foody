@@ -8,6 +8,7 @@ import { normalizeShare } from './expense-scope';
 import { normalizeAnchorMonth, normalizeFrequency } from './payment-frequency';
 import { normalizeExpenseKind } from './expense-kind';
 import { randomUUID } from 'node:crypto';
+import { ensureLastPurchaseFresh, refreshLastPurchase } from './last-purchase';
 
 interface PushSubscriptionJSON {
   endpoint: string;
@@ -274,6 +275,9 @@ export const api = {
     list: async (): Promise<Product[]> => {
       const { userId, householdId } = await getAuthContext();
       await ensureProductSharingSchema();
+      // Una vez por arranque: recupera el precio de la tarjeta que las vías
+      // viejas no escribieron. Ver last-purchase.ts.
+      await ensureLastPurchaseFresh(userId);
       // Shared pantry: I always see all of MY OWN products (private or not),
       // PLUS non-private products shared by other members of my household.
       // The user_id clause guarantees my own products can never disappear, even
@@ -444,7 +448,9 @@ export const api = {
         VALUES (${purchaseId}, ${id}, ${data.quantity}, ${unitPrice}, ${totalPrice}, 'manual', ${data.currency ?? 'USD'}, ${data.purchasedAt ?? new Date().toISOString()}, ${userId}, ${householdId}, NOW())
         RETURNING *
       `;
-      const rows = await sql`UPDATE products SET current_quantity=current_quantity+${data.quantity}, stock_level='full', stock_updated_at = NOW(), is_running_low=false, needs_shopping=false, last_purchase_price=${unitPrice}, last_purchase_date=NOW(), updated_at=NOW() WHERE id=${id} RETURNING *`;
+      // El precio de la tarjeta, con la regla de todas las vías: last-purchase.ts.
+      await refreshLastPurchase(userId, [id]);
+      const rows = await sql`UPDATE products SET current_quantity=current_quantity+${data.quantity}, stock_level='full', stock_updated_at = NOW(), is_running_low=false, needs_shopping=false, updated_at=NOW() WHERE id=${id} RETURNING *`;
       await sql`DELETE FROM shopping_list_items WHERE product_id=${id} AND user_id=${userId}`;
       return {
         product: mapProduct(rows[0] as Record<string, unknown>),

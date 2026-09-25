@@ -8,6 +8,8 @@
  * Módulo PURO: sin React y sin SQL. Se prueba en trip-months.test.ts.
  */
 
+import { diaDeLaFecha } from './app-time';
+
 /** Cuántas compras enseña un mes por página. Septiembre, con 11, da 3. */
 export const TRIPS_PER_PAGE = 5;
 
@@ -26,17 +28,18 @@ export interface MonthGroup<T> {
 }
 
 /**
- * El mes de un ticket, en UTC.
+ * El mes de un ticket: el del día que se enseña en la lista.
  *
- * En UTC y no en hora local porque la lista enseña la fecha en UTC: el ticket
- * se guarda a medianoche UTC del día elegido, y en Florida eso es la tarde del
- * día anterior. Si el mes se sacara en hora local, el ticket del 1 de septiembre
- * saldría escrito «01 sep» dentro del bloque de agosto.
+ * Con la misma regla que la fecha (app-time.ts), o el bloque y la fecha se
+ * contradirían: un ticket del calendario del 1 de septiembre es de septiembre
+ * aunque en Miami fueran las 8 de la noche del 31 de agosto; y una compra
+ * cerrada en Súper a las 22:00 del 30 de septiembre es de septiembre aunque en
+ * UTC ya fuera 1 de octubre.
  */
 export function monthKey(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return SIN_FECHA;
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  const d = diaDeLaFecha(iso);
+  if (!d) return SIN_FECHA;
+  return `${d.year}-${String(d.month).padStart(2, '0')}`;
 }
 
 /** «Septiembre de 2026». */

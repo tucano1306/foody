@@ -10,6 +10,7 @@ import { UNITEMIZED_LABEL } from '@/lib/grocery-insights';
 import ModalShell from './ModalShell';
 import { fmtMoneyFine } from './finance-ui';
 import { parseMoney, parseDecimal } from '@/lib/money-input';
+import { formatFecha } from '@/lib/app-time';
 
 interface BreakdownItem {
   id: string;
@@ -59,8 +60,8 @@ interface Props {
 
 function fmtDate(iso: string): string {
   try {
-    return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', timeZone: 'UTC' })
-      .format(new Date(iso));
+    // El día que era en Miami. Ver app-time.ts.
+    return formatFecha(iso, { day: '2-digit', month: 'short' });
   } catch {
     return iso.slice(0, 10);
   }

@@ -11,6 +11,7 @@ import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
 import { normalizeSplits, tripKindAmounts, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 import ModalLayer from '@/components/ui/ModalLayer';
+import { aCampoDeFecha, formatFecha } from '@/lib/app-time';
 
 interface Props {
   readonly trip: ShoppingTripDetail;
@@ -39,9 +40,10 @@ function formatCurrency(value: number, currency: string): string {
 
 function formatDate(iso: string): string {
   try {
-    // Las fechas de ticket se guardan a medianoche UTC; formatear en la zona
-    // local mostraría el día anterior (p.ej. eliges 16 y ves "15 de julio").
-    return new Intl.DateTimeFormat('es-MX', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(iso));
+    // El día que era en Miami. Un ticket del calendario (medianoche UTC) sigue
+    // en su día; una compra cerrada en Súper por la noche ya no sale con el
+    // día siguiente. Ver app-time.ts.
+    return formatFecha(iso, { dateStyle: 'long' });
   } catch {
     return iso;
   }
@@ -99,7 +101,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
   // ── Campos de edición ────────────────────────────────────────────────────
   const [store, setStore] = useState(trip.storeName ?? '');
-  const [date, setDate] = useState(trip.purchasedAt.slice(0, 10));
+  const [date, setDate] = useState(aCampoDeFecha(trip.purchasedAt));
   const [total, setTotal] = useState(trip.totalAmount > 0 ? trip.totalAmount.toFixed(2) : '');
   const [notes, setNotes] = useState(trip.notes ?? '');
   /** Reclasificar: un restaurante que entró como super tiene que poder mudarse. */
@@ -136,7 +138,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
   function startEdit() {
     setStore(trip.storeName ?? '');
-    setDate(trip.purchasedAt.slice(0, 10));
+    setDate(aCampoDeFecha(trip.purchasedAt));
     setTotal(trip.totalAmount > 0 ? trip.totalAmount.toFixed(2) : '');
     setNotes(trip.notes ?? '');
     setKind(trip.kind);

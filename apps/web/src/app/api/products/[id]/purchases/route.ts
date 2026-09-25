@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
+import { refreshLastPurchase } from '@/lib/last-purchase';
 
 async function findProduct(id: string, userId: string) {
   const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
@@ -71,6 +72,12 @@ export async function POST(
        ${purchasedAt}, ${storeName}, ${storeId}, NULL, ${user.userId}, NULL, NOW())
   `;
 
+  // El precio antes del UPDATE, para que el producto que se devuelve ya lo
+  // traiga. Aquí se pisaba siempre —con un precio vacío también— y con fecha
+  // «ahora» en vez de la de la compra: una compra atrasada le quitaba el sitio
+  // a una más reciente.
+  await refreshLastPurchase(user.userId, [id]);
+
   // Update product aggregates and reset stock to full
   const updatedRows = await sql`
     UPDATE products SET
@@ -78,8 +85,6 @@ export async function POST(
       stock_level      = 'full',
       is_running_low   = false,
       needs_shopping   = false,
-      last_purchase_price = ${unitPrice},
-      last_purchase_date  = NOW(),
       updated_at       = NOW()
     WHERE id = ${id} AND user_id = ${user.userId}
     RETURNING *
