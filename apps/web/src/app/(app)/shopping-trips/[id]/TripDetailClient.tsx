@@ -11,7 +11,8 @@ import { expenseKindMeta, type ExpenseKind } from '@/lib/expense-kind';
 import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
 import { normalizeSplits, tripKindAmounts, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 import ModalLayer from '@/components/ui/ModalLayer';
-import { aCampoDeFecha, formatFecha } from '@/lib/app-time';
+import { aCampoDeFecha, deCampoDeFecha, formatFecha } from '@/lib/app-time';
+import { useZonaHoraria } from '@/components/layout/ZonaHoraria';
 
 interface Props {
   readonly trip: ShoppingTripDetail;
@@ -38,12 +39,11 @@ function formatCurrency(value: number, currency: string): string {
   }
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, zona: string): string {
   try {
-    // El día que era en Miami. Un ticket del calendario (medianoche UTC) sigue
-    // en su día; una compra cerrada en Súper por la noche ya no sale con el
-    // día siguiente. Ver app-time.ts.
-    return formatFecha(iso, { dateStyle: 'long' });
+    // El día que era donde está el usuario: una compra cerrada en Súper por la
+    // noche ya no sale con el día siguiente. Ver app-time.ts.
+    return formatFecha(iso, { dateStyle: 'long' }, zona);
   } catch {
     return iso;
   }
@@ -92,6 +92,7 @@ function itemsFromTrip(trip: ShoppingTripDetail): EditItem[] {
 export default function TripDetailClient({ trip, products }: Readonly<Props>) {
   const router = useRouter();
   const toast = useToast();
+  const zona = useZonaHoraria();
 
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -101,7 +102,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
   // ── Campos de edición ────────────────────────────────────────────────────
   const [store, setStore] = useState(trip.storeName ?? '');
-  const [date, setDate] = useState(aCampoDeFecha(trip.purchasedAt));
+  const [date, setDate] = useState(aCampoDeFecha(trip.purchasedAt, zona));
   const [total, setTotal] = useState(trip.totalAmount > 0 ? trip.totalAmount.toFixed(2) : '');
   const [notes, setNotes] = useState(trip.notes ?? '');
   /** Reclasificar: un restaurante que entró como super tiene que poder mudarse. */
@@ -138,7 +139,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
 
   function startEdit() {
     setStore(trip.storeName ?? '');
-    setDate(aCampoDeFecha(trip.purchasedAt));
+    setDate(aCampoDeFecha(trip.purchasedAt, zona));
     setTotal(trip.totalAmount > 0 ? trip.totalAmount.toFixed(2) : '');
     setNotes(trip.notes ?? '');
     setKind(trip.kind);
@@ -185,7 +186,12 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
       const movedOut = trip.kind === 'grocery' && kind !== 'grocery';
       const dto: UpdateShoppingTripDto = {
         storeName: store.trim(),
-        purchasedAt: new Date(date).toISOString(),
+        // Si no se tocó el día, la hora real de la compra se queda. Si se
+        // cambió, el día elegido va a mediodía UTC (ver app-time.ts).
+        purchasedAt:
+          date === aCampoDeFecha(trip.purchasedAt, zona)
+            ? trip.purchasedAt
+            : (deCampoDeFecha(date) ?? trip.purchasedAt),
         totalAmount: parsedTotal,
         splits: normalizeSplits(splits),
         notes,
@@ -361,7 +367,7 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
             <h1 className="text-2xl font-bold text-slate-800 mt-1">
               🏪 {trip.storeName ?? 'Sin tienda'}
             </h1>
-            <p className="text-sm text-slate-500 mt-1">{formatDate(trip.purchasedAt)}</p>
+            <p className="text-sm text-slate-500 mt-1">{formatDate(trip.purchasedAt, zona)}</p>
             <div className="mt-3 flex items-center justify-between">
               <p className="text-sm text-slate-500">
                 {trip.items.length} producto{trip.items.length === 1 ? '' : 's'}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { sendWebPush } from '@/lib/web-push';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { horaDePared } from '@/lib/zona';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 import type { PushSubscription } from 'web-push';
 
 export const runtime = 'nodejs';
@@ -83,9 +85,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!user) return unauthorized();
 
   const force = request.nextUrl.searchParams.get('force') === 'true';
+  // `now` es el instante real (se compara con `snoozed_until`); el día del
+  // mes es el del dispositivo del usuario, que es quien lo pide.
   const now = new Date();
-  const today = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const hoy = horaDePared(now, await zonaDelUsuario());
+  const today = hoy.getDate();
+  const daysInMonth = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
 
   const rows = await sql`
     SELECT mp.id, mp.name, mp.amount, mp.currency, mp.due_day,

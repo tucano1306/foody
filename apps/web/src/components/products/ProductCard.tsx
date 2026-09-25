@@ -10,6 +10,7 @@ import { playSound } from '@/lib/sound';
 import { cameBackTo, ranOutFrom } from '@/lib/fx';
 import { useSwipe } from '@/lib/useSwipe';
 import { cuandoFue } from '@/lib/app-time';
+import { useZonaHoraria } from '@/components/layout/ZonaHoraria';
 import ActionSheet from '@/components/ui/ActionSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatAmount from '@/components/ui/StatAmount';
@@ -120,6 +121,7 @@ function latestPurchaseDate(a?: string | null, b?: string | null): string | null
 
 export default function ProductCard({ product, showActions = false, compact = false, onLevelChange, onDelete, lastPurchase, currentUserId }: Props) {
   const router = useRouter();
+  const zona = useZonaHoraria();
   // Shared pantry: a product another member shared with me is fully usable —
   // I can change its stock, editarlo y regalarlo. Only deleting it stays with
   // its owner, so nobody wipes a product from someone else's despensa.
@@ -293,7 +295,7 @@ export default function ProductCard({ product, showActions = false, compact = fa
       */}
       {!compact && purchasedAt && (
         <p className="t-meta truncate mt-1">
-          {cuandoFue(purchasedAt)}
+          {cuandoFue(purchasedAt, zona)}
           {lastPurchase?.storeName && (
             <span className="hidden @min-[8rem]:inline">{` · ${lastPurchase.storeName}`}</span>
           )}

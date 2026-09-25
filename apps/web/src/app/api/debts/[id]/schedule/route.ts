@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
 import { getDebt } from '@/lib/debt-data';
 import { buildSchedule, toMonthlyRate } from '@/lib/debt-engine';
+import { horaDePared } from '@/lib/zona';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -28,7 +30,8 @@ export async function GET(request: NextRequest, { params }: Ctx): Promise<NextRe
       balance: debt.currentBalance,
       monthlyRate: toMonthlyRate(debt.rate, debt.ratePeriod),
       payment: debt.projection.installment,
-      startDate: new Date(),
+      // Las fechas de las cuotas cuentan desde el hoy del usuario, no el de UTC.
+      startDate: horaDePared(new Date(), await zonaDelUsuario()),
       limit,
     });
 

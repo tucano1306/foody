@@ -10,6 +10,7 @@ import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSche
 import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { refreshLastPurchase } from '@/lib/last-purchase';
+import { normalizarSoloFecha } from '@/lib/app-time';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
@@ -56,7 +57,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const storeName = typeof body.storeName === 'string' && body.storeName.trim().length > 0
     ? body.storeName.trim()
     : null;
-  const purchasedAt = typeof body.purchasedAt === 'string' ? body.purchasedAt : null;
+  // Una versión vieja de la app aún puede mandar el día a medianoche UTC.
+  const purchasedAt = typeof body.purchasedAt === 'string' ? normalizarSoloFecha(body.purchasedAt) : null;
   const totalAmount = typeof body.totalAmount === 'number' && Number.isFinite(body.totalAmount)
     ? round2(body.totalAmount)
     : null;

@@ -11,6 +11,7 @@ import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSche
 import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { refreshLastPurchase } from '@/lib/last-purchase';
+import { normalizarSoloFecha } from '@/lib/app-time';
 
 /**
  * Lista los tickets de SUPER. Los de otro tipo (comida fuera, farmacia…) no
@@ -54,7 +55,8 @@ export async function POST(request: NextRequest) {
   const id = randomUUID();
   const strategy: AllocationStrategy = body.allocationStrategy ?? 'manual_partial';
   const currency = body.currency ?? 'USD';
-  const purchasedAt = body.purchasedAt ?? new Date().toISOString();
+  // Una versión vieja de la app aún puede mandar el día a medianoche UTC.
+  const purchasedAt = normalizarSoloFecha(body.purchasedAt ?? new Date().toISOString());
   const storeName = body.storeName ?? null;
   const storeId = body.storeId ?? null;
   const now = new Date().toISOString();

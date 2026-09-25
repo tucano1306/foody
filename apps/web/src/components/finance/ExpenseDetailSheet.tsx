@@ -9,7 +9,8 @@ import { EXPENSE_KINDS, expenseKindMeta, type ExpenseKind } from '@/lib/expense-
 import ModalShell from './ModalShell';
 import { fmtMoneyFine } from './finance-ui';
 import { parseMoney } from '@/lib/money-input';
-import { aCampoDeFecha, formatFecha } from '@/lib/app-time';
+import { aCampoDeFecha, deCampoDeFecha, formatFecha } from '@/lib/app-time';
+import { useZonaHoraria } from '@/components/layout/ZonaHoraria';
 
 interface Expense {
   id: string;
@@ -35,10 +36,10 @@ interface Props {
   readonly onChanged: () => void;
 }
 
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, zona: string): string {
   try {
-    // El día que era en Miami. Ver app-time.ts.
-    return formatFecha(iso, { day: '2-digit', month: 'short' });
+    // El día que era donde está el usuario. Ver app-time.ts.
+    return formatFecha(iso, { day: '2-digit', month: 'short' }, zona);
   } catch {
     return iso.slice(0, 10);
   }
@@ -50,8 +51,8 @@ function fmtDate(iso: string): string {
  * Cortar el ISO (`iso.slice(0, 10)`) daba el día en UTC: una compra de las
  * 22:43 abría en el día siguiente, y guardarla sin tocar nada la movía.
  */
-function toDateInput(iso: string): string {
-  return aCampoDeFecha(iso);
+function toDateInput(iso: string, zona: string): string {
+  return aCampoDeFecha(iso, zona);
 }
 
 /** Hoy, en la zona LOCAL: `toISOString()` daría ayer por la tarde en América. */
@@ -77,6 +78,7 @@ function todayInput(): string {
 export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: Props) {
   const toast = useToast();
   const router = useRouter();
+  const zona = useZonaHoraria();
   const meta = expenseKindMeta(expenseKind);
 
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
@@ -120,7 +122,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
     setEditing(e.id);
     setStore(e.storeName ?? '');
     setAmount(e.total > 0 ? e.total.toFixed(2) : '');
-    setDate(toDateInput(e.date));
+    setDate(toDateInput(e.date, zona));
   }
 
   async function patch(id: string, body: Record<string, unknown>, okMessage?: string) {
@@ -158,8 +160,8 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
       storeName: store.trim(),
       totalAmount: a,
       // Mediodía UTC: guardar la medianoche hace que el día se vea como el
-      // anterior al formatear en América.
-      purchasedAt: new Date(`${date}T12:00:00.000Z`).toISOString(),
+      // anterior al formatear en América. Ver app-time.ts.
+      purchasedAt: deCampoDeFecha(date) ?? e.date,
     });
   }
 
@@ -210,7 +212,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeName: newStore.trim(),
-          purchasedAt: new Date(`${newDate}T12:00:00.000Z`).toISOString(),
+          purchasedAt: deCampoDeFecha(newDate) ?? new Date().toISOString(),
           totalAmount: a,
           currency: 'USD',
           kind: expenseKind,
@@ -352,7 +354,7 @@ export default function ExpenseDetailSheet({ expenseKind, onClose, onChanged }: 
                       {e.storeName ?? 'Sin nombre'}
                     </span>
                     <span className="block text-[11px] text-slate-500">
-                      {fmtDate(e.date)}
+                      {fmtDate(e.date, zona)}
                       {e.fromSplit && ' · parte de un ticket'}
                     </span>
                   </span>

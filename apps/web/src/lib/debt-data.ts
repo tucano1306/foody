@@ -43,6 +43,8 @@ import {
   type RatePeriod,
 } from './debt-engine';
 import { normalizeShare } from './expense-scope';
+import { horaDePared } from './zona';
+import { zonaDelUsuario } from './zona-servidor';
 
 // ─── Tipos expuestos ──────────────────────────────────────────────────────────
 
@@ -415,6 +417,10 @@ interface LedgerTotals {
  * su propio signo.
  */
 async function ledgerTotals(debtId: string): Promise<LedgerTotals> {
+  // «Este mes» es el del usuario: con el de UTC, un abono hecho la última
+  // noche del mes desde Miami contaba para el mes siguiente, y la deuda salía
+  // «atrasada» al día siguiente de pagarla.
+  const zona = await zonaDelUsuario();
   const rows = await sql`
     SELECT
       COALESCE(SUM(CASE WHEN kind = 'payment' THEN -amount ELSE amount END), 0) AS balance,
@@ -423,7 +429,8 @@ async function ledgerTotals(debtId: string): Promise<LedgerTotals> {
       COALESCE(SUM(CASE WHEN kind = 'fee' THEN amount ELSE 0 END), 0)
         - COALESCE(SUM(CASE WHEN kind = 'payment' THEN fees_part ELSE 0 END), 0) AS fees_owed,
       COALESCE(SUM(CASE WHEN kind = 'payment' THEN amount ELSE 0 END), 0) AS total_paid,
-      COALESCE(SUM(CASE WHEN kind = 'payment' AND occurred_at >= DATE_TRUNC('month', NOW())
+      COALESCE(SUM(CASE WHEN kind = 'payment'
+                         AND (occurred_at AT TIME ZONE ${zona}::text) >= DATE_TRUNC('month', NOW() AT TIME ZONE ${zona}::text)
                         THEN amount ELSE 0 END), 0) AS paid_this_month,
       COALESCE(SUM(CASE WHEN kind = 'payment' THEN interest_part ELSE 0 END), 0) AS total_interest_paid,
       COALESCE(SUM(CASE WHEN kind = 'payment' THEN principal_part ELSE 0 END), 0) AS total_principal_paid
@@ -598,11 +605,19 @@ function daysUntilDueDay(dueDay: number, now: Date): number {
   return Math.round((due.getTime() - today.getTime()) / MS_PER_DAY);
 }
 
-function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjection {
+/**
+ * La deuda con su proyección y su estado de hoy.
+ *
+ * `now` es el instante real —el mismo que devenga intereses y se guarda en la
+ * base—; el calendario (días al corte, «atrasada», meses de la promo) se
+ * cuenta con la hora de pared del usuario en `zona`.
+ */
+function decorate(debt: Debt, totals: LedgerTotals, now: Date, zona: string): DebtWithProjection {
+  const hoy = horaDePared(now, zona);
   // Sin los términos completos la hoja proyecta con una tasa constante y
   // eterna: la promo no caducaría nunca y el interés del mes no cuadraría con
   // el estado de cuenta. Ver toDebtInput.
-  const projection = projectDebt(toDebtInput(debt, now));
+  const projection = projectDebt(toDebtInput(debt, hoy));
 
   const principalOwed = round2(Math.max(0, debt.currentBalance - totals.interestOwed - totals.feesOwed));
   const reference = debt.originalAmount > 0 ? debt.originalAmount : totals.totalPrincipalPaid + principalOwed;
@@ -624,8 +639,8 @@ function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjecti
       { name: debt.name, balance: debt.currentBalance, currency: debt.currency },
       projection,
     ),
-    daysUntilDue: daysUntilDueDay(debt.dueDay, now),
-    isOverdue: isDebtOverdue(debt, totals.paidThisMonth, now),
+    daysUntilDue: daysUntilDueDay(debt.dueDay, hoy),
+    isOverdue: isDebtOverdue(debt, totals.paidThisMonth, hoy),
     utilization:
       debt.creditLimit && debt.creditLimit > 0
         ? round2(Math.min(999, (debt.currentBalance / debt.creditLimit) * 100))
@@ -666,7 +681,7 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
   const debts = await Promise.all(
     rows.map(async (row) => {
       const debt = mapDebt(row as Record<string, unknown>);
-      return decorate(debt, await ledgerTotals(debt.id), now);
+      return decorate(debt, await ledgerTotals(debt.id), now, await zonaDelUsuario());
     }),
   );
 
@@ -684,7 +699,7 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
       status: d.projection.status,
     }));
 
-  return { debts, portfolio: buildPortfolio(portfolioInput, now) };
+  return { debts, portfolio: buildPortfolio(portfolioInput, horaDePared(now, await zonaDelUsuario())) };
 }
 
 /** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
@@ -781,7 +796,7 @@ export async function getDebt(
     const fresh = await sql`SELECT * FROM debts WHERE id = ${debtId} LIMIT 1`;
     if (fresh.length > 0) debt = mapDebt(fresh[0] as Record<string, unknown>);
   }
-  return decorate(debt, await ledgerTotals(debt.id), now);
+  return decorate(debt, await ledgerTotals(debt.id), now, await zonaDelUsuario());
 }
 
 export async function listMovements(
@@ -861,7 +876,7 @@ export async function createDebt(
   }
 
   const totals = await recomputeBalance(debt.id);
-  return decorate({ ...debt, currentBalance: totals.balance }, totals, now);
+  return decorate({ ...debt, currentBalance: totals.balance }, totals, now, await zonaDelUsuario());
 }
 
 export async function updateDebt(
@@ -1004,7 +1019,7 @@ export async function registerPayment(
     VALUES (
       ${debtId}, ${userId}, 'payment', ${applied}, ${split.interest}, ${split.principal}, ${split.fees},
       ${totals.balance}, ${balanceAfter}, ${input.paymentMethod ?? null},
-      ${toPeriodKey(input.occurredAt ?? now)}, ${input.note ?? null}, ${occurredAt}
+      ${toPeriodKey(horaDePared(input.occurredAt ?? now, await zonaDelUsuario()))}, ${input.note ?? null}, ${occurredAt}
     ) RETURNING *
   `;
 
@@ -1013,7 +1028,7 @@ export async function registerPayment(
   const finalDebt = mapDebt(refreshed[0] as Record<string, unknown>);
 
   return {
-    debt: decorate(finalDebt, after, now),
+    debt: decorate(finalDebt, after, now, await zonaDelUsuario()),
     movement: mapMovement(inserted[0] as Record<string, unknown>),
     split: {
       fees: split.fees,
@@ -1162,7 +1177,7 @@ export async function updateMovement(
       UPDATE debt_movements SET
         amount = ${aplicado}, interest_part = ${split.interest},
         principal_part = ${split.principal}, fees_part = ${split.fees},
-        note = ${nota}, occurred_at = ${cuando}, period_key = ${toPeriodKey(new Date(cuando))}
+        note = ${nota}, occurred_at = ${cuando}, period_key = ${toPeriodKey(horaDePared(new Date(cuando), await zonaDelUsuario()))}
       WHERE id = ${movementId}
     `;
   } else {

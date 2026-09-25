@@ -16,6 +16,8 @@
  */
 import { sql } from '@/lib/db';
 import { ensureTripSplitsSchema } from '@/lib/ensure-schema';
+import { horaDePared } from '@/lib/zona';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 
 // El tipo vive en budget-history.ts, que es donde estan las funciones puras
 // que lo manipulan. Tenerlo declarado dos veces ya provoco que una copia
@@ -50,11 +52,16 @@ export async function ensureBudgetSchema(): Promise<void> {
   schemaReady = true;
 }
 
-export function currentMonthKey(now = new Date()): string {
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-export async function getBudgetData(userId: string): Promise<BudgetData> {
+/**
+ * El presupuesto de súper, con los meses contados en la zona del usuario.
+ *
+ * `zona` la pasa quien ya la tiene (el Plan); si no, se lee de la cookie. Con
+ * la hora del servidor, lo comprado la última noche del mes desde Miami caía
+ * en el mes siguiente, y «llevas gastado» se reiniciaba cuatro horas antes.
+ */
+export async function getBudgetData(userId: string, zona?: string): Promise<BudgetData> {
+  const z = zona ?? (await zonaDelUsuario());
+  const ahora = horaDePared(new Date(), z);
   await ensureBudgetSchema();
   // Antes de filtrar por `kind` hay que garantizar que la columna existe.
   await ensureTripSplitsSchema();
@@ -69,7 +76,7 @@ export async function getBudgetData(userId: string): Promise<BudgetData> {
     // el usuario quiere ver reflejado al registrar un ticket.
     sql`
       SELECT
-        TO_CHAR(DATE_TRUNC('month', d), 'YYYY-MM') AS month,
+        TO_CHAR(d AT TIME ZONE ${z}::text, 'YYYY-MM') AS month,
         COALESCE(SUM(total), 0) AS total,
         COALESCE(SUM(personal), 0) AS personal,
         COUNT(*) AS trips
@@ -91,8 +98,10 @@ export async function getBudgetData(userId: string): Promise<BudgetData> {
         WHERE user_id = ${userId} AND trip_id IS NULL
         GROUP BY purchased_at, COALESCE(store_name, '')
       ) visits
-      WHERE d >= DATE_TRUNC('month', NOW() - INTERVAL '5 months')
-      GROUP BY DATE_TRUNC('month', d)
+      WHERE (d AT TIME ZONE ${z}::text) >= DATE_TRUNC('month', (NOW() AT TIME ZONE ${z}::text) - INTERVAL '5 months')
+      -- Por el alias: con la zona como parámetro, repetir la expresión serían
+      -- dos parámetros y Postgres no las vería iguales.
+      GROUP BY month
       ORDER BY month ASC
     `,
   ]);
@@ -113,7 +122,7 @@ export async function getBudgetData(userId: string): Promise<BudgetData> {
   // Las cuatro cifras salen de la MISMA funcion que usa la pantalla al cambiar
   // de pestaña: con la formula duplicada, el dia que cambie una copia, «llevas
   // gastado» y la grafica de debajo dejarian de cuadrar.
-  const { spentThisMonth, avgMonthly, percentUsed, remaining } = budgetFigures(history, monthlyLimit);
+  const { spentThisMonth, avgMonthly, percentUsed, remaining } = budgetFigures(history, monthlyLimit, 'all', ahora);
 
   return { monthlyLimit, spentThisMonth, remaining, percentUsed, avgMonthly, currency: 'USD', history };
 }

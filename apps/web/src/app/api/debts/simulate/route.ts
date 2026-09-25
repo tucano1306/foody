@@ -9,6 +9,8 @@ import {
   type DebtInput,
 } from '@/lib/debt-engine';
 import { isValidationError, parseCreateDebt } from '@/lib/debt-input';
+import { horaDePared } from '@/lib/zona';
+import { zonaDelUsuario } from '@/lib/zona-servidor';
 
 /**
  * POST /api/debts/simulate — calculadora sin guardar nada.
@@ -38,7 +40,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const rawExtra = Number(body.simulateExtra ?? 0);
   const extra = Number.isFinite(rawExtra) && rawExtra > 0 ? rawExtra : 0;
 
+  // Hoy es el del dispositivo del usuario: las fechas de las cuotas salen de
+  // aquí, y en UTC la primera caía un día —o un mes— más tarde por la noche.
+  const hoy = horaDePared(new Date(), await zonaDelUsuario());
+
   const input: DebtInput = {
+    now: hoy,
     balance: parsed.balance,
     rate: parsed.rate,
     ratePeriod: parsed.ratePeriod ?? 'monthly',
@@ -55,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     balance: parsed.balance,
     monthlyRate: toMonthlyRate(parsed.rate, parsed.ratePeriod ?? 'monthly'),
     payment: projection.installment,
-    startDate: new Date(),
+    startDate: hoy,
     limit: 12,
   });
 

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { refreshLastPurchase } from '@/lib/last-purchase';
+import { normalizarSoloFecha } from '@/lib/app-time';
 
 async function findProduct(id: string, userId: string) {
   const rows = await sql`SELECT * FROM products WHERE id = ${id} AND user_id = ${userId} LIMIT 1`;
@@ -54,7 +55,7 @@ export async function POST(
     typeof body.currency === 'string' ? body.currency : ((product as Record<string, unknown>).currency as string | null) ?? 'USD';
   const purchasedAt =
     typeof body.purchasedAt === 'string' && !Number.isNaN(Date.parse(body.purchasedAt))
-      ? body.purchasedAt
+      ? normalizarSoloFecha(body.purchasedAt)
       : new Date().toISOString();
   const storeName =
     typeof body.storeName === 'string' && body.storeName.trim() ? body.storeName.trim() : null;
