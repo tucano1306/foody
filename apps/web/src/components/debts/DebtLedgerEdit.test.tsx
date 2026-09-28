@@ -32,7 +32,7 @@ function tarjeta(): DebtWithProjection {
     ratePeriod: 'annual_nominal' as const, strategy: 'interest_only' as const,
     termMonths: null, payoffDate: null, customPayment: null, minPercent: null,
     minFloor: 53, minIncludesInterest: false, extraMonthly: 0, businessShare: 0, linkedPaymentId: null,
-    duplicateDismissed: false, promoEndsOn: null, rateAfterPromo: null,
+    duplicateDismissed: false, promoEndsOn: null, rateAfterPromo: null, cardGroup: null,
     cycleDays: 31, statementDay: 10, creditLimit: 2200, dueDay: 7,
     openedAt: '2026-08-06', lastAccrualAt: '2026-09-06', status: 'active' as const,
     note: null, createdAt: '2026-08-06T00:00:00.000Z', updatedAt: '2026-09-06T00:00:00.000Z',

@@ -29,6 +29,7 @@ import {
   projectDebt,
   round2,
   safeAmount,
+  toDateKey,
   toDebtInput,
   toMonthlyRate,
   toPeriodKey,
@@ -43,6 +44,7 @@ import {
   type RatePeriod,
 } from './debt-engine';
 import { normalizeShare } from './expense-scope';
+import { allocateCardPayment, type CardAllocation } from './card-payment';
 
 // ─── Tipos expuestos ──────────────────────────────────────────────────────────
 
@@ -100,6 +102,16 @@ export interface Debt {
   promoEndsOn: string | null;
   /** Tasa que empieza a correr cuando la promocion caduca. */
   rateAfterPromo: number | null;
+  /**
+   * La tarjeta a la que pertenece este tramo, o null si va suelta.
+   *
+   * Una tarjeta con compras al 23.74 % y dos adelantos al 0 % son TRES saldos
+   * con tres tasas, pero un solo mínimo y un solo pago. Cada tramo es una deuda
+   * —con su tasa, su promoción y su libro mayor— y las que comparten este valor
+   * son la misma tarjeta, que sabe repartir un abono como el banco. Ver
+   * card-payment.ts.
+   */
+  cardGroup: string | null;
   /** Dias del ciclo de facturacion del estado de cuenta (normalmente 30 o 31). */
   cycleDays: number | null;
   /** Dia del mes en que cierra el estado de cuenta. */
@@ -290,6 +302,9 @@ export async function ensureDebtSchema(): Promise<void> {
   // haría lo mismo, pero una con RESTRICT impediría borrar el recibo.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS linked_payment_id UUID`;
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS duplicate_dismissed BOOLEAN NOT NULL DEFAULT false`;
+  // Los tramos de una misma tarjeta (compras, adelantos al 0 %) comparten este
+  // valor. Es el id de la deuda que formó la tarjeta; no hace falta otra tabla.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS card_group UUID`;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_debts_user ON debts (user_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_debt_movements ON debt_movements (debt_id, occurred_at DESC)`;
@@ -365,6 +380,7 @@ function mapDebt(row: Record<string, unknown>): Debt {
     duplicateDismissed: Boolean(row.duplicate_dismissed),
     promoEndsOn: dateKey(row.promo_ends_on),
     rateAfterPromo: numOrNull(row.rate_after_promo),
+    cardGroup: (row.card_group as string | null) ?? null,
     cycleDays: numOrNull(row.cycle_days),
     statementDay: numOrNull(row.statement_day),
     creditLimit: numOrNull(row.credit_limit),
@@ -1022,6 +1038,158 @@ export async function registerPayment(
       overpayment: split.overpayment,
     },
   };
+}
+
+// ─── Tarjeta con tramos ───────────────────────────────────────────────────────
+
+/** Suelta la tarjeta `grupo` si se ha quedado con un solo tramo: eso ya no es una tarjeta con tramos. */
+async function soltarSiQuedaUno(userId: string, grupo: string): Promise<void> {
+  await sql`
+    UPDATE debts SET card_group = NULL, updated_at = now()
+     WHERE user_id = ${userId} AND card_group = ${grupo}::uuid
+       AND (SELECT COUNT(*) FROM debts WHERE user_id = ${userId} AND card_group = ${grupo}::uuid) = 1
+  `;
+}
+
+export type CardGroupResult = { ok: true } | { ok: false; status: 404 | 422; message: string };
+
+/**
+ * Mete una deuda en la tarjeta de otra, o la saca (`withDebtId` null).
+ *
+ * Solo tarjetas de crédito: un préstamo no tiene tramos, y mezclarlo con una
+ * tarjeta haría que un abono a la tarjeta acabara pagando el coche.
+ */
+export async function setCardGroup(
+  userId: string,
+  debtId: string,
+  withDebtId: string | null,
+): Promise<CardGroupResult> {
+  await ensureDebtSchema();
+  const rows = await sql`SELECT id, kind, card_group FROM debts WHERE id = ${debtId} AND user_id = ${userId} LIMIT 1`;
+  if (rows.length === 0) return { ok: false, status: 404, message: 'Deuda no encontrada' };
+  const antes = (rows[0].card_group as string | null) ?? null;
+
+  if (withDebtId === null) {
+    await sql`UPDATE debts SET card_group = NULL, updated_at = now() WHERE id = ${debtId} AND user_id = ${userId}`;
+    if (antes) await soltarSiQuedaUno(userId, antes);
+    return { ok: true };
+  }
+
+  if (withDebtId === debtId) return { ok: false, status: 422, message: 'Una deuda no es tramo de sí misma' };
+  const otra = await sql`SELECT id, kind, card_group FROM debts WHERE id = ${withDebtId} AND user_id = ${userId} LIMIT 1`;
+  if (otra.length === 0) return { ok: false, status: 404, message: 'La otra deuda no existe' };
+  if (rows[0].kind !== 'credit_card' || otra[0].kind !== 'credit_card') {
+    return { ok: false, status: 422, message: 'Solo las tarjetas de crédito tienen tramos' };
+  }
+
+  const grupo = (otra[0].card_group as string | null) ?? String(otra[0].id);
+  await sql`
+    UPDATE debts SET card_group = ${grupo}::uuid, updated_at = now()
+     WHERE user_id = ${userId} AND id IN (${debtId}::uuid, ${withDebtId}::uuid)
+  `;
+  if (antes && antes !== grupo) await soltarSiQuedaUno(userId, antes);
+  return { ok: true };
+}
+
+export interface CardPaymentInput {
+  amount: number;
+  /** El mínimo del estado de cuenta: decide qué parte va a la tasa más baja. */
+  minimumDue: number;
+  paymentMethod?: string | null;
+  note?: string | null;
+  occurredAt?: Date;
+}
+
+export type CardPaymentResult =
+  | { ok: true; allocation: CardAllocation; debts: DebtWithProjection[] }
+  | { ok: false; status: 404 | 422; message: string };
+
+/**
+ * Un abono a la tarjeta entera, repartido entre sus tramos como el banco.
+ *
+ * Cada tramo recibe su parte como un abono normal —con su propia cascada de
+ * comisiones → interés → capital— y una nota que dice de dónde salió: «$156
+ * del mínimo», «$344 por encima del mínimo». Así el libro mayor de cada tramo
+ * cuenta por qué bajó.
+ *
+ * El reparto lo calcula SIEMPRE el servidor, con los saldos de la base después
+ * de devengar: lo que enseñó la pantalla es una vista previa, no una orden.
+ *
+ * No es atómico entre tramos: cada abono va por `registerPayment`, que devenga
+ * y recalcula por su cuenta. Si la base falla a mitad, los tramos ya abonados
+ * quedan abonados y el error dice cuáles; nada se asienta dos veces.
+ */
+export async function registerCardPayment(
+  userId: string,
+  cardGroup: string,
+  input: CardPaymentInput,
+  now: Date = new Date(),
+): Promise<CardPaymentResult> {
+  await ensureDebtSchema();
+  const rows = await sql`
+    SELECT * FROM debts
+     WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid AND status = 'active'
+  `;
+  if (rows.length === 0) return { ok: false, status: 404, message: 'Tarjeta no encontrada' };
+
+  // Devengar antes de repartir: el interés del ciclo cambia cuánto debe cada
+  // tramo, y con él dónde cabe el abono.
+  const tramos: Debt[] = [];
+  for (const row of rows) {
+    let debt = mapDebt(row as Record<string, unknown>);
+    if (await accrueDueInterest(debt, now)) {
+      const fresh = await sql`SELECT * FROM debts WHERE id = ${debt.id} LIMIT 1`;
+      debt = mapDebt(fresh[0] as Record<string, unknown>);
+    }
+    tramos.push(debt);
+  }
+
+  const allocation = allocateCardPayment({
+    tramos: tramos.map((d) => ({
+      id: d.id,
+      name: d.name,
+      balance: d.currentBalance,
+      rate: d.rate,
+      ratePeriod: d.ratePeriod,
+      promoEndsOn: d.promoEndsOn,
+      rateAfterPromo: d.rateAfterPromo,
+    })),
+    amount: input.amount,
+    minimumDue: input.minimumDue,
+    // El día del servidor: decide si una promoción sigue viva, y solo cambia
+    // de respuesta unas horas el mismo día en que caduca.
+    hoy: toDateKey(now),
+  });
+
+  if (allocation.applied <= 0) return { ok: false, status: 422, message: 'La tarjeta no tiene saldo que abonar' };
+  if (allocation.overpayment > 0) {
+    return {
+      ok: false,
+      status: 422,
+      message: `Eso es más de lo que debe la tarjeta: le quedan ${round2(allocation.applied)}`,
+    };
+  }
+
+  const total = round2(input.amount);
+  const debts: DebtWithProjection[] = [];
+  for (const part of allocation.parts) {
+    const origen = [
+      part.fromMinimum > 0 ? `$${part.fromMinimum.toFixed(2)} del mínimo` : null,
+      part.fromExcess > 0 ? `$${part.fromExcess.toFixed(2)} por encima del mínimo` : null,
+    ].filter(Boolean).join(' + ');
+    const nota = [`Abono de $${total.toFixed(2)} a la tarjeta: ${origen}`, input.note?.trim() || null]
+      .filter(Boolean)
+      .join(' · ');
+    const result = await registerPayment(
+      userId,
+      part.tramoId,
+      { amount: part.amount, paymentMethod: input.paymentMethod ?? null, note: nota, occurredAt: input.occurredAt },
+      now,
+    );
+    if (result) debts.push(result.debt);
+  }
+
+  return { ok: true, allocation, debts };
 }
 
 export interface RegisterChargeInput {
