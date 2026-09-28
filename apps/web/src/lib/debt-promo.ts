@@ -13,10 +13,9 @@
 
 import {
   monthlyInterestOf,
+  monthlyRateAfterPromo,
   promoLastDueDate,
   promoMonthsLeft,
-  toMonthlyRate,
-  type RatePeriod,
 } from './debt-engine';
 
 // Se reexporta: vive en el motor para que este modulo no cree un ciclo de
@@ -29,9 +28,8 @@ export interface PromoInput {
   installment: number;
   /** Fin de la promoción, YYYY-MM-DD. */
   promoEndsOn: string;
-  /** Tasa que empieza a correr el día siguiente, tal como la escribió el banco. */
+  /** APR que empieza a correr el día siguiente, tal como lo imprime el banco. */
   rateAfterPromo: number;
-  ratePeriod?: RatePeriod;
   /** Día del mes en que vence la cuota: decide cuántas caben antes de la fecha. */
   dueDay?: number | null;
   now?: Date;
@@ -70,7 +68,7 @@ export function promoRisk(input: PromoInput): PromoRisk {
   const balance = Math.max(0, input.balance);
   const installment = Math.max(0, input.installment);
   const monthsLeft = promoMonthsLeft(input.promoEndsOn, input.now ?? new Date(), input.dueDay);
-  const afterMonthly = toMonthlyRate(input.rateAfterPromo, input.ratePeriod ?? 'annual_nominal');
+  const afterMonthly = monthlyRateAfterPromo(input.rateAfterPromo);
 
   // Durante la promoción la tasa es 0, así que cada cuota baja el saldo entera.
   const balanceAtEnd = Math.max(0, round2(balance - installment * monthsLeft));

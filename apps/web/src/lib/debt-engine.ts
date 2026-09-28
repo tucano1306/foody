@@ -203,6 +203,59 @@ export function cycleInterestOf(balance: number, annualRate: number, cycleDays: 
  * mirándola un 30 de agosto salían doce, y la app avisaba de un descubierto de
  * $480 que no existe. Sin `dueDay` no hay nada mejor que los meses completos.
  */
+/**
+ * ¿Sigue viva la promoción el día `dia` (YYYY-MM-DD)?
+ *
+ * El último día todavía cuenta: el banco cobra la tasa de después desde el día
+ * SIGUIENTE a `promoEndsOn`. Es la regla del devengo (statementAccruals,
+ * accrualCycles), de la proyección y del reparto de un abono entre los tramos
+ * de una tarjeta: si cada uno decidiera por su cuenta, el día del cambio la
+ * app cobraría interés sobre un saldo que el reparto aún trata como gratis.
+ */
+export function promoVigente(promoEndsOn: string | null | undefined, dia: string): boolean {
+  if (!promoEndsOn) return false;
+  return dia <= promoEndsOn.slice(0, 10);
+}
+
+/**
+ * La tasa de después de una promoción, en tasa mensual.
+ *
+ * `rate_after_promo` es SIEMPRE anual nominal —el APR—: el formulario la pide
+ * como «Después, tasa anual» y la manda copiar de «Cálculo del Cargo por
+ * Intereses», que imprime el APR. No sigue a `rate_period`, que en una deuda
+ * al 0 % es un dato sin uso. Leerla en ese período convertía el 23.74 % anual
+ * de la Unlimited Cash 3650 —guardada como «mensual»— en un 23.74 % MENSUAL:
+ * $2,715 de interés al mes sobre $11,440 en vez de ~$226.
+ */
+export function monthlyRateAfterPromo(rateAfterPromo: number): number {
+  return toMonthlyRate(rateAfterPromo, 'annual_nominal');
+}
+
+/**
+ * La tasa mensual (en tanto por uno) que corre el día `dia`: la de la
+ * promoción mientras siga viva, y la de después desde el día siguiente.
+ */
+export function tasaMensualDelDia(
+  terms: { rate: number; ratePeriod: RatePeriod; promoEndsOn?: string | null; rateAfterPromo?: number | null },
+  dia: string,
+): number {
+  if (terms.promoEndsOn && terms.rateAfterPromo != null && !promoVigente(terms.promoEndsOn, dia)) {
+    return monthlyRateAfterPromo(terms.rateAfterPromo);
+  }
+  return toMonthlyRate(terms.rate, terms.ratePeriod);
+}
+
+/**
+ * La promoción de una deuda como la necesita el devengo, o null si no tiene.
+ */
+export function promoTerms(debt: {
+  promoEndsOn: string | null;
+  rateAfterPromo: number | null;
+}): { endsOn: string; monthlyRateAfter: number } | null {
+  if (!debt.promoEndsOn || debt.rateAfterPromo == null) return null;
+  return { endsOn: debt.promoEndsOn.slice(0, 10), monthlyRateAfter: monthlyRateAfterPromo(debt.rateAfterPromo) };
+}
+
 export function promoMonthsLeft(
   promoEndsOn: string,
   now: Date = new Date(),
@@ -499,6 +552,11 @@ export interface AccrualInput {
   from: Date;
   /** Momento del corte (normalmente "ahora"). */
   to: Date;
+  /**
+   * Una promoción que caduca: hasta `endsOn` (YYYY-MM-DD, incluido) corre
+   * `monthlyRate`; desde el día siguiente, `monthlyRateAfter`.
+   */
+  promo?: { endsOn: string; monthlyRateAfter: number } | null;
 }
 
 export interface AccrualResult {
@@ -598,13 +656,16 @@ export function toPeriodKey(date: Date): string {
 export function accrualCycles(input: AccrualInput): AccrualCycle[] {
   const periods = completedMonthlyCycles(input.from, input.to);
   let balance = safeAmount(input.balance);
-  if (periods === 0 || balance <= DUST || input.monthlyRate <= 0) return [];
+  const despues = input.promo?.monthlyRateAfter ?? 0;
+  if (periods === 0 || balance <= DUST || (input.monthlyRate <= 0 && despues <= 0)) return [];
 
   const cycles: AccrualCycle[] = [];
   for (let i = 1; i <= periods; i += 1) {
     const closedAt = addMonths(input.from, i);
-    const interest = round2(balance * input.monthlyRate);
-    if (interest <= 0) break;
+    const interest = round2(balance * tasaMensualDelCiclo(addMonths(input.from, i - 1), closedAt, input));
+    // `continue` y no `break`: un ciclo al 0 % de una promoción no cobra, pero
+    // los que vienen detrás de su fin sí.
+    if (interest <= 0) continue;
     const closingBalance = round2(balance + interest);
     cycles.push({
       periodKey: toPeriodKey(closedAt),
@@ -616,6 +677,24 @@ export function accrualCycles(input: AccrualInput): AccrualCycle[] {
     balance = closingBalance;
   }
   return cycles;
+}
+
+/**
+ * La tasa mensual de un ciclo que puede partir una promoción en dos.
+ *
+ * Cada día cobra la suya —la de la promoción hasta su último día, la de
+ * después desde el siguiente— y el ciclo cobra la media: un ciclo con quince
+ * días después del fin cobra la mitad de la tasa nueva, no la entera ni cero.
+ */
+function tasaMensualDelCiclo(inicio: Date, fin: Date, input: AccrualInput): number {
+  if (!input.promo) return input.monthlyRate;
+  const dias = Math.max(1, Math.round((fin.getTime() - inicio.getTime()) / 86_400_000));
+  let tras = 0;
+  for (let d = 0; d < dias; d += 1) {
+    const dia = toDateKey(new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + d));
+    if (!promoVigente(input.promo.endsOn, dia)) tras += 1;
+  }
+  return (input.monthlyRate * (dias - tras) + input.promo.monthlyRateAfter * tras) / dias;
 }
 
 // ─── Tabla de amortización ────────────────────────────────────────────────────
@@ -970,6 +1049,24 @@ function classify(
  * costado en total. Es lo que alimenta la tarjeta y la hoja de detalle.
  */
 export function projectDebt(input: DebtInput): DebtProjection {
+  // Una promoción que ya caducó no es una promoción: desde el día siguiente a
+  // su fin la deuda cobra la tasa de después, y proyectarla al 0 % decía «$0 de
+  // interés al mes» sobre un saldo que ya lo genera.
+  if (
+    input.promoEndsOn &&
+    input.rateAfterPromo != null &&
+    !promoVigente(input.promoEndsOn, toDateKey(input.now ?? new Date()))
+  ) {
+    // Con su período: la de después es anual aunque la deuda diga otra cosa.
+    return projectDebt({
+      ...input,
+      rate: input.rateAfterPromo,
+      ratePeriod: 'annual_nominal',
+      promoEndsOn: null,
+      rateAfterPromo: null,
+    });
+  }
+
   const balance = safeAmount(input.balance);
   const monthlyRate = toMonthlyRate(input.rate, input.ratePeriod);
   const annualEffectiveRate = toAnnualEffectiveRate(monthlyRate);
@@ -994,7 +1091,7 @@ export function projectDebt(input: DebtInput): DebtProjection {
       ? undefined
       : {
           afterMonths: promoMonths,
-          monthlyRate: toMonthlyRate(input.rateAfterPromo ?? 0, input.ratePeriod ?? 'annual_nominal'),
+          monthlyRate: monthlyRateAfterPromo(input.rateAfterPromo ?? 0),
         };
 
   const baseInstallment = installmentFor(input);
