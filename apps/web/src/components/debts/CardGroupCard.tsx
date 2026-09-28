@@ -82,12 +82,14 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay }: Props) {
                     </span>
                   ) : (
                     <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">
-                      {fmtRate(t.promoEndsOn && t.rateAfterPromo != null ? t.rateAfterPromo : t.rate, t.ratePeriod)}
+                      {t.promoEndsOn && t.rateAfterPromo != null
+                        ? fmtRate(t.rateAfterPromo, 'annual_nominal')
+                        : fmtRate(t.rate, t.ratePeriod)}
                     </span>
                   )}
                   {caducaPronto && t.rateAfterPromo != null && (
                     <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">
-                      ⏳ En {dias} {dias === 1 ? 'día' : 'días'} lo que quede pasa al {fmtRate(t.rateAfterPromo, t.ratePeriod)}
+                      ⏳ En {dias} {dias === 1 ? 'día' : 'días'} lo que quede pasa al {fmtRate(t.rateAfterPromo, 'annual_nominal')}
                     </span>
                   )}
                 </span>

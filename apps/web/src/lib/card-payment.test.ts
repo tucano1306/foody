@@ -118,6 +118,12 @@ describe('las promociones caducan', () => {
     expect(tasaVigente(promoOct, '2026-10-26')).toBeCloseTo(0.2374 / 12, 10);
   });
 
+  it('la tasa de después es anual aunque el tramo esté guardado como «mensual»', () => {
+    // Así está la Unlimited Cash 3650 en la base: rate 0, período mensual.
+    const mensual = { ...promoEne, ratePeriod: 'monthly' as const };
+    expect(tasaVigente(mensual, '2027-01-26')).toBeCloseTo(0.2374 / 12, 10);
+  });
+
   it('desde el 26 oct el mínimo ya no va al adelanto de octubre, sino al 0 % de enero', () => {
     const r = repartir(156, 156, '2026-10-26', [compras, { ...promoOct, balance: 543 }, promoEne]);
     expect(r.parts).toEqual([expect.objectContaining({ tramoId: 'promo-ene', fromMinimum: 156 })]);

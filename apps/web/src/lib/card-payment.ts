@@ -40,7 +40,10 @@ export interface CardTramo {
   readonly ratePeriod: RatePeriod;
   /** Último día de su promoción, YYYY-MM-DD. */
   readonly promoEndsOn: string | null;
-  /** La tasa que corre desde el día siguiente, en el mismo período que `rate`. */
+  /**
+   * La tasa que corre desde el día siguiente: SIEMPRE anual (APR), como la pide
+   * el formulario («Después, tasa anual»), sea cual sea `ratePeriod`.
+   */
   readonly rateAfterPromo: number | null;
 }
 
@@ -54,11 +57,16 @@ export function enPromocion(tramo: Pick<CardTramo, 'promoEndsOn'>, hoy: string):
  *
  * Una promoción caducada deja de valer su 0 %: desde el día siguiente corre la
  * tasa de después, y es con esa con la que el banco lo ordena.
+ *
+ * La de después se lee como APR aunque el tramo diga «mensual»: en un tramo al
+ * 0 % el período no se usa, y la Unlimited Cash 3650 está guardada así. Leída
+ * en su período, su 23.74 % anual se volvía un 23.74 % mensual. Es la misma
+ * regla que el devengo (`monthlyRateAfterPromo`, en el arreglo del devengo).
  */
 export function tasaVigente(tramo: CardTramo, hoy: string): number {
   const caducada = tramo.promoEndsOn != null && !enPromocion(tramo, hoy);
-  const tasa = caducada && tramo.rateAfterPromo != null ? tramo.rateAfterPromo : tramo.rate;
-  return toMonthlyRate(tasa, tramo.ratePeriod);
+  if (caducada && tramo.rateAfterPromo != null) return toMonthlyRate(tramo.rateAfterPromo, 'annual_nominal');
+  return toMonthlyRate(tramo.rate, tramo.ratePeriod);
 }
 
 export interface CardAllocationPart {
