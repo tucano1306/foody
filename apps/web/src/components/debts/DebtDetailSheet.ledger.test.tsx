@@ -76,6 +76,7 @@ function tarjeta(statementDay: number | null): DebtWithProjection {
     duplicateDismissed: false,
     promoEndsOn: null,
     rateAfterPromo: null,
+    cardGroup: null,
     cycleDays: 31,
     statementDay,
     creditLimit: 3000,
