@@ -49,6 +49,7 @@ function tarjeta6791(cuota?: number): DebtWithProjection {
     duplicateDismissed: false,
     promoEndsOn: '2027-09-27',
     rateAfterPromo: 27.49,
+    cardGroup: null,
     cycleDays: 31,
     statementDay: 27,
     creditLimit: 6300,

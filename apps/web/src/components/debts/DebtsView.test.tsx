@@ -29,6 +29,7 @@ function makeDebt(): DebtWithProjection {
     duplicateDismissed: false,
     promoEndsOn: null,
     rateAfterPromo: null,
+    cardGroup: null,
     cycleDays: null,
     statementDay: null,
     creditLimit: 3000,

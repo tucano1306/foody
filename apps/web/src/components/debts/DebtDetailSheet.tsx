@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
-import type { DebtMovement, DebtWithProjection } from '@/lib/debt-data';
+import type { DebtMovement, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { listPeriods, summarizePeriod } from '@/lib/debt-cycles';
 import { buildSchedule, toMonthlyRate } from '@/lib/debt-engine';
 import { promoRisk } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import PayoffSimulator from './PayoffSimulator';
+import CardLinkPicker from './CardLinkPicker';
 import SplitBar from './SplitBar';
 import { parseMoney } from '@/lib/money-input';
 import MoneyInput from '@/components/ui/MoneyInput';
@@ -34,6 +35,10 @@ interface Props {
   readonly onDeleted: (id: string) => void;
   readonly onPay: () => void;
   readonly onEdit: () => void;
+  /** Las otras tarjetas, para decir que esta es otro saldo de una de ellas. */
+  readonly cardCandidates?: readonly DebtWithProjection[];
+  /** Juntar o separar tramos cambia varias deudas a la vez: llega la lista entera. */
+  readonly onSnapshot?: (snapshot: DebtsSnapshot) => void;
 }
 
 type Tab = 'summary' | 'plan' | 'ledger';
@@ -71,7 +76,16 @@ function CycleRow({ label, value }: { label: string; value: string }) {
  * dónde vas (Plan, con la tabla de amortización) y de dónde vienes (Historial,
  * el libro mayor completo con cada interés y cada abono).
  */
-export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, onPay, onEdit }: Props) {
+export default function DebtDetailSheet({
+  debt,
+  onClose,
+  onChanged,
+  onDeleted,
+  onPay,
+  onEdit,
+  cardCandidates = [],
+  onSnapshot,
+}: Props) {
   const [tab, setTab] = useState<Tab>('summary');
   const [movements, setMovements] = useState<DebtMovement[] | null>(null);
   /**
@@ -631,6 +645,10 @@ export default function DebtDetailSheet({ debt, onClose, onChanged, onDeleted, o
                 </button>
               </div>
             </div>
+          )}
+
+          {onSnapshot && (
+            <CardLinkPicker debt={debt} candidates={cardCandidates} onChanged={onSnapshot} />
           )}
 
           {/* Borrar: escondido tras confirmación, nunca a un toque de distancia */}

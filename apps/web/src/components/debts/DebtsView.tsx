@@ -10,6 +10,8 @@ import { haptic } from '@/lib/haptic';
 import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
 import ScopeTabs from '@/components/ui/ScopeTabs';
 import DebtCard from './DebtCard';
+import CardGroupCard from './CardGroupCard';
+import CardPaymentModal from './CardPaymentModal';
 import DuplicateBanner from './DuplicateBanner';
 import DebtDetailSheet from './DebtDetailSheet';
 import DebtEditModal from './DebtEditModal';
@@ -44,6 +46,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [payId, setPayId] = useState<string | null>(null);
+  const [payCard, setPayCard] = useState<string | null>(null);
   /**
    * Qué lado se está mirando.
    *
@@ -112,7 +115,39 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
     return buildPortfolio(input);
   }, [visibles]);
 
+  /**
+   * Qué se pinta y en qué orden: una deuda suelta es una tarjeta; los tramos
+   * de una misma tarjeta de crédito van juntos, en el sitio del más grande.
+   */
+  const bloques = useMemo(() => {
+    const porTarjeta = new Map<string, DebtWithProjection[]>();
+    for (const d of visibles) {
+      if (!d.cardGroup) continue;
+      porTarjeta.set(d.cardGroup, [...(porTarjeta.get(d.cardGroup) ?? []), d]);
+    }
+    const pintadas = new Set<string>();
+    const out: ({ tipo: 'deuda'; debt: DebtWithProjection } | { tipo: 'tarjeta'; group: string; tramos: DebtWithProjection[] })[] = [];
+    for (const d of visibles) {
+      const tramos = d.cardGroup ? porTarjeta.get(d.cardGroup) ?? [] : [];
+      if (d.cardGroup && tramos.length > 1) {
+        if (pintadas.has(d.cardGroup)) continue;
+        pintadas.add(d.cardGroup);
+        out.push({ tipo: 'tarjeta', group: d.cardGroup, tramos });
+      } else {
+        out.push({ tipo: 'deuda', debt: d });
+      }
+    }
+    return out;
+  }, [visibles]);
+
+  const replaceAll = useCallback((snapshot: DebtsSnapshot) => {
+    setDebts([...snapshot.debts].sort((a, b) => b.currentBalance - a.currentBalance));
+  }, []);
+
   const currency = debts[0]?.currency ?? 'USD';
+  // El abono a la tarjeta va con los saldos ENTEROS: el ámbito solo cambia lo
+  // que se enseña, no lo que se debe.
+  const payingCard = payCard ? debts.filter((d) => d.cardGroup === payCard && d.status === 'active') : [];
   const detail = debts.find((d) => d.id === detailId) ?? null;
   const paying = debts.find((d) => d.id === payId) ?? null;
   const editing = debts.find((d) => d.id === editId) ?? null;
@@ -231,14 +266,23 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
       {/* ─── Lista ───────────────────────────────────────────────────────── */}
       {visibles.length > 0 && (
         <div className="card-stagger grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {visibles.map((debt) => (
-            <DebtCard
-              key={debt.id}
-              debt={debt}
-              onOpen={() => setDetailId(debt.id)}
-              onPay={() => setPayId(debt.id)}
-            />
-          ))}
+          {bloques.map((b) =>
+            b.tipo === 'tarjeta' ? (
+              <CardGroupCard
+                key={b.group}
+                tramos={b.tramos}
+                onOpenTramo={setDetailId}
+                onPay={() => setPayCard(b.group)}
+              />
+            ) : (
+              <DebtCard
+                key={b.debt.id}
+                debt={b.debt}
+                onOpen={() => setDetailId(b.debt.id)}
+                onPay={() => setPayId(b.debt.id)}
+              />
+            ),
+          )}
         </div>
       )}
 
@@ -307,6 +351,8 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
               setEditId(detail.id);
               setDetailId(null);
             }}
+            cardCandidates={debts.filter((d) => d.id !== detail.id && d.kind === 'credit_card' && d.status !== 'archived')}
+            onSnapshot={replaceAll}
           />
         )}
         {editing && (
@@ -323,6 +369,14 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             debt={paying}
             onClose={() => setPayId(null)}
             onPaid={upsert}
+          />
+        )}
+        {payingCard.length > 0 && (
+          <CardPaymentModal
+            key="pay-card"
+            tramos={payingCard}
+            onClose={() => setPayCard(null)}
+            onPaid={(actualizadas) => actualizadas.forEach(upsert)}
           />
         )}
       </AnimatePresence>
