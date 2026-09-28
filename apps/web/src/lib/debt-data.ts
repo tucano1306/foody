@@ -27,6 +27,8 @@ import {
   frenchInstallment,
   isDebtOverdue,
   projectDebt,
+  promoTerms,
+  promoVigente,
   round2,
   safeAmount,
   toDateKey,
@@ -493,11 +495,20 @@ async function accrueDueInterest(debt: Debt, now: Date = new Date()): Promise<bo
   if (debt.status !== 'active' || debt.currentBalance <= 0) return false;
 
   const monthlyRate = toMonthlyRate(debt.rate, debt.ratePeriod);
-  if (monthlyRate <= 0) return false;
+  // La tasa de después es anual siempre, sea cual sea `rate_period`: ver
+  // `monthlyRateAfterPromo`.
+  const promo = promoTerms(debt);
+  // Sin tasa no hay nada que cobrar… salvo una promoción que ya caducó. Aquí
+  // salía siempre con `rate = 0`, así que un 0 % caducado no cobraba NUNCA,
+  // mientras el banco cobra la tasa de después desde el día siguiente al fin.
+  // Con la promoción aún viva sí se sale sin leer el libro: es lo que pasa en
+  // cada lectura de una deuda al 0 %.
+  const caducada = promo !== null && !promoVigente(promo.endsOn, toDateKey(now));
+  if (monthlyRate <= 0 && !(caducada && promo.monthlyRateAfter > 0)) return false;
 
   // Con día de corte declarado, el interés se cobra como lo cobra el banco.
   if (debt.statementDay != null && debt.statementDay >= 1) {
-    return accrueByStatement(debt, monthlyRate, now);
+    return accrueByStatement(debt, monthlyRate, now, promo);
   }
 
   const cycles = accrualCycles({
@@ -505,6 +516,7 @@ async function accrueDueInterest(debt: Debt, now: Date = new Date()): Promise<bo
     monthlyRate,
     from: new Date(debt.lastAccrualAt),
     to: now,
+    promo,
   });
   if (cycles.length === 0) return false;
 
@@ -545,7 +557,12 @@ async function accrueDueInterest(debt: Debt, now: Date = new Date()): Promise<bo
  * Los intereses ya asentados se quedan donde están; esto solo cambia los
  * ciclos que aún no han cerrado.
  */
-async function accrueByStatement(debt: Debt, monthlyRate: number, now: Date): Promise<boolean> {
+async function accrueByStatement(
+  debt: Debt,
+  monthlyRate: number,
+  now: Date,
+  promo: { endsOn: string; monthlyRateAfter: number } | null,
+): Promise<boolean> {
   const desde = new Date(debt.lastAccrualAt);
   const statementDay = debt.statementDay as number;
 
@@ -568,6 +585,8 @@ async function accrueByStatement(debt: Debt, monthlyRate: number, now: Date): Pr
     from: desde,
     to: now,
     currentBalance: debt.currentBalance,
+    // Los días del ciclo posteriores al fin de la promoción cobran la de después.
+    promo: promo ? { endsOn: promo.endsOn, annualRateAfter: promo.monthlyRateAfter * 12 * 100 } : null,
   });
   if (ciclos.length === 0) return false;
 

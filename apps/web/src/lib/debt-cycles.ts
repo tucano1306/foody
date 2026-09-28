@@ -1,4 +1,4 @@
-import { additiveMinimumPayment } from './debt-engine';
+import { additiveMinimumPayment, promoVigente } from './debt-engine';
 import type { DebtMovement } from './debt-data';
 
 /**
@@ -257,6 +257,62 @@ function averageDailyBalance(
   return { average: round2(suma / dias), days: dias };
 }
 
+/**
+ * El recorrido del banco por un ciclo, para COBRARLO: el saldo de cada día, la
+ * tasa de ese día y el interés capitalizado a diario.
+ *
+ * Dos cosas lo separan de `averageDailyBalance`, que es para enseñar:
+ *
+ * 1. La tasa se pregunta DÍA A DÍA. Una promoción que caduca a mitad de ciclo
+ *    no cobra nada hasta su último día y la tasa de después desde el
+ *    siguiente. Con una sola tasa por ciclo, un 0 % caducado no cobraba nunca.
+ * 2. El interés de cada día entra en el saldo del siguiente, que es lo que
+ *    hace el banco. Comprobado contra la Unlimited Cash 3650: el tramo de
+ *    compras cobró $23.93 en agosto y $23.24 en septiembre; sin capitalizar
+ *    salen unos 23 centavos menos cada mes.
+ *
+ * `average` es el saldo promedio con ese interés dentro: el «saldo sujeto a
+ * interés» que imprime el estado.
+ */
+function devengarCiclo(
+  dentro: readonly DebtMovement[],
+  opening: number,
+  period: BillingPeriod,
+  now: Date,
+  /** Tasa anual nominal (23.74 = 23,74 %) del día YYYY-MM-DD. */
+  tasaAnualDelDia: (dia: string) => number,
+): { average: number; days: number; interest: number } {
+  const ultimo = period.isCurrent && now < period.end ? now : period.end;
+  const dias = Math.max(
+    1,
+    Math.round((startOfDay(ultimo.getFullYear(), ultimo.getMonth(), ultimo.getDate()).getTime()
+      - period.start.getTime()) / MS_PER_DAY) + 1,
+  );
+
+  const cronologico = [...dentro].sort(
+    (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
+  );
+
+  let saldo = opening;
+  /** Interés de este ciclo, ya capitalizado día a día. */
+  let interes = 0;
+  let suma = 0;
+  let i = 0;
+  for (let d = 0; d < dias; d++) {
+    const finDelDia = period.start.getTime() + (d + 1) * MS_PER_DAY - 1;
+    while (i < cronologico.length && new Date(cronologico[i].occurredAt).getTime() <= finDelDia) {
+      saldo = Math.max(0, saldo + delta(cronologico[i]));
+      i++;
+    }
+    const base = saldo + interes;
+    suma += base;
+    const dia = dateKey(startOfDay(period.start.getFullYear(), period.start.getMonth(), period.start.getDate() + d));
+    interes += base * (tasaAnualDelDia(dia) / 100 / 365);
+  }
+
+  return { average: round2(suma / dias), days: dias, interest: round2(interes) };
+}
+
 /** Las cifras de un periodo, sacadas solo de los movimientos que caen dentro. */
 export function summarizePeriod(
   movements: readonly DebtMovement[],
@@ -428,7 +484,7 @@ export interface StatementAccrual {
   period: BillingPeriod;
   /** Lo que se debía al abrir el ciclo. */
   openingBalance: number;
-  /** La base real del interés. */
+  /** La base real del interés, con el interés capitalizado del ciclo dentro. */
   averageDailyBalance: number;
   days: number;
   interest: number;
@@ -484,7 +540,10 @@ export function statementCuts(
  *    siempre en contra del usuario si se usa el saldo final.
  *
  * Los ciclos se encadenan: el interés de uno entra en el saldo de apertura del
- * siguiente, que es lo que hace que la deuda componga.
+ * siguiente, que es lo que hace que la deuda componga. Y dentro de cada ciclo
+ * el interés capitaliza a diario y la tasa se mira día a día, para que una
+ * promoción que caduca empiece a cobrar justo el día después de su fin (ver
+ * `devengarCiclo`).
  */
 export function statementAccruals(
   movements: readonly DebtMovement[],
@@ -497,15 +556,21 @@ export function statementAccruals(
     to: Date;
     /** Saldo de hoy, por si el ciclo no tiene de dónde deducir su apertura. */
     currentBalance: number;
+    /**
+     * Una promoción que caduca: hasta `endsOn` (YYYY-MM-DD, incluido) corre
+     * `annualRate`; desde el día siguiente, `annualRateAfter`.
+     */
+    promo?: { endsOn: string; annualRateAfter: number } | null;
   },
 ): StatementAccrual[] {
-  const { statementDay, annualRate, from, to, currentBalance } = input;
-  if (!(annualRate > 0)) return [];
+  const { statementDay, annualRate, from, to, currentBalance, promo } = input;
+  const tasaDelDia = (dia: string) =>
+    promo && !promoVigente(promo.endsOn, dia) ? promo.annualRateAfter : annualRate;
+  if (!(annualRate > 0) && !((promo?.annualRateAfter ?? 0) > 0)) return [];
 
   const cuts = statementCuts(from, to, statementDay);
   if (cuts.length === 0) return [];
 
-  const diaria = annualRate / 100 / 365;
   const out: StatementAccrual[] = [];
   /** El cierre del ciclo anterior, para encadenar. `null` en el primero. */
   let heredado: number | null = null;
@@ -516,8 +581,7 @@ export function statementAccruals(
     const opening = heredado ?? resumen.openingBalance;
     if (opening === null) continue;
 
-    const { average, days } = averageDailyBalance(resumen.movements, opening, period, to);
-    const interest = round2(average * diaria * days);
+    const { average, days, interest } = devengarCiclo(resumen.movements, opening, period, to, tasaDelDia);
     // El movimiento del propio interés no está todavía en el libro, así que el
     // cierre se arma con lo que pasó en el ciclo más lo que se acaba de cobrar.
     const cierre = round2(

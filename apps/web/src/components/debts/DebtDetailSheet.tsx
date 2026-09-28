@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
 import type { DebtMovement, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { listPeriods, summarizePeriod } from '@/lib/debt-cycles';
-import { buildSchedule, toMonthlyRate } from '@/lib/debt-engine';
+import { buildSchedule, monthlyRateAfterPromo, toMonthlyRate } from '@/lib/debt-engine';
 import { promoRisk } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
@@ -210,7 +210,6 @@ export default function DebtDetailSheet({
           installment: debt.projection.installment,
           promoEndsOn: debt.promoEndsOn,
           rateAfterPromo: debt.rateAfterPromo,
-          ratePeriod: debt.ratePeriod,
           // Las cuotas caen el día de vencimiento, no el día en que se mira la
           // pantalla: sin esto el aviso cambiaba según cuándo lo abrieras.
           dueDay: debt.dueDay,
@@ -234,7 +233,7 @@ export default function DebtDetailSheet({
           promo && debt.rateAfterPromo != null
             ? {
                 afterMonths: promo.monthsLeft,
-                monthlyRate: toMonthlyRate(debt.rateAfterPromo, debt.ratePeriod),
+                monthlyRate: monthlyRateAfterPromo(debt.rateAfterPromo),
               }
             : undefined,
       }),

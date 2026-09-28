@@ -29,7 +29,13 @@
  * Módulo PURO. Se prueba en card-payment.test.ts.
  */
 
-import { additiveMinimumPayment, round2, toMonthlyRate, type RatePeriod } from './debt-engine';
+import {
+  additiveMinimumPayment,
+  promoVigente,
+  round2,
+  tasaMensualDelDia,
+  type RatePeriod,
+} from './debt-engine';
 
 export interface CardTramo {
   readonly id: string;
@@ -49,7 +55,7 @@ export interface CardTramo {
 
 /** ¿Sigue en promoción el día `hoy` (YYYY-MM-DD)? El último día aún cuenta. */
 export function enPromocion(tramo: Pick<CardTramo, 'promoEndsOn'>, hoy: string): boolean {
-  return tramo.promoEndsOn != null && hoy <= tramo.promoEndsOn.slice(0, 10);
+  return promoVigente(tramo.promoEndsOn, hoy);
 }
 
 /**
@@ -60,13 +66,13 @@ export function enPromocion(tramo: Pick<CardTramo, 'promoEndsOn'>, hoy: string):
  *
  * La de después se lee como APR aunque el tramo diga «mensual»: en un tramo al
  * 0 % el período no se usa, y la Unlimited Cash 3650 está guardada así. Leída
- * en su período, su 23.74 % anual se volvía un 23.74 % mensual. Es la misma
- * regla que el devengo (`monthlyRateAfterPromo`, en el arreglo del devengo).
+ * en su período, su 23.74 % anual se volvía un 23.74 % mensual.
+ *
+ * Es la MISMA función que usa el devengo: el día en que el banco empieza a
+ * cobrar un tramo es el mismo en que el reparto lo trata como caro.
  */
 export function tasaVigente(tramo: CardTramo, hoy: string): number {
-  const caducada = tramo.promoEndsOn != null && !enPromocion(tramo, hoy);
-  if (caducada && tramo.rateAfterPromo != null) return toMonthlyRate(tramo.rateAfterPromo, 'annual_nominal');
-  return toMonthlyRate(tramo.rate, tramo.ratePeriod);
+  return tasaMensualDelDia(tramo, hoy);
 }
 
 export interface CardAllocationPart {
