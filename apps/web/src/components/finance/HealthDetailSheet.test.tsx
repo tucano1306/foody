@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildFinancePlan, explainHealthScore, type PlanInput } from '@/lib/finance-engine';
 import HealthDetailSheet from './HealthDetailSheet';
 import { healthLabel } from './finance-ui';
@@ -52,6 +52,22 @@ function montar(over: Partial<PlanInput> = {}, businessIncluded: boolean | null 
   );
   return { plan, breakdown, onClose };
 }
+
+/**
+ * El plan se calcula con `NOW`, pero la hoja escribe el mes con el reloj de
+ * verdad (`new Date()`). Sin fijarlo, la prueba solo pasaba en septiembre: el
+ * 1 de octubre de 2026 empezó a buscar «septiembre» en una hoja que ya decía
+ * «octubre». Con el reloj fijado en `NOW`, el plan y la hoja hablan del mismo
+ * mes, que es justo lo que pasa en la app.
+ */
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('HealthDetailSheet — el anillo, explicado', () => {
   it('enseña la misma nota que el plan y su palabra', () => {
