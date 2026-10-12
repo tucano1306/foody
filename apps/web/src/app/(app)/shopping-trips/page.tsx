@@ -3,6 +3,9 @@ import { api } from '@/lib/api';
 import ModernTitle from '@/components/layout/ModernTitle';
 import OtherExpensesButton from '@/components/shopping/OtherExpensesButton';
 import TripsScopedList from '@/components/shopping/TripsScopedList';
+import ComputoChip from '@/components/computo/ComputoChip';
+import { computoDisponiblePara } from '@/lib/computo/config';
+import { getSession } from '@/lib/session';
 import type { ScopeFilter } from '@/lib/expense-scope';
 import type { ShoppingTrip } from '@foody/types';
 
@@ -37,6 +40,10 @@ export default async function ShoppingTripsPage({
     otherKinds = { count: 0, total: 0 };
   }
 
+  // El enlace con Computo es solo del dueño (ver lib/computo/config.ts): para
+  // los demás ni se pinta el chip ni se pide su estado.
+  const conComputo = computoDisponiblePara((await getSession()).userId);
+
   return (
     <div className="space-y-4">
       <ModernTitle
@@ -52,6 +59,8 @@ export default async function ShoppingTripsPage({
           </Link>
         }
       />
+
+      {conComputo && <ComputoChip />}
 
       {/* Lo que se escaneó y NO era super. Solo aparece si existe: quien nunca
           clasifica un gasto fuera del super no ve nada de esto.

@@ -4,6 +4,7 @@ import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
 import { listUnpaidMonths, monthKey } from '@/lib/payment-aggregates';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 const ALLOWED_METHODS = new Set(['transfer', 'debit_card', 'credit_card', 'cash', 'bank_account', 'other']);
 
@@ -40,6 +41,8 @@ function findTargetMonth(
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
 
   const { id } = await params;
   const now = new Date();
@@ -112,6 +115,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
 
   const { id } = await params;
   const now = new Date();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 /**
  * PATCH /api/product-purchases/assign-store
@@ -12,6 +13,8 @@ import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 export async function PATCH(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
 
   let body: { store?: string } = {};
   try {

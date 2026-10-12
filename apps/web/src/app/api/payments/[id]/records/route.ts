@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
 import { mapRecord } from '@/lib/payment-records';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
@@ -27,6 +28,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
   const { id } = await params;
 
   const paymentRows = await sql`SELECT id, amount FROM monthly_payments WHERE id = ${id} AND user_id = ${user.userId} LIMIT 1`;

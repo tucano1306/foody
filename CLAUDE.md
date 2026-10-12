@@ -581,6 +581,7 @@ Confirmadas en el código de la web:
 | `CRON_SECRET` | cabecera `authorization` de las rutas de cron |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_CONTACT` | web push (`lib/web-push.ts`) |
 | `E2E_TEST_MODE` | relaja comprobaciones para los e2e |
+| `COMPUTO_URL` / `COMPUTO_SECRET` / `COMPUTO_OWNER_EMAIL` | enlace con Computo (ver abajo); sin las tres, apagado |
 
 `.env.example` está desactualizado: le faltan `BLOB_READ_WRITE_TOKEN` y
 `CRON_SECRET`, y le sobran `AWS_*`, `REDIS_URL` y `SMTP_*`.
@@ -594,6 +595,24 @@ En `apps/web/vercel.json`, no en NestJS. Protegidos por `CRON_SECRET`:
 | `/api/cron/payments-reminder` | `0 9 * * *` |
 | `/api/cron/payments-daily` | `0 9 * * *` |
 | `/api/cron/stock-alerts` | `0 8 * * *` |
+| `/api/cron/computo-sync` | `30 9 * * *` (tras el autopago de las 9:00) |
+
+## Enlace con Computo
+
+Los gastos de Foody (tickets por tipo y pagos de recibos) entran solos en
+Computo (`computoplus`, quickbokks-clone.vercel.app), en la empresa que fije
+allí `FOODY_COMPANY_ID`. Es para UN usuario, el de `COMPUTO_OWNER_EMAIL`: para
+los demás no hay chip, ni ruta (404), ni sincronización.
+
+- Sincronización por ESTADO (`lib/computo/plan.ts`): se compara lo que debería
+  estar en Computo con lo ya enviado (`computo_enviados`) y se manda la
+  diferencia. Las rutas que escriben gastos llaman a `programarSyncComputo`,
+  que corre con `after()` tras responder; el cron diario recoge lo demás.
+- Firma HMAC con sello de tiempo (`lib/computo/firma.ts`), mismo vector de
+  prueba en las dos apps. `COMPUTO_SECRET` aquí = `FOODY_SECRET` allí.
+- Computo enlaza en vez de duplicar lo que ya estaba tecleado a mano, y manda
+  en la categoría; Foody manda en importe, fecha y descripción.
+- La deuda no es gasto: los abonos de Deudas no se mandan.
 
 ---
 
