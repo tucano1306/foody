@@ -10,6 +10,7 @@ import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSche
 import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { refreshLastPurchase } from '@/lib/last-purchase';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
@@ -37,6 +38,8 @@ interface UpdateTripBody {
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
   const { id } = await params;
   const body = await request.json() as UpdateTripBody;
   await ensureExpenseScopeSchema();
@@ -181,6 +184,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
   const { id } = await params;
 
   // Per-user isolation. Remove the trip's purchases first so stats and price

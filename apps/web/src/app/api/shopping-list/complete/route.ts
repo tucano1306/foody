@@ -8,6 +8,7 @@ import { normalizeBrand } from '@/lib/product-brands';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
 import { refreshLastPurchase } from '@/lib/last-purchase';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 interface CompletionBody {
   storeName?: string;
@@ -161,6 +162,8 @@ async function notifyShoppingComplete(userId: string, count: number, storeName: 
 export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
 
   let body: CompletionBody = {};
   try { body = (await request.json()) as CompletionBody; } catch { /* body is optional */ }

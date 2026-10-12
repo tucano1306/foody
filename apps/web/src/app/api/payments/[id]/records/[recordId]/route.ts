@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
 import { mapRecord } from '@/lib/payment-records';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 type Params = { params: Promise<{ id: string; recordId: string }> };
 
@@ -9,6 +10,8 @@ type Params = { params: Promise<{ id: string; recordId: string }> };
 export async function PATCH(request: NextRequest, { params }: Params) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
   const { id, recordId } = await params;
 
   let body: Record<string, unknown> = {};
@@ -39,6 +42,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 export async function DELETE(request: NextRequest, { params }: Params) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
   const { id, recordId } = await params;
 
   const rows = await sql`

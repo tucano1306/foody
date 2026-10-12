@@ -11,6 +11,7 @@ import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSche
 import { normalizeSplits, validateSplits } from '@/lib/trip-splits';
 import { revalidateAfterPurchase } from '@/lib/revalidate-purchases';
 import { refreshLastPurchase } from '@/lib/last-purchase';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 /**
  * Lista los tickets de SUPER. Los de otro tipo (comida fuera, farmacia…) no
@@ -32,6 +33,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
+  // Lleva el cambio a Computo después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
 
   const body = await request.json() as CreateShoppingTripDto;
   await ensureExpenseScopeSchema();

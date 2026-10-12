@@ -3,6 +3,9 @@ import { Suspense } from 'react';
 import { api } from '@/lib/api';
 import PaymentsList from '@/components/payments/PaymentsList';
 import ModernTitle from '@/components/layout/ModernTitle';
+import ComputoChip from '@/components/computo/ComputoChip';
+import { computoDisponiblePara } from '@/lib/computo/config';
+import { getSession } from '@/lib/session';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Pagos Mensuales' };
@@ -19,6 +22,8 @@ export const metadata: Metadata = { title: 'Pagos Mensuales' };
 export default async function PaymentsPage() {
   const payments = await api.payments.list().catch(() => []);
   const paid = payments.filter((p) => p.isPaidThisMonth);
+  // Solo el dueño ve el enlace con Computo (lib/computo/config.ts).
+  const conComputo = computoDisponiblePara((await getSession()).userId);
 
   return (
     <div className="space-y-6">
@@ -35,6 +40,8 @@ export default async function PaymentsPage() {
           </Link>
         }
       />
+
+      {conComputo && <ComputoChip />}
 
       <Suspense>
         <PaymentsList initialPayments={payments} />
