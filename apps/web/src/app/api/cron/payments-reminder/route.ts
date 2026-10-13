@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rechazoCron } from '@/lib/cron-auth';
 import { sql } from '@/lib/db';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
@@ -15,11 +16,8 @@ type PaymentRow = {
 
 // GET /api/cron/payments-reminder — called by Vercel Cron
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rechazo = rechazoCron(request);
+  if (rechazo) return rechazo;
 
   const expired = await sql`
     SELECT mp.id, mp.name, mp.user_id, u.push_subscription

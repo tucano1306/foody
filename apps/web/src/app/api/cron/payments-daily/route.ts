@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rechazoCron } from '@/lib/cron-auth';
 import { sql } from '@/lib/db';
 import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
@@ -70,11 +71,8 @@ async function processRow(row: PaymentRow, now: Date, today: number, daysInMonth
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rechazo = rechazoCron(request);
+  if (rechazo) return rechazo;
 
   const now = new Date();
   const today = now.getDate();
