@@ -588,7 +588,11 @@ Confirmadas en el código de la web:
 
 ## Crons
 
-En `apps/web/vercel.json`, no en NestJS. Protegidos por `CRON_SECRET`:
+En `apps/web/vercel.json`, no en NestJS. Protegidos por `CRON_SECRET` con
+`rechazoCron` (`lib/cron-auth.ts`): en producción, **sin la variable no corren**
+(503), y con ella exigen `Authorization: Bearer <CRON_SECRET>`, que Vercel manda
+solo. Ojo al probarlos: Next responde a un `HEAD` ejecutando el `GET`, así que
+cualquier petición a estas rutas las dispara de verdad.
 
 | Ruta | Horario |
 |---|---|

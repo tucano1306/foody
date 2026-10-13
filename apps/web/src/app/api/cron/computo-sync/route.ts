@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { configComputo } from '@/lib/computo/config';
+import { rechazoCron } from '@/lib/cron-auth';
 import { sincronizarComputo } from '@/lib/computo/sync';
 
 /**
@@ -10,10 +11,8 @@ import { sincronizarComputo } from '@/lib/computo/sync';
  * que asentó el cron de pagos, un camino que se olvidó de avisar.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const rechazo = rechazoCron(request);
+  if (rechazo) return rechazo;
 
   const config = configComputo();
   if (!config) return NextResponse.json({ ok: true, estado: 'no_configurado' });
