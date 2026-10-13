@@ -17,8 +17,15 @@ import { sql } from '../db';
 import { ensureExpenseKindSchema, ensureTripSplitsSchema } from '../ensure-schema';
 import { aCampoDeFecha } from '../app-time';
 import { configComputo, type ConfigComputo } from './config';
-import { enviarLote, ErrorComputo, pingComputo, type AccionComputo, type ResultadoComputo } from './cliente';
-import { gastoDePago, gastoDeTicket, huella, type GastoComputo } from './mapeo';
+import {
+  enviarLote,
+  ErrorComputo,
+  pingComputo,
+  type AccionComputo,
+  type EmpresasComputo,
+  type ResultadoComputo,
+} from './cliente';
+import { gastosDePago, gastosDeTicket, huella, type GastoComputo } from './mapeo';
 import { planificar, planVacio, type Borrado, type Enviado, type PlanComputo } from './plan';
 
 /** Una fecha de la base como ISO. Neon devuelve `Date` o texto según el tipo de columna. */
@@ -60,6 +67,8 @@ export function ensureComputoSchema(): Promise<void> {
         PRIMARY KEY (user_id, ref)
       )
     `;
+    // La empresa de negocio llegó después: lo de negocio va a otra empresa.
+    await sql`ALTER TABLE computo_enlace ADD COLUMN IF NOT EXISTS empresa_negocio TEXT`;
   })().catch((e) => {
     esquemaListo = null;
     throw e;
@@ -74,6 +83,8 @@ export interface Enlace {
   /** YYYY-MM-DD. */
   readonly desde: string;
   readonly empresa: string | null;
+  /** La empresa de Computo donde entra lo de negocio, si Computo tiene una. */
+  readonly empresaNegocio: string | null;
   readonly ultimaSync: string | null;
   readonly ultimoError: string | null;
   readonly ultimoResumen: ResumenSync | null;
@@ -98,6 +109,7 @@ export async function leerEnlace(userId: string): Promise<Enlace | null> {
     activo: r.activo === true,
     desde: aClave(r.desde),
     empresa: (r.empresa as string | null) ?? null,
+    empresaNegocio: (r.empresa_negocio as string | null) ?? null,
     ultimaSync: r.ultima_sync ? asIsoString(r.ultima_sync) : null,
     ultimoError: (r.ultimo_error as string | null) ?? null,
     ultimoResumen: (r.ultimo_resumen as ResumenSync | null) ?? null,
@@ -137,14 +149,14 @@ export async function cargarDeseados(userId: string, desde: string): Promise<Gas
   // el día en Miami, y en UTC una compra de la noche cae al día siguiente.
   const [tramos, pagos] = await Promise.all([
     sql`
-      SELECT trip_id, kind, trip_kind, amount, date, store_name
+      SELECT trip_id, kind, trip_kind, amount, date, store_name, business_share
         FROM trip_kind_amounts
        WHERE user_id = ${userId} AND amount > 0
          AND date >= ${desde}::date - INTERVAL '2 days'
     `,
     sql`
       SELECT r.id, r.paid_at, COALESCE(r.actual_amount, r.amount) AS monto, r.month, r.year,
-             p.name, p.category
+             p.name, p.category, p.business_share
         FROM payment_records r
         JOIN monthly_payments p ON p.id = r.payment_id
        WHERE r.user_id = ${userId} AND r.status = 'paid' AND r.paid_at IS NOT NULL
@@ -154,18 +166,19 @@ export async function cargarDeseados(userId: string, desde: string): Promise<Gas
   ]);
 
   const gastos: GastoComputo[] = [
-    ...(tramos as Record<string, unknown>[]).map((t) =>
-      gastoDeTicket({
+    ...(tramos as Record<string, unknown>[]).flatMap((t) =>
+      gastosDeTicket({
         tripId: String(t.trip_id),
         kind: String(t.kind ?? ''),
         tripKind: String(t.trip_kind ?? t.kind ?? ''),
         amount: Number(t.amount),
         date: asIsoString(t.date),
         storeName: (t.store_name as string | null) ?? null,
+        businessShare: Number(t.business_share ?? 0),
       }),
     ),
-    ...(pagos as Record<string, unknown>[]).map((p) =>
-      gastoDePago({
+    ...(pagos as Record<string, unknown>[]).flatMap((p) =>
+      gastosDePago({
         recordId: String(p.id),
         paidAt: asIsoString(p.paid_at),
         monto: Number(p.monto),
@@ -173,6 +186,7 @@ export async function cargarDeseados(userId: string, desde: string): Promise<Gas
         category: (p.category as string | null) ?? null,
         month: Number(p.month),
         year: Number(p.year),
+        businessShare: Number(p.business_share ?? 0),
       }),
     ),
   ];
@@ -212,13 +226,12 @@ async function tomarTurno(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function registrar(userId: string, cambios: { error: string | null; resumen?: ResumenSync; empresa?: string }): Promise<void> {
+async function registrar(userId: string, cambios: { error: string | null; resumen?: ResumenSync }): Promise<void> {
   await sql`
     UPDATE computo_enlace SET
       ultima_sync = now(),
       ultimo_error = ${cambios.error},
       ultimo_resumen = COALESCE(${cambios.resumen ? JSON.stringify(cambios.resumen) : null}::jsonb, ultimo_resumen),
-      empresa = COALESCE(${cambios.empresa ?? null}, empresa),
       ocupado_hasta = NULL,
       updated_at = now()
     WHERE user_id = ${userId}
@@ -247,6 +260,17 @@ async function guardarResultados(
       await sql`DELETE FROM computo_enviados WHERE user_id = ${userId} AND ref = ${r.ref}`;
     }
   }
+}
+
+/** En qué empresas escribe Computo: lo que enseña la hoja, y la prueba de que el secreto coincide. */
+async function guardarEmpresas(userId: string, e: EmpresasComputo): Promise<void> {
+  await sql`
+    UPDATE computo_enlace SET
+      empresa = ${e.empresa?.nombre ?? null},
+      empresa_negocio = ${e.empresaNegocio?.nombre ?? null},
+      updated_at = now()
+    WHERE user_id = ${userId}
+  `;
 }
 
 function sumar(a: Partial<Record<AccionComputo, number>>, resultados: readonly ResultadoComputo[]) {
@@ -297,13 +321,18 @@ export async function sincronizarComputo(
   try {
     const plan = await calcularPlan(userId, desde);
     if (planVacio(plan)) {
+      // Sin nada que mandar no se habla con Computo, y entonces nada demostraba
+      // que el secreto coincide: la hoja enseñaba «✓ al día» sin haberle
+      // preguntado. Mientras no se sepa en qué empresa escribe, se le pregunta.
+      if (!enlace?.empresa) await guardarEmpresas(userId, await pingComputo(config));
       const resumen: ResumenSync = { porAccion: {}, enviados: 0 };
       await registrar(userId, { error: null, resumen });
       return { estado: 'al_dia', resumen };
     }
 
     const porAccion: Partial<Record<AccionComputo, number>> = {};
-    let empresa: string | undefined;
+    let empresas: EmpresasComputo | undefined;
+    const omitidos: ResultadoComputo[] = [];
     // Primero los borrados (en su propio lote si hace falta) y luego los
     // nuevos: un ticket reclasificado suelta su ref vieja antes de crear la
     // nueva.
@@ -313,14 +342,19 @@ export async function sincronizarComputo(
         borrar: plan.borrar.slice(i, i + POR_LOTE),
       };
       const respuesta = await enviarLote(config, { ...lote, simular: false });
-      empresa = respuesta.empresa?.nombre ?? empresa;
+      empresas = respuesta;
+      omitidos.push(...respuesta.resultados.filter((r) => r.accion === 'omitido'));
       await guardarResultados(userId, { upserts: lote.upserts, borrar: lote.borrar }, respuesta.resultados);
       sumar(porAccion, respuesta.resultados);
     }
 
     const resumen: ResumenSync = { porAccion, enviados: plan.upserts.length + plan.borrar.length };
-    await registrar(userId, { error: null, resumen, empresa });
-    return { estado: 'enviado', resumen };
+    if (empresas) await guardarEmpresas(userId, empresas);
+    // Lo omitido se queda pendiente (no entra en computo_enviados) y se
+    // reintenta solo; pero el usuario tiene que saber que falta algo.
+    const error = omitidos.length > 0 ? mensajeDeOmitidos(omitidos) : null;
+    await registrar(userId, { error, resumen });
+    return error ? { estado: 'error', mensaje: error } : { estado: 'enviado', resumen };
   } catch (e) {
     const mensaje = e instanceof ErrorComputo ? e.message : 'Algo falló al sincronizar. Se reintentará solo.';
     console.error('[computo] sincronizar:', e);
@@ -329,14 +363,19 @@ export async function sincronizarComputo(
   }
 }
 
-/** Comprueba la conexión y recuerda el nombre de la empresa. */
+function mensajeDeOmitidos(omitidos: readonly ResultadoComputo[]): string {
+  const cuantos = omitidos.length === 1 ? '1 gasto de negocio no se mandó' : `${omitidos.length} gastos de negocio no se mandaron`;
+  return `${cuantos}: ${omitidos[0].motivo ?? 'Computo no lo apuntó'}. Se reintentará solo.`;
+}
+
+/** Comprueba la conexión y recuerda en qué empresas escribe Computo. */
 export async function probarConexion(userId: string, config: ConfigComputo | null = configComputo()) {
   if (!config || userId !== config.duenoId) return { ok: false as const, mensaje: 'No disponible' };
   try {
-    const empresa = await pingComputo(config);
+    const empresas = await pingComputo(config);
     await ensureComputoSchema();
-    await sql`UPDATE computo_enlace SET empresa = ${empresa.nombre}, updated_at = now() WHERE user_id = ${userId}`;
-    return { ok: true as const, empresa };
+    await guardarEmpresas(userId, empresas);
+    return { ok: true as const, ...empresas };
   } catch (e) {
     return { ok: false as const, mensaje: e instanceof ErrorComputo ? e.message : 'No se pudo conectar con Computo.' };
   }

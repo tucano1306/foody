@@ -8,6 +8,7 @@ export interface GastoPendiente {
   monto: number;
   categoria: string;
   descripcion: string;
+  destino: 'personal' | 'negocio';
 }
 
 export interface EstadoComputo {
@@ -15,6 +16,8 @@ export interface EstadoComputo {
   activo: boolean;
   desde: string;
   empresa: string | null;
+  /** Donde entra lo de negocio, si Computo tiene empresa de negocio. */
+  empresaNegocio: string | null;
   ultimaSync: string | null;
   ultimoError: string | null;
   ultimoResumen: { porAccion: Record<string, number>; enviados: number } | null;
@@ -22,7 +25,16 @@ export interface EstadoComputo {
   categorias: { tickets: { foody: string; computo: string }[]; pagos: string[] };
 }
 
-export type AccionPrevista = 'creado' | 'actualizado' | 'sin_cambios' | 'vinculado';
+export type AccionPrevista = 'creado' | 'actualizado' | 'sin_cambios' | 'vinculado' | 'omitido';
+
+/** Lo que Computo dice que haría con un gasto, en la vista previa. */
+export interface Prevision {
+  ref: string;
+  accion: AccionPrevista;
+  /** Negocio: la categoría con la que lo apuntaría, copiada de lo que ya hay allí. */
+  categoria?: string;
+  motivo?: string;
+}
 
 const URL = '/api/integrations/computo';
 
@@ -98,7 +110,7 @@ export function useComputo() {
 
   const simular = useCallback(
     (desde?: string) =>
-      accion<{ estado: string; resultados?: { ref: string; accion: AccionPrevista }[] }>(() =>
+      accion<{ estado: string; resultados?: Prevision[] }>(() =>
         fetch(`${URL}/sync`, {
           method: 'POST',
           credentials: 'include',

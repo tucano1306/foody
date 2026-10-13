@@ -616,6 +616,13 @@ los demás no hay chip, ni ruta (404), ni sincronización.
   prueba en las dos apps. `COMPUTO_SECRET` aquí = `FOODY_SECRET` allí.
 - Computo enlaza en vez de duplicar lo que ya estaba tecleado a mano, y manda
   en la categoría; Foody manda en importe, fecha y descripción.
+- Lo de NEGOCIO (`business_share` del ticket o del pago) no entra en la
+  empresa personal: va a la de negocio (`FOODY_BUSINESS_COMPANY_ID` allí,
+  «Venecoro»), a su módulo de Gastos, copiando categoría, descripción,
+  proveedor y método de pago del último gasto parecido que el usuario tecleó.
+  La parte de negocio lleva `:negocio` al final de la ref; un gasto mixto se
+  parte en dos. Sin empresa de negocio en Computo, eso se queda pendiente
+  (`omitido`) y la hoja lo avisa: nunca cae en la personal.
 - La deuda no es gasto: los abonos de Deudas no se mandan.
 
 ---

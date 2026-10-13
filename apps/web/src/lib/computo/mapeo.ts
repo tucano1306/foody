@@ -10,14 +10,24 @@
  * La categoría solo se pone al CREAR el gasto en Computo; si allí se cambia,
  * Foody no la vuelve a tocar.
  *
+ * Lo de NEGOCIO (`business_share` del ticket o del pago) no va a la empresa
+ * personal: sale con `destino: 'negocio'` y Computo lo apunta en la empresa de
+ * negocio, en su módulo de Gastos y con la categoría que el usuario usa allí.
+ * Un gasto mixto se parte en dos.
+ *
  * Módulo PURO. Se prueba en mapeo.test.ts.
  */
 import type { ExpenseKind } from '../expense-kind';
 import { expenseKindMeta, normalizeExpenseKind } from '../expense-kind';
 import { aCampoDeFecha } from '../app-time';
 
+export type DestinoComputo = 'personal' | 'negocio';
+
 export interface GastoComputo {
-  /** Identidad estable del gasto en Foody: `trip:<id>:<tipo>` o `payment:<id>`. */
+  /**
+   * Identidad estable del gasto en Foody: `trip:<id>:<tipo>` o `payment:<id>`,
+   * con `:negocio` al final para la parte de negocio.
+   */
   readonly ref: string;
   /** El día del gasto, YYYY-MM-DD, en la hora de Miami. */
   readonly fecha: string;
@@ -25,6 +35,47 @@ export interface GastoComputo {
   readonly categoria: string;
   readonly descripcion: string;
   readonly notas?: string;
+  /** En qué empresa de Computo entra: la personal o la de negocio. */
+  readonly destino: DestinoComputo;
+}
+
+const SUFIJO_NEGOCIO = ':negocio';
+
+/** El destino va en la ref: así un borrado, que solo guarda la ref, sabe adónde ir. */
+export function destinoDeRef(ref: string): DestinoComputo {
+  return ref.endsWith(SUFIJO_NEGOCIO) ? 'negocio' : 'personal';
+}
+
+/**
+ * Parte un gasto según su porcentaje de negocio. Al 0 % es el mismo gasto,
+ * personal; al 100 %, el mismo, de negocio (con su ref); en medio, dos gastos
+ * que suman exactamente el original (el redondeo se lo queda la parte
+ * personal).
+ */
+export function repartirPorNegocio(g: GastoComputo, porcentajeNegocio: number | null | undefined): GastoComputo[] {
+  const pct = Math.min(100, Math.max(0, Number(porcentajeNegocio) || 0));
+  const negocio = round2((g.monto * pct) / 100);
+  const personal = round2(g.monto - negocio);
+  const partido = negocio > 0 && personal > 0;
+  const partes: GastoComputo[] = [];
+  if (personal > 0) {
+    partes.push({
+      ...g,
+      monto: personal,
+      destino: 'personal',
+      notas: partido ? `${g.notas ?? 'Desde Foody'} · parte personal (${100 - pct} %)` : g.notas,
+    });
+  }
+  if (negocio > 0) {
+    partes.push({
+      ...g,
+      ref: `${g.ref}${SUFIJO_NEGOCIO}`,
+      monto: negocio,
+      destino: 'negocio',
+      notas: partido ? `${g.notas ?? 'Desde Foody'} · parte de negocio (${pct} %)` : g.notas,
+    });
+  }
+  return partes;
 }
 
 export const CATEGORIA_DE_TICKET: Readonly<Record<ExpenseKind, string>> = {
@@ -63,6 +114,8 @@ export interface TramoDeTicket {
   /** ISO de `shopping_trips.date`. */
   readonly date: string;
   readonly storeName: string | null;
+  /** `shopping_trips.business_share`, 0–100. */
+  readonly businessShare?: number;
 }
 
 /**
@@ -82,7 +135,13 @@ export function gastoDeTicket(t: TramoDeTicket): GastoComputo {
     notas: partido
       ? `Desde Foody · parte de un ticket de ${expenseKindMeta(normalizeExpenseKind(t.tripKind)).groupLabel}`
       : 'Desde Foody · Compras',
+    destino: 'personal',
   };
+}
+
+/** El tramo del ticket ya repartido entre lo personal y lo de negocio: lo que se manda. */
+export function gastosDeTicket(t: TramoDeTicket): GastoComputo[] {
+  return repartirPorNegocio(gastoDeTicket(t), t.businessShare);
 }
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -96,6 +155,8 @@ export interface PagoRegistrado {
   readonly category: string | null;
   readonly month: number;
   readonly year: number;
+  /** `monthly_payments.business_share`, 0–100. */
+  readonly businessShare?: number;
 }
 
 export function gastoDePago(p: PagoRegistrado): GastoComputo {
@@ -106,7 +167,13 @@ export function gastoDePago(p: PagoRegistrado): GastoComputo {
     categoria: categoriaDePago(p.category),
     descripcion: p.nombre.trim() || 'Pago',
     notas: `Desde Foody · Pagos · ${MESES[p.month - 1] ?? p.month} ${p.year}`,
+    destino: 'personal',
   };
+}
+
+/** El pago ya repartido entre lo personal y lo de negocio: lo que se manda. */
+export function gastosDePago(p: PagoRegistrado): GastoComputo[] {
+  return repartirPorNegocio(gastoDePago(p), p.businessShare);
 }
 
 /**
@@ -117,5 +184,5 @@ export function gastoDePago(p: PagoRegistrado): GastoComputo {
  * sitio, el receptor.
  */
 export function huella(g: GastoComputo): string {
-  return JSON.stringify([g.fecha, g.monto.toFixed(2), g.categoria, g.descripcion, g.notas ?? '']);
+  return JSON.stringify([g.fecha, g.monto.toFixed(2), g.categoria, g.descripcion, g.notas ?? '', g.destino]);
 }

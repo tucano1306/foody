@@ -17,16 +17,31 @@ export type AccionComputo =
   | 'vinculado'
   | 'borrado'
   | 'desvinculado'
-  | 'no_existe';
+  | 'no_existe'
+  | 'omitido';
 
 export interface ResultadoComputo {
   readonly ref: string;
   readonly accion: AccionComputo;
   readonly id?: string;
+  /** `omitido`: por qué Computo no lo apuntó (y Foody lo deja pendiente). */
+  readonly motivo?: string;
+  /** Negocio: la categoría con la que Computo lo apunta, copiada de lo que ya había. */
+  readonly categoria?: string;
 }
 
-export interface RespuestaComputo {
-  readonly empresa: { id: string; nombre: string };
+export interface EmpresaComputo {
+  readonly id: string;
+  readonly nombre: string;
+}
+
+/** Dónde escribe Computo: la empresa personal y, si la hay, la de negocio. */
+export interface EmpresasComputo {
+  readonly empresa: EmpresaComputo;
+  readonly empresaNegocio: EmpresaComputo | null;
+}
+
+export interface RespuestaComputo extends EmpresasComputo {
   readonly resultados: readonly ResultadoComputo[];
 }
 
@@ -67,10 +82,16 @@ async function llamar(config: ConfigComputo, cuerpo: unknown): Promise<Record<st
   return json;
 }
 
-/** Comprueba la conexión y dice en qué empresa entran los gastos. */
-export async function pingComputo(config: ConfigComputo): Promise<{ id: string; nombre: string }> {
-  const json = await llamar(config, { ping: true });
-  return json.empresa as { id: string; nombre: string };
+function empresas(json: Record<string, unknown>): EmpresasComputo {
+  return {
+    empresa: json.empresa as EmpresaComputo,
+    empresaNegocio: (json.empresaNegocio as EmpresaComputo | null | undefined) ?? null,
+  };
+}
+
+/** Comprueba la conexión y dice en qué empresas entran los gastos. */
+export async function pingComputo(config: ConfigComputo): Promise<EmpresasComputo> {
+  return empresas(await llamar(config, { ping: true }));
 }
 
 export async function enviarLote(
@@ -79,7 +100,7 @@ export async function enviarLote(
 ): Promise<RespuestaComputo> {
   const json = await llamar(config, lote);
   return {
-    empresa: json.empresa as { id: string; nombre: string },
+    ...empresas(json),
     resultados: (json.resultados as ResultadoComputo[] | undefined) ?? [],
   };
 }

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import { BTN_PRIMARY, BTN_SOFT, fmtMoney } from '@/components/debts/debt-ui';
-import type { AccionPrevista, useComputo } from './useComputo';
+import type { AccionPrevista, EstadoComputo, Prevision, useComputo } from './useComputo';
 
 interface Props {
   readonly computo: ReturnType<typeof useComputo>;
@@ -33,7 +33,15 @@ const PREVISTO: Record<AccionPrevista, { texto: string; clase: string }> = {
   vinculado: { texto: 'Ya lo tenías: se enlaza', clase: 'bg-blue-100 text-blue-800' },
   actualizado: { texto: 'Se actualiza', clase: 'bg-slate-100 text-slate-700' },
   sin_cambios: { texto: 'Igual', clase: 'bg-slate-100 text-slate-500' },
+  omitido: { texto: 'No se envía', clase: 'bg-blue-100 text-blue-900' },
 };
+
+/** «Personal → Leonardo · Negocio → Venecoro»: a dónde va cada cosa, cuando ya se sabe. */
+function destinos(estado: EstadoComputo): string {
+  if (!estado.empresa) return 'Tus gastos, en tu contabilidad';
+  if (!estado.empresaNegocio) return `Tus gastos entran en ${estado.empresa}`;
+  return `Personal → ${estado.empresa} · Negocio → ${estado.empresaNegocio}`;
+}
 
 /**
  * La hoja del enlace con Computo.
@@ -45,7 +53,7 @@ const PREVISTO: Record<AccionPrevista, { texto: string; clase: string }> = {
  */
 export default function ComputoSheet({ computo, onClose }: Props) {
   const { estado, ocupado, error, guardar, sincronizar, simular, probar } = computo;
-  const [previsto, setPrevisto] = useState<Record<string, AccionPrevista> | null>(null);
+  const [previsto, setPrevisto] = useState<Record<string, Prevision> | null>(null);
   const [verCategorias, setVerCategorias] = useState(false);
   if (!estado) return null;
 
@@ -56,7 +64,7 @@ export default function ComputoSheet({ computo, onClose }: Props) {
   async function revisar() {
     haptic();
     const r = await simular(estado?.desde);
-    if (r?.resultados) setPrevisto(Object.fromEntries(r.resultados.map((x) => [x.ref, x.accion])));
+    if (r?.resultados) setPrevisto(Object.fromEntries(r.resultados.map((x) => [x.ref, x])));
   }
 
   async function principal() {
@@ -73,7 +81,7 @@ export default function ComputoSheet({ computo, onClose }: Props) {
   return (
     <ModalShell
       title="Computo"
-      subtitle={estado.empresa ? `Tus gastos entran en ${estado.empresa}` : 'Tus gastos, en tu contabilidad'}
+      subtitle={destinos(estado)}
       emoji="📒"
       onClose={onClose}
       footer={
@@ -140,10 +148,15 @@ export default function ComputoSheet({ computo, onClose }: Props) {
           </div>
         )}
         {!error && !estado.ultimoError && estado.ultimaSync && (
-          <p className="px-1 text-xs text-slate-500">
-            ✓ Última sincronización {haceCuanto(estado.ultimaSync)}
-            {estado.ultimoResumen && estado.ultimoResumen.enviados > 0 && ` · ${estado.ultimoResumen.enviados} enviados`}
-          </p>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1 text-xs text-slate-500">
+            <span>
+              ✓ Última sincronización {haceCuanto(estado.ultimaSync)}
+              {estado.ultimoResumen && estado.ultimoResumen.enviados > 0 && ` · ${estado.ultimoResumen.enviados} enviados`}
+            </span>
+            <button type="button" onClick={() => void probar()} disabled={ocupado} className="font-bold text-sky-700 underline">
+              Probar la conexión
+            </button>
+          </div>
         )}
 
         {/* Lo que falta por mandar */}
@@ -167,6 +180,10 @@ export default function ComputoSheet({ computo, onClose }: Props) {
             <ul className="flex flex-col gap-2" aria-label="Gastos por enviar">
               {pendientes.muestra.map((g) => {
                 const p = previsto?.[g.ref];
+                const negocio = g.destino === 'negocio';
+                // Lo de negocio no lleva la categoría de Foody: Computo la copia
+                // de lo que el usuario ya apunta allí, y solo se sabe al revisar.
+                const categoria = negocio ? (p?.categoria ?? null) : g.categoria;
                 return (
                   <li key={g.ref} className="rounded-2xl bg-white px-3.5 py-2.5">
                     <div className="flex items-baseline justify-between gap-3">
@@ -175,9 +192,22 @@ export default function ComputoSheet({ computo, onClose }: Props) {
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-500">
                       <span>{dia(g.fecha)}</span>
-                      <span className="text-slate-300">·</span>
-                      <span>{g.categoria}</span>
-                      {p && <span className={`rounded-full px-2 py-0.5 ${PREVISTO[p].clase}`}>{PREVISTO[p].texto}</span>}
+                      {categoria && (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          <span>{categoria}</span>
+                        </>
+                      )}
+                      {negocio && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700">
+                          💼 {estado.empresaNegocio ?? 'Negocio'}
+                        </span>
+                      )}
+                      {p && (
+                        <span className={`rounded-full px-2 py-0.5 ${PREVISTO[p.accion].clase}`} title={p.motivo}>
+                          {PREVISTO[p.accion].texto}
+                        </span>
+                      )}
                     </div>
                   </li>
                 );
@@ -217,6 +247,12 @@ export default function ComputoSheet({ computo, onClose }: Props) {
               <li className="flex justify-between gap-3 border-t border-sky-50 pt-1">
                 <span className="text-slate-600">💳 Pagos</span>
                 <span className="text-right font-semibold text-black">{estado.categorias.pagos.join(', ')}</span>
+              </li>
+              <li className="flex justify-between gap-3 border-t border-sky-50 pt-1">
+                <span className="text-slate-600">💼 Lo de negocio</span>
+                <span className="text-right font-semibold text-black">
+                  {estado.empresaNegocio ?? 'Empresa de negocio'}, como lo apuntas allí
+                </span>
               </li>
             </ul>
           )}

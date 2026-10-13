@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { categoriaDePago, CATEGORIA_DE_TICKET, gastoDePago, gastoDeTicket, huella } from './mapeo';
+import {
+  categoriaDePago,
+  CATEGORIA_DE_TICKET,
+  destinoDeRef,
+  gastoDePago,
+  gastoDeTicket,
+  gastosDePago,
+  gastosDeTicket,
+  huella,
+  repartirPorNegocio,
+} from './mapeo';
 
 /**
  * Las categorías son las que el usuario ya usaba en Computo a mano: lo que
@@ -45,6 +55,7 @@ describe('gastoDeTicket', () => {
       categoria: 'Supermercado',
       descripcion: 'Publix',
       notas: 'Desde Foody · Compras',
+      destino: 'personal',
     });
   });
 
@@ -86,7 +97,62 @@ describe('gastoDePago', () => {
       categoria: 'Servicios Públicos',
       descripcion: 'FPL',
       notas: 'Desde Foody · Pagos · octubre 2026',
+      destino: 'personal',
     });
+  });
+});
+
+/**
+ * Lo de negocio no entra en la empresa personal. Los tres pagos de Venecoro
+ * (GMC, Cable insurance, Permiso Larry's) están al 100 % de negocio en Foody.
+ */
+describe('reparto entre lo personal y lo de negocio', () => {
+  const gmc = {
+    recordId: 'rec-gmc',
+    paidAt: '2026-10-14T13:00:00.000Z',
+    monto: 1097,
+    nombre: 'GMC',
+    category: 'other',
+    month: 10,
+    year: 2026,
+  };
+
+  it('sin parte de negocio es el mismo gasto, personal y con su ref de siempre', () => {
+    expect(gastosDePago(gmc)).toEqual([gastoDePago(gmc)]);
+    expect(gastosDePago({ ...gmc, businessShare: 0 })).toEqual([gastoDePago(gmc)]);
+  });
+
+  it('al 100 % va entero a negocio, con «:negocio» en la ref', () => {
+    expect(gastosDePago({ ...gmc, businessShare: 100 })).toEqual([
+      { ...gastoDePago(gmc), ref: 'payment:rec-gmc:negocio', destino: 'negocio' },
+    ]);
+  });
+
+  it('un gasto mixto son dos que suman exactamente el original', () => {
+    const partes = gastosDePago({ ...gmc, nombre: 'Verizon', monto: 120.62, businessShare: 25 });
+    expect(partes.map((p) => [p.ref, p.monto, p.destino])).toEqual([
+      ['payment:rec-gmc', 90.46, 'personal'],
+      ['payment:rec-gmc:negocio', 30.16, 'negocio'],
+    ]);
+    expect(partes[0].monto + partes[1].monto).toBeCloseTo(120.62, 10);
+    expect(partes[0].notas).toBe('Desde Foody · Pagos · octubre 2026 · parte personal (75 %)');
+    expect(partes[1].notas).toBe('Desde Foody · Pagos · octubre 2026 · parte de negocio (25 %)');
+  });
+
+  it('un ticket también se reparte, tramo a tramo', () => {
+    const depot = { tripId: 't9', kind: 'home', tripKind: 'home', amount: 64.2, date: '2026-10-10T16:00:00.000Z', storeName: 'Home Depot', businessShare: 100 };
+    expect(gastosDeTicket(depot).map((g) => [g.ref, g.destino])).toEqual([['trip:t9:home:negocio', 'negocio']]);
+  });
+
+  it('un porcentaje fuera de rango no inventa dinero', () => {
+    expect(repartirPorNegocio(gastoDePago(gmc), 140).map((g) => [g.monto, g.destino])).toEqual([[1097, 'negocio']]);
+    expect(repartirPorNegocio(gastoDePago(gmc), -5).map((g) => [g.monto, g.destino])).toEqual([[1097, 'personal']]);
+    expect(repartirPorNegocio(gastoDePago(gmc), Number.NaN).map((g) => g.destino)).toEqual(['personal']);
+  });
+
+  it('el destino se lee de la ref', () => {
+    expect(destinoDeRef('payment:rec-gmc:negocio')).toBe('negocio');
+    expect(destinoDeRef('trip:t1:grocery')).toBe('personal');
   });
 });
 
@@ -101,5 +167,9 @@ describe('huella', () => {
     expect(huella({ ...g, monto: 10.01 })).not.toBe(huella(g));
     expect(huella({ ...g, fecha: '2026-10-07' })).not.toBe(huella(g));
     expect(huella({ ...g, descripcion: 'Y' })).not.toBe(huella(g));
+  });
+
+  it('cambiar de empresa también la cambia', () => {
+    expect(huella({ ...g, destino: 'negocio' })).not.toBe(huella(g));
   });
 });

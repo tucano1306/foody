@@ -19,6 +19,7 @@ async function estado(userId: string) {
     activo: enlace?.activo ?? false,
     desde,
     empresa: enlace?.empresa ?? null,
+    empresaNegocio: enlace?.empresaNegocio ?? null,
     ultimaSync: enlace?.ultimaSync ?? null,
     ultimoError: enlace?.ultimoError ?? null,
     ultimoResumen: enlace?.ultimoResumen ?? null,
