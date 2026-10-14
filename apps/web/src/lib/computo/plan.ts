@@ -10,7 +10,7 @@
  *
  * Módulo PURO. Se prueba en plan.test.ts.
  */
-import { huella, type GastoComputo } from './mapeo';
+import { destinoDeRef, huella, type DestinoComputo, type GastoComputo } from './mapeo';
 
 /** Lo que Foody recuerda de cada gasto que ya está en Computo. */
 export interface Enviado {
@@ -26,6 +26,8 @@ export interface Enviado {
 export interface Borrado {
   readonly ref: string;
   readonly modo: 'borrar' | 'desvincular';
+  /** De qué empresa sale: lo dice la propia ref. */
+  readonly destino: DestinoComputo;
 }
 
 export interface PlanComputo {
@@ -48,7 +50,7 @@ export function planificar(deseados: readonly GastoComputo[], enviados: readonly
 
   const borrar: Borrado[] = enviados
     .filter((e) => !vivos.has(e.ref))
-    .map((e) => ({ ref: e.ref, modo: e.vinculado ? 'desvincular' : 'borrar' }));
+    .map((e) => ({ ref: e.ref, modo: e.vinculado ? 'desvincular' : 'borrar', destino: destinoDeRef(e.ref) }));
 
   return { upserts, borrar };
 }

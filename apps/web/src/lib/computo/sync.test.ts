@@ -15,6 +15,7 @@ type Enlace = {
   activo: boolean;
   desde: string;
   empresa: string | null;
+  empresa_negocio?: string | null;
   ultima_sync: string | null;
   ultimo_error: string | null;
   ultimo_resumen: unknown;
@@ -33,7 +34,7 @@ vi.mock('../ensure-schema', () => ({
 vi.mock('../db', () => ({
   sql: vi.fn(async (partes: TemplateStringsArray, ...v: unknown[]) => {
     const q = partes.join('?').replace(/\s+/g, ' ').trim();
-    if (q.startsWith('CREATE TABLE')) return [];
+    if (q.startsWith('CREATE TABLE') || q.startsWith('ALTER TABLE')) return [];
     if (q.startsWith('SELECT * FROM computo_enlace')) return enlace ? [enlace] : [];
     if (q.startsWith('INSERT INTO computo_enlace')) {
       enlace ??= { activo: false, desde: String(v[2]), empresa: null, ultima_sync: null, ultimo_error: null, ultimo_resumen: null, ocupado: false };
@@ -51,9 +52,12 @@ vi.mock('../db', () => ({
         enlace.ultima_sync = new Date().toISOString();
         enlace.ultimo_error = v[0] as string | null;
         if (v[1]) enlace.ultimo_resumen = JSON.parse(String(v[1]));
-        if (v[2]) enlace.empresa = String(v[2]);
         enlace.ocupado = false;
       }
+      return [];
+    }
+    if (q.startsWith('UPDATE computo_enlace SET empresa')) {
+      if (enlace) Object.assign(enlace, { empresa: v[0], empresa_negocio: v[1] });
       return [];
     }
     if (q.includes('FROM trip_kind_amounts')) return tramos;
@@ -90,9 +94,10 @@ beforeEach(() => {
     body: {
       ok: true,
       empresa: { id: 'leo', nombre: 'Leonardo' },
+      empresaNegocio: { id: 'vene', nombre: 'Venecoro' },
       resultados: [
-        ...lote.upserts.map((u) => ({ ref: u.ref, accion: u.ref.startsWith('payment') ? 'vinculado' : 'creado', id: `cx-${u.ref}` })),
-        ...lote.borrar.map((b) => ({ ref: b.ref, accion: 'borrado' })),
+        ...(lote.upserts ?? []).map((u) => ({ ref: u.ref, accion: u.ref.startsWith('payment') ? 'vinculado' : 'creado', id: `cx-${u.ref}` })),
+        ...(lote.borrar ?? []).map((b) => ({ ref: b.ref, accion: 'borrado' })),
       ],
     },
   });
@@ -133,7 +138,7 @@ describe('sincronizarComputo', () => {
     expect(lotes[0].simular).toBe(false);
     expect(enviados.find((e) => e.ref === 'payment:rec-1')).toMatchObject({ vinculado: true, remoto_id: 'cx-payment:rec-1' });
     expect(enviados.find((e) => e.ref === 'trip:trip-1:grocery')).toMatchObject({ vinculado: false });
-    expect(enlace).toMatchObject({ empresa: 'Leonardo', ultimo_error: null, ocupado: false });
+    expect(enlace).toMatchObject({ empresa: 'Leonardo', empresa_negocio: 'Venecoro', ultimo_error: null, ocupado: false });
   });
 
   it('la segunda vuelta sin cambios no llama a Computo', async () => {
@@ -149,10 +154,71 @@ describe('sincronizarComputo', () => {
     pagos = [];
     await sincronizarComputo(DUENO, { config: CONFIG });
     expect(lotes[1].borrar).toEqual([
-      { ref: 'trip:trip-1:grocery', modo: 'borrar' },
-      { ref: 'payment:rec-1', modo: 'desvincular' },
+      { ref: 'trip:trip-1:grocery', modo: 'borrar', destino: 'personal' },
+      { ref: 'payment:rec-1', modo: 'desvincular', destino: 'personal' },
     ]);
     expect(enviados).toEqual([]);
+  });
+
+  it('lo de negocio sale con su destino, y un gasto mixto se parte en dos', async () => {
+    tramos = [];
+    pagos = [
+      { id: 'rec-gmc', paid_at: '2026-10-14T13:00:00.000Z', monto: '1097', month: 10, year: 2026, name: 'GMC', category: 'other', business_share: '100' },
+      { id: 'rec-cel', paid_at: '2026-10-27T13:00:00.000Z', monto: '120.62', month: 10, year: 2026, name: 'Verizon', category: 'internet', business_share: '25' },
+    ];
+    await sincronizarComputo(DUENO, { config: CONFIG });
+    const mandados = (lotes[0].upserts as unknown as { ref: string; monto: number; destino: string }[])
+      .map((u) => [u.ref, u.monto, u.destino])
+      .sort();
+    expect(mandados).toEqual([
+      ['payment:rec-cel', 90.46, 'personal'],
+      ['payment:rec-cel:negocio', 30.16, 'negocio'],
+      ['payment:rec-gmc:negocio', 1097, 'negocio'],
+    ]);
+  });
+
+  it('lo que Computo omite se queda pendiente y se avisa', async () => {
+    pagos = [{ id: 'rec-gmc', paid_at: '2026-10-14T13:00:00.000Z', monto: '1097', month: 10, year: 2026, name: 'GMC', category: 'other', business_share: '100' }];
+    tramos = [];
+    responder = (lote) => ({
+      body: {
+        ok: true,
+        empresa: { id: 'leo', nombre: 'Leonardo' },
+        empresaNegocio: null,
+        resultados: lote.upserts.map((u) => ({ ref: u.ref, accion: 'omitido', motivo: 'Computo no tiene empresa de negocio configurada' })),
+      },
+    });
+    const r = await sincronizarComputo(DUENO, { config: CONFIG });
+    expect(r).toEqual({
+      estado: 'error',
+      mensaje: '1 gasto de negocio no se mandó: Computo no tiene empresa de negocio configurada. Se reintentará solo.',
+    });
+    expect(enviados).toEqual([]);
+    expect(enlace).toMatchObject({ ultimo_error: expect.stringContaining('no se mandó'), empresa_negocio: null });
+    // La vuelta siguiente lo vuelve a intentar.
+    await sincronizarComputo(DUENO, { config: CONFIG });
+    expect(lotes).toHaveLength(2);
+  });
+
+  it('sin nada que mandar, la primera vez pregunta a Computo: el ✓ no se da sin haber hablado con él', async () => {
+    tramos = [];
+    pagos = [];
+    const r = await sincronizarComputo(DUENO, { config: CONFIG });
+    expect(r.estado).toBe('al_dia');
+    expect(lotes).toEqual([{ ping: true }]);
+    expect(enlace).toMatchObject({ empresa: 'Leonardo', ultimo_error: null });
+    // Ya se sabe dónde escribe: no se vuelve a preguntar.
+    await sincronizarComputo(DUENO, { config: CONFIG });
+    expect(lotes).toHaveLength(1);
+  });
+
+  it('si esa pregunta falla, no hay ✓: se dice por qué', async () => {
+    tramos = [];
+    pagos = [];
+    responder = () => ({ status: 401, body: { error: 'Firma invalida' } });
+    const r = await sincronizarComputo(DUENO, { config: CONFIG });
+    expect(r).toEqual({ estado: 'error', mensaje: 'Computo rechazó la firma: el secreto no coincide entre las dos apps.' });
+    expect(enlace?.ultimo_error).toMatch(/no coincide/);
   });
 
   it('cuenta desde el día elegido, en hora de Miami', async () => {
