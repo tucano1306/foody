@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cabeceraFirma, firmarCuerpo } from './firma';
+import { cabeceraFirma, firmarCuerpo, huellaSecreto } from './firma';
 
 /**
  * El contrato con Computo: el mismo vector está en
@@ -13,6 +13,10 @@ describe('firma Foody → Computo', () => {
     expect(firmarCuerpo(SECRETO, 1_760_000_000, '{"ping":true}')).toBe(
       '7215974da98b111d77836844a943ce044c3a73f4e85ce1b01c88796d56529795',
     );
+  });
+
+  it('la huella del secreto, también compartida con Computo', () => {
+    expect(huellaSecreto(SECRETO)).toBe('659be3');
   });
 
   it('la cabecera lleva el sello de tiempo en segundos y la firma de ese instante', () => {

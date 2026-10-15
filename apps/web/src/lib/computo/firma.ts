@@ -10,10 +10,20 @@
  * El mismo algoritmo vive en Computo (`src/lib/foody-integration/firma.ts`).
  * Las pruebas de los dos lados comprueban el mismo vector: es el contrato.
  */
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 export function firmarCuerpo(secreto: string, timestamp: number, cuerpo: string): string {
   return createHmac('sha256', secreto).update(`${timestamp}.${cuerpo}`).digest('hex');
+}
+
+/**
+ * Seis caracteres del SHA-256 del secreto. En Vercel los dos secretos son
+ * «Sensitive» y nadie puede leerlos: comparar las huellas es la única forma de
+ * saber si Foody y Computo tienen la MISMA clave sin enseñar ninguna. 24 bits
+ * de un hash no acercan a nadie a una clave de 256.
+ */
+export function huellaSecreto(secreto: string): string {
+  return createHash('sha256').update(secreto).digest('hex').slice(0, 6);
 }
 
 /** La cabecera `x-foody-signature` para este cuerpo, firmada ahora. */
