@@ -237,6 +237,30 @@ describe('sincronizarComputo', () => {
     expect(enlace).toMatchObject({ ultimo_error: r.estado === 'error' ? r.mensaje : null, ocupado: false });
   });
 
+  it('si las claves no coinciden, se dice cuál tiene cada app (huellas, no las claves)', async () => {
+    responder = () => ({ status: 401, body: { error: 'Firma invalida', huella: 'abc123' } });
+    const r = await sincronizarComputo(DUENO, { config: CONFIG });
+    // s × 40 es el secreto de prueba de este archivo.
+    const mia = (await import('./firma')).huellaSecreto(SECRETO);
+    expect(r).toEqual({
+      estado: 'error',
+      mensaje: `Las claves no coinciden: Foody usa la ·${mia} y Computo la ·abc123. Pon el mismo valor en COMPUTO_SECRET (Foody) y FOODY_SECRET (Computo) y vuelve a desplegar las dos apps.`,
+    });
+    expect(r.estado === 'error' && r.mensaje).not.toContain(SECRETO);
+  });
+
+  it('un 401 que no viene de Computo apunta a la dirección, no al secreto', async () => {
+    responder = () => ({ status: 401, body: '<html>Vercel Authentication</html>' });
+    const r = await sincronizarComputo(DUENO, { config: CONFIG });
+    expect(r.estado === 'error' && r.mensaje).toMatch(/COMPUTO_URL/);
+  });
+
+  it('una firma caducada habla de la hora', async () => {
+    responder = () => ({ status: 401, body: { error: 'Firma caducada', huella: 'abc123' } });
+    const r = await sincronizarComputo(DUENO, { config: CONFIG });
+    expect(r.estado === 'error' && r.mensaje).toMatch(/relojes/);
+  });
+
   it('con otra vuelta en marcha, no se pisan', async () => {
     enlace!.ocupado = true;
     expect(await sincronizarComputo(DUENO, { config: CONFIG })).toEqual({ estado: 'ocupado' });
