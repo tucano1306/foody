@@ -18,6 +18,20 @@ interface Props {
 const MES = new Intl.DateTimeFormat('es', { month: 'long' });
 
 /**
+ * De dónde sale la cifra de ingresos, en una frase. «Regulares» son el sueldo,
+ * la quincena… y la media de un acumulado del año apuntado este mes; un
+ * acumulado de otro mes no cuenta (ver `countsInMonth` en finance-engine.ts).
+ */
+function explicarIngresos(regular: number, cobrado: number, mes: string): string {
+  if (regular > 0 && cobrado > 0) {
+    return `${fmtMoney(cobrado)} cobrados en ${mes} en pagos sueltos + ${fmtMoney(regular)} de ingresos regulares.`;
+  }
+  if (cobrado > 0) return `Lo que has cobrado en ${mes} en pagos sueltos.`;
+  if (regular > 0) return 'Tus ingresos regulares. Un cobro suelto se suma solo el mes en que entra.';
+  return `No hay ingresos que cuenten en ${mes}.`;
+}
+
+/**
  * Qué hay detrás del número del anillo.
  *
  * «71 · salud · Saludable» era un veredicto sin juicio: no decía qué mira, de
@@ -134,15 +148,11 @@ export default function HealthDetailSheet({ breakdown, cash, businessIncluded, o
         <div className="space-y-3 px-4 py-3.5">
           <div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-bold text-slate-800">
-                {cash.oneTimeIncome > 0 ? 'Entra este mes' : 'Ingreso'}
-              </span>
+              <span className="text-sm font-bold text-slate-800 first-letter:uppercase">Ingresos de {mes}</span>
               <span className={`text-sm font-black tabular-nums ${NUM}`}>{fmtMoney(cash.monthlyIncome)}</span>
             </div>
             <p className="text-[11px] text-slate-500">
-              {cash.oneTimeIncome > 0
-                ? `${fmtMoney(cash.recurringIncome)} que se repiten cada mes + ${fmtMoney(cash.oneTimeIncome)} de cobros sueltos que cayeron en ${mes}.`
-                : 'Lo que se repite cada mes. Los cobros sueltos se contarían aparte.'}
+              {explicarIngresos(cash.recurringIncome, cash.oneTimeIncome, mes)}
             </p>
           </div>
           <div>

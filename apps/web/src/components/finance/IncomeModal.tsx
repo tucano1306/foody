@@ -7,7 +7,8 @@ import { haptic } from '@/lib/haptic';
 import ModalShell from './ModalShell';
 import ScopePicker from '@/components/ui/ScopePicker';
 import {
-  monthlyEquivalent,
+  countsInMonth,
+  monthlyRate,
   monthsElapsedThisYear,
   totalMonthlyIncome,
   totalOneTimeIncome,
@@ -33,6 +34,8 @@ interface Props {
   readonly onCreate: (payload: IncomePayload) => Promise<void>;
   readonly onToggle: (id: string, isActive: boolean) => Promise<void>;
   readonly onDelete: (id: string) => Promise<void>;
+  /** Pone al día un acumulado del año: la cifra nueva, a fecha de hoy. */
+  readonly onUpdateAmount: (id: string, amount: number) => Promise<void>;
   readonly onClose: () => void;
 }
 
@@ -56,21 +59,57 @@ function today(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** "24/09/2027" a partir de un YYYY-MM-DD, sin pasar por Date (que corre el día). */
-function fmtDay(key: string | null | undefined): string {
-  const m = (key ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : 'sin fecha';
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const MES_LARGO = new Intl.DateTimeFormat('es', { month: 'long' });
+
+/** «16 oct» a partir de un YYYY-MM-DD, sin pasar por Date (que corre el día). */
+function diaCorto(key: string | null | undefined): string {
+  const m = (key ?? '').match(/^\d{4}-(\d{2})-(\d{2})/);
+  return m ? `${Number(m[2])} ${MESES_CORTOS[Number(m[1]) - 1] ?? ''}` : 'sin fecha';
 }
 
-/** ¿Este suelto entra en el mes que se está mirando? */
-function countsNow(inc: IncomeSource): boolean {
-  return totalOneTimeIncome([inc]) > 0;
+/**
+ * Lo que dice cada fila, en palabras y sin símbolos.
+ *
+ * Antes eran claves: «Llevo este año ÷ 10 meses → $3,139.75/mes» o «Una sola
+ * vez · 17/09/2026 · otro mes». Había que saber cómo calcula la app para
+ * entenderlas. Ahora cada fila dice qué es el dinero y de cuándo; si cuenta o
+ * no este mes lo dice la sección en la que está.
+ */
+function detalle(inc: IncomeSource, now: Date, hoy: string): string {
+  const cifra = fmtMoney(inc.amount);
+  const alMes = fmtMoney(monthlyRate(inc, now));
+  let texto: string;
+  switch (inc.frequency) {
+    case 'one_time':
+      texto = inc.receivedOn && inc.receivedOn > hoy
+        ? `${cifra} · lo cobras el ${diaCorto(inc.receivedOn)}`
+        : `${cifra} · cobrado el ${diaCorto(inc.receivedOn)}`;
+      break;
+    case 'ytd':
+      texto = `${cifra} cobrados de enero al ${inc.asOf ? diaCorto(inc.asOf) : 'día de hoy'} · ${fmtMoneyFine(
+        monthlyRate(inc, now),
+      )} al mes de media`;
+      break;
+    case 'biweekly':
+      texto = `${cifra} cada quincena · ${alMes} al mes`;
+      break;
+    case 'weekly':
+      texto = `${cifra} cada semana · ${alMes} al mes`;
+      break;
+    case 'yearly':
+      texto = `${cifra} al año · ${alMes} al mes`;
+      break;
+    default:
+      texto = `${cifra} cada mes`;
+  }
+  return inc.isActive ? texto : `${texto} · apagado`;
 }
 
 const inputCls =
   'w-full px-3 py-2.5 rounded-xl border border-sky-200 bg-white/70 text-black text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-300 transition';
 
-export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onClose }: Props) {
+export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onUpdateAmount, onClose }: Props) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<IncomeFrequency>('monthly');
@@ -79,11 +118,21 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [actualizando, setActualizando] = useState<string | null>(null);
+  const [nuevoAcumulado, setNuevoAcumulado] = useState('');
+
   const isOneTime = frequency === 'one_time';
-  const recurring = totalMonthlyIncome(incomes);
-  const oneTime = totalOneTimeIncome(incomes);
+  const now = new Date();
+  const hoy = today();
+  const mes = MES_LARGO.format(now);
+  // Las dos mitades del mes, como las cuenta el Plan: lo que se repite (y
+  // cuenta este mes) y lo cobrado en sueltos este mes.
+  const regular = totalMonthlyIncome(incomes, now);
+  const cobrado = totalOneTimeIncome(incomes, now);
+  const cuentan = incomes.filter((i) => countsInMonth(i, now));
+  const noCuentan = incomes.filter((i) => !countsInMonth(i, now));
   const elapsed = monthsElapsedThisYear();
-  const year = new Date().getFullYear();
+  const year = now.getFullYear();
 
   const pendingAmount = parseMoney(amount);
   /** Hay algo escrito que todavía no se ha guardado. */
@@ -134,6 +183,126 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
     onClose();
   }
 
+  async function guardarAcumulado(id: string) {
+    const value = parseMoney(nuevoAcumulado);
+    if (value === null || value <= 0) { setError('El monto debe ser mayor a 0'); return; }
+    setError(null);
+    setBusy(true);
+    try {
+      await onUpdateAmount(id, value);
+      setActualizando(null);
+      setNuevoAcumulado('');
+      haptic([10, 20, 10]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function fila(inc: IncomeSource) {
+    const esAcumulado = inc.frequency === 'ytd' && inc.isActive;
+    const abierta = actualizando === inc.id;
+    return (
+      <motion.div
+        key={inc.id}
+        layout
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, x: -30 }}
+        className={`rounded-2xl border px-3 py-2.5 transition ${
+          countsInMonth(inc, now) ? 'bg-sky-50/70 border-sky-200' : 'bg-slate-50 border-slate-200'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          {/* El botón es el área táctil (en el móvil todo botón mide 46 px, ver
+              globals.css) y la pastilla va dentro: cuando la pastilla era el
+              botón, esa regla la estiraba hasta parecer una gota. */}
+          <button
+            type="button"
+            onClick={() => { haptic(8); void onToggle(inc.id, !inc.isActive); }}
+            aria-label={inc.isActive ? `Apagar ${inc.name}` : `Encender ${inc.name}`}
+            aria-pressed={inc.isActive}
+            className="flex h-[46px] w-11 shrink-0 items-center justify-center"
+          >
+            <span
+              className={`relative block w-10 h-6 rounded-full transition ${
+                inc.isActive ? 'bg-sky-400' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                  inc.isActive ? 'left-[18px]' : 'left-0.5'
+                }`}
+              />
+            </span>
+          </button>
+          <div className={`min-w-0 flex-1 ${inc.isActive ? '' : 'opacity-60'}`}>
+            <p className="text-sm font-bold text-black truncate">{inc.name}</p>
+            <p className="text-[11px] text-slate-500">{detalle(inc, now, hoy)}</p>
+          </div>
+          {esAcumulado && !abierta && (
+            <button
+              type="button"
+              onClick={() => { haptic(6); setActualizando(inc.id); setNuevoAcumulado(''); }}
+              className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-sky-700 shadow-sm"
+            >
+              Actualizar
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { haptic(14); void onDelete(inc.id); }}
+            aria-label={`Eliminar ${inc.name}`}
+            className="p-2 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition shrink-0"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
+        {/* Un acumulado es una foto del día en que se apuntó: para que vuelva a
+            contar se pone al día, con lo que llevas cobrado HOY. */}
+        {abierta && (
+          <div className="mt-2 flex items-center gap-2 border-t border-sky-100 pt-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                autoFocus
+                value={nuevoAcumulado}
+                onChange={(e) => setNuevoAcumulado(e.target.value)}
+                placeholder={String(inc.amount)}
+                aria-label={`Lo que llevas cobrado en ${year} hasta hoy`}
+                className={`${inputCls} pl-7 font-bold`}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void guardarAcumulado(inc.id)}
+              disabled={busy}
+              className="shrink-0 rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+            >
+              Guardar
+            </button>
+            <button
+              type="button"
+              onClick={() => setActualizando(null)}
+              className="shrink-0 px-2 text-xs font-bold text-slate-500"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  let resumen: string | null = null;
+  if (cobrado > 0 && regular > 0) resumen = `${fmtMoney(cobrado)} cobrados + ${fmtMoney(regular)} de ingresos regulares`;
+  else if (cobrado > 0) resumen = 'Lo que has cobrado este mes';
+  else if (regular > 0) resumen = 'Lo que entra cada mes';
+
   return (
     <ModalShell
       title="Tus ingresos"
@@ -143,15 +312,9 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
       footer={
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] text-slate-500 font-bold">
-              {oneTime > 0 ? 'Entra este mes' : 'Total mensual'}
-            </p>
-            <p className="text-xl font-black text-black tabular-nums">{fmtMoney(recurring + oneTime)}</p>
-            {oneTime > 0 && (
-              <p className="text-[11px] text-slate-500">
-                {fmtMoney(recurring)} fijos + {fmtMoney(oneTime)} de una sola vez
-              </p>
-            )}
+            <p className="text-[11px] text-slate-500 font-bold first-letter:uppercase">Ingresos de {mes}</p>
+            <p className="text-xl font-black text-black tabular-nums">{fmtMoney(regular + cobrado)}</p>
+            {resumen && <p className="text-[11px] text-slate-500">{resumen}</p>}
           </div>
           <button
             type="button"
@@ -165,62 +328,22 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
       }
     >
       <div className="space-y-4">
-        {/* Lista */}
+        {/* Lista, partida por lo único que importa al mirarla: si ese dinero
+            cuenta o no en el mes en curso. Antes era una sola lista y había
+            que descifrar «otro mes» fila a fila. */}
         <div className="space-y-2">
-          <AnimatePresence initial={false}>
-            {incomes.map((inc) => (
-              <motion.div
-                key={inc.id}
-                layout
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -30 }}
-                className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 transition ${
-                  inc.isActive
-                    ? 'bg-sky-50/70 border-sky-200'
-                    : 'bg-slate-50 border-slate-200 opacity-60'
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => { haptic(8); void onToggle(inc.id, !inc.isActive); }}
-                  aria-label={inc.isActive ? 'Desactivar' : 'Activar'}
-                  className={`relative w-10 h-6 rounded-full shrink-0 transition ${
-                    inc.isActive ? 'bg-sky-400' : 'bg-slate-300'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
-                      inc.isActive ? 'left-[18px]' : 'left-0.5'
-                    }`}
-                  />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-black truncate">{inc.name}</p>
-                  {/* Un suelto no tiene equivalente mensual: decir «→ $0/mes»
-                      sería exacto y del todo inútil. De un cheque lo que importa
-                      es el día en que entró y si cae en el mes en curso. */}
-                  <p className="text-[11px] text-slate-500">
-                    {fmtMoney(inc.amount)} · {FREQUENCY_LABEL[inc.frequency]}
-                    {inc.frequency === 'one_time'
-                      ? ` · ${fmtDay(inc.receivedOn)}${countsNow(inc) ? '' : ' · otro mes'}`
-                      : inc.frequency !== 'monthly' &&
-                        (inc.frequency === 'ytd'
-                          ? ` ÷ ${elapsed} meses → ${fmtMoneyFine(monthlyEquivalent(inc.amount, inc.frequency))}/mes`
-                          : ` → ${fmtMoney(monthlyEquivalent(inc.amount, inc.frequency))}/mes`)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { haptic(14); void onDelete(inc.id); }}
-                  aria-label={`Eliminar ${inc.name}`}
-                  className="p-2 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition shrink-0"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+          {cuentan.length > 0 && (
+            <section aria-label={`Cuentan en ${mes}`} className="space-y-2">
+              <h3 className="px-1 text-[11px] font-bold text-slate-500">Cuentan en {mes}</h3>
+              <AnimatePresence initial={false}>{cuentan.map(fila)}</AnimatePresence>
+            </section>
+          )}
+          {noCuentan.length > 0 && (
+            <section aria-label={`No cuentan en ${mes}`} className="space-y-2 pt-1">
+              <h3 className="px-1 text-[11px] font-bold text-slate-500">No cuentan en {mes}</h3>
+              <AnimatePresence initial={false}>{noCuentan.map(fila)}</AnimatePresence>
+            </section>
+          )}
 
           {incomes.length === 0 && (
             <p className="text-center text-sm text-slate-400 py-6">
@@ -288,7 +411,8 @@ export default function IncomeModal({ incomes, onCreate, onToggle, onDelete, onC
                 <>
                   {' '}
                   {fmtMoneyFine(pendingAmount)} ÷ {elapsed} ={' '}
-                  <strong>{fmtMoneyFine(pendingAmount / elapsed)} al mes</strong>.
+                  <strong>{fmtMoneyFine(pendingAmount / elapsed)} al mes</strong>. Cuenta en {mes}; cuando
+                  cobres más, actualízalo.
                 </>
               ) : (
                 ' Lo que escribas se repartirá entre esos meses, no entre 12.'

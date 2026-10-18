@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { within } from '@testing-library/react';
 import type { IncomeSource } from '@/lib/finance-engine';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
 
@@ -21,6 +22,7 @@ function montar(over: Partial<Parameters<typeof IncomeModal>[0]> = {}) {
       onCreate={onCreate}
       onToggle={vi.fn().mockResolvedValue(undefined)}
       onDelete={vi.fn().mockResolvedValue(undefined)}
+      onUpdateAmount={vi.fn().mockResolvedValue(undefined)}
       onClose={onClose}
       {...over}
     />,
@@ -112,8 +114,59 @@ describe('IncomeModal — el cheque suelto', () => {
       { id: 'b', name: 'Cheque', amount: 1200, frequency: 'one_time', isActive: true, note: null, receivedOn: dia },
     ];
     montar({ incomes });
-    expect(screen.getByText('Entra este mes')).toBeInTheDocument();
-    expect(screen.getByText(/fijos \+/)).toHaveTextContent('$3,000 fijos + $1,200 de una sola vez');
+    expect(screen.getByText(/^Ingresos de /)).toBeInTheDocument();
+    expect(screen.getByText(/cobrados \+/)).toHaveTextContent('$1,200 cobrados + $3,000 de ingresos regulares');
+  });
+});
+
+/**
+ * «Este mes solo he ingresado $1,386.» El modal decía «Entra este mes $4,526»
+ * y había que descifrar «Llevo este año ÷ 10 meses» u «otro mes». Estos son los
+ * ingresos del dueño tal como estaban el 18 de octubre de 2026.
+ */
+describe('IncomeModal — se entiende de un vistazo', () => {
+  const DUENO: IncomeSource[] = [
+    { id: 'driver', name: 'Como Driver', amount: 31397.5, frequency: 'ytd', isActive: true, note: null, asOf: '2026-08-30' },
+    { id: 'ga', name: 'Cargas a Georgia', amount: 3311, frequency: 'one_time', isActive: true, note: null, receivedOn: '2026-09-17' },
+    { id: 't1', name: 'Tecnofuel', amount: 65, frequency: 'one_time', isActive: true, note: null, receivedOn: '2026-09-28' },
+    { id: 't2', name: 'Tecnofuel', amount: 1386, frequency: 'one_time', isActive: true, note: null, receivedOn: '2026-10-16' },
+  ];
+
+  function enOctubre<T>(fn: () => T): T {
+    vi.useFakeTimers({ now: new Date(2026, 9, 18, 12), toFake: ['Date'] });
+    try {
+      return fn();
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  it('el pie dice lo cobrado de verdad en octubre', () => {
+    enOctubre(() => montar({ incomes: DUENO }));
+    expect(screen.getByText('Ingresos de octubre')).toBeInTheDocument();
+    expect(screen.getByText('$1,386', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.getByText('Lo que has cobrado este mes')).toBeInTheDocument();
+  });
+
+  it('separa lo que cuenta este mes de lo que no, y cada fila dice qué es en palabras', () => {
+    enOctubre(() => montar({ incomes: DUENO }));
+    const cuentan = within(screen.getByRole('region', { name: 'Cuentan en octubre' }));
+    expect(cuentan.getByText('$1,386 · cobrado el 16 oct')).toBeInTheDocument();
+    expect(cuentan.queryByText('Como Driver')).not.toBeInTheDocument();
+
+    const noCuentan = within(screen.getByRole('region', { name: 'No cuentan en octubre' }));
+    expect(noCuentan.getByText('$31,398 cobrados de enero al 30 ago · $3,924.69 al mes de media')).toBeInTheDocument();
+    expect(noCuentan.getByText('$3,311 · cobrado el 17 sep')).toBeInTheDocument();
+    expect(screen.queryByText(/otro mes|÷/)).not.toBeInTheDocument();
+  });
+
+  it('un acumulado se pone al día ahí mismo', async () => {
+    const onUpdateAmount = vi.fn<(id: string, amount: number) => Promise<void>>().mockResolvedValue(undefined);
+    enOctubre(() => montar({ incomes: DUENO, onUpdateAmount }));
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+    fireEvent.change(screen.getByLabelText(/lo que llevas cobrado en 2026 hasta hoy/i), { target: { value: '35.000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(onUpdateAmount).toHaveBeenCalledWith('driver', 35000));
   });
 });
 

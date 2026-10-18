@@ -15,7 +15,7 @@
  */
 import { normalizeShare, splitAmount } from './expense-scope';
 import type { CreditInput, FixedPaymentInput, IncomeSource } from './finance-engine';
-import { monthlyEquivalent } from './finance-engine';
+import { incomeThisMonth } from './finance-engine';
 
 export type ScopeSideKey = 'personal' | 'business';
 
@@ -65,6 +65,8 @@ export interface ScopeItemsInput {
   /** Lo que se va fuera del super, con su propio porcentaje. */
   otherExpensesMonthly: number;
   otherBusinessShare: number;
+  /** El mes que se mira; por defecto, hoy. */
+  now?: Date;
 }
 
 const GROUP_META: Record<ScopeGroupKey, { label: string; emoji: string }> = {
@@ -119,7 +121,10 @@ export function itemizeScope(input: ScopeItemsInput, side: ScopeSideKey): ScopeI
   const incomeItems: ScopeItem[] = [];
   for (const inc of input.incomes) {
     if (!inc.isActive) continue;
-    const full = monthlyEquivalent(inc.amount, inc.frequency);
+    // Lo mismo que suma el reparto (finance-engine, `incomeThisMonth`): si la
+    // lista usara la tasa mensual, un cheque o un acumulado de otro mes
+    // saldrían aquí y no en el total, y las líneas no sumarían la cifra.
+    const full = incomeThisMonth(inc, input.now ?? new Date());
     const { amount, pct, isSplit } = forSide(full, inc.businessShare, side);
     push(incomeItems, {
       id: `income-${inc.id}`,
