@@ -541,6 +541,28 @@ describe('personalOnlyInput', () => {
    * mes —correcto— pero su saldo entero seguía sumando en «lo que debes». La
    * pantalla decía a la vez que la deuda no es tuya y que la debes.
    */
+  /**
+   * «Ir al día con lo vencido: arrastras $600 de 1 pago vencido» con el negocio
+   * apagado. Eran dos meses sin registrar del permiso de Larry's, que es 100 %
+   * del negocio: la cuota ya salía del plan personal, lo vencido no.
+   */
+  it('lo vencido del negocio no entra en el plan personal', () => {
+    const larrys = payment({ id: 'larrys', name: "Permiso Larry's", amount: 300, businessShare: 100, missedMonths: 2, accumulatedDebt: 600 });
+    const solo = personalOnlyInput(plan({ fixedPayments: [larrys] }));
+    expect(solo.fixedPayments[0]).toMatchObject({ amount: 0, accumulatedDebt: 0, missedMonths: 0 });
+
+    const { debts } = buildFinancePlan(personalOnlyInput(plan({ fixedPayments: [larrys] })));
+    expect(debts.overdueTotal).toBe(0);
+    // Con el negocio encendido, sí cuenta: es dinero que se debe.
+    expect(buildFinancePlan(plan({ fixedPayments: [larrys] })).debts.overdueTotal).toBe(600);
+  });
+
+  it('de un pago mixto, solo la parte personal de lo vencido', () => {
+    const luz = payment({ amount: 200, businessShare: 25, missedMonths: 1, accumulatedDebt: 200 });
+    const solo = personalOnlyInput(plan({ fixedPayments: [luz] }));
+    expect(solo.fixedPayments[0]).toMatchObject({ amount: 150, accumulatedDebt: 150, missedMonths: 1 });
+  });
+
   it('reparte también el saldo y el interés de las cuotas', () => {
     const solo = personalOnlyInput(
       plan({
