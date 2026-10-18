@@ -907,11 +907,24 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
       amount: splitAmount(i.amount, normalizeShare(i.businessShare)).personal,
       businessShare: 0,
     })),
-    fixedPayments: input.fixedPayments.map((p) => ({
-      ...p,
-      amount: splitAmount(p.amount, normalizeShare(p.businessShare)).personal,
-      businessShare: 0,
-    })),
+    // Lo VENCIDO se reparte igual que la cuota.
+    //
+    // Antes solo se repartía la cuota: el permiso de Larry's, 100 % del
+    // negocio, quedaba en $0 al mes, pero sus $600 sin pagar seguían en «Ir al
+    // día con lo vencido» y le quitaban 13 puntos a la salud personal con el
+    // negocio apagado. Sin deuda personal tampoco hay meses personales sin
+    // pagar.
+    fixedPayments: input.fixedPayments.map((p) => {
+      const share = normalizeShare(p.businessShare);
+      const accumulatedDebt = splitAmount(p.accumulatedDebt, share).personal;
+      return {
+        ...p,
+        amount: splitAmount(p.amount, share).personal,
+        accumulatedDebt,
+        missedMonths: accumulatedDebt > 0 ? p.missedMonths : 0,
+        businessShare: 0,
+      };
+    }),
     // El saldo y el interés se reparten IGUAL que la cuota.
     //
     // Antes solo se repartía la cuota, y el resultado era un plan que se
