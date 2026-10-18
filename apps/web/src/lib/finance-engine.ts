@@ -67,6 +67,19 @@ export interface IncomeSource {
    * que distingue «cobré $2.300 este mes» de «gano $2.300 al mes».
    */
   receivedOn?: string | null;
+  /**
+   * Día en que se apuntó (o se actualizó) la cifra, YYYY-MM-DD. Solo lo usa
+   * `ytd`.
+   *
+   * Un acumulado del año es una FOTO: «llevo $31.397,50 cobrados» es verdad
+   * el 30 de agosto, cubre enero–agosto y no dice nada de octubre. Antes se
+   * dividía entre los meses que iban HOY y se sumaba a cada mes como si
+   * siguiera entrando: en octubre el Plan contaba $3.140 de un trabajo que ya
+   * no pagaba, y decía «entran $4.526» con $1.386 cobrados de verdad. Ahora la
+   * media sale de los meses que la foto cubre, y solo cuenta el mes en que se
+   * hizo; actualizarla la vuelve a contar.
+   */
+  asOf?: string | null;
 }
 
 export interface FinanceGoal {
@@ -511,8 +524,8 @@ export function totalMonthlyIncome(
   now: Date = new Date(),
 ): number {
   return incomes
-    .filter((i) => i.isActive)
-    .reduce((sum, i) => sum + monthlyEquivalent(i.amount, i.frequency, now), 0);
+    .filter((i) => i.frequency !== 'one_time' && countsInMonth(i, now))
+    .reduce((sum, i) => sum + monthlyRate(i, now), 0);
 }
 
 /** ¿Esa fecha YYYY-MM-DD cae en el mes de `now`? */
@@ -520,6 +533,49 @@ function landsInMonth(dateKey: string | null | undefined, now: Date): boolean {
   const m = (dateKey ?? '').match(/^(\d{4})-(\d{2})/);
   if (!m) return false;
   return Number(m[1]) === now.getFullYear() && Number(m[2]) === now.getMonth() + 1;
+}
+
+/** El mes (1-12) de una fecha YYYY-MM-DD, o `null` si no se entiende. */
+function monthOfKey(dateKey: string | null | undefined): number | null {
+  const m = (dateKey ?? '').match(/^\d{4}-(\d{2})/);
+  const month = m ? Number(m[1]) : NaN;
+  return month >= 1 && month <= 12 ? month : null;
+}
+
+/**
+ * Los meses que cubre un acumulado: de enero al mes en que se apuntó. Sin
+ * fecha (ingresos de antes de existir `asOf`), los que van hoy.
+ */
+export function ytdMonthsCovered(income: Pick<IncomeSource, 'asOf'>, now: Date = new Date()): number {
+  return monthOfKey(income.asOf) ?? monthsElapsedThisYear(now);
+}
+
+/**
+ * Lo que esta fuente vale al mes. Para un acumulado, su media sobre los meses
+ * que cubre; para el resto, `monthlyEquivalent`. No dice si cuenta este mes:
+ * eso es `countsInMonth`.
+ */
+export function monthlyRate(income: IncomeSource, now: Date = new Date()): number {
+  if (income.frequency === 'ytd') {
+    if (!Number.isFinite(income.amount) || income.amount <= 0) return 0;
+    return income.amount / ytdMonthsCovered(income, now);
+  }
+  return monthlyEquivalent(income.amount, income.frequency, now);
+}
+
+/**
+ * ¿Esta fuente pone dinero en el mes de `now`?
+ *
+ * - Un cheque suelto, solo en el mes en que se cobró.
+ * - Un acumulado del año, solo en el mes en que se apuntó o se actualizó: es
+ *   una foto, no una promesa.
+ * - Lo que se repite (sueldo, quincena…), todos los meses.
+ */
+export function countsInMonth(income: IncomeSource, now: Date = new Date()): boolean {
+  if (!income.isActive) return false;
+  if (income.frequency === 'one_time') return landsInMonth(income.receivedOn, now);
+  if (income.frequency === 'ytd') return income.asOf == null || landsInMonth(income.asOf, now);
+  return true;
 }
 
 /**
@@ -537,9 +593,9 @@ export function totalOneTimeIncome(incomes: readonly IncomeSource[], now: Date =
 
 /** Lo que esta fuente aporta al mes en curso: la tasa mensual, o el cheque si cayó. */
 export function incomeThisMonth(income: IncomeSource, now: Date = new Date()): number {
-  if (!income.isActive) return 0;
-  if (income.frequency !== 'one_time') return monthlyEquivalent(income.amount, income.frequency, now);
-  return landsInMonth(income.receivedOn, now) ? Math.max(0, income.amount) : 0;
+  if (!countsInMonth(income, now)) return 0;
+  if (income.frequency === 'one_time') return Math.max(0, income.amount);
+  return monthlyRate(income, now);
 }
 
 /** Meses (redondeando hacia arriba) para juntar `remaining` aportando `monthly`. */

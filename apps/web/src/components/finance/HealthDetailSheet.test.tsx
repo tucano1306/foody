@@ -100,7 +100,9 @@ describe('HealthDetailSheet — el anillo, explicado', () => {
   it('dice de qué periodo habla — la duda que trae aquí al usuario', () => {
     montar();
     expect(screen.getByText('solo el mes en curso')).toBeInTheDocument();
-    expect(screen.getByText(/septiembre/)).toBeInTheDocument();
+    // El periodo se dice en la frase de arriba (y ahora tambien en «Ingresos de
+    // septiembre»): lo que importa es que la frase del periodo lo nombre.
+    expect(screen.getByText('solo el mes en curso').parentElement).toHaveTextContent(/septiembre/);
     expect(screen.getByText(/ni guarda histórico/i)).toBeInTheDocument();
   });
 

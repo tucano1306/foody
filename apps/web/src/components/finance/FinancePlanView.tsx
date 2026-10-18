@@ -54,6 +54,9 @@ const GOAL_SHORTCUTS: readonly { id: string; kind: GoalKind; emoji: string; labe
 const RADIUS = 52;
 const CIRC = 2 * Math.PI * RADIUS;
 
+/** «octubre»: la cabecera dice de qué mes son los ingresos que enseña. */
+const MES_DEL_PLAN = new Intl.DateTimeFormat('es', { month: 'long' });
+
 function HealthRing({ score }: { readonly score: number }) {
   const color = healthColor(score);
   return (
@@ -293,6 +296,11 @@ export default function FinancePlanView({ initialData }: Props) {
     await refresh();
   }
 
+  async function updateIncomeAmount(id: string, amount: number) {
+    await send(`/api/finance/income/${id}`, 'PATCH', { amount });
+    await refresh();
+  }
+
   // ── Acciones de los consejos ───────────────────────────────────────────────
 
   /**
@@ -462,15 +470,15 @@ export default function FinancePlanView({ initialData }: Props) {
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
-                <p className={`text-[11px] font-bold ${LABEL}`}>
-                  {cash.oneTimeIncome > 0 ? 'Entra este mes' : 'Ingreso'}
+                <p className={`text-[11px] font-bold first-letter:uppercase ${LABEL}`}>
+                  Ingresos de {MES_DEL_PLAN.format(new Date())}
                 </p>
                 <p className={`font-black tabular-nums ${NUM}`}>{fmtMoney(cash.monthlyIncome)}</p>
-                {/* La cabecera no puede llamar «ingreso mensual» a un cheque
-                    suelto: se dice cuánto de eso se repite y cuánto no. */}
-                {cash.oneTimeIncome > 0 && (
+                {/* Las mismas dos mitades y las mismas palabras que el modal de
+                    ingresos: lo cobrado suelto y lo que se repite. */}
+                {cash.oneTimeIncome > 0 && cash.recurringIncome > 0 && (
                   <p className={`text-[11px] ${LABEL}`}>
-                    {fmtMoney(cash.recurringIncome)} fijos + {fmtMoney(cash.oneTimeIncome)} sueltos
+                    {fmtMoney(cash.oneTimeIncome)} cobrados + {fmtMoney(cash.recurringIncome)} regulares
                   </p>
                 )}
               </div>
@@ -704,6 +712,7 @@ export default function FinancePlanView({ initialData }: Props) {
           onCreate={createIncome}
           onToggle={toggleIncome}
           onDelete={deleteIncome}
+          onUpdateAmount={updateIncomeAmount}
           onClose={closeModal}
         />
       )}
