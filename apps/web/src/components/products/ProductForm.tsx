@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import type { Product, CreateProductDto } from '@foody/types';
 import { isHeicFile, withTimeout, convertHeicToJpegBlob, dataUrlToBlob } from '@/lib/image-file';
@@ -9,10 +10,14 @@ import { categoryEmoji } from '@/lib/categories';
 import { haptic } from '@/lib/haptic';
 import { playSound } from '@/lib/sound';
 import { useCelebration } from '@/components/ui/Celebration';
+import { fitWithin, hasLiveCamera, PRODUCT_PHOTO_MAX, PRODUCT_PHOTO_QUALITY } from '@/lib/photo-capture';
+
+// Solo se descarga al tocar «Cámara»: el formulario no la necesita para pintarse.
+const ProductCamera = dynamic(() => import('./ProductCamera'), { ssr: false });
 
 const MAX_IMAGE_FILE_SIZE = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = 'JPG, PNG, WEBP, GIF, HEIC, HEIF';
-const MAX_OUTPUT_DIMENSION = 512;
+const MAX_OUTPUT_DIMENSION = PRODUCT_PHOTO_MAX;
 const COMPRESS_TIMEOUT_MS = 30_000;
 
 const CATEGORIES = [
@@ -127,7 +132,7 @@ async function compressViaImageBitmap(file: Blob): Promise<string> {
     for (const size of sizes) {
       const canvas = document.createElement('canvas');
       try {
-        const { w, h } = computeFitDimensions(bitmap.width, bitmap.height, size);
+        const { w, h } = fitWithin(bitmap.width, bitmap.height, size);
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
@@ -149,10 +154,20 @@ async function compressViaImageBitmap(file: Blob): Promise<string> {
   throw lastErr instanceof Error ? lastErr : new Error('No se pudo procesar la imagen');
 }
 
-function computeFitDimensions(srcWidth: number, srcHeight: number, max: number): { w: number; h: number } {
-  if (srcWidth <= max && srcHeight <= max) return { w: srcWidth, h: srcHeight };
-  if (srcWidth > srcHeight) return { w: max, h: Math.max(1, Math.round((srcHeight * max) / srcWidth)) };
-  return { w: Math.max(1, Math.round((srcWidth * max) / srcHeight)), h: max };
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo procesar la imagen'));
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('No se pudo procesar la imagen'));
+        return;
+      }
+      resolve(result);
+    };
+    reader.readAsDataURL(blob);
+  });
 }
 
 function canvasToJpegDataUrl(canvas: HTMLCanvasElement): Promise<string> {
@@ -165,25 +180,15 @@ function canvasToJpegDataUrl(canvas: HTMLCanvasElement): Promise<string> {
             reject(new Error('No se pudo procesar la imagen'));
             return;
           }
-          const reader = new FileReader();
-          reader.onerror = () => reject(new Error('No se pudo procesar la imagen'));
-          reader.onload = () => {
-            const result = reader.result;
-            if (typeof result !== 'string') {
-              reject(new Error('No se pudo procesar la imagen'));
-              return;
-            }
-            resolve(result);
-          };
-          reader.readAsDataURL(blob);
+          blobToDataUrl(blob).then(resolve, reject);
         },
         'image/jpeg',
-        0.72,
+        PRODUCT_PHOTO_QUALITY,
       );
       return;
     }
     try {
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+      const dataUrl = canvas.toDataURL('image/jpeg', PRODUCT_PHOTO_QUALITY);
       if (!dataUrl || dataUrl === 'data:,') {
         reject(new Error('No se pudo procesar la imagen'));
         return;
@@ -196,7 +201,7 @@ function canvasToJpegDataUrl(canvas: HTMLCanvasElement): Promise<string> {
 }
 
 async function drawToJpegAtMax(img: HTMLImageElement, max: number): Promise<string> {
-  const { w, h } = computeFitDimensions(img.naturalWidth, img.naturalHeight, max);
+  const { w, h } = fitWithin(img.naturalWidth, img.naturalHeight, max);
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -315,11 +320,10 @@ function compressImage(file: File): Promise<string> {
  * embebida (el comportamiento anterior). Es mejor una fila pesada que un
  * usuario que no puede guardar su producto.
  */
-async function uploadPhoto(dataUrl: string): Promise<string | null> {
+async function uploadPhoto(jpeg: Blob): Promise<string | null> {
   try {
-    const blob = dataUrlToBlob(dataUrl);
     const body = new FormData();
-    body.append('file', blob, 'photo.jpg');
+    body.append('file', jpeg, 'photo.jpg');
 
     const res = await fetch('/api/upload/photo', { method: 'POST', body, credentials: 'include' });
     if (!res.ok) return null;
@@ -367,6 +371,51 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
   } | null>(null);
   /** La marca que distingue a esta de la que ya tiene. Opcional. */
   const [marca, setMarca] = useState('');
+  const [camaraAbierta, setCamaraAbierta] = useState(false);
+
+  /**
+   * Vista previa al instante y subida. Lo comparten la galería, que antes
+   * comprime el archivo, y la cámara de la página, que ya entrega la foto a
+   * su medida.
+   */
+  async function guardarFoto(dataUrl: string, jpeg: Blob) {
+    // Vista previa inmediata con la copia local: subir tarda y el usuario
+    // debe ver su foto al instante.
+    setPhotoPreview(dataUrl);
+
+    // La foto va al almacenamiento de archivos y en el producto se guarda
+    // solo la URL. Guardarla embebida engordaba la fila ~200 KB y cada
+    // lectura de la lista la arrastraba entera. Si el almacenamiento no está
+    // configurado se cae al modo anterior para no bloquear el guardado.
+    const uploaded = await uploadPhoto(jpeg);
+    setForm((f) => ({ ...f, photoUrl: uploaded ?? dataUrl }));
+  }
+
+  /**
+   * La cámara se abre DENTRO de la página. La del sistema (`capture`) hacía
+   * que Android cerrara Chrome para hacerle sitio y la foto volvía a una
+   * página muerta: «falta de memoria». Ver `lib/photo-capture.ts`. Sin
+   * cámara en la página (navegador viejo, http) queda la del sistema.
+   */
+  function abrirCamara() {
+    setError(null);
+    if (hasLiveCamera()) setCamaraAbierta(true);
+    else cameraRef.current?.click();
+  }
+
+  async function handleCameraCapture(photo: Blob) {
+    setCamaraAbierta(false);
+    setUploading(true);
+    setError(null);
+    try {
+      await guardarFoto(await blobToDataUrl(photo), photo);
+    } catch (err) {
+      setError(toFriendlyError(err, 'No se pudo procesar la imagen'));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -385,16 +434,7 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
       }
 
       const dataUrl = await compressImage(file);
-      // Vista previa inmediata con la copia local: subir tarda y el usuario
-      // debe ver su foto al instante.
-      setPhotoPreview(dataUrl);
-
-      // La foto va al almacenamiento de archivos y en el producto se guarda
-      // solo la URL. Guardarla embebida engordaba la fila ~200 KB y cada
-      // lectura de la lista la arrastraba entera. Si el almacenamiento no está
-      // configurado se cae al modo anterior para no bloquear el guardado.
-      const uploaded = await uploadPhoto(dataUrl);
-      setForm((f) => ({ ...f, photoUrl: uploaded ?? dataUrl }));
+      await guardarFoto(dataUrl, dataUrlToBlob(dataUrl));
     } catch (err) {
       setError(toFriendlyError(err, 'No se pudo procesar la imagen'));
     } finally {
@@ -537,7 +577,7 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => cameraRef.current?.click()}
+              onClick={abrirCamara}
               disabled={uploading}
               className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -553,6 +593,7 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
             </button>
           </div>
 
+          {/* La cámara del sistema: ya solo de respaldo (ver `abrirCamara`). */}
           <input
             ref={cameraRef}
             type="file"
@@ -572,6 +613,22 @@ export default function ProductForm({ product, inHousehold, isOwner = true }: Pr
             Formatos: {ACCEPTED_IMAGE_TYPES}. La app los optimiza y los guarda como JPEG.
           </p>
         </div>
+        {camaraAbierta && (
+          <ProductCamera
+            onCapture={(photo) => void handleCameraCapture(photo)}
+            onClose={() => setCamaraAbierta(false)}
+            // Los selectores nativos se abren aquí mismo, dentro del toque:
+            // tras un `await` el navegador ya no los dejaría abrirse.
+            onGallery={() => {
+              setCamaraAbierta(false);
+              galleryRef.current?.click();
+            }}
+            onSystemCamera={() => {
+              setCamaraAbierta(false);
+              cameraRef.current?.click();
+            }}
+          />
+        )}
       </div>
 
       {/* ─── Name ─────────────────────────────────────────────────────────── */}
