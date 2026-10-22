@@ -56,7 +56,12 @@ export interface UpdateProductDto extends Partial<CreateProductDto> {
 }
 
 // ─── Product Purchase ─────────────────────────────────────────────────────────
-export type PriceSource = 'manual' | 'allocated' | 'unknown';
+/**
+ * De dónde sale el precio de una compra. `last_price`: no se tecleó y se tomó
+ * el de la última compra del producto (ver apps/web/src/lib/precios-compra.ts).
+ * `shopping_list` queda en tickets viejos del súper, de antes de distinguirlo.
+ */
+export type PriceSource = 'manual' | 'last_price' | 'allocated' | 'unknown' | 'shopping_list';
 
 export interface ProductPurchase {
   id: string;
