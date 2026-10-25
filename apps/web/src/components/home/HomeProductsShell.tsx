@@ -8,6 +8,8 @@ import ProductsBrowser from '@/components/products/ProductsBrowser';
 import { ChevronDownIcon, PlusIcon } from '@heroicons/react/24/solid';
 import SectionHeader from '@/components/layout/SectionHeader';
 import Reveal from '@/components/layout/Reveal';
+import PantryPulse from '@/components/home/PantryPulse';
+import { pulsoDeDespensa } from '@/lib/pulso-despensa';
 
 type PurchaseEntry = { purchasedAt: string; storeName: string | null };
 type PurchaseRecord = Record<string, PurchaseEntry>;
@@ -80,6 +82,7 @@ const SECTION_TONES = {
 } as const;
 
 function CollapsibleSection({
+  id,
   title,
   tone,
   items,
@@ -87,6 +90,8 @@ function CollapsibleSection({
   lastPurchaseMap,
   currentUserId,
 }: {
+  /** Ancla para la leyenda del pulso, que lleva directo a esta sección. */
+  readonly id: string;
   readonly title: React.ReactNode;
   readonly tone: keyof typeof SECTION_TONES;
   readonly items: readonly Product[];
@@ -102,7 +107,8 @@ function CollapsibleSection({
 
   return (
     <section
-      className={`zone-card rounded-[var(--radius-card)] border p-4 sm:p-5 shadow-[var(--shadow-sm)] ${SECTION_TONES[tone].card}`}
+      id={id}
+      className={`zone-card scroll-mt-[calc(4.5rem+var(--safe-t))] md:scroll-mt-6 rounded-[var(--radius-card)] border p-4 sm:p-5 shadow-[var(--shadow-sm)] ${SECTION_TONES[tone].card}`}
     >
       <div className="flex items-center gap-3 mb-4">
         <span aria-hidden="true" className={`w-1 self-stretch min-h-6 rounded-full shrink-0 ${SECTION_TONES[tone].bar}`} />
@@ -158,9 +164,14 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
   const inCart = useMemo(() => new Set(inCartProductIds ?? []), [inCartProductIds]);
   const empty = useMemo(() => products.filter((p) => p.stockLevel === 'empty' && !inCart.has(p.id)), [products, inCart]);
   const low = useMemo(() => products.filter((p) => p.stockLevel === 'half' && !inCart.has(p.id)), [products, inCart]);
+  // Sale del mismo estado que las tarjetas: al marcar un producto, el pulso
+  // de arriba se mueve en el acto, sin esperar al servidor.
+  const pulso = useMemo(() => pulsoDeDespensa(products, inCart), [products, inCart]);
 
   return (
     <>
+      <PantryPulse pulso={pulso} />
+
       {/* ─── Todos los productos (búsqueda + catálogo, primero) ──────────────
           Antes había DOS cabeceras seguidas para esta misma zona: una píldora
           «Productos · Busca en tu despensa o explora por categoría» y, dentro
@@ -168,7 +179,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
           instrucción para una lista con su propio buscador a la vista. Queda
           uno. */}
       <Reveal className="space-y-5">
-        <section className="zone-card bg-[var(--surface)] rounded-[var(--radius-card)] border border-[var(--line)] p-4 sm:p-5 shadow-[var(--shadow-sm)]">
+        <section id="productos" className="zone-card scroll-mt-[calc(4.5rem+var(--safe-t))] md:scroll-mt-6 bg-[var(--surface)] rounded-[var(--radius-card)] border border-[var(--line)] p-4 sm:p-5 shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="flex items-baseline gap-2 min-w-0 text-lg sm:text-xl font-extrabold text-[var(--ink)]">
             <span className="truncate">Productos</span>
@@ -217,6 +228,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
           {empty.length > 0 && (
             <CollapsibleSection
+              id="se-acabo"
               title={<>Se acabó <span className="text-[var(--accent)]">({empty.length})</span></>}
               tone="urgent"
               items={empty}
@@ -228,6 +240,7 @@ export default function HomeProductsShell({ initialProducts, lastPurchaseMap: in
 
           {low.length > 0 && (
             <CollapsibleSection
+              id="queda-poco"
               title={<>Queda poco <span className="text-[var(--ink-subtle)]">({low.length})</span></>}
               tone="warning"
               items={low}
