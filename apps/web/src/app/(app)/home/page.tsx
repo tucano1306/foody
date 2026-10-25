@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { api } from '@/lib/api';
 import { getSession } from '@/lib/session';
-import DashboardStats from '@/components/home/DashboardStats';
 import FrequentProducts from '@/components/home/FrequentProducts';
 import ExpensesByStore from '@/components/home/ExpensesByStore';
 import StoreVisitsWheel from '@/components/home/StoreVisitsWheel';
@@ -52,8 +51,6 @@ export default async function HomePage() {
     lastPurchasesRaw.map((p) => [p.productId, { purchasedAt: p.purchasedAt, storeName: p.storeName }]),
   );
 
-  const runningLow: Product[] = products.filter((p) => p.stockLevel === 'empty' || p.stockLevel === 'half');
-
   return (
     <div className="space-y-8">
       {/* ─── Cabecera: el saludo es la línea de entrada del título, no un
@@ -72,8 +69,10 @@ export default async function HomePage() {
 
       {/* ─── Stats y gráficas (resumen, debajo de lo accionable) ────────────── */}
       <Reveal className="space-y-5">
+        {/* Las dos tarjetas de cifras («En la despensa», «Por reponer») se
+            fueron: el pulso de arriba dice lo mismo, en vivo y con el camino
+            al súper. Aquí queda lo que no se ve en otro sitio: el mes. */}
         <SectionHeader title="Tu mes" tone="brand" />
-        <DashboardStats totalProducts={products.length} runningLowCount={runningLow.length} />
 
         {/* Charts each hit the DB; stream them in so the actionable content above
             paints immediately instead of waiting on analytics queries. */}
