@@ -12,6 +12,7 @@ import TripSplitsEditor from '@/components/shopping/TripSplitsEditor';
 import { normalizeSplits, tripKindAmounts, validateSplits, type TripSplitInput } from '@/lib/trip-splits';
 import ModalLayer from '@/components/ui/ModalLayer';
 import { aCampoDeFecha, formatFecha } from '@/lib/app-time';
+import { precioSeConserva } from '@/lib/precios-compra';
 
 interface Props {
   readonly trip: ShoppingTripDetail;
@@ -83,10 +84,18 @@ function itemsFromTrip(trip: ShoppingTripDetail): EditItem[] {
     productId: pp.productId,
     name: pp.productName ?? 'Producto',
     quantity: String(pp.quantity),
-    // Solo los precios puestos a mano se conservan como manuales; los
-    // estimados ("est.") se recalculan del total al guardar.
-    price: pp.priceSource === 'manual' && pp.unitPrice != null ? pp.unitPrice.toFixed(2) : '',
+    // Se conserva todo precio que no sea un reparto del total: el tecleado en
+    // el súper, el de la última compra, el puesto a mano aquí. Antes solo se
+    // conservaba `manual`, y los del súper —guardados con otro origen— se
+    // vaciaban: guardar el ticket repartía el total entre las unidades y un
+    // Walmart de $111.69 acabó con veinte productos a $2.25.
+    price: precioSeConserva(pp.priceSource) && pp.unitPrice != null ? pp.unitPrice.toFixed(2) : '',
   }));
+}
+
+/** Lo que importa de la lista de productos para saber si se tocó. */
+function firmaDeProductos(items: readonly EditItem[]): string {
+  return JSON.stringify(items.map((it) => [it.productId, it.quantity.trim(), it.price.trim()]));
 }
 
 export default function TripDetailClient({ trip, products }: Readonly<Props>) {
@@ -183,6 +192,12 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
     setError(null);
     try {
       const movedOut = trip.kind === 'grocery' && kind !== 'grocery';
+      // Los productos solo se mandan si cambiaron ellos o el total. Mandarlos
+      // siempre hacía que cambiar la fecha o la tienda reescribiera todas las
+      // compras del ticket y repartiera de nuevo lo que no tenía precio.
+      const productosCambiaron =
+        firmaDeProductos(items) !== firmaDeProductos(itemsFromTrip(trip)) ||
+        Math.abs(parsedTotal - trip.totalAmount) >= 0.005;
       const dto: UpdateShoppingTripDto = {
         storeName: store.trim(),
         purchasedAt: new Date(date).toISOString(),
@@ -190,16 +205,20 @@ export default function TripDetailClient({ trip, products }: Readonly<Props>) {
         splits: normalizeSplits(splits),
         notes,
         kind,
-        items: items.map((it) => {
-          const qty = Number.parseFloat(it.quantity);
-          const price = Number.parseFloat(it.price);
-          const hasPrice = Number.isFinite(price) && price >= 0 && it.price.trim() !== '';
-          return {
-            productId: it.productId,
-            quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
-            ...(hasPrice ? { unitPrice: price } : {}),
-          };
-        }),
+        ...(productosCambiaron
+          ? {
+              items: items.map((it) => {
+                const qty = Number.parseFloat(it.quantity);
+                const price = Number.parseFloat(it.price);
+                const hasPrice = Number.isFinite(price) && price >= 0 && it.price.trim() !== '';
+                return {
+                  productId: it.productId,
+                  quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+                  ...(hasPrice ? { unitPrice: price } : {}),
+                };
+              }),
+            }
+          : {}),
       };
       const res = await fetch(`/api/proxy/shopping-trips/${trip.id}`, {
         method: 'PATCH',

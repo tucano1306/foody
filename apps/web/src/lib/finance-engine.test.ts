@@ -8,7 +8,6 @@ import {
   monthsElapsedThisYear,
   monthsToReach,
   personalOnlyInput,
-  simulatePlan,
   type CreditInput,
   type FinanceGoal,
   type FixedPaymentInput,
@@ -916,29 +915,6 @@ describe('explainHealthScore', () => {
     const metas = breakdown.parts.find((p) => p.key === 'goals');
     expect(metas?.points).toBe(30);
     expect(metas?.hint).toBeNull();
-  });
-});
-
-describe('simulatePlan', () => {
-  it('convierte una meta en riesgo en alcanzable al sumar dinero extra', () => {
-    const base = plan({ incomes: [income({ amount: 1700 })] });
-    expect(buildFinancePlan(base).goals[0].feasibility).toBe('at_risk');
-
-    // +500 alcanza, pero la meta se come el 91% del margen → "justa".
-    const justo = simulatePlan(base, 500);
-    expect(justo.cashFlow.extraMonthly).toBe(500);
-    expect(justo.cashFlow.available).toBe(900);
-    expect(justo.goals[0].feasibility).toBe('tight');
-    expect(justo.goals[0].shortfallMonthly).toBe(0);
-
-    // +900 deja holgura suficiente.
-    expect(simulatePlan(base, 900).goals[0].feasibility).toBe('on_track');
-  });
-
-  it('no modifica la entrada original', () => {
-    const base = plan();
-    simulatePlan(base, 300);
-    expect(base.extraMonthly).toBeUndefined();
   });
 });
 

@@ -314,6 +314,15 @@ export interface GoalProjection {
   requiredDaily: number;
   /** Lo que el plan puede asignarle realmente este mes. */
   allocatedMonthly: number;
+  /**
+   * Meta enlazada a una tarjeta que está en el plan: su cuota mensual.
+   *
+   * Esa cuota ya sale de «Libre al mes» como compromiso de la tarjeta, así que
+   * ES el aporte de la meta. Antes la meta pedía además su propio aporte del
+   * dinero libre: la tarjeta 3650 restaba $2,860 de cuota y su meta pedía
+   * otros $3,642, unos $6,500 al mes por una deuda de $11,440.
+   */
+  cuotaTarjeta: number | null;
   /** requiredMonthly − allocatedMonthly (0 si alcanza). */
   shortfallMonthly: number;
   /** Fecha estimada de logro al ritmo asignado (YYYY-MM-DD) o null. */
@@ -645,8 +654,11 @@ function projectGoal(goal: FinanceGoal, now: Date): GoalProjection {
     requiredMonthly = 0;
   } else if (monthsLeft === null) {
     requiredMonthly = remaining / DEFAULT_HORIZON_MONTHS;
-  } else if (monthsLeft <= 0) {
-    requiredMonthly = remaining; // la fecha ya pasó: hace falta todo, ya
+  } else if (monthsLeft < 1) {
+    // Menos de un mes, o la fecha ya pasó: hace falta TODO, ya. Dividir entre
+    // una fracción de mes daba cifras sin sentido: $817 que faltaban para
+    // mañana salían como «$24,867.44 al mes» (817 ÷ 1/30.4).
+    requiredMonthly = remaining;
   } else {
     requiredMonthly = remaining / monthsLeft;
   }
@@ -671,6 +683,7 @@ function projectGoal(goal: FinanceGoal, now: Date): GoalProjection {
     requiredWeekly: round2(effectiveDays ? (remaining / effectiveDays) * 7 : requiredMonthly / 4.345),
     requiredDaily: round2(effectiveDays ? remaining / effectiveDays : requiredMonthly / DAYS_PER_MONTH),
     allocatedMonthly: 0,
+    cuotaTarjeta: null,
     shortfallMonthly: 0,
     projectedDate: null,
     monthsLate: 0,
@@ -684,6 +697,12 @@ function allocate(projections: GoalProjection[], goalsBudget: number, overrides:
   let pool = Math.max(0, goalsBudget);
   for (const p of projections) {
     if (p.status !== 'active' || p.remaining <= 0) continue;
+    // La que se paga con la cuota de su tarjeta no toca el dinero libre: esa
+    // cuota ya se restó antes de llegar aquí.
+    if (p.cuotaTarjeta !== null) {
+      p.allocatedMonthly = p.cuotaTarjeta;
+      continue;
+    }
     const override = overrides.get(p.goalId);
     const want = override != null && override > 0 ? override : p.requiredMonthly;
     const alloc = Math.min(want, pool);
@@ -711,7 +730,8 @@ function finishProjection(p: GoalProjection, now: Date, goalsBudget: number): vo
     p.feasibility = 'no_date';
     return;
   }
-  if ((p.daysLeft ?? 0) <= 0) {
+  // El mismo día de la fecha todavía se llega: vencida es a partir de mañana.
+  if ((p.daysLeft ?? 0) < 0) {
     p.feasibility = 'overdue';
     return;
   }
@@ -719,6 +739,11 @@ function finishProjection(p: GoalProjection, now: Date, goalsBudget: number): vo
     p.monthsLate = round2(Math.max(0, months - Math.ceil(p.monthsLeft)));
   } else {
     p.monthsLate = 0;
+  }
+  if (p.cuotaTarjeta !== null) {
+    // Su dinero es la cuota de la tarjeta, no el margen libre: no hay «justa».
+    p.feasibility = p.allocatedMonthly + 0.01 >= p.requiredMonthly ? 'on_track' : 'at_risk';
+    return;
   }
   if (p.allocatedMonthly + 0.01 >= p.requiredMonthly) {
     // Alcanza; "justa" si esa cuota se lleva casi todo el dinero libre del mes,
@@ -1397,6 +1422,22 @@ function adviceForGoalAtRisk(goal: GoalProjection, cash: CashFlow, input: PlanIn
 
   // ── El mes no da: no queda dinero libre para NINGUNA meta ─────────────────
   //
+  // La que se paga con la cuota de su tarjeta tiene su propio consejo: aquí
+  // no aplica «el plan le aparta» ni «baja el objetivo» (la deuda es la que es).
+  if (goal.cuotaTarjeta !== null) {
+    out.push({
+      ...base,
+      title: `${goal.name}: la cuota no llega a tiempo`,
+      body: `La cuota de la tarjeta es de ${money(goal.cuotaTarjeta)} al mes, pero para liquidar los ${money(goal.remaining)} que faltan${hasta} harían falta ${money(goal.requiredMonthly)}. Se queda corta por ${money(goal.shortfallMonthly)} cada mes.`,
+      steps: [
+        `Sube la cuota de la tarjeta en Deudas hasta ${money(goal.requiredMonthly)}.`,
+        `O mueve la fecha de la meta si el banco te deja más tiempo.`,
+      ],
+      action: { label: 'Ajustar meta', kind: 'edit_goal', goalId: goal.goalId },
+    });
+    return;
+  }
+
   // Aquí no se dice nada: lo cuenta `adviceForNoRoomThisMonth` en UNA tarjeta
   // para todas. Antes esta rama se ejecutaba por meta y escupía el mismo
   // párrafo y los mismos cuatro pasos tantas veces como metas hubiera —tres
@@ -1922,11 +1963,22 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   const goalsBudget = Math.max(0, available - debts.monthlyCatchUp);
 
   const projections = input.goals.map((g) => projectGoal(g, now)).sort(compareGoals);
+  // Una meta enlazada a una tarjeta del plan se paga con la cuota de esa
+  // tarjeta (ver `cuotaTarjeta`).
+  const cuotaDe = new Map(credits.map((c) => [c.id, Math.max(0, c.installment)]));
+  for (const p of projections) {
+    const cuota = p.debtId ? cuotaDe.get(p.debtId) : undefined;
+    if (cuota !== undefined) p.cuotaTarjeta = round2(cuota);
+  }
   const overrides = new Map(input.goals.map((g) => [g.id, g.monthlyOverride]));
   const unallocated = allocate(projections, goalsBudget, overrides);
   for (const p of projections) finishProjection(p, now, goalsBudget);
 
-  const allocatedToGoals = round2(projections.reduce((s, p) => s + p.allocatedMonthly, 0));
+  // Lo que sale del dinero libre hacia metas: sin las cuotas de tarjeta, que
+  // ya están restadas como crédito.
+  const allocatedToGoals = round2(
+    projections.reduce((s, p) => s + (p.cuotaTarjeta === null ? p.allocatedMonthly : 0), 0),
+  );
 
   const cashFlow: CashFlow = {
     monthlyIncome: round2(monthlyIncome),
@@ -1959,12 +2011,4 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     currency: 'USD',
     generatedAt: now.toISOString(),
   };
-}
-
-/**
- * Simulación "¿y si…?": recalcula el plan con dinero extra al mes.
- * La usa el deslizador de escenarios sin tocar nada en la base de datos.
- */
-export function simulatePlan(input: PlanInput, extraMonthly: number): FinancePlan {
-  return buildFinancePlan({ ...input, extraMonthly });
 }
