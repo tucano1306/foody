@@ -211,3 +211,70 @@ describe('SupermarketView · «ya no lo necesito»', () => {
     expect(screen.queryByText(/No estaban en el súper/)).not.toBeInTheDocument();
   });
 });
+
+describe('SupermarketView · la ronda de precios', () => {
+  // Tres en el carro: el queso con precio, la leche y el pan sin él. El pan se
+  // agarró el último, así que es el primero de la ronda.
+  const CARRO = [
+    item('queso', 'Queso muenster', true),
+    item('leche', 'Leche', true),
+    item('pan', 'Pan', true),
+  ];
+
+  beforeEach(() => {
+    localStorage.setItem('foody-sky-session-v2', JSON.stringify({
+      entries: { queso: [{ qty: 1, total: 6.89 }] },
+      cartTimes: { queso: 1000, leche: 2000, pan: 3000 },
+      storeName: '',
+      totalAmount: '',
+    }));
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+  });
+
+  /**
+   * Lo que falta se dice con un número, y el número es la puerta: no hay que
+   * buscar en la rejilla qué tarjeta no tiene precio.
+   */
+  it('el tablero cuenta lo que no tiene precio y abre el primero', async () => {
+    render(<SupermarketView initialItems={CARRO} />);
+
+    const chip = await screen.findByRole('button', { name: /2\s*sin precio/ });
+    fireEvent.click(chip);
+
+    expect(screen.getByRole('heading', { name: 'Pan' })).toBeInTheDocument();
+  });
+
+  it('«Siguiente» salta al próximo sin precio y en el último ya no sale', async () => {
+    render(<SupermarketView initialItems={CARRO} />);
+    fireEvent.click(await screen.findByRole('button', { name: /sin precio/ }));
+
+    const siguiente = screen.getByRole('button', { name: /Siguiente sin precio/ });
+    expect(siguiente).toHaveTextContent('1');
+    fireEvent.click(siguiente);
+
+    expect(screen.getByRole('heading', { name: 'Leche' })).toBeInTheDocument();
+    // El pan se dejó sin precio: no vuelve como «siguiente» en esta ronda.
+    expect(screen.queryByRole('button', { name: /Siguiente sin precio/ })).not.toBeInTheDocument();
+  });
+
+  it('abrir un producto desde la rejilla no es una ronda', async () => {
+    render(<SupermarketView initialItems={CARRO} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Opciones de Pan' }));
+
+    expect(screen.getByRole('heading', { name: 'Pan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Siguiente sin precio/ })).not.toBeInTheDocument();
+  });
+
+  it('con todo el carro con precio no hay chip', async () => {
+    localStorage.setItem('foody-sky-session-v2', JSON.stringify({
+      entries: { queso: [{ qty: 1, total: 6.89 }], leche: [{ qty: 1, total: 3 }], pan: [{ qty: 1, total: 2 }] },
+      cartTimes: {},
+      storeName: '',
+      totalAmount: '',
+    }));
+    render(<SupermarketView initialItems={CARRO} />);
+
+    await screen.findByRole('button', { name: /Ver el carrito/ });
+    expect(screen.queryByRole('button', { name: /sin precio/ })).not.toBeInTheDocument();
+  });
+});

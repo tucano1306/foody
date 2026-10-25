@@ -28,6 +28,8 @@ import { useToast } from '@/components/ui/Toast';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
 import { lockBodyScroll } from '@/lib/scroll-lock';
+import { siguienteSinPrecio, type LineaRonda } from '@/lib/ronda-precios';
+import TripBoard from './TripBoard';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
@@ -380,6 +382,31 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
 
   const hasEstimated = estimatedCount > 0;
 
+  // ─── Ronda de precios ───────────────────────────────────────────────────────
+  // Del chip «N sin precio» del tablero a la hoja del primero, y de ahí a los
+  // siguientes con un toque. Un importe estimado no cuenta como precio: es el
+  // de la última vez, no el de hoy.
+  const lineasRonda = useMemo<LineaRonda[]>(
+    () => cart.lines.map((l) => ({ id: l.item.id, conPrecio: l.lineTotal > 0 && !l.estimated })),
+    [cart.lines],
+  );
+  const sinPrecio = lineasRonda.filter((l) => !l.conPrecio).length;
+  const [enRonda, setEnRonda] = useState(false);
+  const [saltados, setSaltados] = useState<ReadonlySet<string>>(new Set());
+
+  function empezarRonda() {
+    const { id } = siguienteSinPrecio(lineasRonda, null);
+    if (!id) return;
+    setSaltados(new Set());
+    setEnRonda(true);
+    setEditorItemId(id);
+  }
+
+  function cerrarEditor() {
+    setEditorItemId(null);
+    setEnRonda(false);
+  }
+
   // Si el carrito se vacía con la hoja abierta —se devolvió lo último a «Por
   // comprar»— la hoja se cierra sola: ya no tiene nada que enseñar.
   useEffect(() => {
@@ -679,6 +706,24 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   const searching = q.length > 0 || categoryFilter !== null || filter !== 'all';
   const editorItem = editorItemId ? items.find((i) => i.id === editorItemId) ?? null : null;
 
+  // Solo en ronda y con algo detrás: si no queda ninguno, «Listo» basta.
+  const proximo = enRonda && editorItem?.isInCart
+    ? siguienteSinPrecio(lineasRonda, editorItem.id, saltados)
+    : null;
+  const siguienteEnRonda = proximo?.id && editorItem
+    ? {
+        restantes: proximo.restantes,
+        onNext: () => {
+          // El que se deja sin precio no vuelve a salir en esta ronda.
+          if (!lineasRonda.find((l) => l.id === editorItem.id)?.conPrecio) {
+            setSaltados((prev) => new Set(prev).add(editorItem.id));
+          }
+          haptic(8);
+          setEditorItemId(proximo.id);
+        },
+      }
+    : undefined;
+
   if (items.length === 0) {
     return (
       <div className="text-center py-20">
@@ -710,99 +755,17 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
 
   return (
     <div className="space-y-5 pb-32">
-      {/* ─── Progress ────────────────────────────────────────────────────────── */}
-      <div ref={progressRef} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
-        <div className="flex justify-between items-baseline mb-2">
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            {progress === 100 ? (
-              <span className="inline-block animate-pop">🎉 ¡Carrito completo!</span>
-            ) : (
-              `${inCart.length} / ${items.length} en el carrito`
-            )}
-          </span>
-          <span className={`text-xs ${progress === 100 ? 'font-bold text-sky-600' : 'text-slate-400'}`}>
-            {Math.round(progress)}%
-          </span>
-        </div>
-        <div className="relative h-3 bg-slate-100 dark:bg-slate-800 rounded-full">
-          <div
-            className="progress-fun h-full rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-          <span
-            aria-hidden="true"
-            className="absolute top-1/2 -translate-y-1/2 text-base leading-none drop-shadow-sm transition-all duration-500 ease-out"
-            style={{ left: `calc(${Math.min(Math.max(progress, 1), 97)}% - 8px)` }}
-          >
-            🛒
-          </span>
-        </div>
-      </div>
-
-      {/* ─── Cart calculator ─────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {inCart.length > 0 && (
-          <motion.div
-            key="cart-calculator"
-            initial={{ opacity: 0, y: -12, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 22 }}
-            className="bg-linear-to-br from-sky-50 to-sky-50 border border-sky-200 rounded-2xl shadow-sm overflow-hidden"
-          >
-            {/* La tarjeta ENTERA abre el carrito por dentro.
-                El número gordo contesta «¿cuánto llevo?», y es justo ahí donde
-                uno pregunta lo siguiente: «¿y qué llevo?». Antes había que
-                bajar por toda la rejilla de tarjetas para verlo. */}
-            <button
-              type="button"
-              onClick={openCartSheet}
-              aria-label={`Ver el carrito · ${inCart.length} ${pluralize(inCart.length, 'producto', 'productos')}`}
-              className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition active:scale-[0.99] focus:outline-none"
-            >
-              <span className="flex-1 min-w-0">
-                <span className="block text-[11px] font-semibold text-sky-600 mb-0.5">
-                  🧮 {hasEstimated ? 'Estimado en carrito' : 'Total en carrito'}
-                </span>
-                <span className="flex items-baseline gap-1">
-                  <span className="text-base font-bold text-sky-700">$</span>
-                  <motion.span
-                    key={Math.round(runningTotal * 100)}
-                    initial={{ y: 6, opacity: 0.6 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 600, damping: 18 }}
-                    className="text-3xl font-black text-sky-800 tabular-nums"
-                  >
-                    {runningTotal > 0 ? runningTotal.toFixed(2) : '0.00'}
-                  </motion.span>
-                </span>
-                <span className="block text-[11px] text-sky-600/70 mt-0.5">
-                  {pricedCount === 0
-                    ? `${inCart.length} en el carrito · toca 💵 en un producto para poner su precio`
-                    : `${pricedCount} de ${inCart.length} con precio${hasEstimated ? ' · algunos estimados' : ''}`}
-                </span>
-              </span>
-
-              <span className="flex flex-col items-center justify-center bg-sky-600 text-white rounded-xl px-3 py-2 shrink-0 shadow-sm">
-                <motion.span
-                  key={inCart.length}
-                  initial={{ scale: 0.65, opacity: 0.5 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: 'spring', stiffness: 600, damping: 14 }}
-                  className="text-2xl font-black tabular-nums leading-none"
-                >
-                  {inCart.length}
-                </motion.span>
-                <span className="text-[11px] font-medium opacity-80 mt-0.5">
-                  {pluralize(inCart.length, 'ítem', 'ítems')}
-                </span>
-              </span>
-
-              <ChevronRightIcon aria-hidden="true" className="w-5 h-5 text-sky-600/70 shrink-0" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ─── Tablero: lo que llevas, lo que falta y lo que no tiene precio ─── */}
+      <TripBoard
+        ref={progressRef}
+        enCarrito={inCart.length}
+        totalLista={items.length}
+        total={runningTotal}
+        hayEstimados={hasEstimated}
+        sinPrecio={sinPrecio}
+        onAbrirCarrito={openCartSheet}
+        onPonerPrecios={empezarRonda}
+      />
 
       {/* ─── Search + add + filters ──────────────────────────────────────────── */}
       <div className="space-y-3">
@@ -950,9 +913,6 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
         <div className="text-center py-8 bg-sky-50/60 dark:bg-sky-900/20 rounded-2xl border border-sky-200 dark:border-sky-800">
           <p className="text-3xl mb-2">🎉</p>
           <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">¡Todo está en el carrito!</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Toca «Finalizar compra» abajo para registrarla
-          </p>
         </div>
       )}
 
@@ -982,9 +942,6 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
                 : `${visiblePurchased.length} ${pluralize(visiblePurchased.length, 'producto', 'productos')}`}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1 mb-2">
-            El último que agarraste aparece primero · toca 💵 para ponerle precio
-          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {visiblePurchased.map((item) => (
               <ProductPurchaseCard
@@ -1015,7 +972,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
           <motion.button
             onClick={openModal}
             disabled={completing}
-            className={`w-full bg-linear-to-r from-sky-500 to-sky-700 hover:from-sky-600 hover:to-sky-800 text-white font-bold py-4 rounded-2xl text-base transition-all shadow-xl shadow-sky-500/30 disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-2${notInCart.length === 0 ? ' animate-glow' : ''}`}
+            className={`btn-primary w-full py-4 rounded-2xl text-base font-bold disabled:opacity-50 flex items-center justify-center gap-2${notInCart.length === 0 ? ' animate-glow' : ''}`}
             whileTap={{ scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 400, damping: 18 }}
           >
@@ -1065,7 +1022,8 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
           onMarkBought={!editorItem.isInCart ? () => { toggleItem(editorItem.id); } : undefined}
           onReturnToPending={editorItem.isInCart ? () => { toggleItem(editorItem.id); } : undefined}
           onZoom={(src, origin) => setZoomItem({ src, alt: editorItem.product.name, origin })}
-          onClose={() => setEditorItemId(null)}
+          siguiente={siguienteEnRonda}
+          onClose={cerrarEditor}
         />
       )}
 
@@ -1210,7 +1168,7 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
             )}
 
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
-              Resumen · toca un producto para ajustar
+              Resumen
             </p>
             <div className="flex-1 overflow-y-auto space-y-2 mb-5 pr-1">
               {inCart.map((item) => {
@@ -1365,6 +1323,14 @@ function ProductPurchaseCard({
           {inCart && lineTotal > 0 && (
             <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-600 text-white shadow tabular-nums">
               ${lineTotal.toFixed(2)}
+            </span>
+          )}
+          {/* Y si aún no lo tiene, el hueco: un «$ ?» punteado en el mismo
+              sitio. Dice que falta algo sin escribir cómo arreglarlo — la
+              tarjeta entera ya abre la hoja del precio. */}
+          {inCart && lineTotal <= 0 && (
+            <span className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full border border-dashed border-white/90 bg-black/35 text-white backdrop-blur-sm tabular-nums">
+              $ ?
             </span>
           )}
         </span>
@@ -1573,6 +1539,7 @@ function PriceEditorSheet({
   onMarkBought,
   onReturnToPending,
   onZoom,
+  siguiente,
   onClose,
 }: {
   readonly item: ShoppingListItem;
@@ -1586,6 +1553,8 @@ function PriceEditorSheet({
   readonly onMarkBought?: () => void;
   readonly onReturnToPending?: () => void;
   readonly onZoom: (src: string, origin?: DOMRect) => void;
+  /** Ronda de precios: salta al próximo producto del carro sin precio. */
+  readonly siguiente?: { readonly restantes: number; readonly onNext: () => void };
   readonly onClose: () => void;
 }) {
   const sheetPhotoRef = useRef<HTMLButtonElement>(null);
@@ -1700,15 +1669,11 @@ function PriceEditorSheet({
           )}
         </div>
 
-        {/* Hint */}
-        <div className="flex items-start gap-2 bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900 rounded-xl px-3 py-2 mb-3">
-          <span className="text-sm shrink-0">💡</span>
-          <p className="text-[11px] text-sky-700 dark:text-sky-300 leading-snug">
-            {byWeight
-              ? `Pesa y anota lo que dice la balanza: cuántas ${unitLabel} y cuánto costó ese paquete. Si llevas varios paquetes, agrega una línea por cada uno.`
-              : 'Cada línea es un empaque con su precio. ¿Dos bandejas de carne, o un aceite grande y uno pequeño con precios distintos? Agrega una línea para cada uno y ponle una nota para distinguirlos.'}
-          </p>
-        </div>
+        {/* Aquí había un párrafo de ayuda (💡 «Cada línea es un empaque con su
+            precio…») encima de los campos, en cada producto y en cada compra.
+            Lo que explicaba ya lo dice el botón de abajo, «＋ Agregar otro
+            empaque con distinto precio»: se lee en el momento en que hace
+            falta, no antes de empezar. */}
 
         {/* Entries */}
         <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-1">
@@ -1864,21 +1829,19 @@ function PriceEditorSheet({
                       </button>
                     </div>
 
-                    {/* The app does the math: lbs × $/lb */}
-                    {mode === 'lb' && (
+                    {/* La cuenta, cuando hay con qué hacerla. Con los campos
+                        vacíos decía «Pon la cantidad y el precio… — la app
+                        calcula el total»: una instrucción para dos casillas que
+                        ya dicen qué llevan. Ahora aparece al teclear, y verla
+                        multiplicar es lo que enseña que la app hace la cuenta. */}
+                    {mode === 'lb' && entry.unitPrice != null && entry.qty > 0 && (
                       <p className="mt-1.5 text-[11px] font-semibold text-sky-700 dark:text-sky-300 tabular-nums">
-                        {entry.unitPrice != null && entry.qty > 0
-                          ? `${fmtQty(entry.qty)} lb × $${entry.unitPrice.toFixed(2)}/lb = $${computed.toFixed(2)}`
-                          : 'Pon las libras y el precio por libra — la app calcula el total.'}
+                        {`${fmtQty(entry.qty)} lb × $${entry.unitPrice.toFixed(2)}/lb = $${computed.toFixed(2)}`}
                       </p>
                     )}
-
-                    {/* The app does the math: units × $/unit */}
-                    {mode === 'unit' && (
+                    {mode === 'unit' && entry.total != null && entry.qty > 0 && (
                       <p className="mt-1.5 text-[11px] font-semibold text-sky-700 dark:text-sky-300 tabular-nums">
-                        {entry.total != null && entry.qty > 0
-                          ? `${fmtQty(entry.qty)} ${qtyLabel} × $${entry.total.toFixed(2)} = $${computed.toFixed(2)}`
-                          : `Pon la cantidad y el precio por ${qtyLabel} — la app calcula el total.`}
+                        {`${fmtQty(entry.qty)} ${qtyLabel} × $${entry.total.toFixed(2)} = $${computed.toFixed(2)}`}
                       </p>
                     )}
                   </>
@@ -1908,6 +1871,17 @@ function PriceEditorSheet({
 
         {/* Actions */}
         <div className="space-y-2 pb-[env(safe-area-inset-bottom)]">
+          {siguiente && (
+            <button
+              type="button"
+              onClick={siguiente.onNext}
+              className="btn-primary w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+            >
+              Siguiente sin precio
+              <span className="t-num rounded-full bg-white/20 px-2 py-0.5 text-xs">{siguiente.restantes}</span>
+              <ChevronRightIcon aria-hidden="true" className="w-4 h-4" />
+            </button>
+          )}
           {onMarkBought && (
             <button
               type="button"
