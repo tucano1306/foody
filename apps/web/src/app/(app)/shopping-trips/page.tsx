@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ChevronRightIcon, ScaleIcon } from '@heroicons/react/24/outline';
 import { api } from '@/lib/api';
 import ModernTitle from '@/components/layout/ModernTitle';
 import OtherExpensesButton from '@/components/shopping/OtherExpensesButton';
@@ -70,17 +71,25 @@ export default async function ShoppingTripsPage({
           llegar al detalle. */}
       {otherKinds.count > 0 && <OtherExpensesButton total={otherKinds.total} />}
 
-      {/* Compare prices shortcut */}
+      {/* Atajo a comparar precios: una fila de la misma familia que las
+          tarjetas, con su icono en aurora, en vez de un recuadro celeste con
+          un emoji que se veía distinto en cada teléfono. */}
       <Link
         href="/shopping-trips/compare"
-        className="flex items-center gap-3 rounded-2xl bg-sky-50 border border-sky-100 px-4 py-3 hover:bg-sky-100 transition"
+        className="card group flex items-center gap-3 px-4 py-3 transition hover:shadow-[var(--shadow-md)] active:scale-[0.99]"
       >
-        <span className="text-2xl">📊</span>
+        <span
+          aria-hidden="true"
+          className="grid place-items-center w-10 h-10 shrink-0 rounded-2xl text-white shadow-[var(--glow)]"
+          style={{ backgroundImage: 'var(--aurora)' }}
+        >
+          <ScaleIcon className="w-5 h-5" />
+        </span>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sky-800 text-sm">Comparar precios</p>
-          <p className="text-xs text-sky-500">Ve qué supermercado tiene cada producto más barato</p>
+          <p className="font-semibold text-[var(--ink)] text-sm">Comparar precios</p>
+          <p className="t-meta">Qué súper tiene cada producto más barato</p>
         </div>
-        <span className="text-sky-400 text-sm">→</span>
+        <ChevronRightIcon aria-hidden="true" className="w-5 h-5 text-[var(--ink-subtle)] transition-transform group-hover:translate-x-0.5" />
       </Link>
 
       {/* Las cifras y la lista viven juntas en un cliente: el filtro por ámbito

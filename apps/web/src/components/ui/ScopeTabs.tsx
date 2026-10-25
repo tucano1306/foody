@@ -42,7 +42,7 @@ export default function ScopeTabs({ value, onChange, summary, format }: Props) {
   };
 
   return (
-    <div className="flex gap-1.5 rounded-2xl bg-sky-100/70 p-1.5">
+    <div className="flex gap-1.5 rounded-2xl bg-[var(--surface-2)] border border-[var(--line)] p-1.5">
       {TABS.map((tab) => {
         const active = value === tab.id;
         return (
@@ -54,15 +54,18 @@ export default function ScopeTabs({ value, onChange, summary, format }: Props) {
               onChange(tab.id);
             }}
             aria-pressed={active}
+            // La pestaña elegida lleva la aurora, como la del dock: la misma
+            // señal de «aquí estás» en toda la app.
+            style={active ? { backgroundImage: 'var(--aurora)' } : undefined}
             className={`flex-1 rounded-xl px-2 py-2.5 transition-all duration-150 active:scale-95 ${
-              active ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-600 hover:bg-white/60'
+              active ? 'text-white shadow-[var(--glow)]' : 'text-[var(--ink-muted)] hover:bg-[var(--surface)]'
             }`}
           >
             <span className="block text-xs font-bold leading-tight">
               <span aria-hidden="true">{tab.emoji}</span> {tab.label}
             </span>
             <span
-              className={`block text-[11px] font-semibold ${active ? 'text-white/80' : 'text-slate-400'}`}
+              className={`block text-[11px] font-semibold ${active ? 'text-white/80' : 'text-[var(--ink-subtle)]'}`}
             >
               {format(totals[tab.id])}
             </span>

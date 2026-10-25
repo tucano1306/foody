@@ -6,20 +6,19 @@ import type { ShoppingTrip } from '@foody/types';
 import { detectExpenseKind } from '@/lib/expense-kind';
 import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
 import ScopeTabs from '@/components/ui/ScopeTabs';
-import StatAmount from '@/components/ui/StatAmount';
 import { groupByMonth, paginate } from '@/lib/trip-months';
 import ReclassifyChip from './ReclassifyChip';
-import { formatFecha } from '@/lib/app-time';
-
-/** El tope de tamano de los tres numeros: el de siempre, text-xl / sm:text-2xl.
-    Por debajo encogen solos cuando el importe no cabe. */
-const NUM_CAJA =
-  'stat-value mt-1.5 font-extrabold text-slate-900 [--stat-max:1.25rem] sm:[--stat-max:1.5rem]';
+import RitmoCompras from './RitmoCompras';
+import StoreMark from './StoreMark';
+import { diaDeHoy, formatFecha, type Dia } from '@/lib/app-time';
+import { ritmoDeCompras } from '@/lib/ritmo-compras';
 
 interface Props {
   readonly trips: readonly ShoppingTrip[];
   /** Ámbito con el que abrir, si quien enlaza aquí ya sabe cuál quiere. */
   readonly initialScope?: ScopeFilter;
+  /** El día de hoy en Miami. Solo lo fijan las pruebas. */
+  readonly hoy?: Dia;
 }
 
 function formatCurrency(value: number, currency: string): string {
@@ -57,7 +56,7 @@ function formatDate(iso: string): string {
  * CONTEO no se reparte: medio ticket no existe, y una compra a medias entre la
  * casa y el negocio ocurrió una sola vez.
  */
-export default function TripsScopedList({ trips: recibidos, initialScope = 'all' }: Props) {
+export default function TripsScopedList({ trips: recibidos, initialScope = 'all', hoy }: Props) {
   const [scope, setScope] = useState<ScopeFilter>(initialScope);
 
   /**
@@ -129,8 +128,18 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
   }
 
   const currency = trips[0]?.currency ?? 'USD';
-  const totalSpent = visibles.reduce((sum, t) => sum + t.totalAmount, 0);
-  const avgSpent = visibles.length > 0 ? totalSpent / visibles.length : 0;
+
+  // Sale de `visibles`, no de `trips`: el ritmo cambia con el ámbito igual
+  // que la lista, o el titular volvería a contradecirla.
+  const ritmo = useMemo(() => ritmoDeCompras(visibles, hoy ?? diaDeHoy()), [visibles, hoy]);
+
+  /** Tocar una barra del ritmo abre su mes y baja hasta él. */
+  function abrirMes(key: string) {
+    setAbiertos((prev) => new Set(prev).add(key));
+    requestAnimationFrame(() => {
+      document.getElementById(`mes-${key}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   // Medallas: solo tienen sentido con dos o más tickets con importe.
   const withAmount = visibles.filter((t) => t.totalAmount > 0);
@@ -148,9 +157,6 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
         <p className="text-5xl mb-3">🛒</p>
         <p className="text-slate-700 font-semibold">Aún no registras compras del super</p>
-        <p className="text-sm text-slate-500 mt-1">
-          Completa una sesión de supermercado y Foody guardará los precios automáticamente.
-        </p>
         <Link
           href="/shopping-trips/new"
           className="inline-block mt-4 rounded-xl bg-brand-600 text-white px-5 py-2.5 text-sm font-semibold"
@@ -170,29 +176,10 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
         format={(n) => formatCurrency(n, currency)}
       />
 
-      <div className="grid grid-cols-3 gap-3 card-stagger">
-        <div className="stat-card" data-accent="brand">
-          <p className="text-[11px] sm:text-xs font-semibold text-slate-500">🧾 Compras</p>
-          <StatAmount
-            value={String(visibles.length)}
-            className={NUM_CAJA}
-          />
-        </div>
-        <div className="stat-card" data-accent="energy">
-          <p className="text-[11px] sm:text-xs font-semibold text-slate-500">💰 Total</p>
-          <StatAmount
-            value={formatCurrency(totalSpent, currency)}
-            className={NUM_CAJA}
-          />
-        </div>
-        <div className="stat-card" data-accent="warn">
-          <p className="text-[11px] sm:text-xs font-semibold text-slate-500">📊 Promedio</p>
-          <StatAmount
-            value={formatCurrency(avgSpent, currency)}
-            className={NUM_CAJA}
-          />
-        </div>
-      </div>
+      {/* Antes: tres tarjetas — cuántas compras, el total de SIEMPRE y el
+          promedio por ticket. Ninguna decía si este mes iba más caro o más
+          barato. El ritmo lo dice con una frase y unas barras. */}
+      <RitmoCompras ritmo={ritmo} formato={(n) => formatCurrency(n, currency)} onElegirMes={abrirMes} />
 
       {visibles.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
@@ -208,7 +195,8 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
             return (
               <section
                 key={mes.key}
-                className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden"
+                id={`mes-${mes.key}`}
+                className="card overflow-hidden scroll-mt-[calc(4.5rem+var(--safe-t))] md:scroll-mt-6"
               >
                 <button
                   type="button"
@@ -235,8 +223,8 @@ export default function TripsScopedList({ trips: recibidos, initialScope = 'all'
                 </button>
 
                 {abierto && (
-                  <div id={panelId} className="border-t border-slate-100 px-2 py-2 animate-fade-up">
-                    <ul className="divide-y divide-slate-100">
+                  <div id={panelId} className="border-t border-[var(--line)] px-2 py-2 animate-fade-up">
+                    <ul className="divide-y divide-[var(--line)]">
                       {items.map((trip) => (
                         <TripRow
                           key={trip.id}
@@ -315,9 +303,7 @@ function TripRow({
         className="group block rounded-xl px-2 py-3 hover:bg-slate-50 active:bg-slate-50 active:scale-[0.99] transition"
       >
         <div className="flex items-center gap-3">
-          <span className="text-2xl shrink-0 transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12">
-            🏪
-          </span>
+          <StoreMark nombre={trip.storeName} />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-slate-800 truncate">{trip.storeName ?? 'Sin tienda'}</p>
             <p className="text-xs text-slate-500">{formatDate(trip.purchasedAt)}</p>

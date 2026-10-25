@@ -50,7 +50,7 @@ export function formatFecha(
   return new Intl.DateTimeFormat(locale, { ...opts, timeZone: zonaDeLaFecha(iso) }).format(d);
 }
 
-type Dia = { year: number; month: number; day: number };
+export type Dia = { year: number; month: number; day: number };
 
 function diaEn(d: Date, timeZone: string): Dia {
   const partes = new Intl.DateTimeFormat('en-US', {
@@ -61,6 +61,11 @@ function diaEn(d: Date, timeZone: string): Dia {
   }).formatToParts(d);
   const valor = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value);
   return { year: valor('year'), month: valor('month'), day: valor('day') };
+}
+
+/** Hoy en el calendario de Miami: el mismo con el que se agrupan los tickets. */
+export function diaDeHoy(ahora: Date = new Date()): Dia {
+  return diaEn(ahora, APP_TZ);
 }
 
 /** Año, mes (1-12) y día de la fecha, en la zona que le toca. */
