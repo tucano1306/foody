@@ -435,7 +435,7 @@ function MobileLightbox({ src: rawSrc, alt, onClose, originRect }: Props) {
               top: 0, left: 0,
               width:  LENS_SIZE,
               height: LENS_SIZE,
-              border: '2px solid #7dd3fc',
+              border: '2px solid #a8b9ff',
               borderRadius: '50%',
               pointerEvents: 'none',
               background: 'rgba(200,169,81,0.08)',

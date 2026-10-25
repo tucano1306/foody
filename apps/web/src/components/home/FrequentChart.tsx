@@ -24,11 +24,11 @@ function formatRelative(iso: string): string {
 
 /** Light-to-deep blue palette (matches the rest of the dashboard). */
 const BLUE_PALETTE: readonly string[] = [
-  '#0284c7', // sky-600
-  '#0ea5e9', // sky-500
-  '#38bdf8', // sky-400
-  '#7dd3fc', // sky-300
-  '#bae6fd', // sky-200
+  '#5843ef', // brand-600
+  '#6b5cff', // brand-500
+  '#8a7cff', // brand-400
+  '#aba3ff', // brand-300
+  '#cdc9ff', // brand-200
 ];
 
 /**

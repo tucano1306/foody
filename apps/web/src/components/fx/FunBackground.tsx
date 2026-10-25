@@ -14,6 +14,7 @@
 export default function FunBackground() {
   return (
     <div aria-hidden="true" className="fun-bg">
+      <div className="fun-grid" />
       <div className="fun-blob fun-blob-1" />
       <div className="fun-blob fun-blob-2" />
       <div className="fun-blob fun-blob-3" />

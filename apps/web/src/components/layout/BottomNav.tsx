@@ -50,12 +50,15 @@ export default function BottomNav({
 
   return (
     <>
+      {/* Un dock que flota sobre el contenido, de cristal y con las
+          esquinas redondas: separado del borde de la pantalla se lee como
+          un objeto que se toca, no como el pie de la página. */}
       <nav
         aria-label="Navegación principal"
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 glass border-t border-[var(--line)]"
-        style={{ paddingBottom: 'var(--safe-b)' }}
+        className="md:hidden fixed inset-x-3 z-40 glass rounded-[1.75rem] border border-[var(--line)] shadow-[var(--shadow-lg)]"
+        style={{ bottom: 'calc(var(--safe-b) + 0.5rem)' }}
       >
-        <ul className="grid grid-cols-5 px-1">
+        <ul className="grid grid-cols-5 px-1.5">
           {TAB_ITEMS.map((item) => {
             const active = isActivePath(pathname, item.href);
             const Icon = active ? item.iconActive : item.icon;
@@ -65,16 +68,17 @@ export default function BottomNav({
                   href={item.href}
                   onClick={() => haptic(8)}
                   aria-current={active ? 'page' : undefined}
-                  className="relative flex flex-col items-center justify-center gap-1 h-[4.25rem] rounded-2xl touch-auto-size"
+                  className="relative flex flex-col items-center justify-center gap-1 h-16 rounded-[1.4rem] touch-auto-size"
                 >
                   {/* Píldora que se desliza de una pestaña a otra. Un solo
                       elemento compartido vía layoutId: el indicador VIAJA en
-                      vez de aparecer y desaparecer, y ese movimiento es lo que
-                      hace que la barra se sienta viva. */}
+                      vez de aparecer y desaparecer. Va pintada con la aurora
+                      y con su brillo: es lo primero que el ojo encuentra. */}
                   {active && (
                     <motion.span
                       layoutId="tab-pill"
-                      className="absolute inset-x-2 inset-y-1.5 rounded-2xl bg-[var(--accent-soft)]"
+                      className="absolute inset-x-1.5 inset-y-1.5 rounded-[1.15rem] shadow-[var(--glow)]"
+                      style={{ backgroundImage: 'var(--aurora)' }}
                       transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                       aria-hidden="true"
                     />
@@ -85,13 +89,13 @@ export default function BottomNav({
                     transition={{ type: 'spring', stiffness: 500, damping: 26 }}
                   >
                     <Icon
-                      className={`w-6 h-6 ${active ? 'text-[var(--accent)]' : 'text-[var(--ink-subtle)]'}`}
+                      className={`w-6 h-6 ${active ? 'text-white' : 'text-[var(--ink-subtle)]'}`}
                     />
                   </motion.span>
                   <span
                     className={`relative text-[11px] leading-none ${
                       active
-                        ? 'font-bold text-[var(--accent)]'
+                        ? 'font-bold text-white'
                         : 'font-medium text-[var(--ink-subtle)]'
                     }`}
                   >
@@ -111,19 +115,20 @@ export default function BottomNav({
               }}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
-              className="relative w-full flex flex-col items-center justify-center gap-1 h-[4.25rem] rounded-2xl touch-auto-size"
+              className="relative w-full flex flex-col items-center justify-center gap-1 h-16 rounded-[1.4rem] touch-auto-size"
             >
               {moreActive && (
                 <motion.span
                   layoutId="tab-pill"
-                  className="absolute inset-x-2 inset-y-1.5 rounded-2xl bg-[var(--accent-soft)]"
+                  className="absolute inset-x-1.5 inset-y-1.5 rounded-[1.15rem] shadow-[var(--glow)]"
+                  style={{ backgroundImage: 'var(--aurora)' }}
                   transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                   aria-hidden="true"
                 />
               )}
               <span className="relative">
                 {moreActive ? (
-                  <Squares2X2Icon className="w-6 h-6 text-[var(--accent)]" />
+                  <Squares2X2Icon className="w-6 h-6 text-white" />
                 ) : (
                   <EllipsisHorizontalIcon className="w-6 h-6 text-[var(--ink-subtle)]" />
                 )}
@@ -136,7 +141,7 @@ export default function BottomNav({
               <span
                 className={`relative text-[11px] leading-none ${
                   moreActive
-                    ? 'font-bold text-[var(--accent)]'
+                    ? 'font-bold text-white'
                     : 'font-medium text-[var(--ink-subtle)]'
                 }`}
               >
@@ -303,7 +308,7 @@ function MoreSheet({
                     className="rounded-full shrink-0"
                   />
                 ) : (
-                  <div className="w-11 h-11 rounded-full bg-brand-500 text-white grid place-items-center font-bold shrink-0">
+                  <div className="w-11 h-11 rounded-full text-white grid place-items-center font-bold shrink-0" style={{ backgroundImage: 'var(--aurora)' }}>
                     {initial}
                   </div>
                 )}

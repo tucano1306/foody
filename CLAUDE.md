@@ -527,8 +527,10 @@ Datos duros que conviene tener a mano:
 
 | | |
 |---|---|
-| Acento | `#1a6ae8` claro · `#5492fb` oscuro |
-| Texto sobre el acento | `#ffffff` claro · `#071022` oscuro |
+| Acento | `#5843ef` claro · `#8f85ff` oscuro (Foody Aurora, oct 2026) |
+| Texto sobre el acento | `#ffffff` claro · `#0a0820` oscuro |
+| Firma | `var(--aurora)`: índigo → violeta → celeste |
+| Tipografía | Geist (texto) · Sora (titulares, `--font-display`) |
 | Retícula | 8px — 8, 16, 24, 32, 40, 48, 56, 64 |
 | Modo oscuro | `@custom-variant dark (&:where(.dark, .dark *))`, clase en `html` |
 | Iconos | Heroicons |

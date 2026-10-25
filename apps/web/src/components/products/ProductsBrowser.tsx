@@ -52,10 +52,10 @@ const FILTERS: ReadonlyArray<{ key: StockFilter; label: string }> = [
 ];
 
 function healthConfig(pct: number): { emoji: string; label: string; from: string; to: string } {
-  if (pct >= 80) return { emoji: '😄', label: '¡Despensa saludable!', from: '#38bdf8', to: '#0284c7' };
-  if (pct >= 50) return { emoji: '🙂', label: 'Vas bien, ojo con lo que falta', from: '#0ea5e9', to: '#0284c7' };
-  if (pct >= 25) return { emoji: '😟', label: 'Varios productos por reponer', from: '#60a5fa', to: '#2563eb' };
-  return { emoji: '😱', label: '¡Tu despensa pide auxilio!', from: '#60a5fa', to: '#1e40af' };
+  if (pct >= 80) return { emoji: '😄', label: '¡Despensa saludable!', from: '#4b9bff', to: '#165fcc' };
+  if (pct >= 50) return { emoji: '🙂', label: 'Vas bien, ojo con lo que falta', from: '#1a6fe6', to: '#165fcc' };
+  if (pct >= 25) return { emoji: '😟', label: 'Varios productos por reponer', from: '#a37dff', to: '#7640e6' };
+  return { emoji: '😱', label: '¡Tu despensa pide auxilio!', from: '#a37dff', to: '#4f279e' };
 }
 
 /** Game-style meter: % of the pantry that's fully stocked. */

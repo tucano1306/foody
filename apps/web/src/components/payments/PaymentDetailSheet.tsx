@@ -40,12 +40,12 @@ const CURRENCIES = ['USD', 'EUR', 'MXN', 'COP', 'ARS', 'CLP', 'PEN'];
 
 /** Background gradient per method for the little icon tile */
 const METHOD_TILE_BG: Record<PaymentMethod, string> = {
-  transfer: 'linear-gradient(135deg,#3b82f6,#2563eb)',
-  debit_card: 'linear-gradient(135deg,#38bdf8,#0ea5e9)',
-  credit_card: 'linear-gradient(135deg,#60a5fa,#3b82f6)',
-  bank_account: 'linear-gradient(135deg,#0ea5e9,#0284c7)',
-  cash: 'linear-gradient(135deg,#7dd3fc,#38bdf8)',
-  other: 'linear-gradient(135deg,#94a3b8,#64748b)',
+  transfer: 'linear-gradient(135deg,#8a57f7,#7640e6)',
+  debit_card: 'linear-gradient(135deg,#4b9bff,#1a6fe6)',
+  credit_card: 'linear-gradient(135deg,#a37dff,#8a57f7)',
+  bank_account: 'linear-gradient(135deg,#1a6fe6,#165fcc)',
+  cash: 'linear-gradient(135deg,#a8b9ff,#4b9bff)',
+  other: 'linear-gradient(135deg,#949db8,#687292)',
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -603,7 +603,7 @@ export default function PaymentDetailSheet({
         <div className="flex items-start gap-4 mb-5">
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-            style={{ backgroundColor: isPaid ? '#38bdf8' : '#0ea5e9' }}
+            style={{ backgroundColor: isPaid ? '#4b9bff' : '#1a6fe6' }}
           >
             {icon}
           </div>

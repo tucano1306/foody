@@ -23,14 +23,14 @@ interface Props {
 
 /** Light-to-deep blue palette. */
 const BLUE_PALETTE: readonly string[] = [
-  '#38bdf8', // sky-400
-  '#0ea5e9', // sky-500
-  '#0284c7', // sky-600
-  '#7dd3fc', // sky-300
-  '#0369a1', // sky-700
-  '#bae6fd', // sky-200
-  '#075985', // sky-800
-  '#0c4a6e', // sky-900
+  '#6b5cff', // índigo (brand-500)
+  '#4b9bff', // celeste (sky-400)
+  '#8a57f7', // violeta (blue-500)
+  '#a8b9ff', // hielo (sky-300)
+  '#4834cc', // índigo profundo (brand-700)
+  '#cdc9ff', // lavanda (brand-200)
+  '#1450a8', // azul noche (sky-700)
+  '#3e2180', // violeta profundo (blue-900)
 ];
 
 export default function StatsWheel(props: Readonly<Props>) {

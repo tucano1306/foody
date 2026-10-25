@@ -1,5 +1,26 @@
 # foody DESIGN.md
 
+> **⚠️ Oct 2026 — Foody Aurora.** Este inventario es ANTERIOR al rediseño. La
+> fuente de verdad de colores, tipografía y superficies es ahora
+> `src/app/globals.css` (bloque «FOODY AURORA»):
+>
+> - **Acento**: índigo eléctrico `#5843ef` claro · `#8f85ff` oscuro. Firma
+>   visual: `var(--aurora)` (índigo → violeta → celeste).
+> - **Gamas redefinidas** con el mismo puesto de siempre: `brand` = índigo,
+>   `sky` = hielo → celeste, `blue` = violeta (aviso/atención), `slate` =
+>   grafito frío, `navy` = espacio profundo. Una clase como `bg-sky-50/70`
+>   sigue significando «tarjeta suave»; solo cambió el color.
+> - **Tipografía**: Geist (texto, `--font-sans`) y Sora (titulares,
+>   `--font-display`, ya puesta en `h1–h3` y `.t-display`).
+> - **Superficies**: `.card` con filo de luz, `.glass` para lo que flota,
+>   `.btn-primary` en degradado con `var(--glow)`, `.text-aurora` para la
+>   marca. Fondo con aurora y retícula de puntos (`FunBackground`).
+> - **Oscuro**: tintes claros, textos de tinta oscura y degradados pastel
+>   tienen su equivalente en `html.dark` (ver globals.css).
+>
+> Las tablas de abajo conservan nombres y estructura, pero sus hex son los
+> de antes. Para colores, manda globals.css.
+
 > **Leelo como inventario, no como criterio.** Generado automaticamente por
 > `skillui --dir apps/web` (analisis estatico, sin IA). Los tokens y los hex son
 > fiables porque salen del CSS. La *interpretacion de roles* es inferida y tiene

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Geist, Sora } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
@@ -7,25 +7,27 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { CelebrationProvider } from '@/components/ui/Celebration';
 
 /**
- * Inter, auto-alojada por Next en tiempo de compilación.
+ * Las dos caras de Foody Aurora, auto-alojadas por Next al compilar.
  *
- * `globals.css` pedía "Inter" desde hacía meses sin que nadie la cargara: no
- * hay `next/font`, no hay `<link>` a Google y `public/` no tiene ni un archivo
- * de fuente, así que la app caía siempre en la fuente por defecto del sistema
- * —Segoe UI en Windows, Roboto en Android, San Francisco en iOS—. Tres caras
- * distintas para el mismo producto, y ninguna elegida.
+ * Geist para leer: neutra, técnica y con cifras de ancho fijo limpias —la app
+ * es casi toda importes—. Sora para los titulares: geométrica y ancha, es la
+ * que da el aire «de mañana» sin perder legibilidad en un móvil.
  *
- * `next/font/google` la descarga al compilar y la sirve desde el propio
- * dominio, así que cumple el `font-src 'self'` del CSP (next.config.ts) sin
- * tocarlo y sin una sola petición a un tercero en tiempo de ejecución.
+ * `next/font/google` las descarga al compilar y las sirve desde el propio
+ * dominio, así que cumplen el `font-src 'self'` del CSP (next.config.ts) sin
+ * tocarlo y sin una sola petición a un tercero en tiempo de ejecución. Las dos
+ * son variables: un archivo por familia cubre todos los pesos.
  */
-const inter = Inter({
+const geist = Geist({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-inter',
-  // La app es toda cifras y etiquetas: sin estos cortes, los pesos gruesos se
-  // sintetizan y las cantidades se ven emborronadas.
-  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-geist',
+});
+
+const sora = Sora({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sora',
 });
 
 export const metadata: Metadata = {
@@ -45,8 +47,8 @@ export const viewport: Viewport = {
   // Antes el claro era #f8fafc y el fondo real #f0f6fd: en Android se veía una
   // franja de otro gris justo encima de la app.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f7fb' },
-    { media: '(prefers-color-scheme: dark)', color: '#070d18' },
+    { media: '(prefers-color-scheme: light)', color: '#f4f5fb' },
+    { media: '(prefers-color-scheme: dark)', color: '#05060f' },
   ],
   width: 'device-width',
   initialScale: 1,
@@ -67,7 +69,7 @@ export default function RootLayout({
   readonly children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={inter.variable} suppressHydrationWarning>
+    <html lang="es" className={`${geist.variable} ${sora.variable}`} suppressHydrationWarning>
       <head>
         {/* Preconnect to external image CDN to reduce LCP latency */}
         <link rel="preconnect" href="https://foody-uploads.s3.amazonaws.com" />

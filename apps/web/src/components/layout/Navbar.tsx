@@ -30,10 +30,16 @@ function NavItem({
       {active && (
         <motion.span
           layoutId="nav-active-pill"
-          className="absolute inset-0 rounded-2xl bg-[var(--surface)] shadow-[var(--shadow-xs)]"
+          className="absolute inset-0 rounded-2xl bg-[var(--accent-soft)] shadow-[var(--shadow-xs)]"
           transition={{ type: 'spring', stiffness: 420, damping: 34 }}
           aria-hidden="true"
-        />
+        >
+          {/* El filo de aurora a la izquierda: dónde estás, sin leer nada. */}
+          <span
+            className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full"
+            style={{ backgroundImage: 'var(--aurora)' }}
+          />
+        </motion.span>
       )}
       <Link
         href={item.href}
@@ -83,17 +89,19 @@ export default function Navbar({ user }: Props) {
   return (
     <>
       {/* ─── Escritorio: barra lateral ──────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 bg-[var(--surface)] border-r border-[var(--line)] z-40 overflow-y-auto">
+      <aside className="hidden md:flex flex-col w-[264px] shrink-0 h-screen sticky top-0 glass border-r border-[var(--line)] z-40 overflow-y-auto">
         <div className="flex items-center gap-3 px-5 pt-7 pb-5">
-          <Image
-            src="/logo-fy.png"
-            alt=""
-            width={40}
-            height={40}
-            className="object-contain"
-            priority
-          />
-          <span className="text-2xl font-extrabold tracking-tight text-[var(--ink)]">Foody</span>
+          <span className="grid place-items-center w-11 h-11 rounded-2xl bg-[var(--surface)] shadow-[var(--glow)] ring-1 ring-[var(--line)]">
+            <Image
+              src="/logo-fy.png"
+              alt=""
+              width={30}
+              height={30}
+              className="object-contain"
+              priority
+            />
+          </span>
+          <span className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-aurora">Foody</span>
         </div>
 
         {/* Buscador: la paleta de comandos existía desde siempre pero solo
@@ -102,7 +110,7 @@ export default function Navbar({ user }: Props) {
           <button
             type="button"
             onClick={openCommandPalette}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl bg-[var(--surface-2)] text-[var(--ink-subtle)] text-sm hover:bg-[var(--surface-3)]"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl bg-[var(--surface)] border border-[var(--line)] text-[var(--ink-subtle)] text-sm shadow-[var(--shadow-xs)] hover:border-[var(--line-strong)]"
           >
             <MagnifyingGlassIcon className="w-[18px] h-[18px] shrink-0" />
             <span className="flex-1 text-left">Buscar…</span>
@@ -141,7 +149,7 @@ export default function Navbar({ user }: Props) {
                 className="rounded-full shrink-0"
               />
             ) : (
-              <div className="w-[38px] h-[38px] rounded-full bg-brand-500 text-white grid place-items-center text-sm font-bold shrink-0">
+              <div className="w-[38px] h-[38px] rounded-full text-white grid place-items-center text-sm font-bold shrink-0" style={{ backgroundImage: 'var(--aurora)' }}>
                 {initial}
               </div>
             )}
@@ -187,7 +195,7 @@ export default function Navbar({ user }: Props) {
               className="object-contain"
               priority
             />
-            <span className="text-lg font-extrabold tracking-tight text-[var(--ink)]">Foody</span>
+            <span className="font-[family-name:var(--font-display)] text-lg font-bold tracking-tight text-aurora">Foody</span>
           </Link>
 
           <button

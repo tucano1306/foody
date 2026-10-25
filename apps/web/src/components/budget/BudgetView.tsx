@@ -41,10 +41,10 @@ function monthLabel(yyyymm: string): string {
 }
 
 function getBudgetStatus(pct: number | null): { label: string; color: string; bg: string; arc: string } {
-  if (pct === null) return { label: 'Sin límite', color: 'text-slate-500', bg: 'bg-slate-100', arc: '#94a3b8' };
-  if (pct >= 100) return { label: '¡Excedido!', color: 'text-blue-600', bg: 'bg-blue-50', arc: '#1d4ed8' };
-  if (pct >= 80) return { label: 'Atención', color: 'text-sky-600', bg: 'bg-sky-50', arc: '#3b82f6' };
-  return { label: 'Bajo control', color: 'text-sky-700', bg: 'bg-sky-50', arc: '#0284c7' };
+  if (pct === null) return { label: 'Sin límite', color: 'text-slate-500', bg: 'bg-slate-100', arc: '#949db8' };
+  if (pct >= 100) return { label: '¡Excedido!', color: 'text-blue-600', bg: 'bg-blue-50', arc: '#6230c4' };
+  if (pct >= 80) return { label: 'Atención', color: 'text-sky-600', bg: 'bg-sky-50', arc: '#8a57f7' };
+  return { label: 'Bajo control', color: 'text-sky-700', bg: 'bg-sky-50', arc: '#165fcc' };
 }
 
 /** Game-face for the gauge: relaxed → nervous → on fire. */
@@ -65,7 +65,7 @@ function RadialArc({ pct, color }: { readonly pct: number; readonly color: strin
   return (
     <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90" aria-hidden="true">
       {/* Track */}
-      <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e2e8f0" strokeWidth="16" />
+      <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e0e4ef" strokeWidth="16" />
       {/* Progress */}
       <motion.circle
         cx="100"
@@ -354,7 +354,7 @@ export default function BudgetView({ initialData, initialScope = 'all' }: Props)
           <div className="relative w-36 h-36 shrink-0">
             {figures.percentUsed === null ? (
               <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90" aria-hidden="true">
-                <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e2e8f0" strokeWidth="16" />
+                <circle cx="100" cy="100" r={RADIUS} fill="none" stroke="#e0e4ef" strokeWidth="16" />
               </svg>
             ) : (
               <RadialArc pct={figures.percentUsed} color={status.arc} />
