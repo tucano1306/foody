@@ -5,6 +5,7 @@ import type { GoalProjection } from './finance-engine';
 function goal(over: Partial<GoalProjection> = {}): GoalProjection {
   return {
     goalId: 'g1',
+    cuotaTarjeta: null,
     name: 'Viaje a Argentina',
     emoji: '✈️',
     kind: 'trip',

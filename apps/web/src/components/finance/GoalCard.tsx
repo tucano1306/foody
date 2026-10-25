@@ -21,6 +21,80 @@ interface Props {
    * presta el sitio en la cabecera.
    */
   readonly dragHandle?: React.ReactNode;
+  /**
+   * Hay tarjetas en Deudas a las que esta meta de deuda podría engancharse.
+   * Sin enganche, la meta y la tarjeta piden dinero por separado para la
+   * misma deuda.
+   */
+  readonly puedeEnlazar?: boolean;
+}
+
+/**
+ * «faltan 1 dias», o «fecha vencida» el mismo día de la fecha: así lo decía.
+ * Ahora: hoy, mañana, faltan N días, o cuánto hace que venció.
+ */
+function cuandoVence(goal: GoalProjection): string {
+  if (!goal.targetDate) return '🗓️ Sin fecha límite';
+  const fecha = `📅 ${formatDateKey(goal.targetDate, true)}`;
+  const d = goal.daysLeft;
+  if (d === null) return fecha;
+  if (d < 0) return `${fecha} · venció hace ${-d} ${d === -1 ? 'día' : 'días'}`;
+  if (d === 0) return `${fecha} · vence hoy`;
+  if (d === 1) return `${fecha} · vence mañana`;
+  return `${fecha} · faltan ${d} días`;
+}
+
+/** Queda menos de un mes (o nada): lo que falta se necesita entero, no «al mes». */
+function sinMesPorDelante(goal: GoalProjection): boolean {
+  return goal.monthsLeft !== null && goal.monthsLeft < 1;
+}
+
+/** La línea de diagnóstico, para cada situación en sus propias palabras. */
+function Diagnostico({ goal }: { readonly goal: GoalProjection }) {
+  const fecha = goal.targetDate ? formatDateKey(goal.targetDate, true) : null;
+  if (goal.cuotaTarjeta !== null) {
+    return goal.shortfallMonthly > 0 ? (
+      <span>
+        ⚠️ La cuota de la tarjeta (<strong className="text-black">{fmtMoneyFine(goal.cuotaTarjeta)}</strong>) no llega:
+        faltan <strong className="text-black">{fmtMoneyFine(goal.shortfallMonthly)}</strong> al mes
+        {fecha && ` para el ${fecha}`}.
+      </span>
+    ) : (
+      <span>💳 La cuota de la tarjeta la liquida a tiempo: no hace falta apartar nada más.</span>
+    );
+  }
+  if (goal.daysLeft !== null && goal.daysLeft < 0) {
+    return (
+      <span>
+        ⚠️ La fecha pasó y faltan <strong className="text-black">{fmtMoney(goal.remaining)}</strong>. Ponle una fecha nueva.
+      </span>
+    );
+  }
+  if (sinMesPorDelante(goal)) {
+    return goal.allocatedMonthly + 0.01 >= goal.remaining ? (
+      <span>💡 El plan de este mes cubre lo que falta.</span>
+    ) : (
+      <span>
+        ⚠️ Faltan <strong className="text-black">{fmtMoney(goal.remaining)}</strong>
+        {goal.daysLeft === 0 ? ' hoy' : fecha ? ` antes del ${fecha}` : ''}.
+      </span>
+    );
+  }
+  if (goal.shortfallMonthly > 0) {
+    return (
+      <span>
+        ⚠️ Te faltan <strong className="text-black">{fmtMoneyFine(goal.shortfallMonthly)}</strong> al mes.
+        {goal.projectedDate && ` A este ritmo la lograrías el ${formatDateKey(goal.projectedDate, true)}`}
+        {goal.monthsLate > 0 && ` (${goal.monthsLate} ${goal.monthsLate === 1 ? 'mes' : 'meses'} tarde).`}
+      </span>
+    );
+  }
+  return (
+    <span>
+      💡 Aparta <strong className="text-black">{fmtMoneyFine(goal.requiredWeekly)}</strong> por semana
+      {goal.requiredDaily > 0 && ` o ${fmtMoneyFine(goal.requiredDaily)} al día`} y llegas a tiempo.
+    </span>
+  );
 }
 
 const RADIUS = 34;
@@ -54,7 +128,7 @@ function ProgressRing({ pct, color, emoji }: { readonly pct: number; readonly co
 }
 
 
-export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, onComplete, dragHandle }: Props) {
+export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, onComplete, dragHandle, puedeEnlazar }: Props) {
   const meta = KIND_META[goal.kind];
   const feas = FEASIBILITY_META[goal.feasibility];
   const done = goal.feasibility === 'done';
@@ -93,13 +167,7 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
               {fmtMoney(goal.savedAmount)}
               <span className="text-slate-500 font-medium"> de {fmtMoney(goal.targetAmount)}</span>
             </p>
-            <p className="text-[11px] text-slate-600/80 mt-0.5">
-              {goal.targetDate
-                ? goal.daysLeft !== null && goal.daysLeft > 0
-                  ? `📅 ${formatDateKey(goal.targetDate, true)} · faltan ${goal.daysLeft} días`
-                  : `📅 ${formatDateKey(goal.targetDate, true)} · fecha vencida`
-                : '🗓️ Sin fecha límite'}
-            </p>
+            <p className="text-[11px] text-slate-600/80 mt-0.5">{cuandoVence(goal)}</p>
           </div>
 
           {dragHandle}
@@ -111,12 +179,14 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
         {[
           { label: 'Falta', value: fmtMoney(goal.remaining), tone: 'text-black' },
           {
-            label: 'Necesitas/mes',
+            // Con menos de un mes, «al mes» no significa nada: hace falta todo.
+            label: sinMesPorDelante(goal) && goal.remaining > 0 ? 'Necesitas ya' : 'Necesitas/mes',
             value: fmtMoneyFine(goal.requiredMonthly),
             tone: 'text-black',
           },
           {
-            label: 'Plan asigna',
+            // Enlazada a una tarjeta, lo que paga es la cuota de la tarjeta.
+            label: goal.cuotaTarjeta !== null ? 'Cuota tarjeta' : 'Plan asigna',
             value: fmtMoneyFine(goal.allocatedMonthly),
             tone: goal.allocatedMonthly > 0 ? 'text-black' : 'text-slate-400',
           },
@@ -131,18 +201,25 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
       {/* Diagnóstico */}
       {!done && (
         <div className="px-4 py-2.5 text-xs text-slate-600 bg-white/60">
-          {goal.shortfallMonthly > 0 ? (
-            <span>
-              ⚠️ Te faltan <strong className="text-black">{fmtMoneyFine(goal.shortfallMonthly)}</strong> al mes.
-              {goal.projectedDate && ` A este ritmo la lograrías el ${formatDateKey(goal.projectedDate, true)}`}
-              {goal.monthsLate > 0 && ` (${goal.monthsLate} ${goal.monthsLate === 1 ? 'mes' : 'meses'} tarde).`}
-            </span>
-          ) : (
-            <span>
-              💡 Aparta <strong className="text-black">{fmtMoneyFine(goal.requiredWeekly)}</strong> por semana
-              {goal.requiredDaily > 0 && ` o ${fmtMoneyFine(goal.requiredDaily)} al día`} y llegas a tiempo.
-            </span>
-          )}
+          <Diagnostico goal={goal} />
+        </div>
+      )}
+
+      {/* Una meta de deuda suelta repite una tarjeta de Deudas: las dos piden
+          dinero para lo mismo. Enlazarla la mueve con cada abono y hace que el
+          plan la pague con la cuota de la tarjeta. */}
+      {!done && puedeEnlazar && goal.kind === 'debt' && !goal.debtId && (
+        <div className="flex items-center gap-3 border-t border-sky-100 bg-white/60 px-4 py-2.5">
+          <p className="flex-1 text-xs text-slate-600">
+            💳 ¿Es una de tus tarjetas? Enlázala y el plan no contará la deuda dos veces.
+          </p>
+          <button
+            type="button"
+            onClick={() => { haptic(8); onEdit(); }}
+            className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-sky-700 shadow-sm"
+          >
+            Enlazar
+          </button>
         </div>
       )}
 
