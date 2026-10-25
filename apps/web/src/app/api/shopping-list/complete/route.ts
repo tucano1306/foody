@@ -9,6 +9,7 @@ import { sendWebPush } from '@/lib/web-push';
 import type { PushSubscription } from 'web-push';
 import { refreshLastPurchase } from '@/lib/last-purchase';
 import { programarSyncComputo } from '@/lib/computo/programar';
+import { resolverPreciosDeCompra, type PrecioResuelto } from '@/lib/precios-compra';
 
 interface CompletionBody {
   storeName?: string;
@@ -60,7 +61,7 @@ async function fetchPriceMap(productIds: string[]): Promise<Record<string, numbe
 async function insertPurchases(
   items: CartItem[],
   quantities: Record<string, number>,
-  priceMap: Record<string, number | null>,
+  precios: Record<string, PrecioResuelto>,
   brands: Record<string, string>,
   storeName: string | null,
   tripId: string | null,
@@ -71,19 +72,22 @@ async function insertPurchases(
   let totalSpent = 0;
   try {
     for (const row of items) {
-      const qty = quantities[row.product_id] ?? (Number.parseFloat(row.quantity_needed) || 1);
-      const unitPrice = priceMap[row.product_id] ?? null;
+      const qty = cantidadDe(row, quantities);
+      const precio = precios[row.product_id];
+      const unitPrice = precio?.unitPrice ?? null;
       const totalPrice = unitPrice === null ? null : unitPrice * qty;
       if (totalPrice !== null) totalSpent += totalPrice;
       // La marca queda en la COMPRA: el artículo de despensa sigue siendo uno
       // solo, y su historial de precios pasa a estar etiquetado en vez de
       // mezclado. Ver product-brands.ts.
       const brand = normalizeBrand(brands[row.product_id]);
+      // El origen va con el precio (precios-compra.ts): una edición del ticket
+      // conserva lo tecleado y solo vuelve a repartir lo repartido.
       await sql`
         INSERT INTO product_purchases
           (product_id, quantity, unit_price, total_price, price_source, currency, purchased_at, store_name, brand, trip_id, user_id, created_at)
         VALUES
-          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, 'shopping_list', 'USD', ${now}, ${storeName}, ${brand}, ${tripId}, ${userId}, ${now})
+          (${row.product_id}, ${qty}, ${unitPrice}, ${totalPrice}, ${precio?.source ?? 'unknown'}, 'USD', ${now}, ${storeName}, ${brand}, ${tripId}, ${userId}, ${now})
       `;
       inserted++;
     }
@@ -93,56 +97,9 @@ async function insertPurchases(
   }
 }
 
-/**
- * When the user enters a global trip total and some products have no stored
- * price, distribute the unaccounted remainder proportionally by quantity so
- * that stats always show real money instead of $0.
- */
-function resolvePriceMap(
-  items: CartItem[],
-  quantities: Record<string, number>,
-  priceMap: Record<string, number | null>,
-  userTotalAmount: number | null,
-): Record<string, number | null> {
-  if (userTotalAmount === null) return priceMap;
-
-  const resolved: Record<string, number | null> = { ...priceMap };
-
-  const qtyFor = (id: string) => quantities[id] ?? (Number.parseFloat(items.find((r) => r.product_id === id)?.quantity_needed ?? '1') || 1);
-
-  const knownSpend = items.reduce((sum, row) => {
-    const p = priceMap[row.product_id];
-    return p === null ? sum : sum + p * qtyFor(row.product_id);
-  }, 0);
-
-  const remainder = Math.max(0, userTotalAmount - knownSpend);
-  const nullQtyTotal = items.reduce(
-    (sum, row) => (priceMap[row.product_id] === null ? sum + qtyFor(row.product_id) : sum),
-    0,
-  );
-
-  if (remainder > 0 && nullQtyTotal > 0) {
-    const fallbackUnit = remainder / nullQtyTotal;
-    for (const row of items) {
-      resolved[row.product_id] ??= fallbackUnit;
-    }
-  }
-
-  return resolved;
-}
-
-function mergeScannedPrices(
-  priceMap: Record<string, number | null>,
-  rawUnitPrices: Record<string, unknown>,
-  productIds: string[],
-): Record<string, number | null> {
-  const merged: Record<string, number | null> = { ...priceMap };
-  for (const [pid, p] of Object.entries(rawUnitPrices)) {
-    if (typeof p === 'number' && p > 0 && productIds.includes(pid)) {
-      merged[pid] = p;
-    }
-  }
-  return merged;
+/** Lo que se llevó de cada producto: lo que dijo el súper, o lo que faltaba en casa. */
+function cantidadDe(row: CartItem, quantities: Record<string, number>): number {
+  return quantities[row.product_id] ?? (Number.parseFloat(row.quantity_needed) || 1);
 }
 
 async function notifyShoppingComplete(userId: string, count: number, storeName: string | null): Promise<void> {
@@ -201,13 +158,17 @@ export async function POST(request: NextRequest) {
     insertTrip(storeName, user.userId, now),
   ]);
 
-  // Merge user-scanned prices over DB prices (validated: positive number, known product)
-  const mergedPriceMap = mergeScannedPrices(priceMap, rawUnitPrices, productIds);
-
-  const resolvedPriceMap = resolvePriceMap(items, quantities, mergedPriceMap, userTotalAmount);
+  // Lo tecleado en el súper manda; si no, el último precio; si tampoco, la
+  // parte que le toca de lo que queda del total. Cada uno con su origen.
+  const precios = resolverPreciosDeCompra({
+    lineas: items.map((row) => ({ productId: row.product_id, quantity: cantidadDe(row, quantities) })),
+    tecleados: rawUnitPrices,
+    ultimos: priceMap,
+    totalTicket: userTotalAmount,
+  });
 
   const { inserted: purchasesInserted, totalSpent, error: purchaseError } =
-    await insertPurchases(items, quantities, resolvedPriceMap, body.brands ?? {}, storeName, tripId, user.userId, now);
+    await insertPurchases(items, quantities, precios, body.brands ?? {}, storeName, tripId, user.userId, now);
 
   if (tripId) {
     const finalTotal = userTotalAmount ?? (totalSpent > 0 ? totalSpent : null);
