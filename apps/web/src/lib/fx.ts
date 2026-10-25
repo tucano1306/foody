@@ -3,7 +3,9 @@
  * Purely decorative: skipped entirely when the user prefers reduced motion.
  */
 
-const CELEBRATION_COLORS = ['#a7ce39', '#22c55e', '#f59e0b', '#38bdf8', '#f472b6', '#facc15'];
+// La aurora más dos chispas cálidas: una celebración toda en azules se ve
+// como un aviso, no como una fiesta.
+const CELEBRATION_COLORS = ['#6b5cff', '#8a57f7', '#4b9bff', '#22d3ee', '#f472b6', '#facc15'];
 
 function reducedMotion(): boolean {
   return (

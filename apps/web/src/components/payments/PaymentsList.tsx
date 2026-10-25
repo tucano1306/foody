@@ -219,13 +219,13 @@ export default function PaymentsList({ initialPayments }: Props) {
           onClick={() => setFilter('all')}
           className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 stat-box shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
             filter === 'all'
-              ? 'border-[#0ea5e9] ring-2 ring-[#0ea5e9]/30 scale-[1.03]'
+              ? 'border-[#1a6fe6] ring-2 ring-[#1a6fe6]/30 scale-[1.03]'
               : 'border-sky-100 hover:scale-105'
           }`}
         >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#0ea5e9' }}
+            style={{ backgroundColor: '#1a6fe6' }}
           >
             <BanknotesIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
@@ -252,7 +252,7 @@ export default function PaymentsList({ initialPayments }: Props) {
         >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#38bdf8' }}
+            style={{ backgroundColor: '#4b9bff' }}
           >
             <CheckCircleIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>
@@ -279,7 +279,7 @@ export default function PaymentsList({ initialPayments }: Props) {
         >
           <div
             className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#3b82f6' }}
+            style={{ backgroundColor: '#8a57f7' }}
           >
             <ClockIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
           </div>

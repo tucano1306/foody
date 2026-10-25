@@ -91,8 +91,8 @@ export const BTN_SOFT =
   'bg-white/80 hover:bg-white active:scale-95 text-slate-800 font-semibold transition-all duration-150';
 
 /** Los dos colores de la barra de reparto — el contraste ES el mensaje. */
-export const SPLIT_INTEREST = '#1d4ed8'; // azul profundo: lo que se lleva el banco
-export const SPLIT_PRINCIPAL = '#7dd3fc'; // azul claro: lo que sí baja tu deuda
+export const SPLIT_INTEREST = '#6230c4'; // azul profundo: lo que se lleva el banco
+export const SPLIT_PRINCIPAL = '#a8b9ff'; // azul claro: lo que sí baja tu deuda
 
 // ─── Tipo de deuda ────────────────────────────────────────────────────────────
 
@@ -157,11 +157,11 @@ export interface StatusMeta {
 }
 
 export const STATUS_META: Record<ProjectionStatus, StatusMeta> = {
-  paid: { label: 'Liquidada', emoji: '🎉', chip: 'bg-sky-200 text-slate-900', ring: '#38bdf8' },
-  healthy: { label: 'En camino', emoji: '✅', chip: 'bg-sky-100 text-slate-800', ring: '#0ea5e9' },
-  slow: { label: 'Va lenta', emoji: '🕐', chip: 'bg-blue-100 text-slate-800', ring: '#3b82f6' },
-  stagnant: { label: 'Casi no baja', emoji: '🐌', chip: 'bg-blue-200 text-slate-900', ring: '#2563eb' },
-  never: { label: 'Sin salida', emoji: '🛑', chip: 'bg-blue-300 text-slate-900', ring: '#1d4ed8' },
+  paid: { label: 'Liquidada', emoji: '🎉', chip: 'bg-sky-200 text-slate-900', ring: '#4b9bff' },
+  healthy: { label: 'En camino', emoji: '✅', chip: 'bg-sky-100 text-slate-800', ring: '#1a6fe6' },
+  slow: { label: 'Va lenta', emoji: '🕐', chip: 'bg-blue-100 text-slate-800', ring: '#8a57f7' },
+  stagnant: { label: 'Casi no baja', emoji: '🐌', chip: 'bg-blue-200 text-slate-900', ring: '#7640e6' },
+  never: { label: 'Sin salida', emoji: '🛑', chip: 'bg-blue-300 text-slate-900', ring: '#6230c4' },
 };
 
 // ─── Movimientos del libro mayor ──────────────────────────────────────────────

@@ -35,7 +35,7 @@ export default function ProgressRing({ value, color, size = 56, emoji, label }: 
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#e0f2fe"
+          stroke="#e7ebff"
           strokeWidth={stroke}
         />
         {/* El avance se pinta con `style` + transición CSS: el anillo muestra el

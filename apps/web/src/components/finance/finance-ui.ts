@@ -65,11 +65,11 @@ export interface KindMeta {
 const CHIP = 'bg-sky-100 text-slate-800';
 
 export const KIND_META: Record<GoalKind, KindMeta> = {
-  trip:      { label: 'Viaje',    emoji: '✈️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#38bdf8' },
-  debt:      { label: 'Deuda',    emoji: '💳', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#0ea5e9' },
-  project:   { label: 'Proyecto', emoji: '🏗️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#60a5fa' },
-  purchase:  { label: 'Compra',   emoji: '🛍️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#7dd3fc' },
-  emergency: { label: 'Fondo',    emoji: '🛟', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#93c5fd' },
+  trip:      { label: 'Viaje',    emoji: '✈️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#4b9bff' },
+  debt:      { label: 'Deuda',    emoji: '💳', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#6b5cff' },
+  project:   { label: 'Proyecto', emoji: '🏗️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#8a57f7' },
+  purchase:  { label: 'Compra',   emoji: '🛍️', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#a8b9ff' },
+  emergency: { label: 'Fondo',    emoji: '🛟', gradient: HEADER_GRADIENT, chip: CHIP, ring: '#a37dff' },
 };
 
 export interface FeasibilityMeta {
@@ -136,11 +136,11 @@ export const FREQUENCY_LABEL: Record<IncomeFrequency, string> = {
 };
 
 
-/** Anillo de salud: azul intenso cuando va bien, azul apagado cuando no. */
+/** Anillo de salud: índigo intenso cuando va bien, lavanda apagada cuando no. */
 export function healthColor(score: number): string {
-  if (score >= 75) return '#0ea5e9';
-  if (score >= 45) return '#60a5fa';
-  return '#93c5fd';
+  if (score >= 75) return '#5843ef';
+  if (score >= 45) return '#8a7cff';
+  return '#cdc9ff';
 }
 
 export interface HealthTier {

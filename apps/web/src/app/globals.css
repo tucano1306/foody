@@ -4,74 +4,113 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ══════════════════════════════════════════════════════════════════════════
-   FOODY — SISTEMA DE DISEÑO
+   FOODY AURORA — SISTEMA DE DISEÑO (oct 2026)
    ══════════════════════════════════════════════════════════════════════════
 
-   Una sola gama azul (decisión tomada en «ux(app): el estándar visual llega a
-   las nueve secciones»), pero AHORA con estructura: cada color tiene un puesto
-   y un motivo. Antes había cuatro familias azules mezcladas —slate, sky, blue,
-   brand, navy— sin regla que dijera cuál usar dónde, y eso no se lee como
-   monocromo elegante: se lee como azul embarrado.
+   El dueño pidió una app que se vea de hoy —o de mañana—, didáctica y bonita.
+   La identidad pasa de «un solo azul» a una AURORA: índigo eléctrico como
+   color de acción, violeta como color de atención y celeste como luz. Siguen
+   siendo tres azules primos —la app no cambia de carácter—, pero ahora tienen
+   brillo, profundidad y un degradado propio que se reconoce de un vistazo.
+
+   Cómo llega a toda la app sin reescribir 137 componentes: las gamas que ya
+   usan (`brand`, `sky`, `blue`, `slate`, `navy`) se REDEFINEN aquí. Cada
+   tono conserva su puesto —el 50 es tinte, el 500 es acción, el 900 es
+   tinta—, así que una clase como `bg-sky-50/70` sigue significando «tarjeta
+   suave» y solo cambia de color. Los contrastes de texto se midieron: blanco
+   sobre brand-600 = 6.8:1, sobre sky-500 = 4.6:1, sobre blue-500 = 4.8:1;
+   slate-500 sobre blanco = 4.8:1.
 
    Las superficies son tokens semánticos (--surface, --ink, --line…) que
-   cambian solos en oscuro. Eso quita la necesidad de escribir `dark:` en cada
-   clase y, sobre todo, arregla un fallo real que tenía la app: en modo oscuro
-   las tarjetas eran marrón-negro (#1c1917) sobre un fondo azul marino
-   (#050e1d). Dos mundos de color distintos en la misma pantalla.
+   cambian solos en oscuro, sin un `dark:` por clase.
    ══════════════════════════════════════════════════════════════════════════ */
 
 @theme {
-  /* ─── Marca: azul vivo ─────────────────────────────────────────────────
-     El azul anterior (#004b8d) era un navy corporativo apagado; en una
-     pantalla de móvil a plena luz se hundía contra el gris. Este mantiene la
-     identidad azul y sube la saturación hasta donde un botón se ve VIVO sin
-     perder contraste: blanco sobre brand-500 = 4.9:1, sobre brand-600 = 6.4:1. */
-  --color-brand-50:  #eef5ff;
-  --color-brand-100: #d9e7ff;
-  --color-brand-200: #b8d2ff;
-  --color-brand-300: #8ab5ff;
-  --color-brand-400: #5492fb;
-  --color-brand-500: #1a6ae8;
-  --color-brand-600: #1257cc;
-  --color-brand-700: #1145a3;
-  --color-brand-800: #133a81;
-  --color-brand-900: #14325f;
+  /* ─── Marca: índigo eléctrico (acción principal) ─────────────────────── */
+  --color-brand-50:  #f1f0ff;
+  --color-brand-100: #e5e3ff;
+  --color-brand-200: #cdc9ff;
+  --color-brand-300: #aba3ff;
+  --color-brand-400: #8a7cff;
+  --color-brand-500: #6b5cff;
+  --color-brand-600: #5843ef;
+  --color-brand-700: #4834cc;
+  --color-brand-800: #3b2ca4;
+  --color-brand-900: #2e2581;
 
-  /* ─── Navy: fondos profundos (sidebar, hero, modo oscuro) ─────────────── */
-  --color-navy-50:  #eff3fa;
-  --color-navy-100: #dbe4f3;
-  --color-navy-200: #b3c4e2;
-  --color-navy-300: #8199c7;
-  --color-navy-400: #4f6ba3;
-  --color-navy-500: #2c4677;
-  --color-navy-600: #1e3358;
-  --color-navy-700: #152442;
-  --color-navy-800: #0e192f;
-  --color-navy-900: #070d18;
+  /* ─── sky: hielo → celeste eléctrico ────────────────────────────────────
+     Es la gama más usada (≈800 clases): tintes de tarjeta y bordes en los
+     tonos claros, interruptores y enlaces en los vivos. Los claros tiran a
+     lavanda para casar con el índigo; los vivos son el celeste de la aurora. */
+  --color-sky-50:  #f3f5ff;
+  --color-sky-100: #e7ebff;
+  --color-sky-200: #d3daff;
+  --color-sky-300: #a8b9ff;
+  --color-sky-400: #4b9bff;
+  --color-sky-500: #1a6fe6;
+  --color-sky-600: #165fcc;
+  --color-sky-700: #1450a8;
+  --color-sky-800: #143f84;
+  --color-sky-900: #133468;
+
+  /* ─── blue: violeta (atención, riesgo, avisos) ──────────────────────────
+     En el monocromo anterior «blue» hacía de color de aviso. Sigue en ese
+     puesto, ahora en violeta: se distingue del celeste de la acción sin
+     recurrir al rojo, que en una app de dinero asusta más de lo que informa. */
+  --color-blue-50:  #f6f2ff;
+  --color-blue-100: #ede5ff;
+  --color-blue-200: #dccdff;
+  --color-blue-300: #c2a8ff;
+  --color-blue-400: #a37dff;
+  --color-blue-500: #8a57f7;
+  --color-blue-600: #7640e6;
+  --color-blue-700: #6230c4;
+  --color-blue-800: #4f279e;
+  --color-blue-900: #3e2180;
+
+  /* ─── slate: grafito frío (texto y neutros) ─────────────────────────── */
+  --color-slate-50:  #f7f8fc;
+  --color-slate-100: #eef0f7;
+  --color-slate-200: #e0e4ef;
+  --color-slate-300: #c6ccdc;
+  --color-slate-400: #949db8;
+  --color-slate-500: #687292;
+  --color-slate-600: #4d5672;
+  --color-slate-700: #384059;
+  --color-slate-800: #22283b;
+  --color-slate-900: #131726;
+
+  /* ─── Navy: espacio profundo (fondos oscuros) ───────────────────────── */
+  --color-navy-50:  #eef0fa;
+  --color-navy-100: #dadff3;
+  --color-navy-200: #b4bde4;
+  --color-navy-300: #8592c9;
+  --color-navy-400: #56639f;
+  --color-navy-500: #343f72;
+  --color-navy-600: #232b55;
+  --color-navy-700: #171c3b;
+  --color-navy-800: #0e1127;
+  --color-navy-900: #070814;
 
   /* ─── Tipografía ───────────────────────────────────────────────────────
-     --font-inter lo inyecta next/font (Inter, auto-alojada) desde
-     app/layout.tsx; aquí solo queda la pila de respaldo por si no llega.
-     Antes esta línea pedía "Inter" sin que nadie la cargara nunca: la app
-     llevaba meses renderizando en la fuente por defecto del sistema, que es
-     justamente lo que hace que una interfaz no tenga cara propia. */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+     Geist para leer —neutra, técnica, de cifras limpias— y Sora para los
+     titulares: geométrica y ancha, es la que da el aire «de mañana». Las dos
+     las auto-aloja next/font (app/layout.tsx): cero peticiones a terceros. */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system,
                "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sora), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
 
   /*
    * Familia de LECTURA, para los párrafos que explican algo en vez de
-   * etiquetar un dato: hoy, los consejos del Plan Financiero. Es una serif a
-   * propósito — esos textos son prosa y en la misma sans que el resto se
-   * leían como un pie de foto más. Stack del sistema: cero peticiones.
+   * etiquetar un dato: hoy, los consejos del Plan Financiero. Stack del
+   * sistema: cero peticiones.
    */
   --font-reading: "Iowan Old Style", "Palatino Linotype", "Palatino", "Georgia",
                   "Noto Serif", "Times New Roman", ui-serif, serif;
 
-  /* ─── Radios ───────────────────────────────────────────────────────────
-     20 px en tarjeta y 28 px en hoja. Los 16 px anteriores, junto a fotos y
-     botones de 12, daban una silueta dura y desigual. */
-  --radius-card:  1.25rem;
-  --radius-sheet: 1.75rem;
+  /* ─── Radios: formas más suaves y amplias ──────────────────────────────── */
+  --radius-card:  1.5rem;
+  --radius-sheet: 2rem;
 
   /* ─── Curvas ───────────────────────────────────────────────────────────
      --ease-out para lo que aparece; --ease-spring para lo que responde al
@@ -85,27 +124,33 @@
    Se declaran fuera de @theme a propósito. Así .dark puede reasignar la misma
    variable y toda la app vira de golpe, sin un `dark:` por clase. */
 :root {
-  --page:        #f4f7fb;  /* fondo de la app */
+  --page:        #f4f5fb;  /* fondo de la app */
   --surface:     #ffffff;  /* tarjeta, hoja, modal */
-  --surface-2:   #f1f5f9;  /* relleno sutil: chips, inputs en reposo */
-  --surface-3:   #e6edf6;  /* relleno activo */
-  --line:        #e5ebf3;  /* borde de 1 px */
-  --line-strong: #cfd9e6;
+  --surface-2:   #f1f2f9;  /* relleno sutil: chips, inputs en reposo */
+  --surface-3:   #e7e9f5;  /* relleno activo */
+  --line:        #e4e6f1;  /* borde de 1 px */
+  --line-strong: #cfd3e6;
 
-  --ink:         #0b1220;  /* texto principal */
-  --ink-muted:   #56677f;  /* secundario legible */
-  --ink-subtle:  #8496ac;  /* metadatos */
+  --ink:         #0c0e1d;  /* texto principal */
+  --ink-muted:   #586079;  /* secundario legible */
+  --ink-subtle:  #8a91ab;  /* metadatos */
 
-  --accent:      #1a6ae8;
-  --accent-soft: #eef5ff;
+  --accent:      #5843ef;
+  --accent-soft: #f1f0ff;
   --on-accent:   #ffffff;
 
-  /* Sombras suaves y tintadas del azul del texto: una sombra gris neutra
-     sobre un fondo azulado se ve sucia. */
-  --shadow-xs: 0 1px 2px rgb(11 18 32 / 0.05);
-  --shadow-sm: 0 1px 2px rgb(11 18 32 / 0.04), 0 2px 8px -2px rgb(11 18 32 / 0.07);
-  --shadow-md: 0 2px 4px rgb(11 18 32 / 0.04), 0 10px 26px -10px rgb(11 18 32 / 0.14);
-  --shadow-lg: 0 10px 44px -14px rgb(11 18 32 / 0.22);
+  /* La firma de la aurora: índigo → violeta → celeste. Se usa en lo que
+     tiene que verse primero (botón principal, marca, pestaña activa). */
+  --aurora:      linear-gradient(135deg, #6b5cff 0%, #8a57f7 48%, #2f9bff 100%);
+  --aurora-soft: linear-gradient(135deg, #f1f0ff 0%, #f6f2ff 50%, #eef6ff 100%);
+  --glow:        0 10px 30px -10px rgb(107 92 255 / 0.55);
+
+  /* Sombras tintadas de índigo: una sombra gris sobre un fondo lavanda se ve
+     sucia; teñida, parece luz. */
+  --shadow-xs: 0 1px 2px rgb(30 24 90 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(30 24 90 / 0.04), 0 4px 14px -4px rgb(30 24 90 / 0.08);
+  --shadow-md: 0 2px 6px rgb(30 24 90 / 0.05), 0 14px 32px -12px rgb(30 24 90 / 0.18);
+  --shadow-lg: 0 18px 50px -16px rgb(30 24 90 / 0.28);
 
   /* Muescas del dispositivo (iPhone con la PWA instalada). El layout declara
      viewportFit: 'cover', así que sin esto la barra inferior queda debajo de
@@ -115,29 +160,34 @@
 
   /* Alto real de la barra de pestañas: lo usa el padding inferior de la
      página para que la última tarjeta no quede tapada. */
-  --tabbar-h: calc(4.25rem + var(--safe-b));
+  /* El dock flota: 4 rem de barra + 0.5 rem de aire bajo él. */
+  --tabbar-h: calc(4.5rem + var(--safe-b));
 }
 
 html.dark {
-  --page:        #070d18;
-  --surface:     #0f1626;
-  --surface-2:   #182134;
-  --surface-3:   #212c44;
-  --line:        #1e2942;
-  --line-strong: #2b3859;
+  --page:        #05060f;
+  --surface:     #0c0e1c;
+  --surface-2:   #141729;
+  --surface-3:   #1c2036;
+  --line:        #1d2138;
+  --line-strong: #2a2f4d;
 
-  --ink:         #e9eef7;
-  --ink-muted:   #9aabc4;
-  --ink-subtle:  #6b7e99;
+  --ink:         #eceefb;
+  --ink-muted:   #a0a6c4;
+  --ink-subtle:  #6d7392;
 
-  --accent:      #5492fb;
-  --accent-soft: #12243f;
-  --on-accent:   #071022;
+  --accent:      #8f85ff;
+  --accent-soft: #191739;
+  --on-accent:   #0a0820;
+
+  --aurora:      linear-gradient(135deg, #7b6dff 0%, #9a6bff 48%, #3aa6ff 100%);
+  --aurora-soft: linear-gradient(135deg, #16143a 0%, #1b1436 50%, #0f1a36 100%);
+  --glow:        0 10px 34px -8px rgb(123 109 255 / 0.55);
 
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px -2px rgb(0 0 0 / 0.45);
-  --shadow-md: 0 2px 4px rgb(0 0 0 / 0.35), 0 10px 26px -10px rgb(0 0 0 / 0.6);
-  --shadow-lg: 0 10px 44px -14px rgb(0 0 0 / 0.7);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 14px -4px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 2px 6px rgb(0 0 0 / 0.4), 0 14px 32px -12px rgb(0 0 0 / 0.65);
+  --shadow-lg: 0 18px 50px -16px rgb(0 0 0 / 0.75);
 
   color-scheme: dark;
 }
@@ -171,7 +221,8 @@ html.dark {
   /* Los titulares necesitan tracking negativo o se ven sueltos: a partir de
      20 px, cada salto de tamaño pide un poco más de apretado. */
   h1, h2, h3 {
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
   }
 
   /* Objetivo táctil mínimo en móvil.
@@ -209,17 +260,20 @@ html.dark {
   background-color: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-sm);
+  /* El filo de luz de arriba es lo que hace que una tarjeta parezca un
+     objeto y no un rectángulo pintado. */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), var(--shadow-sm);
 }
+html.dark .card { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), var(--shadow-sm); }
 
 /* Cristal esmerilado para lo que flota sobre el contenido: barra inferior,
    cabecera pegajosa, píldoras de filtro. Es el gesto visual que más separa
    una interfaz de 2026 de una de 2018 — el fondo se transparenta en vez de
    taparse con un bloque opaco. */
 .glass {
-  background-color: color-mix(in srgb, var(--surface) 78%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background-color: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
 }
 /* Sin soporte de backdrop-filter, el translúcido deja ver el texto de debajo
    y se vuelve ilegible: ahí se pinta opaco. */
@@ -254,11 +308,20 @@ html.dark {
 /* Título de pantalla. clamp() en vez de tres breakpoints: escala continua,
    sin el salto brusco que daba `text-xl sm:text-3xl md:text-4xl`. */
 .t-display {
-  font-size: clamp(1.5rem, 1.15rem + 1.6vw, 2.125rem);
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: -0.035em;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 1.2rem + 1.7vw, 2.25rem);
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.04em;
   color: var(--ink);
+}
+
+/* Texto con la aurora dentro: la marca y alguna cifra estrella. */
+.text-aurora {
+  background: var(--aurora);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* ─── Compatibilidad con las clases Tailwind que ya usa la app ────────────
@@ -281,6 +344,62 @@ html.dark .text-slate-700    { color: var(--ink); }
 html.dark .text-slate-600,
 html.dark .text-slate-500    { color: var(--ink-muted); }
 html.dark .text-slate-400    { color: var(--ink-subtle); }
+/* Tintes y textos que las tarjetas usan a cientos (bg-sky-50/70, text-black…).
+   Sin esto, en oscuro quedaban parches de hielo con letra negra encima. */
+html.dark .text-black        { color: var(--ink); }
+html.dark .bg-sky-50,
+html.dark .bg-sky-50\/70,
+html.dark .bg-sky-50\/80,
+html.dark .bg-sky-50\/60,
+html.dark .bg-white\/60,
+html.dark .bg-white\/70     { background-color: var(--surface); }
+html.dark .bg-sky-100,
+html.dark .bg-blue-50,
+html.dark .bg-sky-50\/40     { background-color: var(--surface-2); }
+html.dark .border-sky-50,
+html.dark .border-sky-100,
+html.dark .border-sky-200    { border-color: var(--line); }
+
+/* Textos de tinta oscura (sky/blue/brand 600–900) sobre fondo oscuro no se
+   leen: en oscuro pasan al tono claro de su misma gama. */
+html.dark .text-sky-600,
+html.dark .text-sky-700,
+html.dark .text-sky-800,
+html.dark .text-sky-900      { color: var(--color-sky-300); }
+html.dark .text-blue-600,
+html.dark .text-blue-700,
+html.dark .text-blue-800,
+html.dark .text-blue-900     { color: var(--color-blue-300); }
+html.dark .text-brand-600,
+html.dark .text-brand-700,
+html.dark .text-brand-800    { color: var(--color-brand-300); }
+
+/* Chips y avisos tintados: en oscuro, el mismo matiz mezclado con la
+   superficie en vez de un parche pastel encendido. */
+html.dark .bg-sky-200        { background-color: color-mix(in srgb, var(--color-sky-400) 22%, var(--surface)); }
+html.dark .bg-blue-100,
+html.dark .bg-blue-200,
+html.dark .bg-blue-300       { background-color: color-mix(in srgb, var(--color-blue-500) 22%, var(--surface)); }
+html.dark .bg-brand-50,
+html.dark .bg-brand-100      { background-color: color-mix(in srgb, var(--color-brand-500) 22%, var(--surface)); }
+html.dark .border-blue-100,
+html.dark .border-blue-200   { border-color: color-mix(in srgb, var(--color-blue-500) 35%, var(--surface)); }
+html.dark .border-brand-100,
+html.dark .border-brand-200  { border-color: color-mix(in srgb, var(--color-brand-500) 35%, var(--surface)); }
+
+/* Degradados de cabecera (from-sky-100 to-blue-100…): son las cabeceras
+   pastel de metas y hojas. En oscuro, un pastel claro con el título en
+   blanco encima no se leía; pasan a un velo de aurora sobre la superficie. */
+html.dark .from-sky-50,
+html.dark .from-sky-100,
+html.dark .from-sky-200,
+html.dark .from-blue-100     { --tw-gradient-from: color-mix(in srgb, var(--color-brand-500) 20%, var(--surface)); }
+html.dark .via-blue-100      { --tw-gradient-via: color-mix(in srgb, var(--color-blue-500) 18%, var(--surface)); }
+html.dark .to-sky-50,
+html.dark .to-sky-100,
+html.dark .to-blue-100,
+html.dark .to-blue-200,
+html.dark .to-slate-100      { --tw-gradient-to: color-mix(in srgb, var(--color-blue-500) 16%, var(--surface)); }
 
 /* ─── Barra de desplazamiento ─────────────────────────────────────────────
    Fina y del color de la línea: presente cuando hace falta, discreta el resto
@@ -341,15 +460,18 @@ a:active,
    La sombra de color bajo un botón (misma tinta que el relleno, muy difusa)
    es lo que lo levanta del fondo sin tener que dibujarle un borde. */
 .btn-primary {
+  /* La aurora como relleno, con el índigo de base por si el degradado no
+     pinta: un botón principal no puede quedarse sin fondo. */
   background-color: var(--color-brand-600);
+  background-image: linear-gradient(135deg, var(--color-brand-600) 0%, var(--color-blue-600) 100%);
   color: #ffffff;
   font-weight: 600;
   letter-spacing: -0.005em;
-  box-shadow: 0 1px 2px rgb(17 69 163 / 0.16), 0 8px 20px -8px rgb(18 87 204 / 0.5);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px rgb(46 37 129 / 0.2), var(--glow);
 }
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--color-brand-700);
-  box-shadow: 0 2px 4px rgb(17 69 163 / 0.2), 0 12px 26px -8px rgb(18 87 204 / 0.6);
+  filter: brightness(1.06) saturate(1.05);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.26), 0 2px 4px rgb(46 37 129 / 0.22), 0 14px 34px -10px rgb(107 92 255 / 0.7);
   transform: translateY(-1px);
 }
 .btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.97); }
@@ -370,13 +492,14 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
    pantallas lo llaman, apuntando ya al azul de la marca. */
 .btn-energy {
   background-color: var(--color-brand-500);
+  background-image: var(--aurora);
   color: #ffffff;
   font-weight: 700;
   letter-spacing: -0.005em;
-  box-shadow: 0 1px 2px rgb(17 69 163 / 0.16), 0 8px 20px -8px rgb(26 106 232 / 0.5);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), var(--glow);
 }
 .btn-energy:hover:not(:disabled) {
-  background-color: var(--color-brand-600);
+  filter: brightness(1.06);
   transform: translateY(-1px);
 }
 .btn-energy:active:not(:disabled) { transform: translateY(0) scale(0.97); }
@@ -390,7 +513,7 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   padding: 1.1rem 1rem 1rem;
-  box-shadow: var(--shadow-sm);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), var(--shadow-sm);
   overflow: hidden;
   transition:
     transform 0.3s var(--ease-out),
@@ -402,7 +525,7 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: var(--accent);
+  background: var(--aurora);
   border-radius: 3px 0 0 3px;
 }
 @media (hover: hover) {
@@ -518,14 +641,27 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
   opacity: 0.5;
   animation: foody-blob-drift 40s var(--ease-smooth) infinite alternate;
 }
-.fun-blob-1 { top: -18%;    left: -12%;  background: radial-gradient(circle, #cfe2ff, transparent 68%); }
-.fun-blob-2 { top: 26%;     right: -18%; background: radial-gradient(circle, #dbe9ff, transparent 68%); animation-delay: -14s; animation-duration: 48s; }
-.fun-blob-3 { bottom: -22%; left: 24%;   background: radial-gradient(circle, #e4edfb, transparent 68%); animation-delay: -26s; animation-duration: 56s; }
+.fun-blob-1 { top: -18%;    left: -12%;  background: radial-gradient(circle, #d9d4ff, transparent 68%); }
+.fun-blob-2 { top: 22%;     right: -18%; background: radial-gradient(circle, #cfe6ff, transparent 68%); animation-delay: -14s; animation-duration: 48s; }
+.fun-blob-3 { bottom: -22%; left: 20%;   background: radial-gradient(circle, #ecdcff, transparent 68%); animation-delay: -26s; animation-duration: 56s; }
 
-html.dark .fun-blob   { opacity: 0.22; filter: blur(100px); }
-html.dark .fun-blob-1 { background: radial-gradient(circle, #16305c, transparent 68%); }
-html.dark .fun-blob-2 { background: radial-gradient(circle, #1a2a52, transparent 68%); }
-html.dark .fun-blob-3 { background: radial-gradient(circle, #102544, transparent 68%); }
+html.dark .fun-blob   { opacity: 0.35; filter: blur(110px); }
+html.dark .fun-blob-1 { background: radial-gradient(circle, #2a1f7a, transparent 68%); }
+html.dark .fun-blob-2 { background: radial-gradient(circle, #0f3a78, transparent 68%); }
+html.dark .fun-blob-3 { background: radial-gradient(circle, #3b1a6e, transparent 68%); }
+
+/* Retícula de puntos que se desvanece hacia abajo: el detalle «de mañana».
+   Es un solo fondo estático (sin animar) y casi invisible: da textura de
+   instrumento sin competir con nada que se lea encima. */
+.fun-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgb(88 67 239 / 0.13) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
+}
+html.dark .fun-grid { background-image: radial-gradient(rgb(143 133 255 / 0.12) 1px, transparent 1.2px); }
 
 @keyframes foody-blob-drift {
   from { transform: translate(0, 0) scale(1); }
@@ -569,8 +705,8 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #102544, transparent
 
 /* Latido del CTA «ya está todo en el carrito» */
 @keyframes foody-glow {
-  0%, 100% { box-shadow: 0 10px 25px -5px rgb(26 106 232 / 0.45); }
-  50%      { box-shadow: 0 10px 40px 2px rgb(26 106 232 / 0.7); }
+  0%, 100% { box-shadow: 0 10px 25px -5px rgb(107 92 255 / 0.45); }
+  50%      { box-shadow: 0 10px 40px 2px rgb(107 92 255 / 0.7); }
 }
 .animate-glow { animation: foody-glow 1.8s ease-in-out infinite; }
 
@@ -607,12 +743,12 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #102544, transparent
 @keyframes foody-pendiente {
   0%,
   100% {
-    background-color: rgb(240 249 255 / 0.7);
-    border-color: rgb(224 242 254);
+    background-color: color-mix(in srgb, var(--color-sky-50) 70%, transparent);
+    border-color: var(--color-sky-100);
   }
   50% {
-    background-color: rgb(217 231 255 / 0.95);
-    border-color: rgb(184 210 255);
+    background-color: color-mix(in srgb, var(--color-brand-100) 95%, transparent);
+    border-color: var(--color-brand-200);
   }
 }
 .pulse-pending { animation: foody-pendiente 4s ease-in-out infinite; }
@@ -628,11 +764,11 @@ html.dark .fun-blob-3 { background: radial-gradient(circle, #102544, transparent
   0%,
   100% {
     background-color: rgb(255 255 255);
-    border-color: rgb(224 242 254);
+    border-color: var(--color-sky-100);
   }
   50% {
-    background-color: rgb(217 231 255 / 0.95);
-    border-color: rgb(184 210 255);
+    background-color: color-mix(in srgb, var(--color-blue-100) 95%, transparent);
+    border-color: var(--color-blue-200);
   }
 }
 .pulse-overdue { animation: foody-atrasada 4s ease-in-out infinite; }

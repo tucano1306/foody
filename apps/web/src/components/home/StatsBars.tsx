@@ -16,14 +16,14 @@ interface Props {
 
 /** Light-to-deep blue palette (FPL-style, matches StatsWheel). */
 const BLUE_PALETTE: readonly string[] = [
-  '#bae6fd', // sky-200
-  '#7dd3fc', // sky-300
-  '#38bdf8', // sky-400
-  '#0ea5e9', // sky-500
-  '#0284c7', // sky-600
-  '#0369a1', // sky-700
-  '#075985', // sky-800
-  '#0c4a6e', // sky-900
+  '#d3daff', // de lavanda claro…
+  '#aba3ff',
+  '#8a7cff',
+  '#6b5cff',
+  '#5843ef',
+  '#4834cc',
+  '#3b2ca4',
+  '#2e2581', // …a índigo profundo
 ];
 
 export default function StatsBars(props: Readonly<Props>) {

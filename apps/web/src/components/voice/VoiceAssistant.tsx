@@ -260,9 +260,9 @@ export default function VoiceAssistant() {
     void startRecognition();
   }
 
-  let buttonColor = '#0ea5e9';
-  if (state === 'listening') buttonColor = '#1d4ed8';
-  else if (state === 'processing') buttonColor = '#3b82f6';
+  let buttonColor = '#1a6fe6';
+  if (state === 'listening') buttonColor = '#6230c4';
+  else if (state === 'processing') buttonColor = '#8a57f7';
 
   return (
     <div className="fixed bottom-24 right-4 z-70 flex flex-col items-end gap-2 md:bottom-8 md:right-8">

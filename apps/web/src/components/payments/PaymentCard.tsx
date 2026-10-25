@@ -58,12 +58,12 @@ function getUrgency(isPaid: boolean, daysUntilDue: number): Urgency {
  * que es exactamente la jerarquía que interesa: lo pendiente destaca solo.
  */
 function getCircleColor(urgency: Urgency, isPaid: boolean): string {
-  if (isPaid) return '#bae6fd';       // sky-200, apagado
-  if (urgency === 'overdue') return '#1d4ed8'; // blue-700, lo más oscuro
-  if (urgency === 'today') return '#2563eb';   // blue-600
-  if (urgency === 'urgent') return '#3b82f6';  // blue-500
-  if (urgency === 'upcoming') return '#0ea5e9'; // sky-500
-  return '#7dd3fc';                    // sky-300, sin prisa
+  if (isPaid) return '#d3daff';       // sky-200, apagado
+  if (urgency === 'overdue') return '#6230c4'; // blue-700, lo más oscuro
+  if (urgency === 'today') return '#7640e6';   // blue-600
+  if (urgency === 'urgent') return '#8a57f7';  // blue-500
+  if (urgency === 'upcoming') return '#1a6fe6'; // sky-500
+  return '#a8b9ff';                    // sky-300, sin prisa
 }
 
 function getUrgencyBadge(urgency: Urgency, daysUntilDue: number): string {
