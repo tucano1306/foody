@@ -8,6 +8,7 @@ import GoalReorderList from './GoalReorderList';
 function goal(id: string, name: string): GoalProjection {
   return {
     goalId: id,
+    cuotaTarjeta: null,
     name,
     emoji: '🎯',
     kind: 'project',

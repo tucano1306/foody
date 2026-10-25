@@ -26,7 +26,6 @@ import GrocerySpendCard from './GrocerySpendCard';
 import HealthDetailSheet from './HealthDetailSheet';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
 import OtherSpendCard from './OtherSpendCard';
-import SimulatorCard from './SimulatorCard';
 import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel } from './finance-ui';
 
 interface Props {
@@ -652,6 +651,7 @@ export default function FinancePlanView({ initialData }: Props) {
             }}
             onDelete={(goal) => setDeleting(goal)}
             onComplete={(goal) => void completeGoal(goal.goalId)}
+            puedeEnlazar={data.credits.some((c) => c.balance > 0)}
           />
         )}
 
@@ -675,9 +675,6 @@ export default function FinancePlanView({ initialData }: Props) {
           </details>
         )}
       </section>
-
-      {/* ─── Simulador ───────────────────────────────────────────────────── */}
-      {data.incomes.length > 0 && activeGoals.length > 0 && <SimulatorCard planInput={planInput} />}
 
       {/* ─── Modales ─────────────────────────────────────────────────────────
           Renderizado condicional directo, SIN AnimatePresence.

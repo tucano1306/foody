@@ -17,6 +17,8 @@ interface Props {
   readonly onEdit: (goal: GoalProjection) => void;
   readonly onDelete: (goal: GoalProjection) => void;
   readonly onComplete: (goal: GoalProjection) => void;
+  /** Hay tarjetas en Deudas a las que enlazar una meta de deuda. */
+  readonly puedeEnlazar?: boolean;
 }
 
 /**
@@ -73,6 +75,7 @@ function SortableGoal({
   onEdit,
   onDelete,
   onComplete,
+  puedeEnlazar,
 }: {
   readonly goal: GoalProjection;
   readonly index: number;
@@ -84,6 +87,7 @@ function SortableGoal({
   readonly onEdit: () => void;
   readonly onDelete: () => void;
   readonly onComplete: () => void;
+  readonly puedeEnlazar?: boolean;
 }) {
   const controls = useDragControls();
 
@@ -99,6 +103,7 @@ function SortableGoal({
       <GoalCard
         goal={goal}
         index={index}
+        puedeEnlazar={puedeEnlazar}
         onContribute={onContribute}
         onEdit={onEdit}
         onDelete={onDelete}
@@ -137,6 +142,7 @@ export default function GoalReorderList({
   onEdit,
   onDelete,
   onComplete,
+  puedeEnlazar,
 }: Props) {
   const ids = goals.map((g) => g.goalId);
 
@@ -159,6 +165,7 @@ export default function GoalReorderList({
           onEdit={() => onEdit(goal)}
           onDelete={() => onDelete(goal)}
           onComplete={() => onComplete(goal)}
+          puedeEnlazar={puedeEnlazar}
         />
       ))}
     </Reorder.Group>
