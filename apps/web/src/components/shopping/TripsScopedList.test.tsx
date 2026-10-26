@@ -32,13 +32,16 @@ function pestana(nombre: RegExp) {
   return screen.getByRole('button', { name: nombre });
 }
 
-/** El titular de las cifras, no el totalcito de la pestaña. */
+/** Los tickets son del 10 de agosto: con «hoy» en agosto, son el mes en curso. */
+const HOY = { year: 2026, month: 8, day: 20 };
+
+/** El titular de las cifras —el ritmo del mes—, no el totalcito de la pestaña. */
 function totalDeLaFranja(): string {
-  return screen.getByText('💰 Total').parentElement?.textContent ?? '';
+  return screen.getByRole('region', { name: 'Este mes en el súper' }).textContent ?? '';
 }
 
 function cuantasCompras(): string {
-  return screen.getByText('🧾 Compras').parentElement?.textContent ?? '';
+  return totalDeLaFranja();
 }
 
 describe('TripsScopedList — filtro Personal / Negocio', () => {
@@ -48,16 +51,16 @@ describe('TripsScopedList — filtro Personal / Negocio', () => {
   });
 
   it('arranca en «Todo» con las tres compras y su total', () => {
-    render(<TripsScopedList trips={TICKETS} />);
+    render(<TripsScopedList trips={TICKETS} hoy={HOY} />);
     expect(pestana(/Todo/)).toHaveAttribute('aria-pressed', 'true');
-    expect(cuantasCompras()).toContain('3');
+    expect(cuantasCompras()).toContain('3 compras');
     expect(totalDeLaFranja()).toContain('700');
   });
 
   it('en «Personal» las CIFRAS de arriba también cambian', () => {
     // Dejar el titular contando todo mientras la lista enseña una parte es
     // justo lo que hacía imposible cuadrar el plan con esta pantalla.
-    render(<TripsScopedList trips={TICKETS} />);
+    render(<TripsScopedList trips={TICKETS} hoy={HOY} />);
     fireEvent.click(pestana(/Personal/));
 
     // Walmart (100) + la mitad de Publix (100) = 200
@@ -68,7 +71,7 @@ describe('TripsScopedList — filtro Personal / Negocio', () => {
   });
 
   it('en «Negocio» deja fuera la compra personal', () => {
-    render(<TripsScopedList trips={TICKETS} />);
+    render(<TripsScopedList trips={TICKETS} hoy={HOY} />);
     fireEvent.click(pestana(/Negocio/));
 
     // Proveedor (400) + la otra mitad de Publix (100) = 500
@@ -77,10 +80,10 @@ describe('TripsScopedList — filtro Personal / Negocio', () => {
   });
 
   it('el CONTEO no se reparte: medio ticket no existe', () => {
-    render(<TripsScopedList trips={TICKETS} />);
+    render(<TripsScopedList trips={TICKETS} hoy={HOY} />);
     fireEvent.click(pestana(/Personal/));
     // Walmart y Publix: dos compras enteras, aunque una sea a medias.
-    expect(cuantasCompras()).toContain('2');
+    expect(cuantasCompras()).toContain('2 compras');
   });
 
   it('abre en el ámbito que le pidan', () => {
@@ -185,5 +188,41 @@ describe('TripsScopedList — por meses', () => {
     fireEvent.click(bloque(/Septiembre/));
     fireEvent.click(bloque(/Septiembre/));
     expect(screen.getByText('2 de 3')).toBeInTheDocument();
+  });
+});
+
+describe('TripsScopedList — el ritmo del mes', () => {
+  const de = (id: string, fecha: string, total: number) => ({
+    ...trip({ id, store: `Tienda ${id}`, total, businessShare: 0 }),
+    purchasedAt: `${fecha}T16:00:00.000Z`,
+  });
+  const HOY = { year: 2026, month: 10, day: 10 };
+  const TICKETS_RITMO = [
+    de('o1', '2026-10-04', 80),
+    de('s1', '2026-09-05', 100),
+    de('s2', '2026-09-25', 50),
+    de('a1', '2026-08-02', 60),
+  ];
+
+  it('compara con lo que solías llevar a estas alturas del mes', () => {
+    render(<TripsScopedList trips={TICKETS_RITMO} hoy={HOY} />);
+    const ritmo = screen.getByRole('region', { name: 'Este mes en el súper' });
+    expect(ritmo).toHaveTextContent('$80.00');
+    // Hasta el día 10: septiembre llevaba 100 y agosto 60 → costumbre 80.
+    expect(ritmo).toHaveTextContent('Igual que de costumbre a estas alturas');
+  });
+
+  it('tocar la barra de un mes cerrado lo abre en la lista', () => {
+    render(<TripsScopedList trips={TICKETS_RITMO} hoy={HOY} />);
+    expect(screen.queryByText('Tienda a1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^ago:/ }));
+
+    expect(screen.getByText('Tienda a1')).toBeInTheDocument();
+  });
+
+  it('cada tienda lleva su inicial en vez del mismo icono para todas', () => {
+    render(<TripsScopedList trips={[de('w', '2026-10-01', 10)]} hoy={HOY} />);
+    expect(screen.getByText('Tienda w').closest('a')).toHaveTextContent(/^TW/);
   });
 });
