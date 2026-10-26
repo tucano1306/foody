@@ -1,24 +1,17 @@
-import Image from 'next/image';
 import { api } from '@/lib/api';
 import SupermarketView from '@/components/shopping/SupermarketView';
+import UltimaCompra from '@/components/shopping/UltimaCompra';
 import ModeToggle from '@/components/layout/ModeToggle';
 import ModernTitle from '@/components/layout/ModernTitle';
-import { getStoreLogo } from '@/lib/store-logo';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Supermercado' };
 
-function fmt(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 export default async function SupermarketPage() {
-  const [items, topStores, catalogo, apartados] = await Promise.all([
+  const [items, topStores, catalogo, apartados, ultima] = await Promise.all([
     api.shoppingList.get().catch(() => []),
+    // Ya no pinta «el súper favorito»: solo da las sugerencias de tienda del
+    // modal de finalizar, ordenadas por visitas.
     api.shoppingTrips.byStore().catch(() => []),
     // Las categorías de TODA la despensa, no solo las de lo pendiente: el
     // desplegable listaba las de los 7 productos por comprar y, al lado de
@@ -26,6 +19,7 @@ export default async function SupermarketPage() {
     api.products.listWithoutPhotos().catch(() => []),
     // Lo que «no estaba en el súper» hoy: se nombra al pie de la lista.
     api.shoppingList.skipped().catch(() => [] as Array<{ productId: string; name: string }>),
+    api.shoppingTrips.latest().catch(() => null),
   ]);
   const allCategories = [
     ...new Set(catalogo.map((p) => p.category?.trim()).filter((c): c is string => !!c)),
@@ -36,9 +30,7 @@ export default async function SupermarketPage() {
   const namedStores = [...topStores]
     .filter((s) => s.storeName && s.storeName !== 'Sin tienda')
     .sort((a, b) => b.count - a.count);
-  const topStore = namedStores[0] ?? null;
   const pastStoreNames = namedStores.map((s) => s.storeName);
-  const topStoreLogo = topStore ? getStoreLogo(topStore.storeName) : null;
 
   return (
     <div className="space-y-6">
@@ -49,29 +41,11 @@ export default async function SupermarketPage() {
         action={<ModeToggle currentMode="supermarket" />}
       />
 
-      {/* ─── Quick stats ────────────────────────────────────────────────────── */}
-      {topStore && (
-        <div className="card flex items-center gap-3 p-3.5">
-          {topStoreLogo ? (
-            <span className="w-12 h-12 rounded-2xl overflow-hidden grid place-items-center bg-white border border-[var(--line)] shrink-0">
-              <Image src={topStoreLogo} alt="" width={48} height={48} className="object-contain w-full h-full" />
-            </span>
-          ) : (
-            <span className="w-12 h-12 rounded-2xl bg-[var(--surface-2)] grid place-items-center text-xl shrink-0" aria-hidden="true">
-              🏪
-            </span>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-[var(--ink)] truncate">{topStore.storeName}</p>
-            {/* Antes: «Tu súper favorito» en micro-mayúsculas ENCIMA del nombre.
-                Una etiqueta que ocupaba más que el dato y que no hacía falta —
-                si es el único que sale aquí, ya se entiende cuál es. */}
-            <p className="t-meta truncate">
-              {topStore.count} {topStore.count === 1 ? 'visita' : 'visitas'} · {fmt(topStore.total)}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* ─── La última compra ─────────────────────────────────────────────────
+          Aquí iba el súper con más visitas y lo gastado en él desde siempre:
+          una estadística, que ya vive en Estadísticas. Al entrar a comprar
+          sirve más lo de la última vez, y de un toque, su ticket. */}
+      {ultima && <UltimaCompra trip={ultima.trip} items={ultima.items} />}
 
       {/* ─── Shopping list ──────────────────────────────────────────────────── */}
       <SupermarketView allCategories={allCategories} initialItems={items} initialApartados={apartados} pastStoreNames={pastStoreNames} />
