@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, projectDebt } from '@/lib/debt-engine';
@@ -89,7 +89,9 @@ function pestana(nombre: RegExp) {
 
 /** Los nombres de deuda son párrafos dentro de su tarjeta, no encabezados. */
 function seVe(nombre: string): boolean {
-  return screen.queryByText(nombre) !== null;
+  // Cada deuda sale en su tarjeta y, con dos o más, también en «cuándo
+  // termina cada una»: basta con que aparezca en algún sitio.
+  return screen.queryAllByText(nombre).length > 0;
 }
 
 function cuantasTarjetas(): number {
@@ -164,3 +166,29 @@ describe('DebtsView — filtro Personal / Negocio', () => {
     expect(seVe('Auto del negocio')).toBe(false);
   });
 })
+
+/**
+ * La cabecera decía dónde acaba el camino («Sin deudas en mar 2028») pero no
+ * en qué orden caen las deudas. Ahora cada una tiene su fila, y el filtro de
+ * ámbito manda también aquí.
+ */
+describe('DebtsView — cuándo termina cada una', () => {
+  const camino = () => screen.getByRole('region', { name: /Camino a quedar libre/ });
+
+  it('una fila por deuda viva, en el ámbito que se mira', () => {
+    render(<DebtsView initial={snapshot()} />);
+    const filas = within(camino());
+    expect(filas.getByText('Cuándo termina cada una')).toBeInTheDocument();
+    expect(filas.getByText('Auto del negocio')).toBeInTheDocument();
+
+    fireEvent.click(pestana(/Personal/));
+    expect(within(camino()).queryByText('Auto del negocio')).toBeNull();
+    expect(within(camino()).getByText('Visa personal')).toBeInTheDocument();
+  });
+
+  it('tocar una fila abre el detalle de esa deuda', async () => {
+    render(<DebtsView initial={snapshot()} />);
+    fireEvent.click(within(camino()).getByRole('button', { name: /Visa personal/ }));
+    expect(await screen.findByRole('heading', { name: /Visa personal/ })).toBeInTheDocument();
+  });
+});
