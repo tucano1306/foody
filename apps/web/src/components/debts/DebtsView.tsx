@@ -5,6 +5,8 @@ import { AnimatePresence } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, type PortfolioDebt } from '@/lib/debt-engine';
+import { caminoDeDeudas } from '@/lib/camino-deudas';
+import { cardTitle } from '@/lib/card-payment';
 import { findDuplicateObligations, type ObligationPayment } from '@/lib/duplicate-obligations';
 import { haptic } from '@/lib/haptic';
 import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
@@ -17,7 +19,8 @@ import DebtDetailSheet from './DebtDetailSheet';
 import DebtEditModal from './DebtEditModal';
 import DebtPaymentModal from './DebtPaymentModal';
 import DebtWizardModal from './DebtWizardModal';
-import { fmtDateKey, fmtMoney, fmtMoneyShort, KIND_META } from './debt-ui';
+import CaminoLibre from './CaminoLibre';
+import { fmtMoney, fmtMoneyShort, KIND_META } from './debt-ui';
 
 interface Props {
   readonly initial: DebtsSnapshot;
@@ -116,6 +119,45 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   }, [visibles]);
 
   /**
+   * El camino a quedar libre: capital pagado y cuándo cae cada deuda.
+   *
+   * El capital pagado y la referencia se reparten por ámbito igual que el
+   * saldo: en «personal», el coche al 60 % del negocio aporta el 40 % de lo
+   * pagado Y de lo que se debía, o el porcentaje de avance saldría inflado.
+   */
+  const camino = useMemo(() => {
+    const lado = scope === 'business' ? 'business' : 'personal';
+    const parte = (x: number, share: number) => (scope === 'all' ? x : splitAmount(x, share)[lado]);
+    const titulos = new Map<string, string>();
+    for (const d of debts) {
+      if (d.cardGroup && !titulos.has(d.cardGroup)) {
+        titulos.set(d.cardGroup, cardTitle(debts.filter((x) => x.cardGroup === d.cardGroup)));
+      }
+    }
+    return caminoDeDeudas(
+      visibles.map((d) => {
+        // La misma referencia que el anillo de cada tarjeta (decorate, en
+        // debt-data.ts): lo que se debía al darla de alta más los consumos.
+        const referencia = d.originalAmount > 0
+          ? d.originalAmount
+          : d.breakdown.totalPrincipalPaid + d.breakdown.principalOwed;
+        return {
+          id: d.id,
+          nombre: d.name,
+          grupo: d.cardGroup,
+          nombreGrupo: d.cardGroup ? titulos.get(d.cardGroup) ?? null : null,
+          saldo: d.currentBalance,
+          capitalPagado: parte(d.breakdown.totalPrincipalPaid, d.businessShare),
+          referencia: parte(referencia, d.businessShare),
+          meses: d.projection.monthsToPayoff,
+          nuncaTermina: d.projection.neverPaysOff,
+        };
+      }),
+      new Date(),
+    );
+  }, [visibles, scope, debts]);
+
+  /**
    * Qué se pinta y en qué orden: una deuda suelta es una tarjeta; los tramos
    * de una misma tarjeta de crédito van juntos, en el sitio del más grande.
    */
@@ -196,42 +238,17 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
         format={(n) => fmtMoneyShort(n, currency)}
       />
 
-      {/* ─── Cartera ─────────────────────────────────────────────────────── */}
+      {/* ─── Cartera: cuánto, cuánto avanzado y cuándo cae cada una ─────── */}
       {visibles.length > 0 && (
-        <section className="rounded-3xl bg-linear-to-br from-sky-500 to-blue-700 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-white/75">Debes en total</p>
-          <p className="text-4xl font-extrabold leading-tight text-white">
-            {fmtMoneyShort(portfolio.totalBalance, currency)}
-          </p>
-
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <div className="rounded-2xl bg-white/15 px-3.5 py-3">
-              <p className="text-[11px] font-semibold text-white/75">Interés cada mes</p>
-              <p className="text-lg font-extrabold text-white">
-                {fmtMoney(portfolio.totalMonthlyInterest, currency, 0)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-white/15 px-3.5 py-3">
-              <p className="text-[11px] font-semibold text-white/75">Cuotas al mes</p>
-              <p className="text-lg font-extrabold text-white">
-                {fmtMoney(portfolio.totalMonthlyCommitment, currency, 0)}
-              </p>
-            </div>
-          </div>
-
-          {portfolio.freeDate && (
-            <p className="mt-3 rounded-2xl bg-white/20 px-3.5 py-2.5 text-xs font-bold text-white">
-              🏁 Sin deudas en {fmtDateKey(portfolio.freeDate)}
-            </p>
-          )}
-          {portfolio.stuck.length > 0 && (
-            <p className="mt-3 rounded-2xl bg-white/20 px-3.5 py-2.5 text-xs font-bold text-white">
-              🛑 {portfolio.stuck.length}{' '}
-              {portfolio.stuck.length === 1 ? 'deuda no termina' : 'deudas no terminan'} con la cuota
-              de ahora
-            </p>
-          )}
-        </section>
+        <CaminoLibre
+          camino={camino}
+          totalBalance={portfolio.totalBalance}
+          interesMes={portfolio.totalMonthlyInterest}
+          cuotasMes={portfolio.totalMonthlyCommitment}
+          libre={portfolio.freeDate}
+          currency={currency}
+          onAbrir={setDetailId}
+        />
       )}
 
       {/* ─── A cuál atacar primero ───────────────────────────────────────── */}
@@ -242,12 +259,12 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             haptic();
             setDetailId(target.id);
           }}
-          className="flex w-full items-center gap-3 rounded-3xl border border-sky-200 bg-sky-50/80 px-4 py-3.5 text-left transition-all duration-150 active:scale-[0.99] hover:shadow-sm"
+          className="card flex w-full items-center gap-3 px-4 py-3.5 text-left transition-all duration-150 active:scale-[0.99] hover:shadow-[var(--shadow-md)]"
         >
           <span className="text-2xl" aria-hidden="true">🎯</span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-black">Ataca primero {target.name}</p>
-            <p className="text-[11px] text-slate-600">
+            <p className="text-sm font-bold text-[var(--ink)]">Ataca primero {target.name}</p>
+            <p className="t-meta">
               Es la de tasa más alta: te cuesta{' '}
               {fmtMoney(target.monthlyInterest, currency)} al mes
             </p>
