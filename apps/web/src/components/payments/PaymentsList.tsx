@@ -4,10 +4,12 @@ import { useCallback, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { MonthlyPayment } from '@foody/types';
-import { BanknotesIcon, CheckCircleIcon, ChevronDownIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { ChevronDownIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 import PaymentCard from '@/components/payments/PaymentCard';
-import StatAmount from '@/components/ui/StatAmount';
-import { haptic } from '@/lib/haptic';
+import MesDePagos from '@/components/payments/MesDePagos';
+import ScopeTabs from '@/components/ui/ScopeTabs';
+import { agendaDePagos } from '@/lib/agenda-pagos';
+import { APP_TZ } from '@/lib/app-time';
 import { matchesFilter, summarizeByScope, totalForFilter, type ScopeFilter } from '@/lib/expense-scope';
 
 interface Props {
@@ -68,8 +70,6 @@ export default function PaymentsList({ initialPayments }: Props) {
     router.push(`/payments?payment=${id}`, { scroll: false });
   }, [router]);
 
-  const toggleFilter = (f: Filter) => setFilter((prev) => (prev === f ? 'all' : f));
-
   // ── Callbacks ────────────────────────────────────────────────────────────
 
   const handleDeleted = useCallback((id: string) => {
@@ -94,7 +94,6 @@ export default function PaymentsList({ initialPayments }: Props) {
   const scopeSummary = summarizeByScope(
     allPayments.map((p) => ({ id: p.id, name: p.name, amount: p.amount, businessShare: p.businessShare ?? 0 })),
   );
-  const hasBusiness = scopeSummary.businessCount + scopeSummary.mixedCount > 0;
   const payments = allPayments.filter((p) => matchesFilter(p.businessShare ?? 0, scope));
 
   const now = new Date();
@@ -159,146 +158,59 @@ export default function PaymentsList({ initialPayments }: Props) {
     }
   }
 
+  // Lo que sale en los próximos días, con la parte del ámbito que se mira.
+  const agenda = agendaDePagos(payments, (p) => scopedSum([p], amountOf), now);
+  const mes = new Intl.DateTimeFormat('es-MX', { month: 'long', timeZone: APP_TZ }).format(now);
+  const iconoDe = (category: string | null) => CATEGORY_ICONS[category ?? 'other'] ?? '💰';
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       {/* ─── Personal / Negocio ───────────────────────────────────────────
-          Solo aparece cuando hay algo marcado como negocio. Quien no lo use no
-          se entera de que existe, y quien lo use lo encuentra sin buscarlo. */}
-      {hasBusiness && (
-        <div className="flex gap-1.5 rounded-2xl bg-sky-100/70 p-1.5">
-          {([
-            { id: 'all', emoji: '📊', label: 'Todo', total: scopeSummary.total },
-            { id: 'personal', emoji: '🏠', label: 'Personal', total: scopeSummary.personal },
-            { id: 'business', emoji: '🏢', label: 'Negocio', total: scopeSummary.business },
-          ] as const).map((tab) => {
-            const active = scope === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => { haptic(); setScope(tab.id); }}
-                aria-pressed={active}
-                className={`flex-1 rounded-xl px-2 py-2.5 transition-all duration-150 active:scale-95 ${
-                  active ? 'bg-sky-500 text-white shadow-sm' : 'text-slate-600 hover:bg-white/60'
-                }`}
-              >
-                <span className="block text-xs font-bold leading-tight">
-                  <span aria-hidden="true">{tab.emoji}</span> {tab.label}
-                </span>
-                <span className={`block text-[11px] font-semibold ${active ? 'text-white/80' : 'text-slate-400'}`}>
-                  {formatTotal(tab.total)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+          Era una copia a mano del selector compartido, con su propio azul:
+          justo la divergencia que ScopeTabs existe para evitar. Se oculta solo
+          cuando no hay nada del negocio. */}
+      <ScopeTabs value={scope} onChange={setScope} summary={scopeSummary} format={formatTotal} />
 
       {/* ─── Accumulated debt alert ──────────────────────────────────────── */}
       {totalAccumulated > 0 && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
-          <span className="text-2xl shrink-0">🚨</span>
+        <div className="card flex items-center gap-3 px-4 py-3">
+          <span
+            aria-hidden="true"
+            className="grid place-items-center w-10 h-10 shrink-0 rounded-2xl text-white shadow-[var(--glow)]"
+            style={{ backgroundImage: 'var(--aurora)' }}
+          >
+            <ExclamationTriangleIcon className="w-5 h-5" />
+          </span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-blue-700">
+            <p className="text-sm font-bold text-[var(--ink)]">
               Ya llevas {formatTotal(totalAccumulated)} acumulado
             </p>
-            <p className="text-xs text-blue-600 mt-0.5">
+            <p className="t-meta mt-0.5">
               Meses vencidos sin pagar — cada pago que registres abona al mes más antiguo.
             </p>
           </div>
         </div>
       )}
 
-      {/* ─── Monthly summary ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-3">
-        {/* Total mensual — resets filter */}
-        <button
-          type="button"
-          onClick={() => setFilter('all')}
-          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 stat-box shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
-            filter === 'all'
-              ? 'border-[#1a6fe6] ring-2 ring-[#1a6fe6]/30 scale-[1.03]'
-              : 'border-sky-100 hover:scale-105'
-          }`}
-        >
-          <div
-            className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#1a6fe6' }}
-          >
-            <BanknotesIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-          </div>
-          <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
-            Total mensual
-          </p>
-          <StatAmount
-            value={formatTotal(totalExpenses)}
-            className="text-black font-bold mt-1 text-center leading-tight [--stat-max:1rem] sm:[--stat-max:1.5rem]"
-          >
-            {mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
-          </StatAmount>
-        </button>
-
-        {/* Pagado */}
-        <button
-          type="button"
-          onClick={() => toggleFilter('paid')}
-          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 stat-box shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
-            filter === 'paid'
-              ? 'border-sky-500 ring-2 ring-sky-500/30 scale-[1.03]'
-              : 'border-sky-100 hover:scale-105'
-          }`}
-        >
-          <div
-            className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#4b9bff' }}
-          >
-            <CheckCircleIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-          </div>
-          <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
-            Pagado
-          </p>
-          <StatAmount
-            value={formatTotal(totalPaid)}
-            className="text-black font-bold mt-1 text-center leading-tight [--stat-max:1rem] sm:[--stat-max:1.5rem]"
-          >
-            {mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
-          </StatAmount>
-        </button>
-
-        {/* Pendiente */}
-        <button
-          type="button"
-          onClick={() => toggleFilter('pending')}
-          className={`flex flex-col items-center bg-white border rounded-xl p-4 sm:p-6 stat-box shadow-sm active:scale-95 transition-all duration-200 min-w-0 focus:outline-none ${
-            filter === 'pending'
-              ? 'border-sky-400 ring-2 ring-sky-400/30 scale-[1.03]'
-              : 'border-sky-100 hover:scale-105'
-          }`}
-        >
-          <div
-            className="w-11 h-11 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-3"
-            style={{ backgroundColor: '#8a57f7' }}
-          >
-            <ClockIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-          </div>
-          <p className="text-slate-600 font-semibold text-[11px] sm:text-sm text-center leading-tight">
-            Pendiente
-          </p>
-          <StatAmount
-            value={formatTotal(totalExpenses - totalPaid)}
-            className="text-black font-bold mt-1 text-center leading-tight [--stat-max:1rem] sm:[--stat-max:1.5rem]"
-          >
-            {mixedCurrencies && <span className="text-xs text-slate-400 ml-1">*</span>}
-          </StatAmount>
-          {totalSnoozed > 0 && (
-            <p className="text-slate-400 text-[11px] sm:text-xs mt-1 text-center leading-tight">
-              incl. {formatTotal(totalSnoozed)} pospuesto
-            </p>
-          )}
-        </button>
-      </div>
+      {/* ─── El mes: pagado, falta y lo que viene ───────────────────────── */}
+      {payments.length > 0 && (
+        <MesDePagos
+          mes={mes}
+          total={totalExpenses}
+          pagado={totalPaid}
+          pospuesto={totalSnoozed}
+          cuantosPagados={paid.length}
+          cuantosPendientes={pending.length + snoozed.length}
+          agenda={agenda}
+          filtro={filter}
+          onFiltro={setFilter}
+          onAbrir={goToPayment}
+          formato={formatTotal}
+          iconoDe={iconoDe}
+        />
+      )}
 
       {/* ─── All-time paid history ────────────────────────────────────────── */}
       {payments.length > 0 && (
@@ -368,13 +280,13 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Pending payments ─────────────────────────────────────────────── */}
       {pending.length > 0 && filter !== 'paid' && (
-        <section className="bg-sky-50/70 rounded-2xl p-5 border-2 border-sky-200/80 shadow-sm">
+        <section className="card p-4 sm:p-5">
           <div className="flex items-center gap-2.5 mb-4">
-            <span className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+            <span className="w-9 h-9 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center text-lg shrink-0" aria-hidden="true">
               ⏰
             </span>
-            <h2 className="text-lg font-bold text-sky-900">Pendientes</h2>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sky-200/80 text-sky-800">
+            <h2 className="text-lg font-bold text-[var(--ink)]">Pendientes</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
               {pending.length}
             </span>
           </div>
@@ -395,12 +307,12 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Snoozed payments ─────────────────────────────────────────────── */}
       {snoozed.length > 0 && filter !== 'paid' && (
-        <section className="bg-sky-50/70/80 rounded-2xl p-5 border-2 border-sky-200/80 shadow-sm">
+        <section className="card p-4 sm:p-5">
           <div className="flex items-center gap-2.5 mb-4">
             <span className="w-9 h-9 rounded-xl bg-slate-200/70 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
               ⏸
             </span>
-            <h2 className="text-lg font-bold text-slate-700">Pospuestos</h2>
+            <h2 className="text-lg font-bold text-[var(--ink)]">Pospuestos</h2>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-600">
               {snoozed.length}
             </span>
@@ -422,13 +334,13 @@ export default function PaymentsList({ initialPayments }: Props) {
 
       {/* ─── Paid this month ──────────────────────────────────────────────── */}
       {paid.length > 0 && filter !== 'pending' && (
-        <section className="bg-sky-50/70 rounded-2xl p-5 border-2 border-sky-200/80 shadow-sm">
+        <section className="card p-4 sm:p-5">
           <div className="flex items-center gap-2.5 mb-4">
-            <span className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+            <span className="w-9 h-9 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center text-lg shrink-0" aria-hidden="true">
               ✅
             </span>
-            <h2 className="text-lg font-bold text-sky-900">Pagados este mes</h2>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sky-200/80 text-sky-800">
+            <h2 className="text-lg font-bold text-[var(--ink)]">Pagados este mes</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
               {paid.length}
             </span>
           </div>

@@ -773,6 +773,35 @@ html.dark .fun-grid { background-image: radial-gradient(rgb(143 133 255 / 0.12) 
 }
 .pulse-overdue { animation: foody-atrasada 4s ease-in-out infinite; }
 
+/* Las dos respiraciones en oscuro. Una animación pisa cualquier fondo, también
+   el remapeo de html.dark: con los fotogramas de arriba, la tarjeta de un pago
+   pendiente latía en lavanda claro con el nombre en blanco encima, ilegible.
+   Aquí respiran de la superficie oscura a un velo de su mismo matiz. */
+@keyframes foody-pendiente-oscuro {
+  0%,
+  100% {
+    background-color: var(--surface);
+    border-color: var(--line);
+  }
+  50% {
+    background-color: color-mix(in srgb, var(--color-brand-500) 18%, var(--surface));
+    border-color: color-mix(in srgb, var(--color-brand-500) 40%, var(--surface));
+  }
+}
+@keyframes foody-atrasada-oscuro {
+  0%,
+  100% {
+    background-color: var(--surface);
+    border-color: var(--line);
+  }
+  50% {
+    background-color: color-mix(in srgb, var(--color-blue-500) 20%, var(--surface));
+    border-color: color-mix(in srgb, var(--color-blue-500) 42%, var(--surface));
+  }
+}
+html.dark .pulse-pending { animation-name: foody-pendiente-oscuro; }
+html.dark .pulse-overdue { animation-name: foody-atrasada-oscuro; }
+
 /* ─── Aparición por scroll ────────────────────────────────────────────────── */
 .reveal-section {
   opacity: 0;
