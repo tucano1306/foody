@@ -35,8 +35,9 @@ export const LABEL = 'text-slate-600';
 export const CARD = 'bg-sky-50/70 border border-sky-100';
 /** Encabezado degradado pastel. */
 export const HEADER_GRADIENT = 'from-sky-100 to-blue-100';
-/** Botón principal. */
-export const BTN_PRIMARY = 'bg-sky-500 hover:bg-sky-600 text-white';
+/** Botón principal: el de toda la app (aurora con su brillo). Era un
+ *  sky-500 plano, y en el Plan se veía de otra familia que el resto. */
+export const BTN_PRIMARY = 'btn-primary';
 /** Botón secundario sobre pastel. */
 export const BTN_SOFT = 'bg-white/80 text-slate-800 hover:bg-white';
 

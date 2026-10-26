@@ -536,8 +536,9 @@ export default function FinancePlanView({ initialData }: Props) {
             className="relative mt-2 flex w-full items-center gap-3 rounded-2xl bg-white/70 px-3.5 py-2.5 text-left transition active:scale-[0.99] hover:bg-white"
           >
             <span
+              style={includeBusiness ? { backgroundImage: 'var(--aurora)' } : undefined}
               className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                includeBusiness ? 'bg-sky-500' : 'bg-slate-300'
+                includeBusiness ? 'shadow-[var(--glow)]' : 'bg-slate-300'
               }`}
             >
               <span
