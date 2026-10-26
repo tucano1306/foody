@@ -8,6 +8,7 @@ import SectionHeader from '@/components/layout/SectionHeader';
 import GroceryCategoryBreakdown from '@/components/finance/GroceryCategoryBreakdown';
 import type { GroceryInsight } from '@/lib/grocery-insights';
 import { getStoreLogo } from '@/lib/store-logo';
+import { lecturaDespensa, lecturaGastoMensual, lecturaProductos, lecturaSupermercados } from '@/lib/lecturas-stats';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -61,12 +62,15 @@ function CardHeader({
   chipClass,
   title,
   subtitle,
+  lectura,
   trailing,
 }: {
   readonly emoji: string;
   readonly chipClass: string;
   readonly title: string;
   readonly subtitle?: string;
+  /** Qué significa el gráfico, en una frase (ver lecturas-stats.ts). */
+  readonly lectura?: string | null;
   readonly trailing?: React.ReactNode;
 }) {
   return (
@@ -79,6 +83,7 @@ function CardHeader({
       </span>
       <div className="min-w-0 flex-1">
         <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">{title}</h3>
+        {lectura && <p className="text-[13px] font-semibold text-[var(--accent)] mt-0.5 leading-snug">{lectura}</p>}
         {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
       {trailing}
@@ -127,15 +132,15 @@ export default function StatsContent({
 
         {/* ─── Insights ────────────────────────────────────────────────────── */}
         {insights.length > 0 && (
-          <section className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
-            <CardHeader emoji="✨" chipClass="bg-sky-50 dark:bg-sky-950/40" title="Insights del mes" />
+          <section className="card p-5">
+            <CardHeader emoji="✨" chipClass="bg-[var(--accent-soft)]" title="Insights del mes" />
             <div className="space-y-2 card-stagger">
               {insights.map((insight) => (
                 <div
                   key={insight}
-                  className="flex items-start gap-2 bg-slate-50 dark:bg-white/10 rounded-xl px-4 py-3"
+                  className="flex items-start gap-2 bg-[var(--surface-2)] rounded-xl px-4 py-3"
                 >
-                  <p className="text-slate-800 dark:text-white text-sm">{insight}</p>
+                  <p className="text-[var(--ink)] text-sm">{insight}</p>
                 </div>
               ))}
             </div>
@@ -143,11 +148,12 @@ export default function StatsContent({
         )}
 
         {/* ─── Monthly spending ─────────────────────────────────────────────── */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <section className="card p-5">
           <CardHeader
             emoji="💵"
-            chipClass="bg-sky-50 dark:bg-sky-950/40"
+            chipClass="bg-[var(--accent-soft)]"
             title="Gasto mensual"
+            lectura={lecturaGastoMensual(monthlySpending, thisMonthKey)}
             trailing={
               totalThisMonth > 0 ? (
                 <span className="text-slate-500 dark:text-slate-400 text-sm shrink-0">
@@ -186,10 +192,15 @@ export default function StatsContent({
                       <div
                         className={`w-full rounded-t-lg grow-bar-y transition-colors duration-300 ${
                           isCurrent
-                            ? 'bg-brand-400 group-hover:bg-brand-500'
-                            : 'bg-slate-200 dark:bg-white/20 group-hover:bg-slate-300 dark:group-hover:bg-white/30'
+                            ? 'shadow-[var(--glow)] group-hover:brightness-110'
+                            : 'bg-brand-200 dark:bg-brand-900 group-hover:brightness-105'
                         }`}
-                        style={{ height: `${heightPct}%`, animationDelay: `${i * 70}ms` }}
+                        style={{
+                          height: `${heightPct}%`,
+                          animationDelay: `${i * 70}ms`,
+                          // El mes en curso, en aurora: el que se mira.
+                          ...(isCurrent ? { backgroundImage: 'var(--aurora)' } : {}),
+                        }}
                         title={`${m.trips} compras`}
                       />
                     </div>
@@ -205,11 +216,12 @@ export default function StatsContent({
 
         {/* ─── Top products ─────────────────────────────────────────────────── */}
         {topProducts.length > 0 && (
-          <section className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
+          <section className="card p-5">
             <CardHeader
               emoji="🏆"
-              chipClass="bg-sky-50 dark:bg-sky-950/40"
+              chipClass="bg-[var(--accent-soft)]"
               title="Productos más comprados"
+              lectura={lecturaProductos(topProducts)}
             />
             <div className="space-y-3">
               {topProducts.map((p, i) => {
@@ -236,8 +248,8 @@ export default function StatsContent({
                     </div>
                     <div className="h-2 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-brand-400 group-hover:bg-brand-500 rounded-full grow-bar transition-colors duration-300"
-                        style={{ width: `${pct}%`, animationDelay: `${i * 80}ms` }}
+                        className="h-full rounded-full grow-bar group-hover:brightness-110"
+                        style={{ width: `${pct}%`, animationDelay: `${i * 80}ms`, backgroundImage: 'var(--aurora)' }}
                       />
                     </div>
                   </button>
@@ -254,10 +266,10 @@ export default function StatsContent({
             «Sin detallar» enseñaba $49.90 de un mes de $176.94 y las cifras de
             las dos pantallas no cuadraban. */}
         {(groceries.categories.length > 0 || groceries.unitemized !== null) && (
-          <section className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
+          <section className="card p-5">
             <CardHeader
               emoji="📂"
-              chipClass="bg-sky-50 dark:bg-sky-950/40"
+              chipClass="bg-[var(--accent-soft)]"
               title="Gastos en comida por categoría"
               subtitle={`Tus ${formatCurrencyFine(groceries.spentThisMonth)} de super este mes · vs mes anterior`}
             />
@@ -272,12 +284,13 @@ export default function StatsContent({
         <SectionHeader emoji="🏠" title="Despensa y supermercados" />
 
         {/* ─── Stock overview ──────────────────────────────────────────────── */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <section className="card p-5">
           <CardHeader
             emoji="🥫"
-            chipClass="bg-brand-50 dark:bg-brand-900/30"
+            chipClass="bg-[var(--accent-soft)]"
             title="Estado de tu despensa"
-            subtitle={`${totalProducts} productos · toca una barra para ver cuáles`}
+            lectura={lecturaDespensa(stock)}
+            subtitle={`${totalProducts} productos`}
           />
           <div className="space-y-3">
             {/* Lleno */}
@@ -288,7 +301,7 @@ export default function StatsContent({
               className="w-full text-left group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-sky-600 dark:text-sky-400 font-medium group-hover:text-sky-700 dark:group-hover:text-sky-300 transition">
+                <span className="text-[var(--ink)] font-medium">
                   ✅ Lleno
                 </span>
                 <span className="text-slate-500 dark:text-slate-400">
@@ -297,7 +310,7 @@ export default function StatsContent({
               </div>
               <div className="h-3 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-sky-400 group-hover:bg-sky-500 rounded-full grow-bar transition-colors duration-300"
+                  className="h-full bg-brand-200 dark:bg-brand-900 rounded-full grow-bar group-hover:brightness-105"
                   style={{ width: `${fullPct}%` }}
                 />
               </div>
@@ -311,7 +324,7 @@ export default function StatsContent({
               className="w-full text-left group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-sky-500 dark:text-sky-400 font-medium group-hover:text-sky-600 transition">
+                <span className="text-[var(--ink)] font-medium">
                   ⚠️ Queda poco
                 </span>
                 <span className="text-slate-500 dark:text-slate-400">
@@ -320,7 +333,7 @@ export default function StatsContent({
               </div>
               <div className="h-3 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-sky-400 group-hover:bg-sky-500 rounded-full grow-bar transition-colors duration-300"
+                  className="h-full bg-brand-400 rounded-full grow-bar group-hover:brightness-110"
                   style={{ width: `${halfPct}%`, animationDelay: '120ms' }}
                 />
               </div>
@@ -334,7 +347,7 @@ export default function StatsContent({
               className="w-full text-left group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-blue-500 dark:text-blue-400 font-medium group-hover:text-blue-600 transition">
+                <span className="text-[var(--ink)] font-medium">
                   🚨 Se acabó
                 </span>
                 <span className="text-slate-500 dark:text-slate-400">
@@ -343,8 +356,8 @@ export default function StatsContent({
               </div>
               <div className="h-3 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 group-hover:bg-blue-600 rounded-full grow-bar transition-colors duration-300"
-                  style={{ width: `${emptyPct}%`, animationDelay: '240ms' }}
+                  className="h-full rounded-full grow-bar group-hover:brightness-110"
+                  style={{ width: `${emptyPct}%`, animationDelay: '240ms', backgroundImage: 'var(--aurora)' }}
                 />
               </div>
             </button>
@@ -352,12 +365,12 @@ export default function StatsContent({
         </section>
 
         {/* ─── Top supermarkets ────────────────────────────────────────────── */}
-        <section className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <section className="card p-5">
           <CardHeader
             emoji="🛒"
-            chipClass="bg-sky-50 dark:bg-sky-950/40"
+            chipClass="bg-[var(--accent-soft)]"
             title="Supermercados más usados"
-            subtitle={topStores.length > 0 ? undefined : 'Basado en tus compras registradas'}
+            lectura={lecturaSupermercados(topStores)}
           />
           {topStores.length === 0 ? (
             <p className="text-slate-500 dark:text-slate-400 text-sm text-center py-4">
@@ -398,8 +411,8 @@ export default function StatsContent({
                     </div>
                     <div className="h-2.5 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-brand-400 group-hover:bg-brand-500 rounded-full grow-bar transition-colors duration-300"
-                        style={{ width: `${pct}%`, animationDelay: `${i * 80}ms` }}
+                        className="h-full rounded-full grow-bar group-hover:brightness-110"
+                        style={{ width: `${pct}%`, animationDelay: `${i * 80}ms`, backgroundImage: 'var(--aurora)' }}
                       />
                     </div>
                   </button>
