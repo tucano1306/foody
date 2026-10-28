@@ -840,6 +840,28 @@ export const api = {
       `;
       return rows.map((row) => mapShoppingTrip(row as Record<string, unknown>));
     },
+    /**
+     * El último ticket de súper, con cuántos productos llevó.
+     *
+     * Para la cabecera del Modo Supermercado, que enseñaba «el súper con más
+     * visitas y lo gastado en él desde siempre»: una estadística en la puerta
+     * de la tienda. Lo que sirve al entrar es lo último que se compró, dónde y
+     * por cuánto — y de un toque, el ticket.
+     */
+    latest: async (): Promise<{ trip: ShoppingTrip; items: number } | null> => {
+      const { userId } = await getAuthContext();
+      const rows = await sql`
+        SELECT t.*,
+          (SELECT COUNT(*) FROM product_purchases pp WHERE pp.trip_id = t.id) AS item_count
+        FROM shopping_trips t
+        WHERE t.user_id = ${userId} AND t.kind = 'grocery'
+        ORDER BY t.date DESC, t.created_at DESC
+        LIMIT 1
+      `;
+      const row = rows[0] as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return { trip: mapShoppingTrip(row), items: asInteger(row.item_count) };
+    },
     /** Cuántos tickets NO son de super este mes — para el enlace al plan. */
     otherKindsThisMonth: async (): Promise<{ count: number; total: number }> => {
       const { userId } = await getAuthContext();
