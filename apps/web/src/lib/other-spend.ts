@@ -15,7 +15,7 @@
  * finance-data.ts. Se prueba en other-spend.test.ts.
  */
 import type { ExpenseKind } from './expense-kind';
-import { chooseBaseline, monthKeyOf, type BaselineSource, type MonthTotal } from './grocery-insights';
+import { chooseBaseline, MIN_DAYS_FOR_PACE, monthKeyOf, type BaselineSource, type MonthTotal } from './grocery-insights';
 
 export interface KindSpendInput {
   kind: ExpenseKind;
@@ -65,6 +65,20 @@ export interface OtherSpendInsight {
   trendPct: number | null;
   /** Hay algo que enseñar: sin esto la sección ni se monta. */
   hasData: boolean;
+  /**
+   * Los meses para las barras de «Gasto por mes», del más antiguo al actual.
+   *
+   * La tarjeta de comida tenía su gráfico y esta no, así que el gasto de fuera
+   * del super era una cifra suelta sin historia: no se veía si este mes era
+   * normal. Los meses sin gasto ENTRE meses con gasto van a cero —ese mes de
+   * verdad no se gastó—; los anteriores al primero no salen.
+   */
+  history: MonthTotal[];
+  daysElapsed: number;
+  daysInMonth: number;
+  dailyPace: number;
+  /** Mismo umbral que el super: antes del día 7 el ritmo es ruido. */
+  paceIsMeaningful: boolean;
 }
 
 function round2(n: number): number {
@@ -85,7 +99,33 @@ export const EMPTY_OTHER_SPEND: OtherSpendInsight = {
   topPlaces: [],
   trendPct: null,
   hasData: false,
+  history: [],
+  daysElapsed: 1,
+  daysInMonth: 30,
+  dailyPace: 0,
+  paceIsMeaningful: false,
 };
+
+/** Los meses de `desde` a `hasta` (YYYY-MM), ambos incluidos. */
+function mesesEntre(desde: string, hasta: string): string[] {
+  const [y1, m1] = desde.split('-').map(Number);
+  const [y2, m2] = hasta.split('-').map(Number);
+  const out: string[] = [];
+  for (let n = y1 * 12 + (m1 - 1); n <= y2 * 12 + (m2 - 1); n++) {
+    out.push(`${Math.floor(n / 12)}-${String((n % 12) + 1).padStart(2, '0')}`);
+  }
+  return out;
+}
+
+/** Del primer mes con gasto al actual, con los huecos a cero. */
+function historialConHuecos(totales: readonly MonthTotal[], actual: string): MonthTotal[] {
+  const conGasto = totales.filter((m) => m.total > 0 && m.month <= actual).map((m) => m.month).sort();
+  if (conGasto.length === 0) return [];
+  const porMes = new Map(totales.map((m) => [m.month, m]));
+  return mesesEntre(conGasto[0], actual).map(
+    (month) => porMes.get(month) ?? { month, total: 0, trips: 0 },
+  );
+}
 
 export function computeOtherSpend(input: OtherSpendInput): OtherSpendInsight {
   const now = input.now ?? new Date();
@@ -148,6 +188,11 @@ export function computeOtherSpend(input: OtherSpendInput): OtherSpendInsight {
     topPlaces: input.places.slice(0, 3),
     trendPct: avgMonthly > 0 ? round2(((projectedMonthEnd - avgMonthly) / avgMonthly) * 100) : null,
     hasData: spentThisMonth > 0 || past.length > 0,
+    history: historialConHuecos(input.monthlyTotals, currentKey).map((m) => ({ ...m, total: round2(m.total) })),
+    daysElapsed,
+    daysInMonth,
+    dailyPace: round2(spentThisMonth / daysElapsed),
+    paceIsMeaningful: daysElapsed >= MIN_DAYS_FOR_PACE && spentThisMonth > 0,
   };
 }
 
@@ -180,5 +225,7 @@ export function personalOtherSpend(insight: OtherSpendInsight, businessShare: nu
     byKind: insight.byKind.map(cutKind),
     biggestMover: insight.biggestMover ? cutKind(insight.biggestMover) : null,
     topPlaces: insight.topPlaces.map((p) => ({ ...p, total: cut(p.total) })),
+    history: insight.history.map((m) => ({ ...m, total: cut(m.total) })),
+    dailyPace: cut(insight.dailyPace),
   };
 }

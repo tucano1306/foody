@@ -39,7 +39,7 @@ interface Props {
   readonly aliases?: ReadonlyArray<{ readonly productId: string; readonly aliasNorm: string }>;
   /**
    * Con qué tipo abre el formulario: lo dice la tarjeta desde la que se tocó
-   * «Escanear ticket». Sin esto siempre arrancaba en súper, así que escanear
+   * «Agregar ticket». Sin esto siempre arrancaba en súper, así que agregar
    * desde «Fuera del super» acababa registrando el gasto en Compras.
    */
   readonly kindInicial?: ExpenseKind;

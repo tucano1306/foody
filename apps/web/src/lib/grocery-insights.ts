@@ -147,7 +147,7 @@ export const EMPTY_GROCERY_INSIGHT: GroceryInsight = {
 };
 
 /** Días de mes necesarios para que proyectar el cierre signifique algo. */
-const MIN_DAYS_FOR_PACE = 7;
+export const MIN_DAYS_FOR_PACE = 7;
 /** Meses cerrados necesarios para que el promedio sea representativo. */
 const MIN_MONTHS_FOR_HISTORY = 2;
 

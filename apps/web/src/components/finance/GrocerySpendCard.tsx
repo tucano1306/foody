@@ -2,8 +2,9 @@
 
 import { motion } from 'framer-motion';
 import type { GroceryInsight, MonthTotal } from '@/lib/grocery-insights';
-import { fmtMoney, fmtMoneyFine } from './finance-ui';
-import ScanTicketButton from './ScanTicketButton';
+import { fmtMoneyFine } from './finance-ui';
+import HistorialMensual from './HistorialMensual';
+import AddTicketButton from './AddTicketButton';
 
 interface Props {
   readonly groceries: GroceryInsight;
@@ -21,11 +22,6 @@ function mesLargo(d: Date): string {
   }
 }
 
-function monthLabel(key: string): string {
-  const m = Number(key.split('-')[1]);
-  return MONTHS_SHORT[m - 1] ?? key;
-}
-
 /**
  * Cómo tus compras reales afectan al plan: el ritmo del mes contra el límite,
  * la tendencia frente a tu promedio y en qué se está yendo el dinero.
@@ -36,7 +32,6 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
   const overLimit = g.limit > 0 && g.overLimit > 0;
   const paceWidth = g.limit > 0 ? Math.min(100, (g.projectedMonthEnd / g.limit) * 100) : 100;
   const spentWidth = g.limit > 0 ? Math.min(100, (g.spentThisMonth / g.limit) * 100) : 0;
-  const maxMonth = Math.max(...history.map((h) => h.total), g.projectedMonthEnd, 1);
   const mesEnCurso = mesLargo(new Date());
 
   return (
@@ -152,40 +147,8 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
       </div>
       )}
 
-      {/* Historial */}
-      {history.length > 1 && (
-        <div className="mt-4">
-          <p className="text-[11px] font-bold text-slate-500 mb-2">
-            Gasto por mes
-          </p>
-          {/* Las barras NO se veían. Su altura iba en % contra un padre de
-              altura automática —la columna del mes—, y un porcentaje contra
-              `auto` no resuelve: quedaban en cero. Ahora el % se mide contra un
-              contenedor de altura fija (`h-16`), que sí es una referencia real.
-
-              Y va en `style` con transición CSS, no en un `initial` de framer:
-              el dato correcto queda pintado desde el primer fotograma aunque la
-              animación no llegue a correr. */}
-          <div className="flex items-end gap-1.5">
-            {history.map((h, i) => (
-              <div key={h.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                <div className="flex h-16 w-full items-end">
-                  <div
-                    className={`w-full rounded-t-md transition-[height] duration-700 ease-out ${
-                      i === history.length - 1 ? 'bg-linear-to-t from-sky-400 to-sky-300' : 'bg-sky-200'
-                    }`}
-                    style={{ height: `${Math.max(6, (h.total / maxMonth) * 100)}%` }}
-                  />
-                </div>
-                <span className="text-[11px] font-bold text-slate-500 tabular-nums">
-                  {fmtMoney(h.total)}
-                </span>
-                <span className="text-[11px] text-slate-400 truncate">{monthLabel(h.month)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Historial: el mismo gráfico que «Fuera del super». */}
+      <HistorialMensual history={history} tope={g.projectedMonthEnd} />
 
 
       <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-sky-100">
@@ -197,7 +160,7 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
             : <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span> al mes de super
                 {g.baselineSource === 'average' ? ', tu promedio real.' : ', según tus tickets.'}</>}
         </p>
-        <ScanTicketButton />
+        <AddTicketButton />
       </div>
     </section>
   );

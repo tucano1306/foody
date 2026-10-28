@@ -71,7 +71,7 @@ export function normalizeExpenseKind(value: unknown): ExpenseKind {
  * ¿Esta detección devolvería el ticket a Compras contra la voluntad del usuario?
  *
  * El formulario se abre con un tipo puesto según la tarjeta desde la que se
- * tocó «Escanear ticket». Entrar por «Fuera del super» es una decisión suya;
+ * tocó «Agregar ticket». Entrar por «Fuera del super» es una decisión suya;
  * que la tienda se llame como un super es solo una conjetura del detector.
  *
  * Así que el detector puede afinar DENTRO de lo que no es despensa —«Iron
