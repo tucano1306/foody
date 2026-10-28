@@ -9,7 +9,7 @@ export default async function NewShoppingTripPage({
   searchParams: Promise<{ kind?: string }>;
 }) {
   // Con qué tipo abre el formulario. Lo pone la tarjeta desde la que se tocó
-  // «Escanear ticket»: desde «Fuera del super» el gasto no es de despensa, y
+  // «Agregar ticket»: desde «Fuera del super» el gasto no es de despensa, y
   // sin esto el formulario arrancaba en Súper y el ticket acababa en Compras.
   // Ante cualquier cosa rara `normalizeExpenseKind` cae a súper, que es como se
   // comportaba antes de existir el parámetro.

@@ -995,6 +995,11 @@ describe('consejos sobre el gasto que no es super', () => {
       topPlaces: [{ name: 'Pollo Tropical', total: 120, count: 3 }],
       trendPct: 50,
       hasData: true,
+      history: [],
+      daysElapsed: 15,
+      daysInMonth: 30,
+      dailyPace: 20,
+      paceIsMeaningful: true,
       ...over,
     };
   }

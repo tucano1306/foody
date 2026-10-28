@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMPTY_OTHER_SPEND, computeOtherSpend, type OtherSpendInput } from './other-spend';
+import { EMPTY_OTHER_SPEND, computeOtherSpend, personalOtherSpend, type OtherSpendInput } from './other-spend';
 
 // 22 de agosto de 2026: 22 días de 31 — pasada la primera semana, así que la
 // proyección ya significa algo.
@@ -96,7 +96,8 @@ describe('computeOtherSpend', () => {
     expect(r.baselineSource).toBe('none');
     expect(r.hasData).toBe(false);
     expect(r.trendPct).toBeNull();
-    expect(r).toEqual({ ...EMPTY_OTHER_SPEND, hasData: false });
+    // El calendario sí es real aunque no haya gasto: día 22 de 31.
+    expect(r).toEqual({ ...EMPTY_OTHER_SPEND, hasData: false, daysElapsed: 22, daysInMonth: 31 });
   });
 
   it('con historial pero sin gasto este mes sigue restando el promedio', () => {
@@ -143,5 +144,57 @@ describe('computeOtherSpend', () => {
     const r = computeOtherSpend(input());
     // 155 proyectado contra 250 de promedio = −38 %
     expect(r.trendPct).toBeCloseTo(-38, 0);
+  });
+});
+
+/**
+ * «Fuera del super» no tenía gráfico ni ritmo: era una cifra suelta sin
+ * historia, mientras «Gastos en comida» enseñaba las dos cosas.
+ */
+describe('computeOtherSpend — historial y ritmo', () => {
+  it('el historial va del primer mes con gasto al actual', () => {
+    const r = computeOtherSpend(input());
+    expect(r.history.map((m) => m.month)).toEqual(['2026-06', '2026-07', '2026-08']);
+    expect(r.history.map((m) => m.total)).toEqual([300, 200, 110]);
+  });
+
+  it('un mes sin gasto entre medias sale a cero, no desaparece', () => {
+    const r = computeOtherSpend(input({
+      monthlyTotals: [
+        { month: '2026-05', total: 90, trips: 3 },
+        { month: '2026-08', total: 40, trips: 1 },
+      ],
+    }));
+    expect(r.history.map((m) => [m.month, m.total])).toEqual([
+      ['2026-05', 90], ['2026-06', 0], ['2026-07', 0], ['2026-08', 40],
+    ]);
+  });
+
+  it('sin gasto este mes, el mes actual sale a cero al final', () => {
+    const r = computeOtherSpend(input({ monthlyTotals: [{ month: '2026-07', total: 200, trips: 8 }] }));
+    expect(r.history.at(-1)).toEqual({ month: '2026-08', total: 0, trips: 0 });
+  });
+
+  it('el ritmo diario y cuándo significa algo', () => {
+    const r = computeOtherSpend(input());
+    expect(r.daysElapsed).toBe(22);
+    expect(r.daysInMonth).toBe(31);
+    expect(r.dailyPace).toBe(5); // 110 / 22
+    expect(r.paceIsMeaningful).toBe(true);
+
+    const temprano = computeOtherSpend(input({ now: new Date(2026, 7, 3, 12) }));
+    expect(temprano.paceIsMeaningful).toBe(false);
+  });
+
+  it('sin nada, historial vacío', () => {
+    expect(computeOtherSpend(input({ monthlyTotals: [], byKind: [], places: [] })).history).toEqual([]);
+  });
+});
+
+describe('personalOtherSpend — también las barras', () => {
+  it('con el negocio apagado, el historial y el ritmo enseñan solo lo personal', () => {
+    const r = personalOtherSpend(computeOtherSpend(input()), 50);
+    expect(r.history.map((m) => m.total)).toEqual([150, 100, 55]);
+    expect(r.dailyPace).toBe(2.5);
   });
 });
