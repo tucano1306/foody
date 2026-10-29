@@ -109,7 +109,7 @@ export default function MesDePagos({
         </div>
       </div>
 
-      {(agenda.vencidos.length > 0 || agenda.proximos.length > 0) && (
+      {(agenda.vencidos.length > 0 || agenda.proximos.length > 0 || agenda.seAcercan.length > 0) && (
         <div className="border-t border-[var(--line)] bg-[var(--surface)]/60 px-4 py-3 sm:px-5 space-y-3">
           {agenda.vencidos.length > 0 && (
             <Grupo
@@ -127,6 +127,18 @@ export default function MesDePagos({
               titulo="Próximos 7 días"
               total={formato(agenda.totalProximos)}
               entradas={agenda.proximos}
+              onAbrir={onAbrir}
+              formato={formato}
+              iconoDe={iconoDe}
+            />
+          )}
+          {/* Los de cada varios meses, un mes antes: no suman en el mes,
+              pero ese dinero hay que tenerlo listo. */}
+          {agenda.seAcercan.length > 0 && (
+            <Grupo
+              titulo="Se acercan · cada varios meses"
+              total={formato(agenda.totalSeAcercan)}
+              entradas={agenda.seAcercan}
               onAbrir={onAbrir}
               formato={formato}
               iconoDe={iconoDe}

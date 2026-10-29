@@ -6,7 +6,7 @@ import ModernTitle from '@/components/layout/ModernTitle';
 import ComputoChip from '@/components/computo/ComputoChip';
 import { computoDisponiblePara } from '@/lib/computo/config';
 import { getSession } from '@/lib/session';
-import { tocaEsteMes } from '@/lib/importe-del-mes';
+import { esMensual } from '@/lib/importe-del-mes';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Pagos Mensuales' };
@@ -22,10 +22,9 @@ export const metadata: Metadata = { title: 'Pagos Mensuales' };
  */
 export default async function PaymentsPage() {
   const payments = await api.payments.list().catch(() => []);
-  // Solo los recibos que vencen este mes: un seguro semestral fuera de su mes
-  // se da por «al día», y contaba como «pagado este mes» sin haberse pagado.
-  const ahora = new Date();
-  const delMes = payments.filter((p) => tocaEsteMes(p, ahora));
+  // Solo los pagos mensuales: un seguro semestral no es un pago del mes (se
+  // ve aparte, en «Cada varios meses»), y contaba como «pagado este mes».
+  const delMes = payments.filter(esMensual);
   const paid = delMes.filter((p) => p.isPaidThisMonth);
   // Solo el dueño ve el enlace con Computo (lib/computo/config.ts).
   const conComputo = computoDisponiblePara((await getSession()).userId);

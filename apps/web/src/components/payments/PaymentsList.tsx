@@ -9,7 +9,7 @@ import PaymentCard from '@/components/payments/PaymentCard';
 import MesDePagos from '@/components/payments/MesDePagos';
 import ScopeTabs from '@/components/ui/ScopeTabs';
 import { agendaDePagos } from '@/lib/agenda-pagos';
-import { importeDelMes, tocaEsteMes } from '@/lib/importe-del-mes';
+import { esMensual, importeDelMes } from '@/lib/importe-del-mes';
 import { APP_TZ } from '@/lib/app-time';
 import { matchesFilter, summarizeByScope, totalForFilter, type ScopeFilter } from '@/lib/expense-scope';
 
@@ -95,29 +95,32 @@ export default function PaymentsList({ initialPayments }: Props) {
   // historial— habla del lado que el usuario está mirando. Un pago mixto sale
   // en las dos vistas, con su parte correspondiente en cada total.
   //
-  // Los totales de las pestañas cuentan lo de ESTE mes, igual que el tablero
-  // de debajo: sumaban el importe de la ficha de cada recibo, y un seguro de
-  // $515 cada seis meses subía «Personal» $515 todos los meses.
+  // Los totales de las pestañas son los pagos MENSUALES de este mes, igual
+  // que el tablero de debajo: sumaban el importe de la ficha de cada recibo, y
+  // un seguro de $515 cada seis meses subía «Personal» $515 todos los meses.
   const scopeSummary = summarizeByScope(
     allPayments.map((p) => ({
       id: p.id,
       name: p.name,
-      amount: importeDelMes(p, now),
+      amount: esMensual(p) ? importeDelMes(p, now) : 0,
       businessShare: p.businessShare ?? 0,
     })),
   );
   const payments = allPayments.filter((p) => matchesFilter(p.businessShare ?? 0, scope));
 
   /**
-   * Los recibos que este mes NO vencen (un seguro semestral en noviembre).
+   * Los recibos de cada 2, 3, 6 o 12 meses van aparte y NO entran en los pagos
+   * mensuales, ni siquiera el mes en que vencen.
    *
-   * Para no llenar la pantalla de rojo se dan por «al día», y por eso salían
-   * en «Pagados este mes» y sumaban su importe entero al mes: un seguro de
-   * $515 cada seis meses inflaba los pagos de TODOS los meses. Van aparte, y
-   * no cuentan en los totales del mes (ver lib/importe-del-mes.ts).
+   * Primero salían en «Pagados este mes» todos los meses (fuera de su mes se
+   * dan por «al día») y sumaban su importe entero: un seguro de $515 cada seis
+   * meses inflaba los pagos de cada mes. Y contarlos solo en su mes tampoco
+   * era lo que pedía el dueño: ese mes saltaba $515. No son un gasto mensual;
+   * se preparan con tiempo, y por eso entran en la agenda un mes antes de
+   * vencer (ver lib/agenda-pagos.ts).
    */
-  const fueraDeCiclo = payments.filter((p) => !tocaEsteMes(p, now));
-  const delMes = payments.filter((p) => tocaEsteMes(p, now));
+  const periodicos = [...payments.filter((p) => !esMensual(p))].sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+  const delMes = payments.filter(esMensual);
   const snoozed = delMes.filter(
     (p) => !p.isPaidThisMonth && p.snoozedUntil != null && new Date(p.snoozedUntil) > now,
   );
@@ -182,7 +185,9 @@ export default function PaymentsList({ initialPayments }: Props) {
   }
 
   // Lo que sale en los próximos días, con la parte del ámbito que se mira.
-  const agenda = agendaDePagos(payments, (p) => scopedSum([p], amountOf), now);
+  // La agenda enseña el importe de la ficha: lo que hay que tener listo. Para
+  // un seguro semestral que se acerca, $515 — no los $0 que cuenta este mes.
+  const agenda = agendaDePagos(payments, (p) => scopedSum([p], (x) => x.amount), now);
   const mes = new Intl.DateTimeFormat('es-MX', { month: 'long', timeZone: APP_TZ }).format(now);
   const iconoDe = (category: string | null) => CATEGORY_ICONS[category ?? 'other'] ?? '💰';
 
@@ -382,23 +387,23 @@ export default function PaymentsList({ initialPayments }: Props) {
         </section>
       )}
 
-      {/* ─── No vencen este mes ───────────────────────────────────────────
-          Recibos cada 2, 3, 6 o 12 meses fuera de su mes: no hay nada que
-          pagar, así que ni pendientes ni «pagados». Cada tarjeta dice cuándo
-          le toca. */}
-      {fueraDeCiclo.length > 0 && filter === 'all' && (
+      {/* ─── Cada varios meses ────────────────────────────────────────────
+          Recibos cada 2, 3, 6 o 12 meses: fuera de los pagos mensuales, cada
+          uno con su próxima fecha. El que vence se paga desde su tarjeta,
+          aquí mismo. */}
+      {periodicos.length > 0 && filter === 'all' && (
         <section className="card p-4 sm:p-5">
           <div className="flex items-center gap-2.5 mb-4">
             <span className="w-9 h-9 rounded-xl bg-[var(--surface-2)] flex items-center justify-center text-lg shrink-0" aria-hidden="true">
               🗓️
             </span>
-            <h2 className="text-lg font-bold text-[var(--ink)]">No vencen este mes</h2>
+            <h2 className="text-lg font-bold text-[var(--ink)]">Cada varios meses</h2>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[var(--surface-2)] text-[var(--ink-muted)]">
-              {fueraDeCiclo.length}
+              {periodicos.length}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
-            {fueraDeCiclo.map((payment) => (
+            {periodicos.map((payment) => (
               <PaymentCard
                 key={payment.id}
                 payment={payment}
