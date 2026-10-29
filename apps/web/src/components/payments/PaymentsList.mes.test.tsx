@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MonthlyPayment } from '@foody/types';
 import PaymentsList from './PaymentsList';
 
@@ -77,5 +77,49 @@ describe('PaymentsList — el mes de pagos', () => {
 
     fireEvent.click(pagados);
     expect(screen.getByRole('heading', { name: 'Pendientes' })).toBeInTheDocument();
+  });
+});
+
+/**
+ * Un seguro de $515 cada seis meses (octubre y abril). En los meses en que no
+ * vence el servidor lo da por «al día», y la pantalla lo sumaba como pagado:
+ * los pagos de CADA mes salían $515 más altos.
+ */
+describe('PaymentsList — recibos que no son mensuales', () => {
+  const seguro = (over: Partial<MonthlyPayment> = {}) =>
+    payment({
+      id: 'geico', name: 'Geico', amount: 515, frequency: 'semiannual', anchorMonth: 10,
+      isPaidThisMonth: true, daysUntilDue: 145, ...over,
+    } as Partial<MonthlyPayment>);
+  const renta = payment({ id: 'renta', name: 'Renta', amount: 1000, daysUntilDue: 10 });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('en un mes que no le toca, no suma nada y sale aparte', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 20, 12)); // 20 de noviembre
+
+    render(<PaymentsList initialPayments={[seguro(), renta]} />);
+
+    expect(tablero()).toHaveTextContent('de $1,000.00');
+    expect(within(tablero()).getByRole('button', { name: /Pagados/ })).toHaveTextContent('0 pagos');
+    const aparte = screen.getByRole('heading', { name: 'No vencen este mes' }).closest('section')!;
+    expect(within(aparte).getAllByText('Geico').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: 'Pagados este mes' })).toBeNull();
+  });
+
+  it('en su mes, pagado, cuenta lo que de verdad se cobró', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 20, 12)); // 20 de octubre
+
+    const conRegistro = seguro({
+      currentRecord: { status: 'paid', amount: 87.17, actualAmount: null } as MonthlyPayment['currentRecord'],
+    });
+    render(<PaymentsList initialPayments={[conRegistro, renta]} />);
+
+    // 87.17 cobrados + 1000 pendientes; nunca los 515 de la ficha.
+    expect(tablero()).toHaveTextContent('$87.17');
+    expect(tablero()).toHaveTextContent('de $1,087.17');
+    expect(screen.queryByRole('heading', { name: 'No vencen este mes' })).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import PaymentCard from '@/components/payments/PaymentCard';
 import MesDePagos from '@/components/payments/MesDePagos';
 import ScopeTabs from '@/components/ui/ScopeTabs';
 import { agendaDePagos } from '@/lib/agenda-pagos';
+import { importeDelMes, tocaEsteMes } from '@/lib/importe-del-mes';
 import { APP_TZ } from '@/lib/app-time';
 import { matchesFilter, summarizeByScope, totalForFilter, type ScopeFilter } from '@/lib/expense-scope';
 
@@ -97,12 +98,22 @@ export default function PaymentsList({ initialPayments }: Props) {
   const payments = allPayments.filter((p) => matchesFilter(p.businessShare ?? 0, scope));
 
   const now = new Date();
-  const snoozed = payments.filter(
+  /**
+   * Los recibos que este mes NO vencen (un seguro semestral en noviembre).
+   *
+   * Para no llenar la pantalla de rojo se dan por «al día», y por eso salían
+   * en «Pagados este mes» y sumaban su importe entero al mes: un seguro de
+   * $515 cada seis meses inflaba los pagos de TODOS los meses. Van aparte, y
+   * no cuentan en los totales del mes (ver lib/importe-del-mes.ts).
+   */
+  const fueraDeCiclo = payments.filter((p) => !tocaEsteMes(p, now));
+  const delMes = payments.filter((p) => tocaEsteMes(p, now));
+  const snoozed = delMes.filter(
     (p) => !p.isPaidThisMonth && p.snoozedUntil != null && new Date(p.snoozedUntil) > now,
   );
   const snoozedIds = new Set(snoozed.map((p) => p.id));
-  const pending = payments.filter((p) => !p.isPaidThisMonth && !snoozedIds.has(p.id));
-  const paid = payments.filter((p) => p.isPaidThisMonth);
+  const pending = delMes.filter((p) => !p.isPaidThisMonth && !snoozedIds.has(p.id));
+  const paid = delMes.filter((p) => p.isPaidThisMonth);
   /**
    * TODA cifra de dinero de esta pantalla pasa por aquí, para que no pueda
    * ocurrir que unos totales se repartan por ámbito y otros no: en la vista de
@@ -125,8 +136,10 @@ export default function PaymentsList({ initialPayments }: Props) {
       scope,
     );
 
-  const amountOf = (p: MonthlyPayment) => p.amount;
-  const totalExpenses = scopedSum(payments, amountOf);
+  // Lo que cada recibo saca de la cuenta ESTE mes: lo cobrado si ya se pagó,
+  // su importe si vence y falta, nada si no le toca.
+  const amountOf = (p: MonthlyPayment) => importeDelMes(p, now);
+  const totalExpenses = scopedSum(delMes, amountOf);
   const totalPaid = scopedSum(paid, amountOf);
   const totalSnoozed = scopedSum(snoozed, amountOf);
   const totalAccumulated = scopedSum(payments, (p) => p.accumulatedDebt ?? 0);
@@ -346,6 +359,36 @@ export default function PaymentsList({ initialPayments }: Props) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
             {paid.map((payment) => (
+              <PaymentCard
+                key={payment.id}
+                payment={payment}
+                autoOpen={payment.id === highlightId}
+                onDeleted={handleDeleted}
+                onUpdated={handleUpdated}
+                onSnoozed={handleSnoozed}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ─── No vencen este mes ───────────────────────────────────────────
+          Recibos cada 2, 3, 6 o 12 meses fuera de su mes: no hay nada que
+          pagar, así que ni pendientes ni «pagados». Cada tarjeta dice cuándo
+          le toca. */}
+      {fueraDeCiclo.length > 0 && filter === 'all' && (
+        <section className="card p-4 sm:p-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <span className="w-9 h-9 rounded-xl bg-[var(--surface-2)] flex items-center justify-center text-lg shrink-0" aria-hidden="true">
+              🗓️
+            </span>
+            <h2 className="text-lg font-bold text-[var(--ink)]">No vencen este mes</h2>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[var(--surface-2)] text-[var(--ink-muted)]">
+              {fueraDeCiclo.length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 card-stagger">
+            {fueraDeCiclo.map((payment) => (
               <PaymentCard
                 key={payment.id}
                 payment={payment}

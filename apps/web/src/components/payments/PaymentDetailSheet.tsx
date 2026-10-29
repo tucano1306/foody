@@ -8,6 +8,7 @@ import PaymentMethodPicker from '@/components/payments/PaymentMethodPicker';
 import { PAYMENT_METHOD_LABELS, maskLast4, methodNeedsBank } from '@/lib/payment-methods';
 import { formatMonthLong, formatMonthShort } from '@/lib/payment-aggregates';
 import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
+import { FREQUENCY_LABEL, isDueInMonth, normalizeFrequency } from '@/lib/payment-frequency';
 import { parseMoney } from '@/lib/money-input';
 import MoneyInput from '@/components/ui/MoneyInput';
 import FrequencyPicker from '@/components/payments/FrequencyPicker';
@@ -390,13 +391,25 @@ export default function PaymentDetailSheet({
     return month === now.getMonth() + 1 && year === now.getFullYear();
   }
 
+  // Cada cuánto vence. Todo lo de abajo lo tiene en cuenta: un seguro
+  // semestral no se atrasa en los meses en que no le toca, y su próximo
+  // vencimiento es dentro de seis meses, no el mes que viene.
+  const frecuencia = normalizeFrequency(currentPayment.frequency);
+  const ancla = currentPayment.anchorMonth ?? null;
+  const tocaEn = (month: number) => isDueInMonth(frecuencia, ancla, month);
+  const diasAlVencimiento = (pagado: boolean) =>
+    daysUntilNextDue(currentPayment.dueDay, pagado, new Date(), frecuencia, ancla);
+  const proximoVencimiento = (pagado: boolean) =>
+    nextDueDate(currentPayment.dueDay, pagado, new Date(), frecuencia, ancla).toISOString();
+
   /** The month owes debt once its due date passed, starting from the payment's creation month. */
   function countsAsUnpaid(month: number, year: number): boolean {
     const created = new Date(currentPayment.createdAt);
     const createdKey = created.getFullYear() * 12 + created.getMonth() + 1;
     const recordKey = year * 12 + month;
     if (recordKey < createdKey) return false;
-    if (isCurrentMonth(month, year)) return daysUntilNextDue(currentPayment.dueDay, false) < 0;
+    if (!tocaEn(month)) return false;
+    if (isCurrentMonth(month, year)) return diasAlVencimiento(false) < 0;
     const now = new Date();
     return recordKey < now.getFullYear() * 12 + now.getMonth() + 1;
   }
@@ -422,8 +435,8 @@ export default function PaymentDetailSheet({
     publishPayment({
       ...currentPayment,
       isPaidThisMonth: nowPaid,
-      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid),
-      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid).toISOString(),
+      daysUntilDue: diasAlVencimiento(nowPaid),
+      nextDueDate: proximoVencimiento(nowPaid),
       unpaidMonths: unpaid,
       missedMonths: unpaid.length,
       accumulatedDebt: unpaid.length * currentPayment.amount,
@@ -437,7 +450,7 @@ export default function PaymentDetailSheet({
     setHistory((prev) => (prev ?? []).filter((r) => r.id !== record.id));
 
     const wasCurrentMonth = isCurrentMonth(record.month, record.year);
-    const nowPaid = wasCurrentMonth ? false : currentPayment.isPaidThisMonth;
+    const nowPaid = wasCurrentMonth ? !tocaEn(record.month) : currentPayment.isPaidThisMonth;
     const unpaid = [...(currentPayment.unpaidMonths ?? [])];
     if (countsAsUnpaid(record.month, record.year) && !unpaid.some((u) => u.month === record.month && u.year === record.year)) {
       unpaid.push({ month: record.month, year: record.year });
@@ -446,8 +459,8 @@ export default function PaymentDetailSheet({
     publishPayment({
       ...currentPayment,
       isPaidThisMonth: nowPaid,
-      daysUntilDue: daysUntilNextDue(currentPayment.dueDay, nowPaid),
-      nextDueDate: nextDueDate(currentPayment.dueDay, nowPaid).toISOString(),
+      daysUntilDue: diasAlVencimiento(nowPaid),
+      nextDueDate: proximoVencimiento(nowPaid),
       unpaidMonths: unpaid,
       missedMonths: unpaid.length,
       accumulatedDebt: unpaid.length * currentPayment.amount,
@@ -624,7 +637,11 @@ export default function PaymentDetailSheet({
         {/* Amount */}
         <div className="bg-white/5 rounded-2xl p-4 mb-4">
           <p className="text-slate-400 text-xs font-medium mb-1 flex items-center gap-2">
-            {currentPayment.isVariableAmount ? 'Monto estimado' : 'Monto mensual'}
+            {/* «Monto mensual» sobre un seguro de $515 cada seis meses hacía creer
+                que salen $515 cada mes. Se dice cada cuánto. */}
+            {currentPayment.isVariableAmount
+              ? 'Monto estimado'
+              : frecuencia === 'monthly' ? 'Monto mensual' : `Monto · ${FREQUENCY_LABEL[frecuencia].toLowerCase()}`}
             {currentPayment.isVariableAmount && (
               <span className="normal-case text-[11px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 tracking-normal">
                 ⚡ Variable
