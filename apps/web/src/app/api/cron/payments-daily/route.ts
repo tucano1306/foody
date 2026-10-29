@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { rechazoCron } from '@/lib/cron-auth';
 import { sql } from '@/lib/db';
 import { sendWebPush } from '@/lib/web-push';
+import { decisionCron } from '@/lib/cron-pagos';
 import type { PushSubscription } from 'web-push';
 
 export const runtime = 'nodejs';
@@ -13,17 +14,14 @@ type PaymentRow = {
   amount: string;
   currency: string;
   due_day: number;
+  frequency: string | null;
+  anchor_month: number | null;
   notification_days_before: number;
   snoozed_until: string | null;
   is_auto_pay: boolean;
   user_id: string;
   push_subscription: PushSubscription | null;
 };
-
-function daysUntilDue(dueDay: number, today: number, daysInMonth: number): number {
-  if (dueDay >= today) return dueDay - today;
-  return daysInMonth - today + dueDay;
-}
 
 function buildBody(name: string, days: number, currency: string, amount: string): string {
   if (days === 0) return `¡${name} vence HOY! Monto: ${currency} ${amount}`;
@@ -33,9 +31,13 @@ function buildBody(name: string, days: number, currency: string, amount: string)
 
 type Outcome = 'sent' | 'auto_paid' | 'skipped' | 'gone' | 'fail';
 
-async function processRow(row: PaymentRow, now: Date, today: number, daysInMonth: number): Promise<Outcome> {
+async function processRow(row: PaymentRow, now: Date): Promise<Outcome> {
+  // La frecuencia manda: un recibo semestral se cobra y se avisa solo en sus
+  // dos meses del año, no cada mes en su día (ver lib/cron-pagos.ts).
+  const decision = decisionCron(row, now);
+
   // Auto-pay: mark as paid on the exact due day and send a confirmation notification
-  if (row.is_auto_pay && row.due_day === today) {
+  if (row.is_auto_pay && decision.tocaCobrarHoy) {
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
     await sql`
@@ -55,7 +57,8 @@ async function processRow(row: PaymentRow, now: Date, today: number, daysInMonth
   }
 
   if (row.snoozed_until && new Date(row.snoozed_until) > now) return 'skipped';
-  const days = daysUntilDue(row.due_day, today, daysInMonth);
+  const days = decision.dias;
+  if (!decision.vencimientoReal) return 'skipped';
   if (days > row.notification_days_before || days < 0) return 'skipped';
   if (!row.push_subscription) return 'skipped';
 
@@ -75,11 +78,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (rechazo) return rechazo;
 
   const now = new Date();
-  const today = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
   const rows = await sql`
     SELECT mp.id, mp.name, mp.amount, mp.currency, mp.due_day,
+           mp.frequency, mp.anchor_month,
            mp.notification_days_before, mp.snoozed_until,
            mp.is_auto_pay, mp.user_id, u.push_subscription
     FROM monthly_payments mp
@@ -93,7 +95,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const goneUserIds: string[] = [];
 
   for (const row of rows) {
-    const outcome = await processRow(row, now, today, daysInMonth);
+    const outcome = await processRow(row, now);
     if (outcome === 'sent') sent++;
     else if (outcome === 'auto_paid') autoPaid++;
     else if (outcome === 'gone') goneUserIds.push(row.user_id);

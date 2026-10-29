@@ -189,8 +189,10 @@ function mapMonthlyPayment(
     updatedAt: asIsoString(row.updated_at),
     isPaidThisMonth,
     // Cycle-aware: once paid this month, the countdown restarts toward next month's due day.
-    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth),
-    nextDueDate: nextDueDate(dueDay, isPaidThisMonth).toISOString(),
+    // Con la frecuencia, como en /api/payments: sin ella, un seguro semestral
+    // pagado en octubre decía «próximo pago en noviembre» en vez de abril.
+    daysUntilDue: daysUntilNextDue(dueDay, isPaidThisMonth, new Date(), frequency, anchorMonth),
+    nextDueDate: nextDueDate(dueDay, isPaidThisMonth, new Date(), frequency, anchorMonth).toISOString(),
     currentRecord,
     snoozedUntil: row.snoozed_until === null || row.snoozed_until === undefined ? null : new Date(row.snoozed_until as string | number | Date).toISOString(),
     missedMonths: aggr.missedMonths,

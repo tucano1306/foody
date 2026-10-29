@@ -10,6 +10,7 @@ import { daysUntilNextDue, nextDueDate } from '@/lib/payment-cycle';
 import { scopeOf } from '@/lib/expense-scope';
 import { formatMonthShort } from '@/lib/payment-aggregates';
 import { FREQUENCY_LABEL, isDueInMonth, monthlyCost, normalizeFrequency } from '@/lib/payment-frequency';
+import { tocaEsteMes } from '@/lib/importe-del-mes';
 interface Props {
   readonly payment: MonthlyPayment;
   readonly autoOpen?: boolean;
@@ -80,7 +81,22 @@ function getUrgencyBadgeCls(urgency: Urgency): string {
   return 'bg-white/70 text-slate-500';
 }
 
-function renderStatusBadge(isPaid: boolean, isSnoozed: boolean, urgency: Urgency, daysUntilDue: number): React.ReactNode {
+function renderStatusBadge(
+  isPaid: boolean,
+  isSnoozed: boolean,
+  urgency: Urgency,
+  daysUntilDue: number,
+  noVenceEsteMes = false,
+): React.ReactNode {
+  // Un recibo cada 6 meses en un mes que no le toca va «al día», pero decir
+  // «Pagado este mes» era mentir: no se pagó nada, no había nada que pagar.
+  if (noVenceEsteMes) {
+    return (
+      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 text-slate-500">
+        🗓️ No vence este mes
+      </span>
+    );
+  }
   if (isPaid) {
     return (
       <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-100 text-sky-700">
@@ -324,7 +340,7 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
         {/* Bottom row: status badge + payment mode */}
         <div className="mt-4 flex items-center gap-2 flex-wrap">
-          {renderStatusBadge(isPaid, isSnoozed, urgency, currentPayment.daysUntilDue)}
+          {renderStatusBadge(isPaid, isSnoozed, urgency, currentPayment.daysUntilDue, !tocaEsteMes(currentPayment, new Date()))}
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
               currentPayment.isAutoPay
