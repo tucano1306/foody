@@ -86,14 +86,15 @@ function renderStatusBadge(
   isSnoozed: boolean,
   urgency: Urgency,
   daysUntilDue: number,
-  noVenceEsteMes = false,
+  venceEl: string | null = null,
 ): React.ReactNode {
   // Un recibo cada 6 meses en un mes que no le toca va «al día», pero decir
   // «Pagado este mes» era mentir: no se pagó nada, no había nada que pagar.
-  if (noVenceEsteMes) {
+  // Lo que importa de él es cuándo le toca.
+  if (venceEl) {
     return (
       <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/70 text-slate-500">
-        🗓️ No vence este mes
+        🗓️ Vence el {venceEl}
       </span>
     );
   }
@@ -116,6 +117,14 @@ function renderStatusBadge(
       {getUrgencyBadge(urgency, daysUntilDue)}
     </span>
   );
+}
+
+/** «19 abr 2027», o null si no hay fecha. */
+function fechaCorta(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
 }
 
 function getSnoozeBtnLabel(pending: boolean, error: boolean): string {
@@ -340,7 +349,13 @@ export default function PaymentCard({ payment, autoOpen, onDeleted, onUpdated, o
 
         {/* Bottom row: status badge + payment mode */}
         <div className="mt-4 flex items-center gap-2 flex-wrap">
-          {renderStatusBadge(isPaid, isSnoozed, urgency, currentPayment.daysUntilDue, !tocaEsteMes(currentPayment, new Date()))}
+          {renderStatusBadge(
+            isPaid,
+            isSnoozed,
+            urgency,
+            currentPayment.daysUntilDue,
+            !tocaEsteMes(currentPayment, new Date()) ? fechaCorta(currentPayment.nextDueDate) : null,
+          )}
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
               currentPayment.isAutoPay

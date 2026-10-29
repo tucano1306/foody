@@ -63,3 +63,37 @@ describe('cuandoVence', () => {
     expect(cuandoVence(-9)).toBe('hace 9 días');
   });
 });
+
+/**
+ * Un seguro de $515 cada seis meses no es un pago del mes, pero el dinero se
+ * prepara con tiempo: entra en «Se acercan» un mes antes de vencer.
+ */
+describe('agendaDePagos — recibos de cada varios meses', () => {
+  const seguro = (dias: number, over: Partial<PagoParaAgenda> = {}) =>
+    p('geico', dias, 515, { frequency: 'semiannual', isPaidThisMonth: true, ...over });
+
+  it('un mes antes de vencer entra en «Se acercan», aunque esté «al día»', () => {
+    const a = agendaDePagos([seguro(28)], importe, AHORA);
+    expect(a.seAcercan.map((e) => e.id)).toEqual(['geico']);
+    expect(a.totalSeAcercan).toBe(515);
+    expect(a.proximos).toEqual([]);
+  });
+
+  it('a más de un mes, todavía no', () => {
+    expect(agendaDePagos([seguro(45)], importe, AHORA).seAcercan).toEqual([]);
+  });
+
+  it('ya pagado en su ciclo, el siguiente está a meses y no sale', () => {
+    expect(agendaDePagos([seguro(176)], importe, AHORA).seAcercan).toEqual([]);
+  });
+
+  it('vencido y sin pagar sale en vencidos, como cualquier otro', () => {
+    const a = agendaDePagos([seguro(-3, { isPaidThisMonth: false })], importe, AHORA);
+    expect(a.vencidos.map((e) => e.id)).toEqual(['geico']);
+    expect(a.seAcercan).toEqual([]);
+  });
+
+  it('un mensual a 20 días no entra: los mensuales siguen con su semana', () => {
+    expect(agendaDePagos([p('luz', 20, 80)], importe, AHORA).seAcercan).toEqual([]);
+  });
+});

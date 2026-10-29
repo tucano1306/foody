@@ -30,6 +30,16 @@ export interface ReciboDelMes {
   } | null;
 }
 
+/**
+ * ¿Es un pago mensual? Los de cada 2, 3, 6 o 12 meses NO entran en los pagos
+ * mensuales: se ven aparte y en la agenda un mes antes de vencer. Es lo que
+ * pidió el dueño: un seguro de $515 cada seis meses no es un gasto mensual,
+ * y sumarlo al mes en que toca hacía saltar ese mes $515 sin avisar.
+ */
+export function esMensual(r: { readonly frequency?: unknown }): boolean {
+  return normalizeFrequency(r.frequency) === 'monthly';
+}
+
 function pagadoEsteMes(r: ReciboDelMes): boolean {
   return r.currentRecord?.status === 'paid';
 }

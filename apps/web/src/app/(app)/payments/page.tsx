@@ -6,6 +6,7 @@ import ModernTitle from '@/components/layout/ModernTitle';
 import ComputoChip from '@/components/computo/ComputoChip';
 import { computoDisponiblePara } from '@/lib/computo/config';
 import { getSession } from '@/lib/session';
+import { esMensual } from '@/lib/importe-del-mes';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Pagos Mensuales' };
@@ -21,7 +22,10 @@ export const metadata: Metadata = { title: 'Pagos Mensuales' };
  */
 export default async function PaymentsPage() {
   const payments = await api.payments.list().catch(() => []);
-  const paid = payments.filter((p) => p.isPaidThisMonth);
+  // Solo los pagos mensuales: un seguro semestral no es un pago del mes (se
+  // ve aparte, en «Cada varios meses»), y contaba como «pagado este mes».
+  const delMes = payments.filter(esMensual);
+  const paid = delMes.filter((p) => p.isPaidThisMonth);
   // Solo el dueño ve el enlace con Computo (lib/computo/config.ts).
   const conComputo = computoDisponiblePara((await getSession()).userId);
 
@@ -29,7 +33,7 @@ export default async function PaymentsPage() {
     <div className="space-y-6">
       <ModernTitle
         title="Pagos"
-        subtitle={`${paid.length}/${payments.length} pagados este mes`}
+        subtitle={`${paid.length}/${delMes.length} pagados este mes`}
         action={
           <Link
             href="/payments/new"

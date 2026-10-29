@@ -81,9 +81,10 @@ describe('PaymentsList — el mes de pagos', () => {
 });
 
 /**
- * Un seguro de $515 cada seis meses (octubre y abril). En los meses en que no
- * vence el servidor lo da por «al día», y la pantalla lo sumaba como pagado:
- * los pagos de CADA mes salían $515 más altos.
+ * Un seguro de $515 cada seis meses (octubre y abril). No es un pago mensual:
+ * primero se sumaba a los pagos de CADA mes, y contarlo en su mes tampoco era
+ * lo pedido —ese mes saltaba $515—. Va aparte, en «Cada varios meses», y entra
+ * en la agenda un mes antes de vencer.
  */
 describe('PaymentsList — recibos que no son mensuales', () => {
   const seguro = (over: Partial<MonthlyPayment> = {}) =>
@@ -95,7 +96,7 @@ describe('PaymentsList — recibos que no son mensuales', () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it('en un mes que no le toca, no suma nada y sale aparte', () => {
+  it('fuera de su mes no suma nada y sale en «Cada varios meses»', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 10, 20, 12)); // 20 de noviembre
 
@@ -103,23 +104,46 @@ describe('PaymentsList — recibos que no son mensuales', () => {
 
     expect(tablero()).toHaveTextContent('de $1,000.00');
     expect(within(tablero()).getByRole('button', { name: /Pagados/ })).toHaveTextContent('0 pagos');
-    const aparte = screen.getByRole('heading', { name: 'No vencen este mes' }).closest('section')!;
+    const aparte = screen.getByRole('heading', { name: 'Cada varios meses' }).closest('section')!;
     expect(within(aparte).getAllByText('Geico').length).toBeGreaterThan(0);
     expect(screen.queryByRole('heading', { name: 'Pagados este mes' })).toBeNull();
   });
 
-  it('en su mes, pagado, cuenta lo que de verdad se cobró', () => {
+  it('ni siquiera en su mes entra en los pagos mensuales', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 9, 20, 12)); // 20 de octubre
 
     const conRegistro = seguro({
-      currentRecord: { status: 'paid', amount: 87.17, actualAmount: null } as MonthlyPayment['currentRecord'],
+      currentRecord: { status: 'paid', amount: 515, actualAmount: null } as MonthlyPayment['currentRecord'],
     });
     render(<PaymentsList initialPayments={[conRegistro, renta]} />);
 
-    // 87.17 cobrados + 1000 pendientes; nunca los 515 de la ficha.
-    expect(tablero()).toHaveTextContent('$87.17');
-    expect(tablero()).toHaveTextContent('de $1,087.17');
-    expect(screen.queryByRole('heading', { name: 'No vencen este mes' })).toBeNull();
+    expect(tablero()).toHaveTextContent('de $1,000.00');
+    expect(screen.getByRole('heading', { name: 'Cada varios meses' })).toBeInTheDocument();
+  });
+
+  it('un mes antes de vencer aparece en la agenda con su importe', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2027, 2, 20, 12)); // 20 de marzo de 2027; vence el 19 de abril
+
+    render(<PaymentsList initialPayments={[seguro({ daysUntilDue: 30 }), renta]} />);
+
+    const t = within(tablero());
+    expect(t.getByText('Se acercan · cada varios meses')).toBeInTheDocument();
+    expect(t.getByRole('button', { name: /Geico/ })).toHaveTextContent('$515.00');
+    // Y el total del mes sigue sin él.
+    expect(tablero()).toHaveTextContent('de $1,000.00');
+  });
+
+  it('las pestañas Todo / Personal / Negocio cuentan solo los mensuales', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 20, 12)); // octubre, el mes del seguro
+
+    const local = payment({ id: 'local', name: 'Local', amount: 1500, businessShare: 100, daysUntilDue: 5 });
+    render(<PaymentsList initialPayments={[seguro(), renta, local]} />);
+
+    // Personal: solo la renta. Antes sumaba también los 515 del seguro.
+    expect(screen.getByRole('button', { name: /Personal/ })).toHaveTextContent('$1,000.00');
+    expect(screen.getByRole('button', { name: /Todo/ })).toHaveTextContent('$2,500.00');
   });
 });
