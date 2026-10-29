@@ -89,15 +89,25 @@ export default function PaymentsList({ initialPayments }: Props) {
 
   // ── Derived values ───────────────────────────────────────────────────────
 
+  const now = new Date();
+
   // El ámbito filtra ANTES que nada: todo lo de abajo —listas, totales,
   // historial— habla del lado que el usuario está mirando. Un pago mixto sale
   // en las dos vistas, con su parte correspondiente en cada total.
+  //
+  // Los totales de las pestañas cuentan lo de ESTE mes, igual que el tablero
+  // de debajo: sumaban el importe de la ficha de cada recibo, y un seguro de
+  // $515 cada seis meses subía «Personal» $515 todos los meses.
   const scopeSummary = summarizeByScope(
-    allPayments.map((p) => ({ id: p.id, name: p.name, amount: p.amount, businessShare: p.businessShare ?? 0 })),
+    allPayments.map((p) => ({
+      id: p.id,
+      name: p.name,
+      amount: importeDelMes(p, now),
+      businessShare: p.businessShare ?? 0,
+    })),
   );
   const payments = allPayments.filter((p) => matchesFilter(p.businessShare ?? 0, scope));
 
-  const now = new Date();
   /**
    * Los recibos que este mes NO vencen (un seguro semestral en noviembre).
    *

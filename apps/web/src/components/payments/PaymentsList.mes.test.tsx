@@ -122,4 +122,16 @@ describe('PaymentsList — recibos que no son mensuales', () => {
     expect(tablero()).toHaveTextContent('de $1,087.17');
     expect(screen.queryByRole('heading', { name: 'No vencen este mes' })).toBeNull();
   });
+
+  it('las pestañas Todo / Personal / Negocio cuentan lo de este mes, no la ficha', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 20, 12)); // 20 de noviembre
+
+    const local = payment({ id: 'local', name: 'Local', amount: 1500, businessShare: 100, daysUntilDue: 5 });
+    render(<PaymentsList initialPayments={[seguro(), renta, local]} />);
+
+    // Personal: solo la renta. Antes sumaba también los 515 del seguro.
+    expect(screen.getByRole('button', { name: /Personal/ })).toHaveTextContent('$1,000.00');
+    expect(screen.getByRole('button', { name: /Todo/ })).toHaveTextContent('$2,500.00');
+  });
 });
