@@ -2,8 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import type { PaymentMethod } from '@foody/types';
-import type { DebtWithProjection } from '@/lib/debt-data';
-import { allocateCardPayment, cardTitle, estimateCardMinimum, type CardTramo } from '@/lib/card-payment';
+import type { CardStatementInfo, DebtWithProjection } from '@/lib/debt-data';
+import {
+  allocateCardPayment,
+  cardTitle,
+  estimateCardMinimum,
+  interesAhorradoAlMes,
+  montoSinIntereses,
+  type CardTramo,
+} from '@/lib/card-payment';
+import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
 import { PAYMENT_METHODS } from '@/lib/payment-methods';
 import { confettiRain } from '@/lib/fx';
@@ -16,8 +24,10 @@ import { BTN_PRIMARY, BTN_SOFT, fmtMoney } from './debt-ui';
 interface Props {
   /** Los tramos de la tarjeta con sus saldos ENTEROS, sin filtrar por ámbito. */
   readonly tramos: readonly DebtWithProjection[];
+  /** El último estado de cuenta guardado: de él sale el mínimo, sin teclearlo. */
+  readonly estado?: CardStatementInfo | null;
   readonly onClose: () => void;
-  readonly onPaid: (debts: readonly DebtWithProjection[]) => void;
+  readonly onPaid: (debts: readonly DebtWithProjection[], monto: number) => void;
 }
 
 function aTramo(d: DebtWithProjection): CardTramo {
@@ -42,7 +52,7 @@ const pct = (mensual: number) => `${(mensual * 1200).toFixed(2).replace(/\.?0+$/
  * que aplica el banco: el mínimo a la tasa más baja, lo que pasa del mínimo a
  * la más alta. El servidor lo vuelve a calcular con la misma función.
  */
-export default function CardPaymentModal({ tramos, onClose, onPaid }: Props) {
+export default function CardPaymentModal({ tramos, estado = null, onClose, onPaid }: Props) {
   const currency = tramos[0]?.currency ?? 'USD';
   const total = tramos.reduce((s, t) => s + t.currentBalance, 0);
 
@@ -58,8 +68,13 @@ export default function CardPaymentModal({ tramos, onClose, onPaid }: Props) {
     [tramos],
   );
 
-  const [amount, setAmount] = useState(minimoPropuesto > 0 ? minimoPropuesto.toFixed(2) : '');
-  const [minimum, setMinimum] = useState(minimoPropuesto > 0 ? minimoPropuesto.toFixed(2) : '');
+  // Con estado de cuenta guardado, el mínimo es el suyo, menos lo que ya se
+  // abonó desde el cierre: un segundo abono en el mismo ciclo es todo «de más»
+  // y va entero a la tasa más alta, que es como lo aplica el banco.
+  const cobertura = estadoDelMinimo(estado);
+  const minimoDelCiclo = cobertura ? cobertura.falta : minimoPropuesto;
+  const [amount, setAmount] = useState(minimoDelCiclo > 0 ? minimoDelCiclo.toFixed(2) : '');
+  const [minimum, setMinimum] = useState(minimoDelCiclo > 0 || cobertura ? minimoDelCiclo.toFixed(2) : '');
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +86,24 @@ export default function CardPaymentModal({ tramos, onClose, onPaid }: Props) {
     () => allocateCardPayment({ tramos: tramos.map(aTramo), amount: monto, minimumDue: minimo, hoy: toDateKey(new Date()) }),
     [tramos, monto, minimo],
   );
+
+  const hoyClave = toDateKey(new Date());
+  const sinIntereses = useMemo(
+    () => montoSinIntereses(tramos.map(aTramo), minimo, hoyClave),
+    [tramos, minimo, hoyClave],
+  );
+  const ahorroMes = interesAhorradoAlMes(reparto);
+
+  /**
+   * Los atajos: los tres montos que tienen sentido con una tarjeta así. El
+   * mínimo (lo de cada mes), el que deja en cero lo que cobra interés, y la
+   * tarjeta entera (los aportes grandes para liquidarla).
+   */
+  const atajos = [
+    minimo > 0 ? { clave: 'min', label: cobertura && estado && cobertura.falta < estado.minimumDue ? 'Lo que falta' : 'Mínimo', monto: minimo } : null,
+    sinIntereses !== null && sinIntereses > minimo && sinIntereses < total ? { clave: 'sin', label: 'Sin intereses', monto: sinIntereses } : null,
+    total > 0 ? { clave: 'todo', label: 'Liquidar', monto: Math.round(total * 100) / 100 } : null,
+  ].filter((a): a is { clave: string; label: string; monto: number } => a !== null);
 
   // El tramo caro que se queda sin tocar: es el aviso que da sentido a todo esto.
   const caroSinTocar = useMemo(() => {
@@ -99,7 +132,7 @@ export default function CardPaymentModal({ tramos, onClose, onPaid }: Props) {
       if (!res.ok || !data.debts) throw new Error(data.message ?? 'No se pudo registrar el abono');
       // Primero lo que importa: el abono YA está asentado, y la lista tiene que
       // enseñarlo aunque la celebración falle (un navegador sin `animate`).
-      onPaid(data.debts);
+      onPaid(data.debts, monto);
       onClose();
       try {
         haptic([12, 30, 12]);
@@ -157,8 +190,34 @@ export default function CardPaymentModal({ tramos, onClose, onPaid }: Props) {
               className="w-full rounded-3xl border-2 border-sky-200 bg-white py-5 pl-16 pr-4 text-right text-3xl font-extrabold text-black transition focus:border-sky-400 focus:outline-none"
             />
           </div>
+          {atajos.length > 0 && (
+            <div className="mt-3 grid grid-cols-3 gap-2" aria-label="Montos rápidos">
+              {atajos.map((a) => {
+                const elegido = Math.abs(monto - a.monto) < 0.005;
+                return (
+                  <button
+                    key={a.clave}
+                    type="button"
+                    onClick={() => {
+                      haptic();
+                      setAmount(a.monto.toFixed(2));
+                    }}
+                    aria-pressed={elegido}
+                    className={`flex flex-col items-center rounded-2xl border px-2 py-2 transition active:scale-95 ${
+                      elegido ? 'border-sky-500 bg-sky-500 text-white shadow-md' : 'border-sky-200 bg-white text-black hover:border-sky-300'
+                    }`}
+                  >
+                    <span className={`text-[11px] font-bold ${elegido ? 'text-white/85' : 'text-slate-600'}`}>{a.label}</span>
+                    <span className="text-sm font-extrabold tabular-nums">{fmtMoney(a.monto, currency)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-white px-4 py-2.5">
-            <span className="text-xs font-bold text-slate-600">Mínimo del estado de cuenta</span>
+            <span className="text-xs font-bold text-slate-600">
+              {cobertura && estado && cobertura.falta < estado.minimumDue ? 'Falta del mínimo' : 'Mínimo del estado de cuenta'}
+            </span>
             <input
               type="text"
               inputMode="decimal"
@@ -199,6 +258,11 @@ export default function CardPaymentModal({ tramos, onClose, onPaid }: Props) {
               ))}
             </ul>
 
+            {ahorroMes > 0 && (
+              <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] font-bold text-sky-800">
+                🌱 Con este abono la tarjeta deja de cobrarte {fmtMoney(ahorroMes, currency)} de interés al mes
+              </p>
+            )}
             {caroSinTocar && (
               <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-800">
                 🛑 {caroSinTocar.name} ({pct(caroSinTocar.monthlyRate)}) no baja: solo recibe lo que pagues por encima del mínimo

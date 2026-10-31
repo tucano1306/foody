@@ -4,6 +4,8 @@ import {
   cardTitle,
   enPromocion,
   estimateCardMinimum,
+  interesAhorradoAlMes,
+  montoSinIntereses,
   tasaVigente,
   type CardTramo,
 } from './card-payment';
@@ -235,5 +237,46 @@ describe('el reparto del banco, comprobado contra los estados de la 3650', () =>
 
   it('y los tres tramos suman el saldo del estado: $13,303.26', () => {
     expect(Math.round((1164.26 + 699.0 + 11440.0) * 100) / 100).toBe(13303.26);
+  });
+});
+
+/**
+ * Tres tramos: compras al 23.99 %, un adelanto (LP27) cuya promoción acaba de
+ * terminar —ya cobra el 23.99 %— y otro (LP36) todavía al 0 % unos meses más.
+ */
+describe('la 3650 de octubre: «sin intereses» y lo que ahorra un abono', () => {
+  const T: CardTramo[] = [
+    { id: 'compras', name: 'Compras', balance: 1177.04, rate: 23.99, ratePeriod: 'annual_nominal', promoEndsOn: null, rateAfterPromo: null },
+    { id: 'lp27', name: 'Adelanto LP27', balance: 553.4, rate: 0, ratePeriod: 'annual_nominal', promoEndsOn: '2026-10-25', rateAfterPromo: 23.99 },
+    { id: 'lp36', name: 'Adelanto LP36', balance: 11440, rate: 0, ratePeriod: 'annual_nominal', promoEndsOn: '2027-01-25', rateAfterPromo: 23.99 },
+  ];
+  const HOY = '2026-11-01';
+
+  it('dejar en cero lo que cobra interés cuesta el mínimo MÁS los dos caros', () => {
+    // El mínimo va al LP36 (0 %); todo lo de más, a compras y al LP27.
+    expect(montoSinIntereses(T, 154, HOY)).toBe(1884.44);
+  });
+
+  it('con ese monto, compras y LP27 quedan en cero y el LP36 baja el mínimo', () => {
+    const r = allocateCardPayment({ tramos: T, amount: 1884.44, minimumDue: 154, hoy: HOY });
+    const saldo = (id: string) => r.parts.find((p) => p.tramoId === id)?.balanceAfter;
+    expect(saldo('compras')).toBe(0);
+    expect(saldo('lp27')).toBe(0);
+    expect(saldo('lp36')).toBe(11286);
+  });
+
+  it('pagar solo el mínimo no ahorra interés: todo cae en el 0 %', () => {
+    const r = allocateCardPayment({ tramos: T, amount: 154, minimumDue: 154, hoy: HOY });
+    expect(interesAhorradoAlMes(r)).toBe(0);
+  });
+
+  it('$1,000 de más ahorran su parte del 23.99 % cada mes', () => {
+    const r = allocateCardPayment({ tramos: T, amount: 1154, minimumDue: 154, hoy: HOY });
+    // 1,000 × 23.99 % / 12 = 19.99
+    expect(interesAhorradoAlMes(r)).toBe(19.99);
+  });
+
+  it('sin tramos que cobren interés, no hay «sin intereses» que ofrecer', () => {
+    expect(montoSinIntereses([T[2]], 154, HOY)).toBeNull();
   });
 });

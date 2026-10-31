@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
-import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
+import type { CardStatementInfo, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, type PortfolioDebt } from '@/lib/debt-engine';
 import { caminoDeDeudas } from '@/lib/camino-deudas';
 import { cardTitle } from '@/lib/card-payment';
@@ -14,6 +14,7 @@ import ScopeTabs from '@/components/ui/ScopeTabs';
 import DebtCard from './DebtCard';
 import CardGroupCard from './CardGroupCard';
 import CardPaymentModal from './CardPaymentModal';
+import CardStatementModal from './CardStatementModal';
 import DuplicateBanner from './DuplicateBanner';
 import DebtDetailSheet from './DebtDetailSheet';
 import DebtEditModal from './DebtEditModal';
@@ -50,6 +51,10 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   const [editId, setEditId] = useState<string | null>(null);
   const [payId, setPayId] = useState<string | null>(null);
   const [payCard, setPayCard] = useState<string | null>(null);
+  const [cuadrarCard, setCuadrarCard] = useState<string | null>(null);
+  // El último estado de cuenta de cada tarjeta. Tras un abono se suma lo
+  // abonado al momento, sin volver a pedirlo: la tarjeta dice «✓ Cubierto» ya.
+  const [estados, setEstados] = useState<Record<string, CardStatementInfo>>(initial.cardStatements ?? {});
   /**
    * Qué lado se está mirando.
    *
@@ -184,12 +189,14 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
 
   const replaceAll = useCallback((snapshot: DebtsSnapshot) => {
     setDebts([...snapshot.debts].sort((a, b) => b.currentBalance - a.currentBalance));
+    if (snapshot.cardStatements) setEstados(snapshot.cardStatements);
   }, []);
 
   const currency = debts[0]?.currency ?? 'USD';
   // El abono a la tarjeta va con los saldos ENTEROS: el ámbito solo cambia lo
   // que se enseña, no lo que se debe.
   const payingCard = payCard ? debts.filter((d) => d.cardGroup === payCard && d.status === 'active') : [];
+  const cuadrandoCard = cuadrarCard ? debts.filter((d) => d.cardGroup === cuadrarCard && d.status === 'active') : [];
   const detail = debts.find((d) => d.id === detailId) ?? null;
   const paying = debts.find((d) => d.id === payId) ?? null;
   const editing = debts.find((d) => d.id === editId) ?? null;
@@ -290,6 +297,8 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
                 tramos={b.tramos}
                 onOpenTramo={setDetailId}
                 onPay={() => setPayCard(b.group)}
+                estado={estados[b.group] ?? null}
+                onCuadrar={() => setCuadrarCard(b.group)}
               />
             ) : (
               <DebtCard
@@ -392,8 +401,28 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
           <CardPaymentModal
             key="pay-card"
             tramos={payingCard}
+            estado={payCard ? estados[payCard] ?? null : null}
             onClose={() => setPayCard(null)}
-            onPaid={(actualizadas) => actualizadas.forEach(upsert)}
+            onPaid={(actualizadas, monto) => {
+              actualizadas.forEach(upsert);
+              const grupo = payCard;
+              if (grupo) {
+                setEstados((prev) =>
+                  prev[grupo]
+                    ? { ...prev, [grupo]: { ...prev[grupo], paidSinceClosing: prev[grupo].paidSinceClosing + monto } }
+                    : prev,
+                );
+              }
+            }}
+          />
+        )}
+        {cuadrandoCard.length > 0 && (
+          <CardStatementModal
+            key="cuadrar-card"
+            tramos={cuadrandoCard}
+            estado={cuadrarCard ? estados[cuadrarCard] ?? null : null}
+            onClose={() => setCuadrarCard(null)}
+            onSaved={replaceAll}
           />
         )}
       </AnimatePresence>

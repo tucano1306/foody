@@ -47,6 +47,8 @@ import {
 } from './debt-engine';
 import { normalizeShare } from './expense-scope';
 import { allocateCardPayment, type CardAllocation } from './card-payment';
+import { agrupacionesAutomaticas } from './tarjetas-auto';
+import { ajustesDeCuadre } from './cuadre-tarjeta';
 
 // ─── Tipos expuestos ──────────────────────────────────────────────────────────
 
@@ -307,6 +309,23 @@ export async function ensureDebtSchema(): Promise<void> {
   // Los tramos de una misma tarjeta (compras, adelantos al 0 %) comparten este
   // valor. Es el id de la deuda que formó la tarjeta; no hace falta otra tabla.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS card_group UUID`;
+  // El usuario separó este tramo de su tarjeta a mano: la unión automática por
+  // número de tarjeta (tarjetas-auto.ts) no lo vuelve a juntar.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS card_group_manual BOOLEAN NOT NULL DEFAULT false`;
+  // El último estado de cuenta de cada tarjeta: el mínimo que pide el banco y
+  // cuándo vence. El abono lo propone solo y la tarjeta dice si ya se cubrió.
+  await sql`
+    CREATE TABLE IF NOT EXISTS card_statements (
+      card_group    UUID          NOT NULL,
+      user_id       UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      closing_date  DATE          NOT NULL,
+      minimum_due   DECIMAL(12,2) NOT NULL,
+      due_date      DATE,
+      new_balance   DECIMAL(12,2),
+      created_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+      PRIMARY KEY (card_group, closing_date)
+    )
+  `;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_debts_user ON debts (user_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_debt_movements ON debt_movements (debt_id, occurred_at DESC)`;
@@ -670,9 +689,90 @@ function decorate(debt: Debt, totals: LedgerTotals, now: Date): DebtWithProjecti
 
 // ─── Lectura ──────────────────────────────────────────────────────────────────
 
+/** El último estado de cuenta de una tarjeta y lo pagado desde su cierre. */
+export interface CardStatementInfo {
+  cardGroup: string;
+  /** YYYY-MM-DD */
+  closingDate: string;
+  minimumDue: number;
+  /** YYYY-MM-DD */
+  dueDate: string | null;
+  newBalance: number | null;
+  /** Abonos a la tarjeta (todos sus tramos) desde el día siguiente al cierre. */
+  paidSinceClosing: number;
+}
+
 export interface DebtsSnapshot {
   debts: DebtWithProjection[];
   portfolio: DebtPortfolio;
+  /** Por tarjeta (card_group). Opcional: las pantallas viejas no lo traen. */
+  cardStatements?: Record<string, CardStatementInfo>;
+}
+
+/**
+ * Une los tramos de una misma tarjeta (mismo banco y cuatro últimos dígitos)
+ * que estén sueltos. Ver tarjetas-auto.ts: unirlos era un paso escondido que
+ * nadie daba, y sin él el abono no se reparte como el banco.
+ */
+async function agruparTarjetasSolas(userId: string, rows: readonly Record<string, unknown>[]): Promise<boolean> {
+  const asignaciones = agrupacionesAutomaticas(
+    rows.map((r) => ({
+      id: String(r.id),
+      kind: String(r.kind ?? ''),
+      status: String(r.status ?? ''),
+      issuer: (r.issuer as string | null) ?? null,
+      accountLast4: (r.account_last4 as string | null) ?? null,
+      cardGroup: (r.card_group as string | null) ?? null,
+      cardGroupManual: Boolean(r.card_group_manual),
+      currentBalance: num(r.current_balance),
+    })),
+  );
+  for (const a of asignaciones) {
+    await sql`
+      UPDATE debts SET card_group = ${a.cardGroup}::uuid, updated_at = now()
+       WHERE id = ${a.id}::uuid AND user_id = ${userId} AND card_group IS NULL
+    `;
+  }
+  return asignaciones.length > 0;
+}
+
+function claveDeFecha(value: unknown): string | null {
+  if (value == null) return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+/** El último estado de cada tarjeta del usuario, con lo abonado desde el cierre. */
+async function ultimosEstadosDeTarjeta(userId: string): Promise<Record<string, CardStatementInfo>> {
+  const rows = await sql`
+    SELECT DISTINCT ON (s.card_group)
+           s.card_group, s.closing_date, s.minimum_due, s.due_date, s.new_balance,
+           COALESCE((
+             SELECT SUM(m.amount)
+               FROM debt_movements m
+               JOIN debts d ON d.id = m.debt_id
+              WHERE d.user_id = ${userId}
+                AND d.card_group = s.card_group
+                AND m.kind = 'payment'
+                AND m.occurred_at >= s.closing_date + INTERVAL '1 day'
+           ), 0) AS paid_since
+      FROM card_statements s
+     WHERE s.user_id = ${userId}
+     ORDER BY s.card_group, s.closing_date DESC
+  `;
+  const out: Record<string, CardStatementInfo> = {};
+  for (const r of rows as Record<string, unknown>[]) {
+    const grupo = String(r.card_group);
+    out[grupo] = {
+      cardGroup: grupo,
+      closingDate: claveDeFecha(r.closing_date) ?? '',
+      minimumDue: num(r.minimum_due),
+      dueDate: claveDeFecha(r.due_date),
+      newBalance: r.new_balance == null ? null : num(r.new_balance),
+      paidSinceClosing: round2(num(r.paid_since)),
+    };
+  }
+  return out;
 }
 
 /** Todas las deudas del usuario, con el interés del mes ya devengado. */
@@ -685,8 +785,9 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
   `;
 
   // Devenga lo pendiente antes de proyectar: si no, la cuota y el saldo que ve
-  // el usuario serían los del mes pasado.
-  let changed = false;
+  // el usuario serían los del mes pasado. Y antes, junta los tramos sueltos de
+  // una misma tarjeta, para que se abonen como una sola.
+  let changed = await agruparTarjetasSolas(userId, initial as Record<string, unknown>[]);
   for (const row of initial) {
     if (await accrueDueInterest(mapDebt(row as Record<string, unknown>), now)) changed = true;
   }
@@ -719,7 +820,8 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
       status: d.projection.status,
     }));
 
-  return { debts, portfolio: buildPortfolio(portfolioInput, now) };
+  const cardStatements = await ultimosEstadosDeTarjeta(userId).catch(() => ({}));
+  return { debts, portfolio: buildPortfolio(portfolioInput, now), cardStatements };
 }
 
 /** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
@@ -1089,7 +1191,11 @@ export async function setCardGroup(
   const antes = (rows[0].card_group as string | null) ?? null;
 
   if (withDebtId === null) {
-    await sql`UPDATE debts SET card_group = NULL, updated_at = now() WHERE id = ${debtId} AND user_id = ${userId}`;
+    // Separada a mano: la unión automática ya no la vuelve a juntar.
+    await sql`
+      UPDATE debts SET card_group = NULL, card_group_manual = true, updated_at = now()
+       WHERE id = ${debtId} AND user_id = ${userId}
+    `;
     if (antes) await soltarSiQuedaUno(userId, antes);
     return { ok: true };
   }
@@ -1103,7 +1209,7 @@ export async function setCardGroup(
 
   const grupo = (otra[0].card_group as string | null) ?? String(otra[0].id);
   await sql`
-    UPDATE debts SET card_group = ${grupo}::uuid, updated_at = now()
+    UPDATE debts SET card_group = ${grupo}::uuid, card_group_manual = false, updated_at = now()
      WHERE user_id = ${userId} AND id IN (${debtId}::uuid, ${withDebtId}::uuid)
   `;
   if (antes && antes !== grupo) await soltarSiQuedaUno(userId, antes);
@@ -1209,6 +1315,132 @@ export async function registerCardPayment(
   }
 
   return { ok: true, allocation, debts };
+}
+
+export interface CardStatementInput {
+  /** YYYY-MM-DD: cierre del estado de cuenta. */
+  closingDate: string;
+  minimumDue: number;
+  /** YYYY-MM-DD */
+  dueDate: string | null;
+  /** El saldo de cada tramo según el estado; `apr` si el banco la cambió. */
+  tramos: { debtId: string; balance: number; apr: number | null }[];
+  /** Saldos del estado que Foody no tenía (un adelanto nunca dado de alta). */
+  nuevos: { name: string; balance: number; apr: number; promoEndsOn: string | null }[];
+}
+
+export type CardStatementResult =
+  | { ok: true; snapshot: DebtsSnapshot }
+  | { ok: false; status: 404 | 422; message: string };
+
+/**
+ * Cuadra una tarjeta con su estado de cuenta (ver cuadre-tarjeta.ts).
+ *
+ * - Cada tramo recibe un AJUSTE por la diferencia: el historial no se toca, y
+ *   el libro mayor cuenta por qué cambió el saldo.
+ * - Si el banco cambió la tasa de un tramo que ya no está en promoción, se
+ *   actualiza (en uno con promoción caducada, la de después).
+ * - Los saldos que Foody no tenía se dan de alta ya dentro de la tarjeta.
+ * - Se guarda el mínimo y su vencimiento: el abono los propone solos.
+ */
+export async function saveCardStatement(
+  userId: string,
+  cardGroup: string,
+  input: CardStatementInput,
+  now: Date = new Date(),
+): Promise<CardStatementResult> {
+  await ensureDebtSchema();
+  const rows = await sql`
+    SELECT * FROM debts
+     WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid AND status = 'active'
+  `;
+  if (rows.length === 0) return { ok: false, status: 404, message: 'Tarjeta no encontrada' };
+
+  // Devengar antes de comparar: el saldo de Foody tiene que ser el de hoy.
+  const tramos: Debt[] = [];
+  for (const row of rows) {
+    let debt = mapDebt(row as Record<string, unknown>);
+    if (await accrueDueInterest(debt, now)) {
+      const fresh = await sql`SELECT * FROM debts WHERE id = ${debt.id} LIMIT 1`;
+      debt = mapDebt(fresh[0] as Record<string, unknown>);
+    }
+    tramos.push(debt);
+  }
+
+  const nota = `Cuadre con el estado de cuenta del ${input.closingDate}`;
+  const ajustes = ajustesDeCuadre(
+    tramos.map((t) => ({ id: t.id, balance: t.currentBalance })),
+    input.tramos.map((t) => ({ debtId: t.debtId, saldo: t.balance })),
+  );
+  for (const a of ajustes) {
+    await registerCharge(userId, a.debtId, { amount: a.ajuste, kind: 'adjustment', note: nota }, now);
+  }
+
+  const hoy = toDateKey(now);
+  for (const t of input.tramos) {
+    if (t.apr == null) continue;
+    const d = tramos.find((x) => x.id === t.debtId);
+    if (!d || promoVigente(d.promoEndsOn, hoy)) continue;
+    const apr = round2(t.apr);
+    if (d.promoEndsOn && d.rateAfterPromo != null) {
+      if (Math.abs(d.rateAfterPromo - apr) >= 0.005) {
+        await sql`UPDATE debts SET rate_after_promo = ${apr}, updated_at = now() WHERE id = ${d.id} AND user_id = ${userId}`;
+      }
+    } else if (d.ratePeriod !== 'annual_nominal' || Math.abs(d.rate - apr) >= 0.005) {
+      await sql`
+        UPDATE debts SET rate = ${apr}, rate_period = 'annual_nominal', updated_at = now()
+         WHERE id = ${d.id} AND user_id = ${userId}
+      `;
+    }
+  }
+
+  const base = tramos[0];
+  for (const n of input.nuevos) {
+    const conPromo = n.promoEndsOn !== null;
+    const creada = await createDebt(
+      userId,
+      {
+        name: n.name,
+        kind: 'credit_card',
+        issuer: base.issuer,
+        accountLast4: base.accountLast4,
+        currency: base.currency,
+        balance: n.balance,
+        // Con promoción, su tasa es 0 y la del estado es la de después (que
+        // empieza a correr sola al caducar).
+        rate: conPromo ? 0 : n.apr,
+        ratePeriod: 'annual_nominal',
+        strategy: 'minimum',
+        minPercent: 1,
+        promoEndsOn: n.promoEndsOn,
+        rateAfterPromo: conPromo ? n.apr : null,
+        statementDay: base.statementDay,
+        dueDay: base.dueDay,
+        businessShare: base.businessShare,
+        note: nota,
+      },
+      now,
+    );
+    await sql`
+      UPDATE debts SET card_group = ${cardGroup}::uuid, card_group_manual = false, updated_at = now()
+       WHERE id = ${creada.id} AND user_id = ${userId}
+    `;
+  }
+
+  const nuevoSaldo = round2(
+    input.tramos.reduce((sum, t) => sum + t.balance, 0) + input.nuevos.reduce((sum, n) => sum + n.balance, 0),
+  );
+  await sql`
+    INSERT INTO card_statements (card_group, user_id, closing_date, minimum_due, due_date, new_balance)
+    VALUES (${cardGroup}::uuid, ${userId}, ${input.closingDate}, ${round2(input.minimumDue)}, ${input.dueDate}, ${nuevoSaldo})
+    ON CONFLICT (card_group, closing_date) DO UPDATE
+      SET minimum_due = EXCLUDED.minimum_due,
+          due_date = EXCLUDED.due_date,
+          new_balance = EXCLUDED.new_balance,
+          created_at = now()
+  `;
+
+  return { ok: true, snapshot: await listDebts(userId, now) };
 }
 
 export interface RegisterChargeInput {

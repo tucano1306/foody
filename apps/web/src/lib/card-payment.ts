@@ -191,6 +191,47 @@ export function allocateCardPayment(input: {
 }
 
 /**
+ * Lo mínimo que hay que abonar para dejar en cero TODO lo que hoy cobra
+ * interés. `null` si nada cobra interés.
+ *
+ * No es «la suma de los tramos caros»: el mínimo cae primero en el tramo más
+ * barato, así que con la 3650 —compras y un adelanto caducado al 23.99 %, otro
+ * adelanto al 0 %— hace falta el mínimo MÁS los dos caros. Se busca con el
+ * mismo reparto del banco, al centavo, para que el atajo «Sin intereses» de la
+ * pantalla diga exactamente lo que hace.
+ */
+export function montoSinIntereses(
+  tramos: readonly CardTramo[],
+  minimumDue: number,
+  hoy: string,
+): number | null {
+  const caros = tramos.filter((t) => t.balance > 0 && tasaVigente(t, hoy) > 0);
+  if (caros.length === 0) return null;
+  const total = round2(tramos.reduce((s, t) => s + Math.max(0, t.balance), 0));
+  const limpio = (amount: number) => {
+    const reparto = allocateCardPayment({ tramos, amount, minimumDue, hoy });
+    return caros.every((c) => reparto.parts.find((p) => p.tramoId === c.id)?.balanceAfter === 0);
+  };
+  let lo = 0;
+  let hi = Math.round(total * 100);
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (limpio(mid / 100)) hi = mid;
+    else lo = mid + 1;
+  }
+  return round2(lo / 100);
+}
+
+/**
+ * Lo que la tarjeta deja de cobrar de interés cada mes con este abono: lo que
+ * cayó en cada tramo por su tasa mensual. Abonar al 0 % no ahorra nada; abonar
+ * a compras al 23.99 % sí, y verlo es lo que da sentido a pagar de más.
+ */
+export function interesAhorradoAlMes(reparto: CardAllocation): number {
+  return round2(reparto.parts.reduce((s, p) => s + p.amount * p.monthlyRate, 0));
+}
+
+/**
  * «Bank of America ···3650»: el nombre de la tarjeta, sacado de sus tramos.
  *
  * Los tramos se llaman como los llamó el usuario («Compras 3650», «Unlimited
