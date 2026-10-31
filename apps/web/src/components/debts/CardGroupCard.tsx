@@ -4,7 +4,9 @@ import type { CardStatementInfo, DebtWithProjection } from '@/lib/debt-data';
 import { cardTitle, enPromocion } from '@/lib/card-payment';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
+import { avisoDePromo } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
+import PromoAviso from './PromoAviso';
 import { BTN_PRIMARY, fmtDateFull, fmtMoney, fmtMoneyShort, fmtRate } from './debt-ui';
 
 interface Props {
@@ -91,9 +93,7 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
       <ul className="flex flex-col gap-2">
         {ordenados.map((t) => {
           const promoViva = enPromocion(t, hoy);
-          const dias = t.promoEndsOn ? diasHasta(t.promoEndsOn, hoy) : null;
-          // Solo cuando queda poco: un aviso que está siempre deja de leerse.
-          const caducaPronto = promoViva && dias !== null && dias <= 62 && t.currentBalance > 0;
+          const aviso = avisoDePromo(t, hoy);
           return (
             <li key={t.id}>
               <button
@@ -122,12 +122,8 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
                         : fmtRate(t.rate, t.ratePeriod)}
                     </span>
                   )}
-                  {caducaPronto && t.rateAfterPromo != null && (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">
-                      ⏳ En {dias} {dias === 1 ? 'día' : 'días'} lo que quede pasa al {fmtRate(t.rateAfterPromo, 'annual_nominal')}
-                    </span>
-                  )}
                 </span>
+                {aviso && <PromoAviso aviso={aviso} currency={t.currency} />}
               </button>
             </li>
           );

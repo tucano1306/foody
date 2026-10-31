@@ -326,6 +326,18 @@ export async function ensureDebtSchema(): Promise<void> {
       PRIMARY KEY (card_group, closing_date)
     )
   `;
+  // Las notificaciones de «se acaba el 0 %» ya mandadas. La clave lleva la
+  // fecha de fin: si el banco alarga la promoción, los avisos vuelven a salir.
+  // Es lo que deja al cron correr a diario sin repetir ninguno (debt-promo.ts).
+  await sql`
+    CREATE TABLE IF NOT EXISTS debt_promo_alerts (
+      debt_id        UUID        NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
+      promo_ends_on  DATE        NOT NULL,
+      hito           VARCHAR(8)  NOT NULL,
+      sent_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (debt_id, promo_ends_on, hito)
+    )
+  `;
 
   await sql`CREATE INDEX IF NOT EXISTS idx_debts_user ON debts (user_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_debt_movements ON debt_movements (debt_id, occurred_at DESC)`;
@@ -1406,14 +1418,17 @@ export async function saveCardStatement(
     await registerCharge(userId, a.debtId, { amount: a.ajuste, kind: 'adjustment', note: nota, occurredAt: cuando }, now);
   }
 
-  const hoy = toDateKey(now);
   for (const t of input.tramos) {
     if (t.apr == null) continue;
     const d = tramos.find((x) => x.id === t.debtId);
-    if (!d || promoVigente(d.promoEndsOn, hoy)) continue;
+    if (!d) continue;
     const apr = round2(t.apr);
-    if (d.promoEndsOn && d.rateAfterPromo != null) {
-      if (Math.abs(d.rateAfterPromo - apr) >= 0.005) {
+    // Con promoción, viva o caducada, la tasa que se cuadra es la de DESPUÉS:
+    // la que cobrará lo que quede. Antes se saltaba mientras la promo seguía
+    // viva, y un cambio del banco (23.74 → 23.99) no entraba hasta el fin,
+    // justo cuando el aviso de fin del 0 % ya la había usado.
+    if (d.promoEndsOn) {
+      if (d.rateAfterPromo == null || Math.abs(d.rateAfterPromo - apr) >= 0.005) {
         await sql`UPDATE debts SET rate_after_promo = ${apr}, updated_at = now() WHERE id = ${d.id} AND user_id = ${userId}`;
       }
     } else if (d.ratePeriod !== 'annual_nominal' || Math.abs(d.rate - apr) >= 0.005) {

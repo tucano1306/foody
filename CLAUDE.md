@@ -602,6 +602,7 @@ cualquier petición a estas rutas las dispara de verdad.
 | `/api/cron/payments-daily` | `0 9 * * *` |
 | `/api/cron/stock-alerts` | `0 8 * * *` |
 | `/api/cron/computo-sync` | `30 9 * * *` (tras el autopago de las 9:00) |
+| `/api/cron/debt-promo-alerts` | `0 14 * * *` (push «se acaba el 0 %» a 60/30/7/1 días y tras el fin; una vez cada uno, `debt_promo_alerts`) |
 
 ## Enlace con Computo
 

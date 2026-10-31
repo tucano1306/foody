@@ -49,10 +49,13 @@ function vencimientoTras(cierre: string, dueDay: number | null): string {
   return `${ny}-${String(nm).padStart(2, '0')}-${String(dia(ny, nm)).padStart(2, '0')}`;
 }
 
-/** La tasa anual que el banco imprime para este tramo hoy, o null si está en promoción. */
-function aprDelTramo(t: DebtWithProjection, hoy: string): number | null {
-  if (enPromocion(t, hoy)) return null;
-  if (t.promoEndsOn && t.rateAfterPromo != null) return t.rateAfterPromo;
+/**
+ * La tasa de la casilla de cada tramo, en APR. Con promoción —viva o ya
+ * caducada— es la de DESPUÉS: la que cobrará, o cobra ya, lo que quede. Es la
+ * que el banco puede cambiar y la que decide el aviso de fin del 0 %.
+ */
+function aprDelTramo(t: DebtWithProjection): number | null {
+  if (t.promoEndsOn) return t.rateAfterPromo;
   if (t.ratePeriod === 'annual_nominal') return t.rate;
   if (t.ratePeriod === 'monthly') return centavos(t.rate * 12);
   return t.rate;
@@ -95,7 +98,7 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
   const [tasas, setTasas] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       tramos.map((t) => {
-        const apr = aprDelTramo(t, hoy);
+        const apr = aprDelTramo(t);
         return [t.id, apr === null ? '' : String(apr)];
       }),
     ),
@@ -245,7 +248,12 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
             return (
               <li key={t.id} className="rounded-2xl bg-sky-50/80 p-3.5">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="min-w-0 truncate text-sm font-semibold text-black">{t.name}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-black">{t.name}</span>
+                    {promoViva && (
+                      <span className="block text-[11px] font-semibold text-sky-700">0 % hasta el {fmtDateFull(t.promoEndsOn)}</span>
+                    )}
+                  </span>
                   {movido !== null && (
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
@@ -258,7 +266,7 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
                     </span>
                   )}
                 </div>
-                <div className="mt-2 grid grid-cols-[1fr_6.5rem] gap-2">
+                <div className={`mt-2 grid gap-2 ${promoViva ? 'grid-cols-[1fr_8.5rem]' : 'grid-cols-[1fr_6.5rem]'}`}>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -267,23 +275,22 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
                     aria-label={`Saldo de ${t.name} según el estado`}
                     className={campo}
                   />
-                  {promoViva ? (
-                    <span className="grid place-items-center rounded-2xl bg-white px-2 text-center text-[11px] font-bold text-sky-700">
-                      0 % hasta {fmtDateFull(t.promoEndsOn)}
-                    </span>
-                  ) : (
-                    <label className="relative">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={tasas[t.id] ?? ''}
-                        onChange={(e) => setTasas((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                        aria-label={`Tasa anual de ${t.name}`}
-                        className={`${campo} pr-7`}
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
-                    </label>
-                  )}
+                  <label className="relative">
+                    {promoViva && (
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">
+                        luego
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={tasas[t.id] ?? ''}
+                      onChange={(e) => setTasas((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                      aria-label={promoViva ? `Tasa de ${t.name} cuando acabe el 0 %` : `Tasa anual de ${t.name}`}
+                      className={`${campo} pr-7${promoViva ? ' pl-12' : ''}`}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
+                  </label>
                 </div>
               </li>
             );

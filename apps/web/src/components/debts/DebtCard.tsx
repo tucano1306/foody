@@ -5,6 +5,9 @@ import { haptic } from '@/lib/haptic';
 import ProgressRing from './ProgressRing';
 import SplitBar from './SplitBar';
 import { scopeOf } from '@/lib/expense-scope';
+import { toDateKey } from '@/lib/debt-engine';
+import { avisoDePromo } from '@/lib/debt-promo';
+import PromoAviso from './PromoAviso';
 import {
   fmtDateFull,
   fmtDateKey,
@@ -45,6 +48,7 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
   const isPaid = debt.projection.status === 'paid';
   const isStuck = debt.projection.neverPaysOff;
   const { firstSplit, installment, monthsToPayoff, payoffDate } = debt.projection;
+  const aviso = avisoDePromo(debt, toDateKey(new Date()));
 
   return (
     <div className="relative rounded-3xl">
@@ -119,6 +123,8 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
             </span>
           )}
         </div>
+
+        {aviso && <PromoAviso aviso={aviso} currency={debt.currency} />}
 
         {/* El reparto de la próxima cuota — el corazón de la tarjeta */}
         {!isPaid && installment > 0 && (
