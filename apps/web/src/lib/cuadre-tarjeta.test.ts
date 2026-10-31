@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ajustesDeCuadre, estadoDelMinimo, leerCuadre, momentoDelCuadre, saldosAlCierre } from './cuadre-tarjeta';
+import {
+  ajustesDeCuadre,
+  diaDeVencimiento,
+  diaDelEstado,
+  estadoDelMinimo,
+  leerCuadre,
+  momentoDelCuadre,
+  nombreDeSaldoNuevo,
+  saldosAlCierre,
+} from './cuadre-tarjeta';
 
 /**
  * Una tarjeta de dos tramos (compras y un adelanto al 0 %) cuyos saldos en
@@ -85,9 +94,17 @@ describe('leerCuadre', () => {
     expect(leerCuadre({ ...BUENO, tramos: [{ debtId: 'x', balance: 5, apr: null }] })).toHaveProperty('error');
   });
 
-  it('un saldo nuevo necesita nombre y saldo mayor que 0', () => {
-    expect(leerCuadre({ ...BUENO, nuevos: [{ name: ' ', balance: 5, apr: 0 }] })).toHaveProperty('error');
+  it('un saldo nuevo necesita saldo mayor que 0', () => {
     expect(leerCuadre({ ...BUENO, nuevos: [{ name: 'X', balance: 0, apr: 0 }] })).toHaveProperty('error');
+  });
+
+  // «El botón cuadrar la tarjeta no hace nada»: el saldo nuevo iba sin
+  // nombre, el servidor lo rechazaba y el aviso salía fuera de la vista. El
+  // estado no le da nombre a esos saldos; ahora se lo pone el servidor.
+  it('un saldo nuevo sin nombre pasa, con el nombre vacío', () => {
+    const cuadre = leerCuadre({ ...BUENO, nuevos: [{ name: '  ', balance: 553.4, apr: 23.99 }] });
+    expect(cuadre).not.toHaveProperty('error');
+    expect((cuadre as { nuevos: { name: string }[] }).nuevos[0].name).toBe('');
   });
 
   it('sin nada que cuadrar, error', () => {
@@ -154,5 +171,48 @@ describe('momentoDelCuadre', () => {
   it('nunca en el futuro: cuadrado el mismo día del cierre, es ahora', () => {
     const ahora = new Date('2026-10-25T14:00:00Z');
     expect(momentoDelCuadre('2026-10-25', ahora)).toEqual(ahora);
+  });
+});
+
+describe('nombreDeSaldoNuevo', () => {
+  it('se llama como los otros tramos de la tarjeta', () => {
+    expect(nombreDeSaldoNuevo('3650', false)).toBe('Saldo nuevo 3650');
+    expect(nombreDeSaldoNuevo('3650', true)).toBe('Promoción 0 % 3650');
+  });
+
+  it('sin últimos dígitos, sin número', () => {
+    expect(nombreDeSaldoNuevo(null, false)).toBe('Saldo nuevo');
+  });
+});
+
+describe('diaDeVencimiento', () => {
+  // Un tramo de la tarjeta tenía el 25 apuntado y el otro el 22, que es el
+  // del estado; el cuadre proponía el 25 por mirar solo el primero.
+  it('si los tramos no coinciden, el más temprano', () => {
+    expect(diaDeVencimiento([{ dueDay: 25 }, { dueDay: 22 }])).toBe(22);
+  });
+
+  it('ignora los tramos sin día', () => {
+    expect(diaDeVencimiento([{ dueDay: null }, { dueDay: 22 }])).toBe(22);
+    expect(diaDeVencimiento([{ dueDay: null }])).toBeNull();
+    expect(diaDeVencimiento([])).toBeNull();
+  });
+});
+
+describe('diaDelEstado', () => {
+  it('el día de la fecha y el último del mes', () => {
+    expect(diaDelEstado('2026-11-22')).toEqual({ dia: 22, ultimo: 30 });
+    expect(diaDelEstado('2027-02-28')).toEqual({ dia: 28, ultimo: 28 });
+    expect(diaDelEstado('2028-02-29')).toEqual({ dia: 29, ultimo: 29 });
+  });
+
+  // La regla del UPDATE de saveCardStatement: el día apuntado se cambia solo
+  // si `min(día, último) !== día de la fecha`.
+  it('un cierre a fin de febrero no le cambia el 31 a una tarjeta que cierra los 31', () => {
+    const { dia, ultimo } = diaDelEstado('2027-02-28');
+    const cuadra = (apuntado: number) => Math.min(apuntado, ultimo) === dia;
+    expect(cuadra(31)).toBe(true);
+    expect(cuadra(28)).toBe(true);
+    expect(cuadra(25)).toBe(false);
   });
 });
