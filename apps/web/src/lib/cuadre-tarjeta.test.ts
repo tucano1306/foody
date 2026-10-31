@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ajustesDeCuadre, estadoDelMinimo, leerCuadre } from './cuadre-tarjeta';
+import { ajustesDeCuadre, estadoDelMinimo, leerCuadre, momentoDelCuadre, saldosAlCierre } from './cuadre-tarjeta';
 
 /**
  * Una tarjeta de dos tramos (compras y un adelanto al 0 %) cuyos saldos en
@@ -92,5 +92,67 @@ describe('leerCuadre', () => {
 
   it('sin nada que cuadrar, error', () => {
     expect(leerCuadre({ ...BUENO, tramos: [], nuevos: [] })).toHaveProperty('error');
+  });
+});
+
+/**
+ * El caso que rompía el cuadre: el estado cierra, el mínimo se abona días
+ * después (y se apunta en Foody), y luego se cuadra. El estado imprime el
+ * saldo de ANTES del abono; Foody ya tiene el de después.
+ */
+describe('cuadrar después de abonar el mínimo', () => {
+  const HOY = [
+    { id: 'compras', balance: 800 },
+    { id: 'promo', balance: 9900 }, // 10,000 al cierre − 100 del mínimo
+  ];
+  const ESTADO = [
+    { debtId: 'compras', saldo: 1000 },
+    { debtId: 'promo', saldo: 10000 },
+  ];
+
+  it('el saldo al cierre devuelve el abono posterior', () => {
+    expect(saldosAlCierre(HOY, { promo: -100 })).toEqual([
+      { id: 'compras', balance: 800 },
+      { id: 'promo', balance: 10000 },
+    ]);
+  });
+
+  it('el abono posterior NO se deshace: solo se ajusta lo que de verdad no cuadra', () => {
+    expect(ajustesDeCuadre(saldosAlCierre(HOY, { promo: -100 }), ESTADO)).toEqual([{ debtId: 'compras', ajuste: 200 }]);
+  });
+
+  it('comparando con el saldo de hoy, el mínimo volvía a la deuda (lo que pasaba)', () => {
+    expect(ajustesDeCuadre(HOY, ESTADO)).toContainEqual({ debtId: 'promo', ajuste: 100 });
+  });
+
+  it('un cargo o un interés posterior también se aparta del saldo al cierre', () => {
+    expect(saldosAlCierre([{ id: 'compras', balance: 1050.5 }], { compras: 50.5 })).toEqual([
+      { id: 'compras', balance: 1000 },
+    ]);
+  });
+
+  it('cuadrar dos veces el mismo estado no ajusta dos veces', () => {
+    // Tras el primer cuadre, compras ya está en 1,000 y el ajuste quedó en el
+    // día del cierre: no cuenta como movido después.
+    const trasElPrimero = [{ id: 'compras', balance: 1000 }, { id: 'promo', balance: 9900 }];
+    expect(ajustesDeCuadre(saldosAlCierre(trasElPrimero, { promo: -100 }), ESTADO)).toEqual([]);
+  });
+});
+
+describe('momentoDelCuadre', () => {
+  it('se asienta al final del día del cierre', () => {
+    expect(momentoDelCuadre('2026-10-25', new Date('2026-10-31T15:00:00Z')).toISOString()).toBe(
+      '2026-10-25T23:59:59.999Z',
+    );
+  });
+
+  it('cae ANTES del límite de «después del cierre» (cierre + 1 día)', () => {
+    const cuando = momentoDelCuadre('2026-10-25', new Date('2026-10-31T15:00:00Z'));
+    expect(cuando.getTime()).toBeLessThan(new Date('2026-10-26T00:00:00Z').getTime());
+  });
+
+  it('nunca en el futuro: cuadrado el mismo día del cierre, es ahora', () => {
+    const ahora = new Date('2026-10-25T14:00:00Z');
+    expect(momentoDelCuadre('2026-10-25', ahora)).toEqual(ahora);
   });
 });

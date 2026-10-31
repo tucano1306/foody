@@ -48,6 +48,37 @@ export function ajustesDeCuadre(
   return out;
 }
 
+/**
+ * El saldo de cada tramo EL DÍA DEL CIERRE, que es el que imprime el estado.
+ *
+ * El estado se cuadra días después de cerrar y entretanto ya hubo abonos: el
+ * mínimo suele estar pagado antes de cuadrar. Comparar el estado con el saldo
+ * de HOY deshacía esos abonos — el mínimo pagado volvía a la deuda como
+ * ajuste. `movido` es lo que cambió cada tramo después del cierre (abonos en
+ * negativo; cargos, comisiones e intereses en positivo) y se le quita al saldo
+ * de hoy para volver al del cierre.
+ */
+export function saldosAlCierre(
+  hoy: readonly TramoEnFoody[],
+  movido: Readonly<Record<string, number>>,
+): TramoEnFoody[] {
+  return hoy.map((t) => ({ id: t.id, balance: centavos(t.balance - (movido[t.id] ?? 0)) }));
+}
+
+/**
+ * Cuándo se asienta el cuadre: al final del día del cierre, como el interés
+ * del ciclo, y nunca en el futuro.
+ *
+ * Asentado HOY quedaría «después del cierre»: repetir el cuadre del mismo
+ * estado lo restaría del saldo al cierre y volvería a ajustar, el doble. Y un
+ * saldo nuevo dado de alta hoy empezaría a cobrar interés hoy, cuando el banco
+ * lo cobra desde el día siguiente al cierre.
+ */
+export function momentoDelCuadre(closingDate: string, now: Date): Date {
+  const finDelCierre = new Date(`${closingDate}T23:59:59.999Z`);
+  return finDelCierre.getTime() < now.getTime() ? finDelCierre : now;
+}
+
 export interface EstadoDelMinimo {
   readonly cubierto: boolean;
   /** Lo que falta para cubrir el mínimo; 0 si ya está. */

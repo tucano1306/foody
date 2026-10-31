@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
-import { saveCardStatement } from '@/lib/debt-data';
+import { movidoDesdeElCierre, saveCardStatement } from '@/lib/debt-data';
 import { leerCuadre } from '@/lib/cuadre-tarjeta';
 
 type Ctx = { params: Promise<{ group: string }> };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * GET /api/debts/cards/[group]/statement?closing=YYYY-MM-DD — lo que se movió
+ * cada tramo después de ese cierre. Con eso la pantalla de cuadre compara el
+ * estado con lo que Foody tenía el día del cierre, y no con lo de hoy, que ya
+ * lleva los abonos posteriores.
+ */
+export async function GET(request: NextRequest, { params }: Ctx): Promise<NextResponse> {
+  const user = await getRouteUser(request);
+  if (!user) return unauthorized();
+
+  const { group } = await params;
+  if (!UUID.test(group)) return NextResponse.json({ message: 'Tarjeta no encontrada' }, { status: 404 });
+  const closing = request.nextUrl.searchParams.get('closing') ?? '';
+  if (!FECHA.test(closing)) return NextResponse.json({ message: 'Falta la fecha de cierre' }, { status: 422 });
+
+  try {
+    return NextResponse.json({ movido: await movidoDesdeElCierre(user.userId, group, closing) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Database error';
+    console.error('[debts:card-statement]', message);
+    return NextResponse.json({ message }, { status: 500 });
+  }
+}
 
 /**
  * POST /api/debts/cards/[group]/statement — cuadra la tarjeta con su estado
