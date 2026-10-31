@@ -79,6 +79,43 @@ export function momentoDelCuadre(closingDate: string, now: Date): Date {
   return finDelCierre.getTime() < now.getTime() ? finDelCierre : now;
 }
 
+/**
+ * El nombre de un saldo nuevo que se dejó sin nombre, al estilo de los que ya
+ * tiene la tarjeta («Compras 3650»).
+ *
+ * El nombre era obligatorio y el servidor lo rechazaba vacío, pero el error
+ * salía arriba del formulario, fuera de la vista: «Cuadrar la tarjeta» parecía
+ * no hacer nada. El estado de cuenta no le pone nombre a esos saldos —solo
+ * tasa y cantidad—, así que pedirlo era pedir que se inventara.
+ */
+export function nombreDeSaldoNuevo(ultimos: string | null, conPromo: boolean): string {
+  const nombre = conPromo ? 'Promoción 0 %' : 'Saldo nuevo';
+  return ultimos ? `${nombre} ${ultimos}` : nombre;
+}
+
+/**
+ * El vencimiento que se propone si los tramos no dicen lo mismo: el más
+ * temprano. Una tarjeta tiene un solo vencimiento, y si un tramo lo tiene mal
+ * apuntado, avisar antes de tiempo cuesta menos que pagar tarde.
+ */
+export function diaDeVencimiento(tramos: readonly { readonly dueDay: number | null }[]): number | null {
+  const dias = tramos.map((t) => t.dueDay).filter((d): d is number => d != null && d >= 1);
+  return dias.length ? Math.min(...dias) : null;
+}
+
+/**
+ * El día del mes de una fecha del estado y el último día de ese mes.
+ *
+ * Con el último hace falta: un cierre el 28 de febrero no dice si la tarjeta
+ * cierra los 28 o los 31 —en febrero los dos caen ahí—. Un día apuntado
+ * cuadra con la fecha si `min(día, último) === día de la fecha`; solo si no
+ * cuadra se cambia.
+ */
+export function diaDelEstado(fecha: string): { dia: number; ultimo: number } {
+  const [y, m, d] = fecha.split('-').map(Number);
+  return { dia: d, ultimo: new Date(Date.UTC(y, m, 0)).getUTCDate() };
+}
+
 export interface EstadoDelMinimo {
   readonly cubierto: boolean;
   /** Lo que falta para cubrir el mínimo; 0 si ya está. */
@@ -151,8 +188,8 @@ export function leerCuadre(body: unknown): CuadreValido | { error: string } {
   const nuevos: CuadreValido['nuevos'] = [];
   for (const n of nuevosIn.slice(0, 4)) {
     const o = (n ?? {}) as Record<string, unknown>;
+    // Vacío vale: lo bautiza el servidor con `nombreDeSaldoNuevo`.
     const name = typeof o.name === 'string' ? o.name.trim().slice(0, 160) : '';
-    if (!name) return { error: 'El saldo nuevo necesita un nombre' };
     const balance = importe(o.balance);
     if (balance === null || balance <= 0) return { error: 'El saldo nuevo tiene que ser mayor que 0' };
     const apr = tasa(o.apr);

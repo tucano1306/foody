@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CardStatementInfo, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
-import { cardTitle, enPromocion } from '@/lib/card-payment';
+import { cardTitle, enPromocion, ultimosDeLaTarjeta } from '@/lib/card-payment';
+import { diaDeVencimiento, nombreDeSaldoNuevo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
 import { parseMoney } from '@/lib/money-input';
 import { haptic } from '@/lib/haptic';
@@ -26,6 +27,7 @@ interface NuevoSaldo {
 }
 
 const centavos = (n: number) => Math.round(n * 100) / 100;
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
 /** El último día de cierre (`statementDay`) que ya pasó, YYYY-MM-DD. */
 function ultimoCierre(statementDay: number | null, hoy: string): string {
@@ -86,9 +88,13 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
 
   const [cierre, setCierre] = useState(cierreSugerido);
   const [minimo, setMinimo] = useState(estado?.closingDate === cierreSugerido ? estado.minimumDue.toFixed(2) : '');
-  const [vence, setVence] = useState(
-    estado?.closingDate === cierreSugerido && estado.dueDate ? estado.dueDate : vencimientoTras(cierreSugerido, base?.dueDay ?? null),
+  // El vencimiento sigue al cierre hasta que se teclea: cambiar la fecha de
+  // cierre dejaba la de vencimiento del mes anterior.
+  const [venceTecleado, setVenceTecleado] = useState<string | null>(
+    estado?.closingDate === cierreSugerido && estado.dueDate ? estado.dueDate : null,
   );
+  const vence = venceTecleado ?? (FECHA.test(cierre) ? vencimientoTras(cierre, diaDeVencimiento(tramos)) : '');
+  const minimoRef = useRef<HTMLInputElement>(null);
   // Solo lo que el usuario teclea; el resto sigue al saldo del cierre, que
   // llega del servidor y cambia con la fecha.
   const [saldos, setSaldos] = useState<Record<string, string>>({});
@@ -109,7 +115,7 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
 
   const grupo = base?.cardGroup ?? null;
   useEffect(() => {
-    if (!grupo || !/^\d{4}-\d{2}-\d{2}$/.test(cierre)) return;
+    if (!grupo || !FECHA.test(cierre)) return;
     const control = new AbortController();
     setMovido(null);
     fetch(`/api/debts/cards/${grupo}/statement?closing=${cierre}`, { credentials: 'include', signal: control.signal })
@@ -125,6 +131,7 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
 
   const alCierre = (t: DebtWithProjection) => centavos(t.currentBalance - (movido?.[t.id] ?? 0));
   const textoDe = (t: DebtWithProjection) => saldos[t.id] ?? alCierre(t).toFixed(2);
+  const ultimos = ultimosDeLaTarjeta(tramos);
   const saldoDe = (t: DebtWithProjection) => parseMoney(textoDe(t));
   const ordenados = useMemo(() => [...tramos].sort((a, b) => b.currentBalance - a.currentBalance), [tramos]);
   const totalNuevo = centavos(
@@ -148,6 +155,8 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
     const minimoNum = parseMoney(minimo);
     if (minimoNum === null) {
       setError('Copia el pago mínimo del estado de cuenta');
+      minimoRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      minimoRef.current?.focus({ preventScroll: true });
       return;
     }
     setSaving(true);
@@ -164,7 +173,7 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
         nuevos: nuevos
           .filter((n) => n.name.trim() || n.saldo.trim())
           .map((n) => ({
-            name: n.name,
+            name: n.name.trim(),
             balance: parseMoney(n.saldo) ?? 0,
             apr: Number.parseFloat(n.apr || '0'),
             promoEndsOn: n.promo || null,
@@ -197,34 +206,43 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
       emoji="🧾"
       onClose={onClose}
       footer={
-        <div className="flex gap-2">
-          <button type="button" onClick={onClose} className={`flex-1 rounded-2xl py-3.5 text-sm ${BTN_SOFT}`}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={guardar}
-            disabled={saving}
-            className={`flex-[2] rounded-2xl py-3.5 text-sm ${BTN_PRIMARY} disabled:opacity-40`}
-          >
-            {saving ? 'Cuadrando…' : 'Cuadrar la tarjeta'}
-          </button>
+        // El error va aquí, junto al botón: arriba del formulario quedaba
+        // fuera de la vista y «Cuadrar la tarjeta» parecía no hacer nada.
+        <div className="flex flex-col gap-2">
+          {error && (
+            <p role="alert" className="rounded-2xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-sm font-semibold text-blue-800">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className={`flex-1 rounded-2xl py-3.5 text-sm ${BTN_SOFT}`}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={guardar}
+              disabled={saving}
+              className={`flex-[2] rounded-2xl py-3.5 text-sm ${BTN_PRIMARY} disabled:opacity-40`}
+            >
+              {saving ? 'Cuadrando…' : 'Cuadrar la tarjeta'}
+            </button>
+          </div>
         </div>
       }
     >
       <div className="flex flex-col gap-5">
-        {error && (
-          <p className="rounded-2xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-sm text-blue-800">{error}</p>
-        )}
-
         <div className="grid grid-cols-2 gap-2">
           <label className="col-span-2 flex flex-col gap-1 text-xs font-bold text-slate-600">
             Pago mínimo
             <input
+              ref={minimoRef}
               type="text"
               inputMode="decimal"
               value={minimo}
-              onChange={(e) => setMinimo(e.target.value)}
+              onChange={(e) => {
+                setMinimo(e.target.value);
+                setError(null);
+              }}
               placeholder="0.00"
               aria-label="Pago mínimo del estado de cuenta"
               className={`${campo} text-2xl`}
@@ -236,7 +254,7 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
           </label>
           <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
             Vence
-            <input type="date" value={vence} onChange={(e) => setVence(e.target.value)} className={campo} />
+            <input type="date" value={vence} onChange={(e) => setVenceTecleado(e.target.value)} className={campo} />
           </label>
         </div>
 
@@ -302,7 +320,7 @@ export default function CardStatementModal({ tramos, estado, onClose, onSaved }:
                 type="text"
                 value={n.name}
                 onChange={(e) => cambiarNuevo(n.clave, 'name', e.target.value)}
-                placeholder="Nombre (p. ej. Adelanto LP27)"
+                placeholder={nombreDeSaldoNuevo(ultimos, n.promo !== '')}
                 aria-label="Nombre del saldo nuevo"
                 className={campo}
               />

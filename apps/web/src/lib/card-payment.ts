@@ -242,11 +242,18 @@ export function cardTitle(
   tramos: readonly { readonly name: string; readonly issuer: string | null; readonly accountLast4: string | null }[],
 ): string {
   const emisor = tramos.find((t) => t.issuer)?.issuer ?? 'Tarjeta';
-  const declarados = tramos.find((t) => t.accountLast4)?.accountLast4;
-  const enLosNombres = tramos.map((t) => new Set(t.name.match(/\b\d{4}\b/g) ?? []));
-  const comunes = [...(enLosNombres[0] ?? [])].find((d) => enLosNombres.every((s) => s.has(d)));
-  const ultimos = declarados ?? comunes;
+  const ultimos = ultimosDeLaTarjeta(tramos);
   return ultimos ? `${emisor} ···${ultimos}` : emisor;
+}
+
+/** Los últimos cuatro dígitos de la tarjeta: los declarados, o los que comparten todos los nombres. */
+export function ultimosDeLaTarjeta(
+  tramos: readonly { readonly name: string; readonly accountLast4: string | null }[],
+): string | null {
+  const declarados = tramos.find((t) => t.accountLast4)?.accountLast4;
+  if (declarados) return declarados;
+  const enLosNombres = tramos.map((t) => new Set(t.name.match(/\b\d{4}\b/g) ?? []));
+  return [...(enLosNombres[0] ?? [])].find((d) => enLosNombres.every((s) => s.has(d))) ?? null;
 }
 
 /**

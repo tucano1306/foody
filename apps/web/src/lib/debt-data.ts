@@ -46,9 +46,9 @@ import {
   type RatePeriod,
 } from './debt-engine';
 import { normalizeShare } from './expense-scope';
-import { allocateCardPayment, type CardAllocation } from './card-payment';
+import { allocateCardPayment, ultimosDeLaTarjeta, type CardAllocation } from './card-payment';
 import { agrupacionesAutomaticas } from './tarjetas-auto';
-import { ajustesDeCuadre, momentoDelCuadre, saldosAlCierre } from './cuadre-tarjeta';
+import { ajustesDeCuadre, diaDeVencimiento, diaDelEstado, momentoDelCuadre, nombreDeSaldoNuevo, saldosAlCierre } from './cuadre-tarjeta';
 
 // ─── Tipos expuestos ──────────────────────────────────────────────────────────
 
@@ -1440,12 +1440,13 @@ export async function saveCardStatement(
   }
 
   const base = tramos[0];
+  const ultimos = ultimosDeLaTarjeta(tramos);
   for (const n of input.nuevos) {
     const conPromo = n.promoEndsOn !== null;
     const creada = await createDebt(
       userId,
       {
-        name: n.name,
+        name: n.name || nombreDeSaldoNuevo(ultimos, conPromo),
         kind: 'credit_card',
         issuer: base.issuer,
         accountLast4: base.accountLast4,
@@ -1460,7 +1461,7 @@ export async function saveCardStatement(
         promoEndsOn: n.promoEndsOn,
         rateAfterPromo: conPromo ? n.apr : null,
         statementDay: base.statementDay,
-        dueDay: base.dueDay,
+        dueDay: diaDeVencimiento(tramos) ?? undefined,
         businessShare: base.businessShare,
         note: nota,
       },
@@ -1476,6 +1477,26 @@ export async function saveCardStatement(
        WHERE id = ${creada.id} AND user_id = ${userId}
     `;
     await sql`UPDATE debt_movements SET occurred_at = ${desde} WHERE debt_id = ${creada.id} AND user_id = ${userId}`;
+  }
+
+  // El estado manda también en los días: todos los tramos cierran y vencen
+  // cuando dice. Un tramo con el vencimiento mal apuntado proponía otra fecha
+  // en el cuadre y avisaba tarde del pago. Solo se toca el día que no cuadra
+  // con la fecha (ver `diaDelEstado`), así un cierre en febrero no le cambia
+  // el 31 a una tarjeta que cierra los 31.
+  const diaCierre = diaDelEstado(input.closingDate);
+  await sql`
+    UPDATE debts SET statement_day = ${diaCierre.dia}::int, updated_at = now()
+     WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid AND status = 'active'
+       AND (statement_day IS NULL OR LEAST(statement_day, ${diaCierre.ultimo}::int) <> ${diaCierre.dia}::int)
+  `;
+  if (input.dueDate) {
+    const diaVence = diaDelEstado(input.dueDate);
+    await sql`
+      UPDATE debts SET due_day = ${diaVence.dia}::int, updated_at = now()
+       WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid AND status = 'active'
+         AND (due_day IS NULL OR LEAST(due_day, ${diaVence.ultimo}::int) <> ${diaVence.dia}::int)
+    `;
   }
 
   const nuevoSaldo = round2(
