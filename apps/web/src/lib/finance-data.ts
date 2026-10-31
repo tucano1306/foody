@@ -11,7 +11,7 @@
 import { sql } from '@/lib/db';
 import { aCampoDeFecha } from '@/lib/app-time';
 import { getBudgetData } from '@/lib/budget-data';
-import { listCreditsForPlan, type CreditForPlan } from '@/lib/debt-data';
+import { listCreditsForPlan, ultimosEstadosDeTarjeta, type CardStatementInfo, type CreditForPlan } from '@/lib/debt-data';
 import { monthlyCost, normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
@@ -81,8 +81,10 @@ export interface FinancePlanPayload extends FinancePlan {
   /** Totales de super por mes (para la mini gráfica de tendencia). */
   history: MonthTotal[];
   payments: FixedPaymentInput[];
-  /** Tarjetas y créditos que alimentan el plan. */
-  credits: CreditInput[];
+  /** Tarjetas y créditos que alimentan el plan, con lo que hace falta para pintarlos como en Deudas. */
+  credits: CreditForPlan[];
+  /** El último estado de cuenta de cada tarjeta con tramos: su mínimo y su vencimiento. */
+  cardStatements: Record<string, CardStatementInfo>;
 }
 
 let schemaReady = false;
@@ -517,7 +519,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
 
   const [
     incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits,
-    groceriesBusinessShare, otherSpend, otherBusinessShare,
+    groceriesBusinessShare, otherSpend, otherBusinessShare, cardStatements,
   ] = await Promise.all([
       sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
       // Con la deuda enganchada al lado: una meta que persigue una tarjeta lee
@@ -542,6 +544,9 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
       // antes en vez de caerse entero.
       loadOtherSpend(userId).catch(() => EMPTY_OTHER_SPEND),
       loadOtherBusinessShare(userId).catch(() => 0),
+      // El mínimo y el vencimiento del estado, como los enseña Deudas. Es un
+      // adorno del plan: si falla, las tarjetas salen sin esa línea.
+      ultimosEstadosDeTarjeta(userId).catch(() => ({}) as Record<string, CardStatementInfo>),
     ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
@@ -607,5 +612,6 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     history: budget.history,
     payments: fixedPayments,
     credits,
+    cardStatements,
   };
 }

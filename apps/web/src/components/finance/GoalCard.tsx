@@ -27,6 +27,12 @@ interface Props {
    * misma deuda.
    */
   readonly puedeEnlazar?: boolean;
+  /**
+   * La deuda que esta meta persigue, cuando se ve clara (`sugerirDeudaParaMeta`).
+   * Con ella el enlace es un toque, sin pasar por el formulario.
+   */
+  readonly sugerencia?: { readonly id: string; readonly name: string } | null;
+  readonly onLink?: (debtId: string) => void;
 }
 
 /**
@@ -128,7 +134,7 @@ function ProgressRing({ pct, color, emoji }: { readonly pct: number; readonly co
 }
 
 
-export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, onComplete, dragHandle, puedeEnlazar }: Props) {
+export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, onComplete, dragHandle, puedeEnlazar, sugerencia = null, onLink }: Props) {
   const meta = KIND_META[goal.kind];
   const feas = FEASIBILITY_META[goal.feasibility];
   const done = goal.feasibility === 'done';
@@ -208,7 +214,20 @@ export default function GoalCard({ goal, index, onContribute, onEdit, onDelete, 
       {/* Una meta de deuda suelta repite una tarjeta de Deudas: las dos piden
           dinero para lo mismo. Enlazarla la mueve con cada abono y hace que el
           plan la pague con la cuota de la tarjeta. */}
-      {!done && puedeEnlazar && goal.kind === 'debt' && !goal.debtId && (
+      {!done && goal.kind === 'debt' && !goal.debtId && sugerencia && onLink ? (
+        <div className="flex items-center gap-3 border-t border-sky-100 bg-white/60 px-4 py-2.5">
+          <p className="flex-1 text-xs text-slate-600">
+            💳 ¿Es <strong className="font-bold text-black">{sugerencia.name}</strong>? Enlázala y se moverá con cada abono.
+          </p>
+          <button
+            type="button"
+            onClick={() => { haptic(8); onLink(sugerencia.id); }}
+            className="shrink-0 rounded-full bg-sky-500 px-3 py-1 text-xs font-bold text-white shadow-sm transition active:scale-95"
+          >
+            Enlazar
+          </button>
+        </div>
+      ) : !done && puedeEnlazar && goal.kind === 'debt' && !goal.debtId && (
         <div className="flex items-center gap-3 border-t border-sky-100 bg-white/60 px-4 py-2.5">
           <p className="flex-1 text-xs text-slate-600">
             💳 ¿Es una de tus tarjetas? Enlázala y el plan no contará la deuda dos veces.

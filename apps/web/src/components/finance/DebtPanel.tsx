@@ -5,11 +5,16 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
-import type { DebtWithProjection } from '@/lib/debt-data';
+import type { CardStatementInfo, CreditForPlan, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
+import { toDateKey } from '@/lib/debt-engine';
+import { avisoDePromo } from '@/lib/debt-promo';
 import type { DebtOverview } from '@/lib/finance-engine';
 import { haptic } from '@/lib/haptic';
+import { agruparPorTarjeta } from '@/lib/plan-tarjetas';
 import { useToast } from '@/components/ui/Toast';
-import { fmtMoney } from './finance-ui';
+import PromoAviso from '@/components/debts/PromoAviso';
+import PlanCardGroup from './PlanCardGroup';
+import { fmtMoney, fmtMoneyFine } from './finance-ui';
 
 /**
  * Los cuatro modales de Deudas se cargan al tocar, no al abrir el plan.
@@ -23,9 +28,19 @@ const DebtDetailSheet = dynamic(() => import('@/components/debts/DebtDetailSheet
 const DebtEditModal = dynamic(() => import('@/components/debts/DebtEditModal'), { ssr: false });
 const DebtPaymentModal = dynamic(() => import('@/components/debts/DebtPaymentModal'), { ssr: false });
 const DebtWizardModal = dynamic(() => import('@/components/debts/DebtWizardModal'), { ssr: false });
+const CardPaymentModal = dynamic(() => import('@/components/debts/CardPaymentModal'), { ssr: false });
+const CardStatementModal = dynamic(() => import('@/components/debts/CardStatementModal'), { ssr: false });
 
 interface Props {
   readonly debts: DebtOverview;
+  /**
+   * Los créditos tal como llegan del servidor: de ellos sale lo que el
+   * resumen del motor no lleva —la tarjeta de cada tramo, su promoción—, que
+   * es lo que hace que el plan las pinte como Deudas.
+   */
+  readonly credits?: readonly CreditForPlan[];
+  /** El último estado de cuenta de cada tarjeta con tramos. */
+  readonly estados?: Readonly<Record<string, CardStatementInfo>>;
   /** Se tocó una deuda: los totales del plan tienen que recalcularse. */
   readonly onChanged: () => void;
 }
@@ -36,13 +51,15 @@ type DebtModal =
   | { kind: 'detail'; debt: DebtWithProjection }
   | { kind: 'edit'; debt: DebtWithProjection }
   | { kind: 'pay'; debt: DebtWithProjection }
-  | { kind: 'new' };
+  | { kind: 'new' }
+  | { kind: 'card-pay'; tramos: DebtWithProjection[]; estado: CardStatementInfo | null }
+  | { kind: 'card-cuadrar'; tramos: DebtWithProjection[]; estado: CardStatementInfo | null };
 
 /**
  * Plan de salida de deuda: los pagos atrasados en orden de bola de nieve
  * (el más pequeño primero) con el abono mensual sugerido y el mes de liquidación.
  */
-export default function DebtPanel({ debts, onChanged }: Props) {
+export default function DebtPanel({ debts, credits = [], estados = {}, onChanged }: Props) {
   const toast = useToast();
   const [modal, setModal] = useState<DebtModal>({ kind: 'none' });
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -69,6 +86,28 @@ export default function DebtPanel({ debts, onChanged }: Props) {
     }
   }, [toast]);
 
+  /**
+   * Abonar o cuadrar una tarjeta necesita sus tramos ENTEROS, con proyección
+   * y estado de cuenta, que el plan no carga. Se piden al tocar, como la hoja
+   * de una deuda: los mismos modales que en Deudas, con los mismos datos.
+   */
+  const openCard = useCallback(async (grupo: string, accion: 'card-pay' | 'card-cuadrar') => {
+    haptic();
+    setLoadingId(grupo);
+    try {
+      const res = await fetch('/api/debts', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) throw new Error();
+      const snapshot = (await res.json()) as DebtsSnapshot;
+      const tramos = snapshot.debts.filter((d) => d.cardGroup === grupo && d.status === 'active');
+      if (tramos.length === 0) throw new Error();
+      setModal({ kind: accion, tramos, estado: snapshot.cardStatements?.[grupo] ?? null });
+    } catch {
+      toast.show('No se pudo abrir la tarjeta', 'error');
+    } finally {
+      setLoadingId(null);
+    }
+  }, [toast]);
+
   /** Cualquier cambio cierra lo que haya abierto y recalcula el plan. */
   const afterChange = useCallback(() => {
     close();
@@ -78,6 +117,28 @@ export default function DebtPanel({ debts, onChanged }: Props) {
   if (debts.overdueTotal <= 0 && debts.creditBalance <= 0) return null;
 
   const max = Math.max(...debts.payoffOrder.map((d) => d.debt), 1);
+  const hoy = toDateKey(new Date());
+
+  // El resumen del motor con lo que el servidor sabe de cada tramo. Si un
+  // crédito no trae detalle (un plan recalculado con datos viejos), se pinta
+  // suelto como antes: nunca desaparece una deuda por faltar un adorno.
+  const detalle = new Map(credits.map((c) => [c.id, c]));
+  const filas = agruparPorTarjeta(
+    debts.creditOrder.map((c) => {
+      const d = detalle.get(c.id);
+      return {
+        ...c,
+        cardGroup: d?.cardGroup ?? null,
+        issuer: d?.issuer ?? null,
+        accountLast4: d?.accountLast4 ?? null,
+        currency: d?.currency ?? 'USD',
+        rate: d?.rate ?? 0,
+        ratePeriod: d?.ratePeriod ?? 'annual_nominal',
+        promoEndsOn: d?.promoEndsOn ?? null,
+        rateAfterPromo: d?.rateAfterPromo ?? null,
+      };
+    }),
+  );
 
   return (
     <div className="space-y-4">
@@ -109,7 +170,25 @@ export default function DebtPanel({ debts, onChanged }: Props) {
               Antes esto era una lista de solo lectura y un botón al final que
               mandaba a otra pantalla a hacer lo mismo. */}
           <ul className="space-y-2">
-            {debts.creditOrder.map((c) => (
+            {filas.map((fila) => {
+              if (fila.tipo === 'tarjeta') {
+                return (
+                  <li key={fila.grupo}>
+                    <PlanCardGroup
+                      grupo={fila.grupo}
+                      tramos={fila.tramos}
+                      estado={estados[fila.grupo] ?? null}
+                      loadingId={loadingId}
+                      onOpenTramo={(id) => void open(id)}
+                      onPay={() => void openCard(fila.grupo, 'card-pay')}
+                      onCuadrar={() => void openCard(fila.grupo, 'card-cuadrar')}
+                    />
+                  </li>
+                );
+              }
+              const c = fila.credito;
+              const aviso = avisoDePromo({ currentBalance: c.balance, promoEndsOn: c.promoEndsOn, rateAfterPromo: c.rateAfterPromo }, hoy);
+              return (
               <li key={c.id}>
                 <button
                   type="button"
@@ -139,7 +218,7 @@ export default function DebtPanel({ debts, onChanged }: Props) {
                     )}
                   </span>
                   <span className="shrink-0 text-right">
-                    <span className="block text-sm font-black tabular-nums text-black">{fmtMoney(c.balance)}</span>
+                    <span className="block text-sm font-black tabular-nums text-black">{fmtMoneyFine(c.balance)}</span>
                     {c.monthlyInterest > 0 && (
                       <span className="block text-[11px] font-semibold text-blue-700">
                         +{fmtMoney(c.monthlyInterest)} interés
@@ -148,8 +227,16 @@ export default function DebtPanel({ debts, onChanged }: Props) {
                   </span>
                   <span aria-hidden="true" className="shrink-0 text-sm text-slate-300">›</span>
                 </button>
+                {/* El mismo aviso del 0 % que en Deudas, también para una
+                    tarjeta de un solo saldo. */}
+                {aviso && (
+                  <div className="mt-1.5">
+                    <PromoAviso aviso={aviso} currency={c.currency} />
+                  </div>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
@@ -288,6 +375,24 @@ export default function DebtPanel({ debts, onChanged }: Props) {
           debt={modal.debt}
           onClose={() => setModal({ kind: 'detail', debt: modal.debt })}
           onPaid={(updated) => { setModal({ kind: 'detail', debt: updated }); onChanged(); }}
+        />
+      )}
+      {modal.kind === 'card-pay' && (
+        <CardPaymentModal
+          tramos={modal.tramos}
+          estado={modal.estado}
+          onClose={close}
+          // El modal se cierra solo tras asentar el abono; aquí solo hay que
+          // recalcular el plan con los saldos nuevos.
+          onPaid={() => onChanged()}
+        />
+      )}
+      {modal.kind === 'card-cuadrar' && (
+        <CardStatementModal
+          tramos={modal.tramos}
+          estado={modal.estado}
+          onClose={close}
+          onSaved={() => { toast.show('Tarjeta cuadrada con su estado de cuenta', 'success'); onChanged(); }}
         />
       )}
       {modal.kind === 'new' && (

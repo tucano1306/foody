@@ -755,7 +755,7 @@ function claveDeFecha(value: unknown): string | null {
 }
 
 /** El último estado de cada tarjeta del usuario, con lo abonado desde el cierre. */
-async function ultimosEstadosDeTarjeta(userId: string): Promise<Record<string, CardStatementInfo>> {
+export async function ultimosEstadosDeTarjeta(userId: string): Promise<Record<string, CardStatementInfo>> {
   const rows = await sql`
     SELECT DISTINCT ON (s.card_group)
            s.card_group, s.closing_date, s.minimum_due, s.due_date, s.new_balance,
@@ -879,6 +879,21 @@ export interface CreditForPlan {
   duplicateDismissed: boolean;
   /** Para poder emparejar por nombre con el recibo («Auto» / emisor «GMC»). */
   issuer: string | null;
+  /**
+   * Lo que el plan necesita para pintar una tarjeta COMO en Deudas: sus tramos
+   * juntos, la promoción de cada uno y su aviso. Sin esto el plan listaba
+   * «Compras 3650», «Unlimited Cash 3650» y «Saldo nuevo 3650» como tres
+   * deudas sueltas, y las dos pantallas parecían hablar de cosas distintas.
+   */
+  cardGroup: string | null;
+  accountLast4: string | null;
+  currency: string;
+  rate: number;
+  ratePeriod: RatePeriod;
+  /** YYYY-MM-DD */
+  promoEndsOn: string | null;
+  /** Siempre APR, como en `Debt`. */
+  rateAfterPromo: number | null;
 }
 
 /**
@@ -899,7 +914,8 @@ export async function listCreditsForPlan(
            term_months, payoff_date, custom_payment, min_percent, min_floor,
            min_includes_interest, extra_monthly, business_share,
            promo_ends_on, rate_after_promo, cycle_days,
-           linked_payment_id, duplicate_dismissed, issuer
+           linked_payment_id, duplicate_dismissed, issuer,
+           card_group, account_last4, currency
     FROM debts
     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
   `;
@@ -938,6 +954,13 @@ export async function listCreditsForPlan(
       linkedPaymentId: (row.linked_payment_id as string | null) ?? null,
       duplicateDismissed: Boolean(row.duplicate_dismissed),
       issuer: (row.issuer as string | null) ?? null,
+      cardGroup: (row.card_group as string | null) ?? null,
+      accountLast4: (row.account_last4 as string | null) ?? null,
+      currency: (row.currency as string | null) ?? 'USD',
+      rate: num(row.rate),
+      ratePeriod: (row.rate_period as RatePeriod) ?? 'monthly',
+      promoEndsOn: dateKey(row.promo_ends_on),
+      rateAfterPromo: numOrNull(row.rate_after_promo),
     };
   });
 }

@@ -15,6 +15,8 @@ import { buildFinancePlan, explainHealthScore, personalOnlyInput } from '@/lib/f
 import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } from '@/lib/finance-engine';
 import { topPlanChange } from '@/lib/plan-diff';
 import { applyOrder, moveInOrder } from '@/lib/goal-order';
+import { agruparPorTarjeta, sugerirDeudaParaMeta } from '@/lib/plan-tarjetas';
+import { cardTitle } from '@/lib/card-payment';
 import AdviceFeed from './AdviceFeed';
 import BusinessPanel from './BusinessPanel';
 import CashFlowCard from './CashFlowCard';
@@ -207,6 +209,43 @@ export default function FinancePlanView({ initialData }: Props) {
     }
     await refresh();
   }
+
+  /**
+   * Enlazar de un toque la meta con la deuda que persigue. El PATCH reemplaza
+   * la meta entera, así que viaja todo lo que ya tenía más el enlace; la
+   * prioridad no va y el servidor conserva la suya.
+   */
+  async function linkGoal(goal: GoalProjection, debtId: string) {
+    const raw = data.rawGoals.find((g) => g.id === goal.goalId);
+    if (!raw) return;
+    const payload: GoalPayload = {
+      name: raw.name,
+      emoji: raw.emoji,
+      kind: raw.kind,
+      targetAmount: raw.targetAmount,
+      savedAmount: raw.savedAmount,
+      targetDate: raw.targetDate,
+      monthlyOverride: raw.monthlyOverride,
+      status: raw.status,
+      note: raw.note,
+      debtId,
+    };
+    try {
+      await send(`/api/finance/goals/${raw.id}`, 'PATCH', payload);
+      toast.show('Meta enlazada: ahora se mueve con cada abono', 'success');
+      await refresh(true);
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : 'No se pudo enlazar la meta', 'error');
+    }
+  }
+
+  /** La deuda que cada meta suelta parece perseguir (ver `sugerirDeudaParaMeta`). */
+  const sugerenciaPara = (goal: GoalProjection) => {
+    const raw = data.rawGoals.find((g) => g.id === goal.goalId);
+    if (!raw) return null;
+    const deuda = sugerirDeudaParaMeta(raw, data.credits);
+    return deuda ? { id: deuda.id, name: deuda.name } : null;
+  };
 
   async function contribute(goalId: string, amount: number, note: string | null) {
     const updated = (await send(`/api/finance/goals/${goalId}/contribute`, 'POST', { amount, note })) as FinanceGoal;
@@ -603,7 +642,7 @@ export default function FinancePlanView({ initialData }: Props) {
       />
 
       {/* ─── Deuda ───────────────────────────────────────────────────────── */}
-      <DebtPanel debts={view.debts} onChanged={() => void refresh(true)} />
+      <DebtPanel debts={view.debts} credits={data.credits} estados={data.cardStatements} onChanged={() => void refresh(true)} />
 
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
       <section className="space-y-3">
@@ -653,6 +692,8 @@ export default function FinancePlanView({ initialData }: Props) {
             onDelete={(goal) => setDeleting(goal)}
             onComplete={(goal) => void completeGoal(goal.goalId)}
             puedeEnlazar={data.credits.some((c) => c.balance > 0)}
+            sugerenciaPara={sugerenciaPara}
+            onLink={(goal, debtId) => void linkGoal(goal, debtId)}
           />
         )}
 
@@ -695,11 +736,20 @@ export default function FinancePlanView({ initialData }: Props) {
           monthlyAvailable={cash.goalsBudget}
           // Solo las que aun se deben: enganchar una meta a una tarjeta ya
           // liquidada la daria por cumplida en el mismo instante.
-          debts={data.credits.filter((c) => c.balance > 0).map((c) => ({
-            id: c.id,
-            name: c.name,
-            balance: c.balance,
-          }))}
+          // Agrupadas por tarjeta, como en Deudas: con «Compras 3650»,
+          // «Unlimited Cash 3650» y «Saldo nuevo 3650» sueltos no se veía que
+          // eran la misma tarjeta, ni cuál era el 0 % que la meta persigue.
+          debts={agruparPorTarjeta(data.credits.filter((c) => c.balance > 0)).flatMap((fila) => {
+            const tramos = fila.tipo === 'tarjeta' ? fila.tramos : [fila.credito];
+            const tarjeta = fila.tipo === 'tarjeta' ? cardTitle(tramos) : null;
+            return tramos.map((c) => ({
+              id: c.id,
+              name: c.name,
+              balance: c.balance,
+              tarjeta,
+              promoEndsOn: c.promoEndsOn,
+            }));
+          })}
           onSave={saveGoal}
           onClose={closeModal}
         />
