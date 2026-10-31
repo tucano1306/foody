@@ -46,6 +46,8 @@ function tramo(
     duplicateDismissed: false,
     promoEndsOn: null,
     rateAfterPromo: null,
+    promoKind: 'cero' as const,
+    deferredInterest: null,
     cardGroup: GRUPO,
     cycleDays: 31,
     statementDay: 25,

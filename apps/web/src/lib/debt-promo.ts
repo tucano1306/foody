@@ -17,6 +17,7 @@ import {
   promoLastDueDate,
   promoMonthsLeft,
 } from './debt-engine';
+import { interesDiferido, type TipoDePromo } from './condiciones-credito';
 
 // Se reexporta: vive en el motor para que este modulo no cree un ciclo de
 // importaciones, pero conceptualmente es de aqui.
@@ -123,6 +124,13 @@ export interface AvisoPromo {
    * ver —«qué me cobrarán si queda esto»— y es una cifra que puede comprobar.
    */
   interesMes: number;
+  /**
+   * Solo en una promoción de interés DIFERIDO: lo que cobran DE GOLPE si al
+   * acabar queda un centavo —todo el interés desde el primer día—. Es la cifra
+   * que de verdad asusta, y sin ella el aviso diría lo mismo que de un 0 % de
+   * verdad. `estimado` cuando no se copió del estado.
+   */
+  diferido: { monto: number; estimado: boolean } | null;
 }
 
 /**
@@ -131,7 +139,16 @@ export interface AvisoPromo {
  * todavía falta mucho (o pasó hace mucho).
  */
 export function avisoDePromo(
-  deuda: { currentBalance: number; promoEndsOn: string | null; rateAfterPromo: number | null },
+  deuda: {
+    currentBalance: number;
+    promoEndsOn: string | null;
+    rateAfterPromo: number | null;
+    promoKind?: TipoDePromo | null;
+    /** El «interés diferido acumulado» del estado, si se copió. */
+    deferredInterest?: number | null;
+    /** Desde cuándo corre el diferido: el alta de la deuda. */
+    openedAt?: string | null;
+  },
   hoy: string,
 ): AvisoPromo | null {
   if (!deuda.promoEndsOn || deuda.rateAfterPromo == null || deuda.rateAfterPromo <= 0) return null;
@@ -145,6 +162,16 @@ export function avisoDePromo(
     saldo: round2(deuda.currentBalance),
     apr: deuda.rateAfterPromo,
     interesMes: round2(monthlyInterestOf(deuda.currentBalance, monthlyRateAfterPromo(deuda.rateAfterPromo))),
+    diferido:
+      deuda.promoKind === 'diferido'
+        ? interesDiferido({
+            saldo: deuda.currentBalance,
+            apr: deuda.rateAfterPromo,
+            desde: (deuda.openedAt ?? hoy).slice(0, 10),
+            hasta: fin,
+            delEstado: deuda.deferredInterest ?? null,
+          })
+        : null,
   };
   // `fin` todavía es día al 0 % (promoVigente): dias = 0 sigue siendo «antes».
   if (dias >= 0) return dias <= DIAS_DE_AVISO_PROMO ? { fase: 'antes', dias, ...cifras } : null;
@@ -182,6 +209,13 @@ export function mensajeAvisoPromo(
   const quien = nombre.replace(/\s+/g, ' ').trim();
   const dinero = (n: number) => dineroDe(n, currency);
   const tasa = `${aviso.apr} %`;
+  const golpe = aviso.diferido ? `${aviso.diferido.estimado ? '~' : ''}${dinero(aviso.diferido.monto)}` : null;
+  if (aviso.fase === 'despues' && golpe) {
+    return {
+      title: `💸 ${quien}: se cobró el interés diferido`,
+      body: `El plazo sin intereses terminó el ${fechaCorta(aviso.fin)} con saldo: el banco suma ${golpe} de una vez y desde ahora cobra ~${dinero(aviso.interesMes)} al mes (${tasa}).`,
+    };
+  }
   if (aviso.fase === 'despues') {
     return {
       title: `💸 ${quien} ya cobra interés`,
@@ -189,6 +223,12 @@ export function mensajeAvisoPromo(
     };
   }
   const cuando = aviso.dias === 0 ? 'hoy' : aviso.dias === 1 ? 'mañana' : `en ${aviso.dias} días`;
+  if (golpe) {
+    return {
+      title: `⏳ ${quien}: el plazo sin intereses acaba ${cuando}`,
+      body: `Quedan ${dinero(aviso.saldo)}. Si queda un solo centavo el ${fechaCorta(aviso.fin)}, te cobran ${golpe} de golpe: todo el interés desde el primer día.`,
+    };
+  }
   return {
     title: aviso.dias <= 1 ? `⏳ ${quien}: el 0 % se acaba ${cuando}` : `⏳ El 0 % de ${quien} se acaba ${cuando}`,
     body: `Quedan ${dinero(aviso.saldo)}. Si siguen ahí el ${fechaCorta(aviso.fin)}, desde el día siguiente cobrará ~${dinero(aviso.interesMes)} al mes (${tasa}).`,

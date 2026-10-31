@@ -17,6 +17,9 @@ type Fila = {
   current_balance: string | number;
   promo_ends_on: string | Date;
   rate_after_promo: string | number;
+  promo_kind: string | null;
+  deferred_interest: string | number | null;
+  opened_at: string | Date;
   push_subscription: PushSubscription;
 };
 
@@ -47,7 +50,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const filas = (await sql`
     SELECT d.id, d.user_id, d.name, d.currency, d.current_balance, d.promo_ends_on,
-           d.rate_after_promo, u.push_subscription
+           d.rate_after_promo, d.promo_kind, d.deferred_interest, d.opened_at, u.push_subscription
       FROM debts d
       JOIN users u ON u.id = d.user_id
      WHERE d.status = 'active'
@@ -63,7 +66,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   for (const f of filas) {
     const fin = claveDeFecha(f.promo_ends_on);
     const aviso = avisoDePromo(
-      { currentBalance: Number(f.current_balance), promoEndsOn: fin, rateAfterPromo: Number(f.rate_after_promo) },
+      {
+        currentBalance: Number(f.current_balance),
+        promoEndsOn: fin,
+        rateAfterPromo: Number(f.rate_after_promo),
+        promoKind: f.promo_kind === 'diferido' ? 'diferido' : 'cero',
+        deferredInterest: f.deferred_interest == null ? null : Number(f.deferred_interest),
+        openedAt: claveDeFecha(f.opened_at),
+      },
       hoy,
     );
     const hito = hitoDeAvisoPromo(aviso);

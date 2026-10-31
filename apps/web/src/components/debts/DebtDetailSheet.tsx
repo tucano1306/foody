@@ -39,6 +39,8 @@ interface Props {
   readonly cardCandidates?: readonly DebtWithProjection[];
   /** Juntar o separar tramos cambia varias deudas a la vez: llega la lista entera. */
   readonly onSnapshot?: (snapshot: DebtsSnapshot) => void;
+  /** Abre las condiciones del banco de su cuenta (su tarjeta entera, si va en una). */
+  readonly onCondiciones?: () => void;
 }
 
 type Tab = 'summary' | 'plan' | 'ledger';
@@ -85,6 +87,7 @@ export default function DebtDetailSheet({
   onEdit,
   cardCandidates = [],
   onSnapshot,
+  onCondiciones,
 }: Props) {
   const [tab, setTab] = useState<Tab>('summary');
   const [movements, setMovements] = useState<DebtMovement[] | null>(null);
@@ -607,6 +610,15 @@ export default function DebtDetailSheet({
             >
               🔧 Corregir saldo
             </button>
+            {onCondiciones && (
+              <button
+                type="button"
+                onClick={() => { haptic(); onCondiciones(); }}
+                className={`col-span-2 rounded-2xl py-3 text-sm ${BTN_SOFT}`}
+              >
+                🏦 Condiciones del banco
+              </button>
+            )}
           </div>
 
           {adjusting && (

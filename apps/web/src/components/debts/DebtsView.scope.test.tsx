@@ -29,6 +29,8 @@ function makeDebt(over: { id: string; name: string; balance: number; businessSha
     duplicateDismissed: false,
     promoEndsOn: null,
     rateAfterPromo: null,
+    promoKind: 'cero' as const,
+    deferredInterest: null,
     cardGroup: null,
     cycleDays: null,
     statementDay: null,

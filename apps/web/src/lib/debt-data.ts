@@ -49,6 +49,17 @@ import { normalizeShare } from './expense-scope';
 import { allocateCardPayment, ultimosDeLaTarjeta, type CardAllocation } from './card-payment';
 import { agrupacionesAutomaticas } from './tarjetas-auto';
 import { ajustesDeCuadre, diaDeVencimiento, diaDelEstado, momentoDelCuadre, nombreDeSaldoNuevo, saldosAlCierre } from './cuadre-tarjeta';
+import {
+  camposDelMinimo,
+  claveDeCuenta,
+  condicionesDeLaCuenta,
+  type CondicionesDeCredito,
+  type CondicionesValidas,
+  type Plantilla,
+  type ReglaDelAbono,
+  type ReglaDelMinimo,
+  type TipoDePromo,
+} from './condiciones-credito';
 
 // ─── Tipos expuestos ──────────────────────────────────────────────────────────
 
@@ -106,6 +117,14 @@ export interface Debt {
   promoEndsOn: string | null;
   /** Tasa que empieza a correr cuando la promocion caduca. */
   rateAfterPromo: number | null;
+  /**
+   * `diferido`: el interés corre por debajo y, si al acabar queda saldo, lo
+   * cobran entero desde el primer día (tarjetas de tienda). Ver
+   * condiciones-credito.ts.
+   */
+  promoKind: TipoDePromo;
+  /** El «interés diferido acumulado» que imprime el estado; null = estimarlo. */
+  deferredInterest: number | null;
   /**
    * La tarjeta a la que pertenece este tramo, o null si va suelta.
    *
@@ -312,6 +331,31 @@ export async function ensureDebtSchema(): Promise<void> {
   // El usuario separó este tramo de su tarjeta a mano: la unión automática por
   // número de tarjeta (tarjetas-auto.ts) no lo vuelve a juntar.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS card_group_manual BOOLEAN NOT NULL DEFAULT false`;
+  // El tipo de promoción de cada tramo: un 0 % de verdad o interés diferido.
+  // Por tramo y no por tarjeta porque una misma tarjeta puede tener los dos.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS promo_kind VARCHAR(10) NOT NULL DEFAULT 'cero'`;
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS deferred_interest DECIMAL(12,2)`;
+  // Las reglas del contrato de cada cuenta (condiciones-credito.ts): cómo se
+  // calcula el mínimo, a dónde va un abono y qué cuesta pagar tarde. La clave
+  // es la tarjeta (card_group) o la deuda suelta (su id), sin FK: un grupo no
+  // es una fila. Sin fila, la cuenta usa las de por defecto, que son las que
+  // la app suponía antes de que esto existiera.
+  await sql`
+    CREATE TABLE IF NOT EXISTS credit_terms (
+      user_id       UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      account_key   UUID          NOT NULL,
+      preset        VARCHAR(12)   NOT NULL,
+      min_rule      VARCHAR(8)    NOT NULL,
+      min_percent   DECIMAL(5,2)  NOT NULL DEFAULT 0,
+      min_floor     DECIMAL(12,2) NOT NULL DEFAULT 0,
+      min_fixed     DECIMAL(12,2),
+      payment_rule  VARCHAR(16)   NOT NULL,
+      late_fee      DECIMAL(10,2),
+      penalty_apr   DECIMAL(6,3),
+      updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, account_key)
+    )
+  `;
   // El último estado de cuenta de cada tarjeta: el mínimo que pide el banco y
   // cuándo vence. El abono lo propone solo y la tarjeta dice si ya se cubrió.
   await sql`
@@ -413,6 +457,8 @@ function mapDebt(row: Record<string, unknown>): Debt {
     duplicateDismissed: Boolean(row.duplicate_dismissed),
     promoEndsOn: dateKey(row.promo_ends_on),
     rateAfterPromo: numOrNull(row.rate_after_promo),
+    promoKind: row.promo_kind === 'diferido' ? 'diferido' : 'cero',
+    deferredInterest: numOrNull(row.deferred_interest),
     cardGroup: (row.card_group as string | null) ?? null,
     cycleDays: numOrNull(row.cycle_days),
     statementDay: numOrNull(row.statement_day),
@@ -719,6 +765,52 @@ export interface DebtsSnapshot {
   portfolio: DebtPortfolio;
   /** Por tarjeta (card_group). Opcional: las pantallas viejas no lo traen. */
   cardStatements?: Record<string, CardStatementInfo>;
+  /**
+   * Las condiciones del banco de cada cuenta, por `claveDeCuenta`: siempre
+   * presentes, guardadas o por defecto. Opcional por la misma razón.
+   */
+  creditTerms?: Record<string, CondicionesDeCredito>;
+}
+
+function mapCondiciones(r: Record<string, unknown>): CondicionesDeCredito {
+  const regla = String(r.min_rule) as ReglaDelMinimo;
+  return {
+    plantilla: String(r.preset) as Plantilla,
+    minimo: {
+      regla,
+      porcentaje: num(r.min_percent),
+      piso: num(r.min_floor),
+      fijo: regla === 'fijo' ? numOrNull(r.min_fixed) : null,
+    },
+    abono: String(r.payment_rule) as ReglaDelAbono,
+    atraso: { cargo: numOrNull(r.late_fee), tasaPenal: numOrNull(r.penalty_apr) },
+  };
+}
+
+/**
+ * Las condiciones de cada cuenta del usuario, guardadas o por defecto.
+ *
+ * Una fila se busca por la clave de la cuenta y, si no está, por el id de
+ * cualquiera de sus tramos: así una tarjeta suelta con sus condiciones
+ * guardadas no las pierde el día que se le junta un tramo nuevo.
+ */
+async function condicionesDeLasCuentas(
+  userId: string,
+  debts: readonly Debt[],
+): Promise<Record<string, CondicionesDeCredito>> {
+  const rows = await sql`SELECT * FROM credit_terms WHERE user_id = ${userId}`;
+  const guardadas = new Map(
+    (rows as Record<string, unknown>[]).map((r) => [String(r.account_key), mapCondiciones(r)]),
+  );
+  const cuentas = new Map<string, Debt[]>();
+  for (const d of debts) cuentas.set(claveDeCuenta(d), [...(cuentas.get(claveDeCuenta(d)) ?? []), d]);
+
+  const out: Record<string, CondicionesDeCredito> = {};
+  for (const [clave, tramos] of cuentas) {
+    const fila = guardadas.get(clave) ?? tramos.map((t) => guardadas.get(t.id)).find(Boolean) ?? null;
+    out[clave] = condicionesDeLaCuenta(tramos, fila);
+  }
+  return out;
 }
 
 /**
@@ -859,7 +951,8 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
     }));
 
   const cardStatements = await ultimosEstadosDeTarjeta(userId).catch(() => ({}));
-  return { debts, portfolio: buildPortfolio(portfolioInput, now), cardStatements };
+  const creditTerms = await condicionesDeLasCuentas(userId, debts).catch(() => ({}));
+  return { debts, portfolio: buildPortfolio(portfolioInput, now), cardStatements, creditTerms };
 }
 
 /** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
@@ -894,6 +987,11 @@ export interface CreditForPlan {
   promoEndsOn: string | null;
   /** Siempre APR, como en `Debt`. */
   rateAfterPromo: number | null;
+  /** Para que el aviso del 0 % diga lo mismo que en Deudas, diferido incluido. */
+  promoKind: TipoDePromo;
+  deferredInterest: number | null;
+  /** YYYY-MM-DD: desde cuándo corre un interés diferido. */
+  openedAt: string | null;
 }
 
 /**
@@ -915,7 +1013,8 @@ export async function listCreditsForPlan(
            min_includes_interest, extra_monthly, business_share,
            promo_ends_on, rate_after_promo, cycle_days,
            linked_payment_id, duplicate_dismissed, issuer,
-           card_group, account_last4, currency
+           card_group, account_last4, currency,
+           promo_kind, deferred_interest, opened_at
     FROM debts
     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
   `;
@@ -961,6 +1060,9 @@ export async function listCreditsForPlan(
       ratePeriod: (row.rate_period as RatePeriod) ?? 'monthly',
       promoEndsOn: dateKey(row.promo_ends_on),
       rateAfterPromo: numOrNull(row.rate_after_promo),
+      promoKind: row.promo_kind === 'diferido' ? 'diferido' : 'cero',
+      deferredInterest: numOrNull(row.deferred_interest),
+      openedAt: claveDeFecha(row.opened_at),
     };
   });
 }
@@ -1330,6 +1432,9 @@ export async function registerCardPayment(
     tramos.push(debt);
   }
 
+  // El reparto de ESTE banco. Si falla la lectura, la regla de EE. UU., que
+  // es la que la app aplicaba siempre.
+  const condiciones = await condicionesDeLasCuentas(userId, tramos).catch(() => ({}) as Record<string, CondicionesDeCredito>);
   const allocation = allocateCardPayment({
     tramos: tramos.map((d) => ({
       id: d.id,
@@ -1339,12 +1444,14 @@ export async function registerCardPayment(
       ratePeriod: d.ratePeriod,
       promoEndsOn: d.promoEndsOn,
       rateAfterPromo: d.rateAfterPromo,
+      promoKind: d.promoKind,
     })),
     amount: input.amount,
     minimumDue: input.minimumDue,
     // El día del servidor: decide si una promoción sigue viva, y solo cambia
     // de respuesta unas horas el mismo día en que caduca.
     hoy: toDateKey(now),
+    regla: condiciones[cardGroup]?.abono ?? 'ley_eeuu',
   });
 
   if (allocation.applied <= 0) return { ok: false, status: 422, message: 'La tarjeta no tiene saldo que abonar' };
@@ -1376,6 +1483,80 @@ export async function registerCardPayment(
   }
 
   return { ok: true, allocation, debts };
+}
+
+export type CreditTermsResult =
+  | { ok: true; snapshot: DebtsSnapshot }
+  | { ok: false; status: 404 | 422; message: string };
+
+/**
+ * Guarda las condiciones del banco de la cuenta a la que pertenece `debtId`
+ * (su tarjeta entera, o ella si va suelta).
+ *
+ * En una deuda SUELTA la regla del mínimo vive en sus campos de siempre, los
+ * que proyecta el motor y edita «Editar datos» (ver `condicionesDeLaCuenta`),
+ * así que se escribe también ahí. En una tarjeta con tramos no se toca ningún
+ * tramo: sus campos del mínimo son de cada saldo, no del contrato.
+ */
+export async function saveCreditTerms(
+  userId: string,
+  debtId: string,
+  input: CondicionesValidas,
+  now: Date = new Date(),
+): Promise<CreditTermsResult> {
+  await ensureDebtSchema();
+  const found = await sql`
+    SELECT id, kind, card_group FROM debts
+     WHERE id = ${debtId} AND user_id = ${userId} AND status <> 'archived' LIMIT 1
+  `;
+  if (found.length === 0) return { ok: false, status: 404, message: 'Deuda no encontrada' };
+  const row = found[0] as Record<string, unknown>;
+  const clave = (row.card_group as string | null) ?? String(row.id);
+
+  const tramos = (await sql`
+    SELECT id, kind FROM debts
+     WHERE user_id = ${userId} AND status <> 'archived' AND (id = ${clave}::uuid OR card_group = ${clave}::uuid)
+  `) as Record<string, unknown>[];
+  const ids = new Set(tramos.map((t) => String(t.id)));
+  ids.add(String(row.id));
+  if (input.promos.some((p) => !ids.has(p.debtId))) {
+    return { ok: false, status: 422, message: 'Ese saldo no es de esta tarjeta' };
+  }
+
+  const { condiciones: c } = input;
+  await sql`
+    INSERT INTO credit_terms (
+      user_id, account_key, preset, min_rule, min_percent, min_floor, min_fixed,
+      payment_rule, late_fee, penalty_apr, updated_at
+    ) VALUES (
+      ${userId}, ${clave}::uuid, ${c.plantilla}, ${c.minimo.regla}, ${c.minimo.porcentaje}, ${c.minimo.piso},
+      ${c.minimo.fijo}, ${c.abono}, ${c.atraso.cargo}, ${c.atraso.tasaPenal}, now()
+    )
+    ON CONFLICT (user_id, account_key) DO UPDATE SET
+      preset = EXCLUDED.preset, min_rule = EXCLUDED.min_rule, min_percent = EXCLUDED.min_percent,
+      min_floor = EXCLUDED.min_floor, min_fixed = EXCLUDED.min_fixed, payment_rule = EXCLUDED.payment_rule,
+      late_fee = EXCLUDED.late_fee, penalty_apr = EXCLUDED.penalty_apr, updated_at = now()
+  `;
+
+  for (const p of input.promos) {
+    await sql`
+      UPDATE debts SET promo_kind = ${p.tipo}, deferred_interest = ${p.interesDiferido}::numeric, updated_at = now()
+       WHERE id = ${p.debtId}::uuid AND user_id = ${userId}
+    `;
+  }
+
+  // Las de tienda también tienen mínimo; un préstamo no, su cuota es la pactada.
+  const solo = ids.size === 1 && (String(row.kind) === 'credit_card' || String(row.kind) === 'store');
+  if (solo) {
+    const campos = camposDelMinimo(c.minimo);
+    await sql`
+      UPDATE debts SET min_percent = ${campos.minPercent}::numeric, min_floor = ${campos.minFloor}::numeric,
+             min_includes_interest = ${campos.minIncludesInterest}, updated_at = now()
+       WHERE id = ${String(row.id)}::uuid AND user_id = ${userId}
+    `;
+  }
+
+  return { ok: true, snapshot: await listDebts(userId, now) };
 }
 
 export interface CardStatementInput {

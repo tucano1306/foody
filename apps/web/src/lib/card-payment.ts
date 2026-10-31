@@ -22,9 +22,15 @@
  * Consecuencia que esto hace visible: pagando solo el mínimo, el tramo que
  * cobra interés no baja nunca.
  *
- * No aplica aquí la excepción de la ley para promociones de interés DIFERIDO
- * (los dos últimos ciclos antes de caducar, el excedente va a ese tramo): los
- * 0 % de Bank of America son de interés cero de verdad, no diferido.
+ * La misma ley tiene una excepción para las promociones de interés DIFERIDO
+ * (§1026.53(b)): en los dos ciclos antes de que caduquen, el excedente va
+ * primero a ese tramo, porque un centavo que quede ahí al final hace que cobren
+ * todo el interés desde el primer día. Los 0 % de Bank of America son de cero
+ * de verdad y no la activan; una tarjeta de tienda, sí.
+ *
+ * Esa es la regla de EE. UU. Otro banco puede repartir de otra forma —todo al
+ * saldo caro, todo al barato, o en proporción—, y cada tarjeta guarda la suya
+ * en sus condiciones (condiciones-credito.ts).
  *
  * Módulo PURO. Se prueba en card-payment.test.ts.
  */
@@ -36,6 +42,7 @@ import {
   tasaMensualDelDia,
   type RatePeriod,
 } from './debt-engine';
+import type { ReglaDelAbono, TipoDePromo } from './condiciones-credito';
 
 export interface CardTramo {
   readonly id: string;
@@ -51,6 +58,27 @@ export interface CardTramo {
    * el formulario («Después, tasa anual»), sea cual sea `ratePeriod`.
    */
   readonly rateAfterPromo: number | null;
+  /** Cero de verdad, o interés diferido. Sin dato, cero: es lo habitual en un banco. */
+  readonly promoKind?: TipoDePromo | null;
+}
+
+/**
+ * Los «dos ciclos antes de caducar» de la ley, en días. Se cuenta desde hoy y
+ * no desde el cierre del estado porque el reparto se hace el día del abono, y
+ * 62 días cubren dos ciclos de 31.
+ */
+export const VENTANA_DIFERIDO_DIAS = 62;
+
+function diasHasta(desde: string, hasta: string): number {
+  const [y1, m1, d1] = desde.slice(0, 10).split('-').map(Number);
+  const [y2, m2, d2] = hasta.slice(0, 10).split('-').map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
+}
+
+/** ¿El tramo es un diferido que la ley manda pagar primero hoy? */
+export function diferidoPorCaducar(tramo: CardTramo, hoy: string): boolean {
+  if (tramo.promoKind !== 'diferido' || !tramo.promoEndsOn || !enPromocion(tramo, hoy)) return false;
+  return diasHasta(hoy, tramo.promoEndsOn) <= VENTANA_DIFERIDO_DIAS;
 }
 
 /** ¿Sigue en promoción el día `hoy` (YYYY-MM-DD)? El último día aún cuenta. */
@@ -112,7 +140,9 @@ function claveCaducidad(t: CardTramo): string {
  * Reparte un abono entre los tramos de una tarjeta, como lo hace el banco.
  *
  * `minimumDue` es el mínimo del estado de cuenta. Lo que no llega al mínimo
- * cuenta entero como mínimo; lo que lo pasa, como excedente.
+ * cuenta entero como mínimo; lo que lo pasa, como excedente. Con una regla que
+ * no es la de EE. UU. la distinción no cambia a dónde va el dinero, pero se
+ * conserva: es la que cuenta en el libro mayor de qué salió cada abono.
  */
 export function allocateCardPayment(input: {
   readonly tramos: readonly CardTramo[];
@@ -120,7 +150,10 @@ export function allocateCardPayment(input: {
   readonly minimumDue: number;
   /** Hoy, YYYY-MM-DD: decide qué promociones siguen vivas. */
   readonly hoy: string;
+  /** Cómo reparte este banco. Por defecto, la ley de EE. UU. */
+  readonly regla?: ReglaDelAbono;
 }): CardAllocation {
+  const regla = input.regla ?? 'ley_eeuu';
   const amount = round2(Math.max(0, Number.isFinite(input.amount) ? input.amount : 0));
   const minimo = round2(Math.max(0, Number.isFinite(input.minimumDue) ? input.minimumDue : 0));
   const minimumPart = Math.min(amount, minimo);
@@ -134,6 +167,11 @@ export function allocateCardPayment(input: {
   const delMinimo = new Map<string, number>();
   const delExcedente = new Map<string, number>();
 
+  function abonar(id: string, va: number, destino: Map<string, number>) {
+    restante.set(id, round2((restante.get(id) ?? 0) - va));
+    destino.set(id, round2((destino.get(id) ?? 0) + va));
+  }
+
   function verter(dinero: number, orden: typeof vivos, destino: Map<string, number>): number {
     let queda = dinero;
     for (const { tramo } of orden) {
@@ -141,27 +179,68 @@ export function allocateCardPayment(input: {
       const debe = restante.get(tramo.id) ?? 0;
       if (debe <= 0) continue;
       const va = round2(Math.min(debe, queda));
-      restante.set(tramo.id, round2(debe - va));
-      destino.set(tramo.id, round2((destino.get(tramo.id) ?? 0) + va));
+      abonar(tramo.id, va, destino);
       queda = round2(queda - va);
     }
     return queda;
   }
 
-  // 1. El mínimo, a la tasa más baja; entre iguales, a la promoción que caduca
-  //    antes, y si no, al saldo más pequeño.
-  const paraMinimo = [...vivos].sort(
+  /**
+   * En proporción a lo que debe cada tramo. Los centavos que el redondeo deja
+   * sueltos van al saldo más grande, que es el último de `orden`: así la suma
+   * cuadra exacta y nadie recibe más de lo que debe.
+   */
+  function repartir(dinero: number, orden: typeof vivos, destino: Map<string, number>): number {
+    const conSaldo = orden.filter((v) => (restante.get(v.tramo.id) ?? 0) > 0);
+    const total = round2(conSaldo.reduce((s, v) => s + (restante.get(v.tramo.id) ?? 0), 0));
+    if (dinero <= 0 || total <= 0) return dinero;
+    if (dinero >= total) return verter(dinero, conSaldo, destino);
+    let queda = dinero;
+    conSaldo.forEach((v, i) => {
+      const debe = restante.get(v.tramo.id) ?? 0;
+      const parte = i === conSaldo.length - 1 ? queda : Math.floor((dinero * debe * 100) / total) / 100;
+      const va = round2(Math.min(debe, queda, parte));
+      if (va > 0) abonar(v.tramo.id, va, destino);
+      queda = round2(queda - va);
+    });
+    // Abonando casi el total, el saldo más grande puede no tener sitio para
+    // todos los centavos sueltos: van a los demás, que aún deben.
+    return queda > 0 ? verter(queda, conSaldo, destino) : 0;
+  }
+
+  // La tasa más baja; entre iguales, la promoción que caduca antes, y si no,
+  // el saldo más pequeño.
+  const porTasaBaja = [...vivos].sort(
     (a, b) =>
       a.tasa - b.tasa ||
       claveCaducidad(a.tramo).localeCompare(claveCaducidad(b.tramo)) ||
       a.tramo.balance - b.tramo.balance,
   );
-  const sobraMinimo = verter(minimumPart, paraMinimo, delMinimo);
+  // La tasa más alta; entre iguales, el saldo más grande.
+  const porTasaAlta = [...vivos].sort((a, b) => b.tasa - a.tasa || b.tramo.balance - a.tramo.balance);
 
-  // 2. Lo demás, a la tasa más alta; entre iguales, al saldo más grande. Lo que
-  //    no cupo en el mínimo —tramos baratos ya en cero— sigue por aquí.
-  const paraExcedente = [...vivos].sort((a, b) => b.tasa - a.tasa || b.tramo.balance - a.tramo.balance);
-  const sobra = verter(round2(excessPart + sobraMinimo), paraExcedente, delExcedente);
+  let paraMinimo = porTasaBaja;
+  let paraExcedente = porTasaAlta;
+  let sobra: number;
+  if (regla === 'proporcional') {
+    const porSaldo = [...vivos].sort((a, b) => a.tramo.balance - b.tramo.balance);
+    paraMinimo = paraExcedente = [...porSaldo].reverse();
+    const sobraMinimo = repartir(minimumPart, porSaldo, delMinimo);
+    sobra = repartir(round2(excessPart + sobraMinimo), porSaldo, delExcedente);
+  } else {
+    if (regla === 'cara_primero') paraMinimo = porTasaAlta;
+    if (regla === 'barata_primero') paraExcedente = porTasaBaja;
+    if (regla === 'ley_eeuu') {
+      // La excepción del diferido: en sus dos últimos ciclos, el excedente va
+      // ahí antes que a la tasa más alta; entre dos, al que caduca antes.
+      const urgentes = porTasaBaja.filter((v) => diferidoPorCaducar(v.tramo, input.hoy));
+      paraExcedente = [...urgentes, ...porTasaAlta.filter((v) => !urgentes.includes(v))];
+    }
+    // 1. El mínimo. 2. Lo demás; lo que no cupo en el mínimo —tramos ya en
+    //    cero— sigue por aquí.
+    const sobraMinimo = verter(minimumPart, paraMinimo, delMinimo);
+    sobra = verter(round2(excessPart + sobraMinimo), paraExcedente, delExcedente);
+  }
 
   const orden = [...paraMinimo.filter((v) => delMinimo.has(v.tramo.id))];
   for (const v of paraExcedente) if (delExcedente.has(v.tramo.id) && !delMinimo.has(v.tramo.id)) orden.push(v);
@@ -204,12 +283,13 @@ export function montoSinIntereses(
   tramos: readonly CardTramo[],
   minimumDue: number,
   hoy: string,
+  regla: ReglaDelAbono = 'ley_eeuu',
 ): number | null {
   const caros = tramos.filter((t) => t.balance > 0 && tasaVigente(t, hoy) > 0);
   if (caros.length === 0) return null;
   const total = round2(tramos.reduce((s, t) => s + Math.max(0, t.balance), 0));
   const limpio = (amount: number) => {
-    const reparto = allocateCardPayment({ tramos, amount, minimumDue, hoy });
+    const reparto = allocateCardPayment({ tramos, amount, minimumDue, hoy, regla });
     return caros.every((c) => reparto.parts.find((p) => p.tramoId === c.id)?.balanceAfter === 0);
   };
   let lo = 0;

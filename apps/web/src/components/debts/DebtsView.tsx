@@ -7,6 +7,7 @@ import type { CardStatementInfo, DebtWithProjection, DebtsSnapshot } from '@/lib
 import { buildPortfolio, type PortfolioDebt } from '@/lib/debt-engine';
 import { caminoDeDeudas } from '@/lib/camino-deudas';
 import { cardTitle } from '@/lib/card-payment';
+import { claveDeCuenta, condicionesDeLaCuenta, type CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { findDuplicateObligations, type ObligationPayment } from '@/lib/duplicate-obligations';
 import { haptic } from '@/lib/haptic';
 import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
@@ -15,6 +16,7 @@ import DebtCard from './DebtCard';
 import CardGroupCard from './CardGroupCard';
 import CardPaymentModal from './CardPaymentModal';
 import CardStatementModal from './CardStatementModal';
+import CreditTermsSheet from './CreditTermsSheet';
 import DuplicateBanner from './DuplicateBanner';
 import DebtDetailSheet from './DebtDetailSheet';
 import DebtEditModal from './DebtEditModal';
@@ -55,6 +57,10 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   // El último estado de cuenta de cada tarjeta. Tras un abono se suma lo
   // abonado al momento, sin volver a pedirlo: la tarjeta dice «✓ Cubierto» ya.
   const [estados, setEstados] = useState<Record<string, CardStatementInfo>>(initial.cardStatements ?? {});
+  // Las condiciones del banco de cada cuenta (tarjeta o deuda suelta), y la
+  // cuenta cuyas condiciones se están editando.
+  const [terminos, setTerminos] = useState<Record<string, CondicionesDeCredito>>(initial.creditTerms ?? {});
+  const [terminosDe, setTerminosDe] = useState<string | null>(null);
   /**
    * Qué lado se está mirando.
    *
@@ -190,6 +196,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   const replaceAll = useCallback((snapshot: DebtsSnapshot) => {
     setDebts([...snapshot.debts].sort((a, b) => b.currentBalance - a.currentBalance));
     if (snapshot.cardStatements) setEstados(snapshot.cardStatements);
+    if (snapshot.creditTerms) setTerminos(snapshot.creditTerms);
   }, []);
 
   const currency = debts[0]?.currency ?? 'USD';
@@ -197,6 +204,9 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   // que se enseña, no lo que se debe.
   const payingCard = payCard ? debts.filter((d) => d.cardGroup === payCard && d.status === 'active') : [];
   const cuadrandoCard = cuadrarCard ? debts.filter((d) => d.cardGroup === cuadrarCard && d.status === 'active') : [];
+  const cuentaEnTerminos = terminosDe
+    ? debts.filter((d) => claveDeCuenta(d) === terminosDe && d.status !== 'archived')
+    : [];
   const detail = debts.find((d) => d.id === detailId) ?? null;
   const paying = debts.find((d) => d.id === payId) ?? null;
   const editing = debts.find((d) => d.id === editId) ?? null;
@@ -299,6 +309,8 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
                 onPay={() => setPayCard(b.group)}
                 estado={estados[b.group] ?? null}
                 onCuadrar={() => setCuadrarCard(b.group)}
+                condiciones={terminos[b.group] ?? null}
+                onCondiciones={() => setTerminosDe(b.group)}
               />
             ) : (
               <DebtCard
@@ -379,6 +391,10 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             }}
             cardCandidates={debts.filter((d) => d.id !== detail.id && d.kind === 'credit_card' && d.status !== 'archived')}
             onSnapshot={replaceAll}
+            onCondiciones={() => {
+              setTerminosDe(claveDeCuenta(detail));
+              setDetailId(null);
+            }}
           />
         )}
         {editing && (
@@ -402,6 +418,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             key="pay-card"
             tramos={payingCard}
             estado={payCard ? estados[payCard] ?? null : null}
+            condiciones={payCard ? terminos[payCard] ?? null : null}
             onClose={() => setPayCard(null)}
             onPaid={(actualizadas, monto) => {
               actualizadas.forEach(upsert);
@@ -422,6 +439,18 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             tramos={cuadrandoCard}
             estado={cuadrarCard ? estados[cuadrarCard] ?? null : null}
             onClose={() => setCuadrarCard(null)}
+            onSaved={replaceAll}
+          />
+        )}
+        {cuentaEnTerminos.length > 0 && terminosDe && (
+          <CreditTermsSheet
+            key="terminos"
+            tramos={cuentaEnTerminos}
+            // Sin las del servidor (una respuesta vieja), las de por defecto:
+            // el botón nunca abre nada vacío.
+            condiciones={terminos[terminosDe] ?? condicionesDeLaCuenta(cuentaEnTerminos, null)}
+            estado={estados[terminosDe] ?? null}
+            onClose={() => setTerminosDe(null)}
             onSaved={replaceAll}
           />
         )}
