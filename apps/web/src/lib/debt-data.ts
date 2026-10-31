@@ -48,7 +48,7 @@ import {
 import { normalizeShare } from './expense-scope';
 import { allocateCardPayment, type CardAllocation } from './card-payment';
 import { agrupacionesAutomaticas } from './tarjetas-auto';
-import { ajustesDeCuadre } from './cuadre-tarjeta';
+import { ajustesDeCuadre, momentoDelCuadre, saldosAlCierre } from './cuadre-tarjeta';
 
 // ─── Tipos expuestos ──────────────────────────────────────────────────────────
 
@@ -775,6 +775,32 @@ async function ultimosEstadosDeTarjeta(userId: string): Promise<Record<string, C
   return out;
 }
 
+/**
+ * Lo que cambió cada tramo de la tarjeta DESPUÉS del cierre: abonos en
+ * negativo; cargos, comisiones, intereses y ajustes en positivo (la misma suma
+ * que da el saldo en `ledgerTotals`). Restado al saldo de hoy da el del cierre,
+ * que es el que imprime el estado. El límite es el de `ultimosEstadosDeTarjeta`.
+ */
+export async function movidoDesdeElCierre(
+  userId: string,
+  cardGroup: string,
+  closingDate: string,
+): Promise<Record<string, number>> {
+  const rows = await sql`
+    SELECT m.debt_id,
+           SUM(CASE WHEN m.kind = 'payment' THEN -m.amount ELSE m.amount END) AS movido
+      FROM debt_movements m
+      JOIN debts d ON d.id = m.debt_id
+     WHERE d.user_id = ${userId}
+       AND d.card_group = ${cardGroup}::uuid
+       AND m.occurred_at >= ${closingDate}::date + INTERVAL '1 day'
+     GROUP BY m.debt_id
+  `;
+  return Object.fromEntries(
+    (rows as Record<string, unknown>[]).map((r) => [String(r.debt_id), round2(num(r.movido))]),
+  );
+}
+
 /** Todas las deudas del usuario, con el interés del mes ya devengado. */
 export async function listDebts(userId: string, now: Date = new Date()): Promise<DebtsSnapshot> {
   await ensureDebtSchema();
@@ -1367,13 +1393,17 @@ export async function saveCardStatement(
     tramos.push(debt);
   }
 
+  // El estado dice cuánto se debía al CIERRE: se compara con lo que Foody
+  // tenía ese día, no con lo de hoy, que ya lleva los abonos posteriores.
   const nota = `Cuadre con el estado de cuenta del ${input.closingDate}`;
+  const movido = await movidoDesdeElCierre(userId, cardGroup, input.closingDate);
+  const cuando = momentoDelCuadre(input.closingDate, now);
   const ajustes = ajustesDeCuadre(
-    tramos.map((t) => ({ id: t.id, balance: t.currentBalance })),
+    saldosAlCierre(tramos.map((t) => ({ id: t.id, balance: t.currentBalance })), movido),
     input.tramos.map((t) => ({ debtId: t.debtId, saldo: t.balance })),
   );
   for (const a of ajustes) {
-    await registerCharge(userId, a.debtId, { amount: a.ajuste, kind: 'adjustment', note: nota }, now);
+    await registerCharge(userId, a.debtId, { amount: a.ajuste, kind: 'adjustment', note: nota, occurredAt: cuando }, now);
   }
 
   const hoy = toDateKey(now);
@@ -1421,10 +1451,16 @@ export async function saveCardStatement(
       },
       now,
     );
+    // El saldo nuevo existe desde el cierre, no desde hoy: así el siguiente
+    // cuadre no lo cuenta como cargo posterior y el interés corre desde el día
+    // siguiente al cierre, como en el banco.
+    const desde = cuando.toISOString();
     await sql`
-      UPDATE debts SET card_group = ${cardGroup}::uuid, card_group_manual = false, updated_at = now()
+      UPDATE debts SET card_group = ${cardGroup}::uuid, card_group_manual = false,
+             opened_at = ${desde}, last_accrual_at = ${desde}, updated_at = now()
        WHERE id = ${creada.id} AND user_id = ${userId}
     `;
+    await sql`UPDATE debt_movements SET occurred_at = ${desde} WHERE debt_id = ${creada.id} AND user_id = ${userId}`;
   }
 
   const nuevoSaldo = round2(
