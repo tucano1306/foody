@@ -1,7 +1,8 @@
 'use client';
 
-import type { DebtWithProjection } from '@/lib/debt-data';
+import type { CardStatementInfo, DebtWithProjection } from '@/lib/debt-data';
 import { cardTitle, enPromocion } from '@/lib/card-payment';
+import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
 import { haptic } from '@/lib/haptic';
 import { BTN_PRIMARY, fmtDateFull, fmtMoney, fmtMoneyShort, fmtRate } from './debt-ui';
@@ -11,6 +12,9 @@ interface Props {
   readonly tramos: readonly DebtWithProjection[];
   readonly onOpenTramo: (id: string) => void;
   readonly onPay: () => void;
+  /** El último estado de cuenta guardado de esta tarjeta. */
+  readonly estado?: CardStatementInfo | null;
+  readonly onCuadrar?: () => void;
 }
 
 /** Días hasta una fecha YYYY-MM-DD, contando en el calendario del dispositivo. */
@@ -27,12 +31,14 @@ function diasHasta(clave: string, hoy: string): number {
  * «Compras 3650» y «Unlimited Cash 3650» se pagan con el mismo mínimo. Ahora
  * se ven juntas, cada una con su tasa, y el abono se hace a la tarjeta.
  */
-export default function CardGroupCard({ tramos, onOpenTramo, onPay }: Props) {
+export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = null, onCuadrar }: Props) {
   const hoy = toDateKey(new Date());
   const currency = tramos[0]?.currency ?? 'USD';
   const total = tramos.reduce((s, t) => s + t.currentBalance, 0);
   const interesMes = tramos.reduce((s, t) => s + t.projection.monthlyInterest, 0);
   const ordenados = [...tramos].sort((a, b) => b.currentBalance - a.currentBalance);
+  const cobertura = estadoDelMinimo(estado);
+  const venceEn = estado?.dueDate ? diasHasta(estado.dueDate, hoy) : null;
 
   return (
     <div className="flex flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm sm:col-span-2">
@@ -52,6 +58,35 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay }: Props) {
           <p className="text-[11px] text-slate-400">debes hoy</p>
         </div>
       </div>
+
+      {/* El mínimo del estado, a la vista: cuánto y cuándo, y si ya está.
+          Es la pregunta de cada mes con esta tarjeta, y la respuesta estaba
+          en un PDF. */}
+      {estado && cobertura && (
+        <div
+          className={`flex items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 ${
+            cobertura.cubierto ? 'bg-sky-50/70' : 'border border-blue-200 bg-blue-50'
+          }`}
+        >
+          <span className="min-w-0">
+            <span className="block text-[11px] font-semibold text-slate-600">
+              Mínimo del estado{estado.dueDate ? ` · vence el ${fmtDateFull(estado.dueDate)}` : ''}
+            </span>
+            <span className="block text-base font-extrabold text-black">{fmtMoney(estado.minimumDue, currency)}</span>
+          </span>
+          <span
+            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+              cobertura.cubierto ? 'bg-white text-sky-700' : 'bg-blue-100 text-blue-800'
+            }`}
+          >
+            {cobertura.cubierto
+              ? '✓ Cubierto'
+              : venceEn !== null && venceEn >= 0
+                ? `Faltan ${fmtMoney(cobertura.falta, currency)} · ${venceEn === 0 ? 'hoy' : `en ${venceEn} ${venceEn === 1 ? 'día' : 'días'}`}`
+                : `Faltan ${fmtMoney(cobertura.falta, currency)}`}
+          </span>
+        </div>
+      )}
 
       <ul className="flex flex-col gap-2">
         {ordenados.map((t) => {
@@ -109,6 +144,18 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay }: Props) {
       >
         💸 Abonar a la tarjeta
       </button>
+      {onCuadrar && (
+        <button
+          type="button"
+          onClick={() => {
+            haptic();
+            onCuadrar();
+          }}
+          className="-mt-2 rounded-2xl py-2.5 text-xs font-bold text-slate-600 transition hover:bg-sky-50 active:scale-[0.99]"
+        >
+          🧾 {estado ? 'Cuadrar con el nuevo estado de cuenta' : 'Cuadrar con el estado de cuenta'}
+        </button>
+      )}
     </div>
   );
 }

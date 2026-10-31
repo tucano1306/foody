@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * de mentira que entiende justo las consultas que hace la función.
  */
 
-type Fila = { id: string; kind: string; card_group: string | null; user_id: string };
+type Fila = { id: string; kind: string; card_group: string | null; user_id: string; card_group_manual?: boolean };
 let filas: Fila[] = [];
 
 const U = '00000000-0000-4000-8000-000000000000';
@@ -21,13 +21,15 @@ vi.mock('./db', () => ({
     if (q.startsWith('SELECT id, kind, card_group FROM debts WHERE id =')) {
       return filas.filter((f) => f.id === v[0] && f.user_id === v[1]);
     }
-    if (q.startsWith('UPDATE debts SET card_group = NULL, updated_at = now() WHERE id =')) {
-      filas = filas.map((f) => (f.id === v[0] ? { ...f, card_group: null } : f));
+    // Separar a mano: además marca la fila para que la unión automática no la
+    // vuelva a juntar (tarjetas-auto.ts).
+    if (q.startsWith('UPDATE debts SET card_group = NULL, card_group_manual = true, updated_at = now() WHERE id =')) {
+      filas = filas.map((f) => (f.id === v[0] ? { ...f, card_group: null, card_group_manual: true } : f));
       return [];
     }
-    if (q.startsWith('UPDATE debts SET card_group = ?::uuid')) {
+    if (q.startsWith('UPDATE debts SET card_group = ?::uuid, card_group_manual = false')) {
       const [grupo, , x, y] = v as string[];
-      filas = filas.map((f) => (f.id === x || f.id === y ? { ...f, card_group: grupo } : f));
+      filas = filas.map((f) => (f.id === x || f.id === y ? { ...f, card_group: grupo, card_group_manual: false } : f));
       return [];
     }
     if (q.startsWith('UPDATE debts SET card_group = NULL, updated_at = now() WHERE user_id =')) {
@@ -70,6 +72,8 @@ describe('setCardGroup', () => {
     await setCardGroup(U, B, A);
     await setCardGroup(U, B, null);
     expect([grupoDe(A), grupoDe(B)]).toEqual([null, null]);
+    // La que se separó a mano queda marcada: la unión automática la respeta.
+    expect(filas.find((x) => x.id === B)?.card_group_manual).toBe(true);
   });
 
   it('sacar uno de tres deja los otros dos juntos', async () => {
