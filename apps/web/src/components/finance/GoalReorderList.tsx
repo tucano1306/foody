@@ -19,6 +19,9 @@ interface Props {
   readonly onComplete: (goal: GoalProjection) => void;
   /** Hay tarjetas en Deudas a las que enlazar una meta de deuda. */
   readonly puedeEnlazar?: boolean;
+  /** La deuda que cada meta parece perseguir, para enlazarla de un toque. */
+  readonly sugerenciaPara?: (goal: GoalProjection) => { readonly id: string; readonly name: string } | null;
+  readonly onLink?: (goal: GoalProjection, debtId: string) => void;
 }
 
 /**
@@ -76,6 +79,8 @@ function SortableGoal({
   onDelete,
   onComplete,
   puedeEnlazar,
+  sugerencia,
+  onLink,
 }: {
   readonly goal: GoalProjection;
   readonly index: number;
@@ -88,6 +93,8 @@ function SortableGoal({
   readonly onDelete: () => void;
   readonly onComplete: () => void;
   readonly puedeEnlazar?: boolean;
+  readonly sugerencia?: { readonly id: string; readonly name: string } | null;
+  readonly onLink?: (debtId: string) => void;
 }) {
   const controls = useDragControls();
 
@@ -104,6 +111,8 @@ function SortableGoal({
         goal={goal}
         index={index}
         puedeEnlazar={puedeEnlazar}
+        sugerencia={sugerencia}
+        onLink={onLink}
         onContribute={onContribute}
         onEdit={onEdit}
         onDelete={onDelete}
@@ -143,6 +152,8 @@ export default function GoalReorderList({
   onDelete,
   onComplete,
   puedeEnlazar,
+  sugerenciaPara,
+  onLink,
 }: Props) {
   const ids = goals.map((g) => g.goalId);
 
@@ -166,6 +177,8 @@ export default function GoalReorderList({
           onDelete={() => onDelete(goal)}
           onComplete={() => onComplete(goal)}
           puedeEnlazar={puedeEnlazar}
+          sugerencia={sugerenciaPara?.(goal) ?? null}
+          onLink={onLink ? (debtId) => onLink(goal, debtId) : undefined}
         />
       ))}
     </Reorder.Group>

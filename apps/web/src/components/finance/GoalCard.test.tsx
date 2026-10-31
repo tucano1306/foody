@@ -115,3 +115,53 @@ describe('GoalCard — meta de una tarjeta', () => {
     expect(screen.getByRole('button', { name: 'Abonar la tarjeta' })).toBeInTheDocument();
   });
 });
+
+describe('GoalCard — enlazar de un toque', () => {
+  // «tarjeta 3650» a $11,440 para el 25 ene: el 0 % de Unlimited Cash 3650
+  // acaba ese día. El plan la reconoce y el enlace no pasa por el formulario.
+  it('con la deuda clara, la nombra y la enlaza sin abrir el formulario', () => {
+    const onLink = vi.fn();
+    const onEdit = vi.fn();
+    render(
+      <GoalCard
+        goal={meta({ targetAmount: 11440, savedAmount: 313, targetDate: '2027-01-25', daysLeft: 86 })}
+        index={0}
+        onContribute={vi.fn()}
+        onEdit={onEdit}
+        onDelete={vi.fn()}
+        onComplete={vi.fn()}
+        puedeEnlazar
+        sugerencia={{ id: 'unlimited', name: 'Unlimited Cash 3650' }}
+        onLink={onLink}
+      />,
+    );
+    expect(screen.getByText('Unlimited Cash 3650')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enlazar' }));
+    expect(onLink).toHaveBeenCalledWith('unlimited');
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it('sin sugerencia, «Enlazar» sigue abriendo el formulario para elegir', () => {
+    const { onEdit } = montar(meta({}));
+    expect(screen.getByText(/¿Es una de tus tarjetas\?/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Enlazar' }));
+    expect(onEdit).toHaveBeenCalled();
+  });
+
+  it('ya enlazada, no se ofrece nada', () => {
+    render(
+      <GoalCard
+        goal={meta({ debtId: 'unlimited' })}
+        index={0}
+        onContribute={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onComplete={vi.fn()}
+        puedeEnlazar
+        sugerencia={{ id: 'unlimited', name: 'Unlimited Cash 3650' }}
+        onLink={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Enlazar' })).not.toBeInTheDocument();
+  });
+});
