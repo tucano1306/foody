@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import type { CardStatementInfo, CreditForPlan, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
+import type { CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { toDateKey } from '@/lib/debt-engine';
 import { avisoDePromo } from '@/lib/debt-promo';
 import type { DebtOverview } from '@/lib/finance-engine';
@@ -52,7 +53,7 @@ type DebtModal =
   | { kind: 'edit'; debt: DebtWithProjection }
   | { kind: 'pay'; debt: DebtWithProjection }
   | { kind: 'new' }
-  | { kind: 'card-pay'; tramos: DebtWithProjection[]; estado: CardStatementInfo | null }
+  | { kind: 'card-pay'; tramos: DebtWithProjection[]; estado: CardStatementInfo | null; condiciones: CondicionesDeCredito | null }
   | { kind: 'card-cuadrar'; tramos: DebtWithProjection[]; estado: CardStatementInfo | null };
 
 /**
@@ -100,7 +101,12 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
       const snapshot = (await res.json()) as DebtsSnapshot;
       const tramos = snapshot.debts.filter((d) => d.cardGroup === grupo && d.status === 'active');
       if (tramos.length === 0) throw new Error();
-      setModal({ kind: accion, tramos, estado: snapshot.cardStatements?.[grupo] ?? null });
+      const estado = snapshot.cardStatements?.[grupo] ?? null;
+      setModal(
+        accion === 'card-pay'
+          ? { kind: accion, tramos, estado, condiciones: snapshot.creditTerms?.[grupo] ?? null }
+          : { kind: accion, tramos, estado },
+      );
     } catch {
       toast.show('No se pudo abrir la tarjeta', 'error');
     } finally {
@@ -136,6 +142,9 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
         ratePeriod: d?.ratePeriod ?? 'annual_nominal',
         promoEndsOn: d?.promoEndsOn ?? null,
         rateAfterPromo: d?.rateAfterPromo ?? null,
+        promoKind: d?.promoKind ?? 'cero',
+        deferredInterest: d?.deferredInterest ?? null,
+        openedAt: d?.openedAt ?? null,
       };
     }),
   );
@@ -187,7 +196,7 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
                 );
               }
               const c = fila.credito;
-              const aviso = avisoDePromo({ currentBalance: c.balance, promoEndsOn: c.promoEndsOn, rateAfterPromo: c.rateAfterPromo }, hoy);
+              const aviso = avisoDePromo({ ...c, currentBalance: c.balance }, hoy);
               return (
               <li key={c.id}>
                 <button
@@ -381,6 +390,7 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
         <CardPaymentModal
           tramos={modal.tramos}
           estado={modal.estado}
+          condiciones={modal.condiciones}
           onClose={close}
           // El modal se cierra solo tras asentar el abono; aquí solo hay que
           // recalcular el plan con los saldos nuevos.

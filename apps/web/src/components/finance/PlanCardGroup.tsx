@@ -5,6 +5,7 @@ import { cardTitle, enPromocion } from '@/lib/card-payment';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey, type RatePeriod } from '@/lib/debt-engine';
 import { avisoDePromo } from '@/lib/debt-promo';
+import type { TipoDePromo } from '@/lib/condiciones-credito';
 import { haptic } from '@/lib/haptic';
 import PromoAviso from '@/components/debts/PromoAviso';
 import { fmtDateFull, fmtRate } from '@/components/debts/debt-ui';
@@ -25,6 +26,9 @@ export interface TramoDelPlan {
   readonly ratePeriod: RatePeriod;
   readonly promoEndsOn: string | null;
   readonly rateAfterPromo: number | null;
+  readonly promoKind: TipoDePromo;
+  readonly deferredInterest: number | null;
+  readonly openedAt: string | null;
 }
 
 interface Props {
@@ -110,7 +114,7 @@ export default function PlanCardGroup({ tramos, estado, loadingId, grupo, onOpen
       <ul className="space-y-1.5" aria-label={`Saldos de ${titulo}`}>
         {ordenados.map((t) => {
           const promoViva = enPromocion(t, hoy);
-          const aviso = avisoDePromo({ currentBalance: t.balance, promoEndsOn: t.promoEndsOn, rateAfterPromo: t.rateAfterPromo }, hoy);
+          const aviso = avisoDePromo({ ...t, currentBalance: t.balance }, hoy);
           return (
             <li key={t.id}>
               <button

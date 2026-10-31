@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   allocateCardPayment,
   cardTitle,
+  diferidoPorCaducar,
   enPromocion,
   estimateCardMinimum,
   interesAhorradoAlMes,
@@ -278,5 +279,109 @@ describe('la 3650 de octubre: «sin intereses» y lo que ahorra un abono', () =>
 
   it('sin tramos que cobren interés, no hay «sin intereses» que ofrecer', () => {
     expect(montoSinIntereses([T[2]], 154, HOY)).toBeNull();
+  });
+});
+
+/**
+ * Otros bancos, otras reglas. Misma tarjeta de tres tramos (compras al
+ * 23.74 %, dos adelantos al 0 %), $500 con mínimo de $156: cambia a dónde va
+ * cada dólar, nunca cuánto se aplica.
+ */
+describe('allocateCardPayment — la regla de cada banco', () => {
+  const con = (regla: Parameters<typeof allocateCardPayment>[0]['regla'], amount = 500, tramos = TARJETA) =>
+    allocateCardPayment({ tramos, amount, minimumDue: 156, hoy: '2026-09-28', regla });
+  const a = (r: ReturnType<typeof con>, id: string) => r.parts.find((p) => p.tramoId === id)?.amount ?? 0;
+
+  it('sin regla, la de EE. UU.: igual que antes', () => {
+    expect(con(undefined).parts).toEqual(con('ley_eeuu').parts);
+  });
+
+  it('«cara primero»: todo, mínimo incluido, a compras al 23.74 %', () => {
+    const r = con('cara_primero');
+    expect(r.parts).toEqual([expect.objectContaining({ tramoId: 'compras', amount: 500, fromMinimum: 156, fromExcess: 344 })]);
+  });
+
+  it('«barata primero»: todo al 0 % que caduca antes, y lo que no cabe al siguiente 0 %', () => {
+    const r = con('barata_primero', 800);
+    expect(r.parts.map((p) => [p.tramoId, p.amount])).toEqual([
+      ['promo-oct', 699],
+      ['promo-ene', 101],
+    ]);
+    expect(a(r, 'compras')).toBe(0);
+  });
+
+  it('«proporcional»: cada saldo según lo que pesa, y la suma cuadra al centavo', () => {
+    const r = con('proporcional', 1000);
+    // 1,164.26 / 13,303.26 de 1,000 = 87.51; 699 → 52.54. Se reparte el
+    // mínimo y luego el resto, cada vez truncando al centavo: el que suelta el
+    // adelanto pequeño va al saldo grande, que se queda 859.96.
+    expect(a(r, 'compras')).toBe(87.51);
+    expect(a(r, 'promo-oct')).toBe(52.53);
+    expect(a(r, 'promo-ene')).toBe(859.96);
+    expect(r.applied).toBe(1000);
+    expect(r.overpayment).toBe(0);
+  });
+
+  it('«proporcional» casi por el total no deja centavos sin sitio', () => {
+    const total = 1164.26 + 699 + 11440;
+    const r = con('proporcional', Math.round((total - 0.01) * 100) / 100);
+    expect(r.overpayment).toBe(0);
+    expect(r.parts.reduce((s, p) => s + p.balanceAfter, 0)).toBeCloseTo(0.01, 2);
+  });
+
+  it('con cualquier regla, pagar de más deja sobrante y nunca un saldo negativo', () => {
+    for (const regla of ['ley_eeuu', 'cara_primero', 'barata_primero', 'proporcional'] as const) {
+      const r = con(regla, 20000);
+      expect(r.overpayment).toBeCloseTo(20000 - 13303.26, 2);
+      expect(r.parts.every((p) => p.balanceAfter === 0)).toBe(true);
+    }
+  });
+
+  it('«sin intereses» sigue la regla: con «cara primero» basta con lo que debe compras', () => {
+    expect(montoSinIntereses(TARJETA, 156, '2026-09-28', 'cara_primero')).toBe(1164.26);
+    expect(montoSinIntereses(TARJETA, 156, '2026-09-28')).toBe(156 + 1164.26);
+  });
+});
+
+/**
+ * La excepción de la ley para el interés DIFERIDO: en los dos ciclos antes
+ * de caducar, lo que pasa del mínimo va primero a ese saldo.
+ */
+describe('allocateCardPayment — interés diferido por caducar', () => {
+  const tienda: CardTramo = {
+    id: 'tienda', name: 'Muebles a 12 meses', balance: 900,
+    rate: 0, ratePeriod: 'annual_nominal', promoEndsOn: '2026-11-20', rateAfterPromo: 29.99, promoKind: 'diferido',
+  };
+  const tramos = [compras, tienda];
+
+  it('a 53 días del fin, el excedente va al diferido antes que a compras', () => {
+    const r = allocateCardPayment({ tramos, amount: 500, minimumDue: 100, hoy: '2026-09-28' });
+    expect(r.parts.map((p) => [p.tramoId, p.fromMinimum, p.fromExcess])).toEqual([['tienda', 100, 400]]);
+  });
+
+  it('lejos del fin, la regla normal: el excedente a la tasa más alta', () => {
+    const lejos = { ...tienda, promoEndsOn: '2027-06-20' };
+    const r = allocateCardPayment({ tramos: [compras, lejos], amount: 500, minimumDue: 100, hoy: '2026-09-28' });
+    expect(r.parts.map((p) => [p.tramoId, p.amount])).toEqual([
+      ['tienda', 100],
+      ['compras', 400],
+    ]);
+  });
+
+  it('un 0 % de cero de verdad no activa la excepción', () => {
+    expect(diferidoPorCaducar({ ...tienda, promoKind: 'cero' }, '2026-09-28')).toBe(false);
+    expect(diferidoPorCaducar({ ...tienda, promoKind: undefined }, '2026-09-28')).toBe(false);
+  });
+
+  it('la ventana: 62 días antes sí, 63 no, y caducado ya no', () => {
+    expect(diferidoPorCaducar(tienda, '2026-09-19')).toBe(true);
+    expect(diferidoPorCaducar(tienda, '2026-09-18')).toBe(false);
+    expect(diferidoPorCaducar(tienda, '2026-11-20')).toBe(true);
+    expect(diferidoPorCaducar(tienda, '2026-11-21')).toBe(false);
+  });
+
+  it('con «cara primero» el banco no aplica la excepción de EE. UU.', () => {
+    const r = allocateCardPayment({ tramos, amount: 500, minimumDue: 100, hoy: '2026-09-28', regla: 'cara_primero' });
+    expect(r.parts.map((p) => p.tramoId)).toEqual(['compras']);
   });
 });

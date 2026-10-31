@@ -31,6 +31,9 @@ function credito(over: Partial<CreditForPlan> & Pick<CreditForPlan, 'id' | 'name
     ratePeriod: 'annual_nominal',
     promoEndsOn: null,
     rateAfterPromo: null,
+    promoKind: 'cero' as const,
+    deferredInterest: null,
+    openedAt: null,
     ...over,
   };
 }
@@ -118,6 +121,8 @@ function tramo(
     dueDay: 22,
     openedAt: '2026-08-01',
     lastAccrualAt: '2026-09-25',
+    promoKind: 'cero' as const,
+    deferredInterest: null,
     status: 'active' as const,
     note: null,
     createdAt: '2026-08-01T00:00:00.000Z',

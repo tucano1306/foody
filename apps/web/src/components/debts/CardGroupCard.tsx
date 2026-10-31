@@ -1,7 +1,8 @@
 'use client';
 
 import type { CardStatementInfo, DebtWithProjection } from '@/lib/debt-data';
-import { cardTitle, enPromocion } from '@/lib/card-payment';
+import { cardTitle, enPromocion, tasaVigente } from '@/lib/card-payment';
+import { PLANTILLAS, costoDelAtraso, type CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
 import { avisoDePromo } from '@/lib/debt-promo';
@@ -17,6 +18,9 @@ interface Props {
   /** El último estado de cuenta guardado de esta tarjeta. */
   readonly estado?: CardStatementInfo | null;
   readonly onCuadrar?: () => void;
+  /** Las condiciones de su banco: con ellas, el mínimo sin cubrir dice lo que cuesta. */
+  readonly condiciones?: CondicionesDeCredito | null;
+  readonly onCondiciones?: () => void;
 }
 
 /** Días hasta una fecha YYYY-MM-DD, contando en el calendario del dispositivo. */
@@ -33,7 +37,7 @@ function diasHasta(clave: string, hoy: string): number {
  * «Compras 3650» y «Unlimited Cash 3650» se pagan con el mismo mínimo. Ahora
  * se ven juntas, cada una con su tasa, y el abono se hace a la tarjeta.
  */
-export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = null, onCuadrar }: Props) {
+export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = null, onCuadrar, condiciones = null, onCondiciones }: Props) {
   const hoy = toDateKey(new Date());
   const currency = tramos[0]?.currency ?? 'USD';
   const total = tramos.reduce((s, t) => s + t.currentBalance, 0);
@@ -41,6 +45,15 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
   const ordenados = [...tramos].sort((a, b) => b.currentBalance - a.currentBalance);
   const cobertura = estadoDelMinimo(estado);
   const venceEn = estado?.dueDate ? diasHasta(estado.dueDate, hoy) : null;
+  // Lo que cuesta no llegar, solo con el mínimo pendiente y a una semana o
+  // menos del vencimiento (o ya pasado): antes, sería ruido en cada visita.
+  const atraso =
+    condiciones && cobertura && !cobertura.cubierto && venceEn !== null && venceEn <= 7
+      ? costoDelAtraso(
+          condiciones,
+          tramos.map((t) => ({ balance: t.currentBalance, apr: tasaVigente({ ...t, balance: t.currentBalance }, hoy) * 1200 })),
+        )
+      : null;
 
   return (
     <div className="flex flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm sm:col-span-2">
@@ -88,6 +101,15 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
                 : `Faltan ${fmtMoney(cobertura.falta, currency)}`}
           </span>
         </div>
+      )}
+
+      {atraso && (
+        <p className="-mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-[11px] font-semibold leading-snug text-amber-950">
+          ⚠️ {venceEn !== null && venceEn < 0 ? 'Venció sin cubrir' : 'Si no llega a tiempo'}:
+          {atraso.cargo != null && <> cargo de <strong>{fmtMoney(atraso.cargo, currency)}</strong></>}
+          {atraso.cargo != null && atraso.tasaPenal != null && ' y'}
+          {atraso.tasaPenal != null && <> la tasa puede subir al <strong>{atraso.tasaPenal} %</strong></>}
+        </p>
       )}
 
       <ul className="flex flex-col gap-2">
@@ -150,6 +172,19 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
           className="-mt-2 rounded-2xl py-2.5 text-xs font-bold text-slate-600 transition hover:bg-sky-50 active:scale-[0.99]"
         >
           🧾 {estado ? 'Cuadrar con el nuevo estado de cuenta' : 'Cuadrar con el estado de cuenta'}
+        </button>
+      )}
+      {onCondiciones && (
+        <button
+          type="button"
+          onClick={() => {
+            haptic();
+            onCondiciones();
+          }}
+          className="-mt-3 rounded-2xl py-2 text-xs font-bold text-slate-500 transition hover:bg-sky-50 active:scale-[0.99]"
+        >
+          🏦 Condiciones del banco
+          {condiciones && <> · {condiciones.plantilla === 'propia' ? 'a tu medida' : PLANTILLAS[condiciones.plantilla].nombre}</>}
         </button>
       )}
     </div>

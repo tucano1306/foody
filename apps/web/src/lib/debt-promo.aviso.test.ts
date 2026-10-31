@@ -24,6 +24,7 @@ describe('avisoDePromo', () => {
       saldo: 10000,
       apr: 24,
       interesMes: 200,
+      diferido: null,
     });
   });
 
@@ -104,6 +105,42 @@ describe('mensajeAvisoPromo', () => {
     expect(mensajeAvisoPromo('Adelanto', aviso)).toEqual({
       title: '💸 Adelanto ya cobra interés',
       body: 'El 0 % terminó el 25 ene 2027. Con $10,000.00 pendientes son ~$200.00 al mes (24 %).',
+    });
+  });
+});
+
+/**
+ * Interés diferido (tarjetas de tienda): si al acabar queda un centavo, cobran
+ * todo el interés desde el primer día. El aviso tiene que decir ESA cifra.
+ */
+describe('avisoDePromo — interés diferido', () => {
+  const TIENDA = { ...DEUDA, currentBalance: 1000, promoKind: 'diferido' as const, openedAt: '2026-01-26' };
+
+  it('estima el golpe: saldo × APR / 365 × los días de la promoción', () => {
+    // 1,000 × 24 % / 365 × 365 días = 240
+    expect(avisoDePromo(TIENDA, aDias(30))?.diferido).toEqual({ monto: 240, estimado: true });
+  });
+
+  it('con la cifra del estado, esa', () => {
+    expect(avisoDePromo({ ...TIENDA, deferredInterest: 263.18 }, aDias(30))?.diferido).toEqual({ monto: 263.18, estimado: false });
+  });
+
+  it('un 0 % de cero de verdad no tiene golpe', () => {
+    expect(avisoDePromo({ ...TIENDA, promoKind: 'cero' }, aDias(30))?.diferido).toBeNull();
+  });
+
+  it('la notificación habla del golpe, no del interés al mes', () => {
+    expect(mensajeAvisoPromo('Muebles', avisoDePromo(TIENDA, aDias(30))!)).toEqual({
+      title: '⏳ Muebles: el plazo sin intereses acaba en 30 días',
+      body: 'Quedan $1,000.00. Si queda un solo centavo el 25 ene 2027, te cobran ~$240.00 de golpe: todo el interés desde el primer día.',
+    });
+  });
+
+  it('después del fin: lo sumaron de una vez y ya corre la tasa', () => {
+    const aviso = avisoDePromo({ ...TIENDA, deferredInterest: 263.18 }, aDias(-3))!;
+    expect(mensajeAvisoPromo('Muebles', aviso)).toEqual({
+      title: '💸 Muebles: se cobró el interés diferido',
+      body: 'El plazo sin intereses terminó el 25 ene 2027 con saldo: el banco suma $263.18 de una vez y desde ahora cobra ~$20.00 al mes (24 %).',
     });
   });
 });

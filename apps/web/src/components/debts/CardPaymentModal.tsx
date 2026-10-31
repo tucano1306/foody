@@ -12,6 +12,7 @@ import {
   type CardTramo,
 } from '@/lib/card-payment';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
+import { minimoSegunCondiciones, type CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { toDateKey } from '@/lib/debt-engine';
 import { PAYMENT_METHODS } from '@/lib/payment-methods';
 import { confettiRain } from '@/lib/fx';
@@ -26,6 +27,11 @@ interface Props {
   readonly tramos: readonly DebtWithProjection[];
   /** El último estado de cuenta guardado: de él sale el mínimo, sin teclearlo. */
   readonly estado?: CardStatementInfo | null;
+  /**
+   * Las reglas de ESTE banco: con ellas sale el mínimo propuesto y el reparto.
+   * Sin ellas, las de Bank of America, que eran las únicas que la app sabía.
+   */
+  readonly condiciones?: CondicionesDeCredito | null;
   readonly onClose: () => void;
   readonly onPaid: (debts: readonly DebtWithProjection[], monto: number) => void;
 }
@@ -39,6 +45,7 @@ function aTramo(d: DebtWithProjection): CardTramo {
     ratePeriod: d.ratePeriod,
     promoEndsOn: d.promoEndsOn,
     rateAfterPromo: d.rateAfterPromo,
+    promoKind: d.promoKind,
   };
 }
 
@@ -49,24 +56,23 @@ const pct = (mensual: number) => `${(mensual * 1200).toFixed(2).replace(/\.?0+$/
  *
  * La pregunta que no tenía respuesta: «pagué $156, ¿a cuál de los saldos le
  * cayó?». Aquí se ve antes de confirmar, tramo por tramo, con la misma regla
- * que aplica el banco: el mínimo a la tasa más baja, lo que pasa del mínimo a
- * la más alta. El servidor lo vuelve a calcular con la misma función.
+ * que aplica el banco —la de sus condiciones; en EE. UU., el mínimo a la tasa
+ * más baja y lo que pasa del mínimo a la más alta—. El servidor lo vuelve a
+ * calcular con la misma función y la regla que tiene guardada.
  */
-export default function CardPaymentModal({ tramos, estado = null, onClose, onPaid }: Props) {
+export default function CardPaymentModal({ tramos, estado = null, condiciones = null, onClose, onPaid }: Props) {
+  const regla = condiciones?.abono ?? 'ley_eeuu';
   const currency = tramos[0]?.currency ?? 'USD';
   const total = tramos.reduce((s, t) => s + t.currentBalance, 0);
 
-  const minimoPropuesto = useMemo(
-    () =>
-      estimateCardMinimum(
-        tramos.map((t) => ({
-          principal: t.breakdown.principalOwed,
-          interest: t.breakdown.interestOwed,
-          fees: t.breakdown.feesOwed,
-        })),
-      ),
-    [tramos],
-  );
+  const minimoPropuesto = useMemo(() => {
+    const partes = tramos.map((t) => ({
+      principal: t.breakdown.principalOwed,
+      interest: t.breakdown.interestOwed,
+      fees: t.breakdown.feesOwed,
+    }));
+    return condiciones ? minimoSegunCondiciones(condiciones, partes) : estimateCardMinimum(partes);
+  }, [tramos, condiciones]);
 
   // Con estado de cuenta guardado, el mínimo es el suyo, menos lo que ya se
   // abonó desde el cierre: un segundo abono en el mismo ciclo es todo «de más»
@@ -83,14 +89,14 @@ export default function CardPaymentModal({ tramos, estado = null, onClose, onPai
   const minimo = Math.max(0, parseMoney(minimum) ?? 0);
 
   const reparto = useMemo(
-    () => allocateCardPayment({ tramos: tramos.map(aTramo), amount: monto, minimumDue: minimo, hoy: toDateKey(new Date()) }),
-    [tramos, monto, minimo],
+    () => allocateCardPayment({ tramos: tramos.map(aTramo), amount: monto, minimumDue: minimo, hoy: toDateKey(new Date()), regla }),
+    [tramos, monto, minimo, regla],
   );
 
   const hoyClave = toDateKey(new Date());
   const sinIntereses = useMemo(
-    () => montoSinIntereses(tramos.map(aTramo), minimo, hoyClave),
-    [tramos, minimo, hoyClave],
+    () => montoSinIntereses(tramos.map(aTramo), minimo, hoyClave, regla),
+    [tramos, minimo, hoyClave, regla],
   );
   const ahorroMes = interesAhorradoAlMes(reparto);
 
@@ -265,7 +271,10 @@ export default function CardPaymentModal({ tramos, estado = null, onClose, onPai
             )}
             {caroSinTocar && (
               <p className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-800">
-                🛑 {caroSinTocar.name} ({pct(caroSinTocar.monthlyRate)}) no baja: solo recibe lo que pagues por encima del mínimo
+                🛑 {caroSinTocar.name} ({pct(caroSinTocar.monthlyRate)}) no baja:{' '}
+                {regla === 'barata_primero'
+                  ? 'tu banco lo paga cuando los saldos más baratos ya están en cero'
+                  : 'solo recibe lo que pagues por encima del mínimo'}
               </p>
             )}
             {reparto.overpayment > 0 && (

@@ -160,7 +160,7 @@ con nombres autogenerados.
 | Postgres | 17, `aws-us-east-1` |
 
 20 objetos en `public`: 19 tablas más la vista `trip_kind_amounts`. Ojo, varias
-tablas (`debts`, `finance_goals`, `budget_settings`, `pantry_shares`…) **no** las
+tablas (`debts`, `credit_terms`, `finance_goals`, `budget_settings`, `pantry_shares`…) **no** las
 crea `ensure-schema.ts` sino los `ensure*` de `debt-data.ts`, `finance-data.ts` y
 `ensure-sharing-schema.ts`.
 
