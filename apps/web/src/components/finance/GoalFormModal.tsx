@@ -27,8 +27,19 @@ interface Props {
  readonly preset?: GoalKind;
  /** Dinero libre mensual del plan — sirve para avisar si la meta no cabe. */
  readonly monthlyAvailable: number;
- /** Las deudas vivas, para poder enganchar la meta a una de ellas. */
- readonly debts: readonly { id: string; name: string; balance: number }[];
+ /**
+  * Las deudas vivas, para poder enganchar la meta a una de ellas. `tarjeta`
+  * es el nombre de la tarjeta cuando la deuda es un tramo de ella: así la
+  * lista enseña «Bank of America ···3650» y sus saldos debajo, como Deudas.
+  */
+ readonly debts: readonly {
+  id: string;
+  name: string;
+  balance: number;
+  tarjeta?: string | null;
+  /** Fin de su 0 %, YYYY-MM-DD: es la fecha que suele llevar la meta. */
+  promoEndsOn?: string | null;
+ }[];
  readonly onSave: (payload: GoalPayload) => Promise<void>;
  readonly onClose: () => void;
 }
@@ -222,7 +233,11 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
           <div>
             <span className={labelCls}>¿Qué tarjeta estás pagando?</span>
             <div className="space-y-1.5">
-              {debts.map((d) => (
+              {debts.map((d, i) => (
+                <div key={d.id} className="space-y-1.5">
+                {d.tarjeta && d.tarjeta !== debts[i - 1]?.tarjeta && (
+                  <p className="px-1 pt-1 text-[11px] font-bold text-slate-500">💳 {d.tarjeta}</p>
+                )}
                 <button
                   key={d.id}
                   type="button"
@@ -234,11 +249,19 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
                       : 'bg-white text-slate-600 ring-1 ring-sky-200'
                   }`}
                 >
-                  <span className="min-w-0 truncate text-sm font-bold">{d.name}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold">{d.name}</span>
+                    {d.promoEndsOn && (
+                      <span className={`block text-[11px] font-semibold ${debtId === d.id ? 'text-white/80' : 'text-sky-700'}`}>
+                        0 % hasta el {d.promoEndsOn.slice(8, 10)}/{d.promoEndsOn.slice(5, 7)}/{d.promoEndsOn.slice(0, 4)}
+                      </span>
+                    )}
+                  </span>
                   <span className="shrink-0 text-sm font-black tabular-nums">
                     {fmtMoneyFine(d.balance)}
                   </span>
                 </button>
+                </div>
               ))}
             </div>
             {linked && (
