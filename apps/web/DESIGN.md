@@ -200,19 +200,6 @@ This is a **light-themed** interface with a neutral, approachable feel. The ligh
         <strong>{fmtMoney(suspect.amount
 ```
 
-**PayoffSimulator** — `src/components/debts/PayoffSimulator.tsx`
-- Props: `debt`
-- Key Styles: `rounded-3xl`, `bg-linear-to-br`, `p-5`, `text-sm`, `font-bold`, `shadow-sm`, `cursor-pointer`
-- State: useState
-
-```tsx
-<section className="rounded-3xl bg-linear-to-br from-sky-500 to-blue-600 p-5 shadow-sm">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-bold text-white">⚡ Si abonas extra</p>
-        <p className="text-2xl font-extrabold text-white">
-          +{fmtMoney(extra, debt.currency, 0
-```
-
 **SplitBar** — `src/components/debts/SplitBar.tsx`
 - Props: `interest`, `principal`, `currency`, `Compacta`, `compact`
 - Key Styles: `rounded-full`, `bg-sky-100`, `mt-2.5`, `text-sm`, `font-semibold`

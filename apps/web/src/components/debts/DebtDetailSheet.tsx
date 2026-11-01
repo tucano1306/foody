@@ -9,7 +9,6 @@ import { buildSchedule, monthlyRateAfterPromo, toMonthlyRate } from '@/lib/debt-
 import { promoRisk } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
-import PayoffSimulator from './PayoffSimulator';
 import CardLinkPicker from './CardLinkPicker';
 import SplitBar from './SplitBar';
 import { parseMoney } from '@/lib/money-input';
@@ -531,8 +530,10 @@ export default function DebtDetailSheet({
             <Row label="Día de pago" value={`Día ${debt.dueDay} de cada mes`} />
           </div>
 
-          <PayoffSimulator debt={debt} />
-
+          {/* Aquí iba «Si abonas extra», el deslizador que simulaba abonos
+              de más. Lo quitó el dueño (1 nov 2026); no lo vuelvas a poner
+              sin que lo pida. El cálculo sigue vivo en `simulateExtra`
+              (debt-engine), que usa /api/debts/simulate. */}
           {/* Editar y corregir saldo. El saldo NO se edita como un campo: se
               corrige con un ajuste en el libro mayor, para que el historial
               siga explicando la cifra en vez de contradecirla. */}

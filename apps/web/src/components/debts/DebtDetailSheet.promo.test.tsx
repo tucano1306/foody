@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DebtWithProjection } from '@/lib/debt-data';
 import { projectDebt } from '@/lib/debt-engine';
 import DebtDetailSheet from './DebtDetailSheet';
-import PayoffSimulator from './PayoffSimulator';
 
 /**
  * El caso real: la tarjeta 6791 del estado de Bank of America del 27/08/2026.
@@ -11,12 +10,6 @@ import PayoffSimulator from './PayoffSimulator';
  *   Saldo            $6,240.00 (adelanto de $6,000 + $240 de cargo)
  *   Promoción        0 % hasta el 27/09/2027, después 27,49 %
  *   Plan             liquidarla por fecha, $480.00 al mes
- *
- * La hoja de detalle decía «Libre en 1 año y 1 mes» y, unos centímetros más
- * abajo, el simulador decía que la deuda era ETERNA. Las dos frases salían del
- * mismo motor: la segunda porque el simulador no le pasaba la fecha límite —
- * sin ella la estrategia `by_date` no sabe calcular cuota y devuelve 0 — ni la
- * promoción, así que tampoco veía el interés que empieza el día que caduca.
  */
 const HOY = new Date(2026, 7, 30); // 30 de agosto de 2026
 
@@ -109,34 +102,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('PayoffSimulator — la tarjeta al 0 % que se paga por fecha', () => {
-  it('no contradice a la hoja: esta deuda NO es eterna', () => {
-    render(<PayoffSimulator debt={tarjeta6791()} />);
-    expect(screen.queryByText(/eterna/i)).not.toBeInTheDocument();
-  });
-
-  it('cuenta los meses que ahorra el abono extra', () => {
-    render(<PayoffSimulator debt={tarjeta6791()} />);
-    const antes = screen.getByText('Terminas antes').nextElementSibling;
-    expect(antes).not.toHaveTextContent('—');
-  });
-
-  it('a $480 no hay intereses que ahorrar, porque no llega a haberlos', () => {
-    // Las trece cuotas caben antes del 27/09/2027, asi que el 27,49 % nunca
-    // llega a correr. Prometer un ahorro aqui seria inventarlo.
-    render(<PayoffSimulator debt={tarjeta6791()} />);
-    expect(screen.getByText('Te ahorras').nextElementSibling).toHaveTextContent('—');
-  });
-
-  it('a $400 sí lo hay: el saldo sobrevive a la promo y empieza a pagar 27,49 %', () => {
-    // La misma tarjeta a un ritmo que no llega. Este ahorro NO existe en la
-    // tasa de hoy —que es 0 %—: existe solo porque el motor ve la promoción
-    // caducar. Sin pasarsela, el simulador ofrecia un «—» aqui.
-    render(<PayoffSimulator debt={tarjeta6791(400)} />);
-    expect(screen.getByText('Te ahorras').nextElementSibling).not.toHaveTextContent('—');
-  });
-});
-
 /**
  * Lo que la tarjeta 6791 enseña en pantalla una vez configurada con el estado
  * real. El resumen es la única pantalla donde el 0 % y su fecha de caducidad se
@@ -189,5 +154,14 @@ describe('DebtDetailSheet — el resumen de la 6791 con los datos del banco', ()
   it('el día de pago es el del banco, no el que estaba puesto', () => {
     abrir();
     expect(screen.getByText('Día de pago').nextElementSibling).toHaveTextContent('Día 24');
+  });
+
+  it('ya no trae el simulador «Si abonas extra», pero sí «Registrar un consumo»', () => {
+    // El dueño pidió quitar el deslizador y NADA más: el botón de consumo,
+    // que iba justo debajo, se queda.
+    abrir();
+    expect(screen.queryByText(/Si abonas extra/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Abono extra cada mes')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Registrar un consumo/ })).toBeInTheDocument();
   });
 });
