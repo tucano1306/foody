@@ -25,26 +25,23 @@ function NavItem({
   const Icon = active ? item.iconActive : item.icon;
 
   return (
-    <motion.div whileHover="hovered" className="relative rounded-2xl">
-      {/* Píldora deslizante: un único elemento viaja entre secciones. */}
+    <motion.div whileHover="hovered" className="relative rounded-full">
+      {/* Píldora deslizante: un único elemento viaja entre secciones. Es
+          píldora entera, como los botones: la raya de color a la izquierda
+          que llevaba la Aurora no tiene dónde ir en una forma redonda, y el
+          tinte con la letra en acento ya dice dónde estás. */}
       {active && (
         <motion.span
           layoutId="nav-active-pill"
-          className="absolute inset-0 rounded-2xl bg-[var(--accent-soft)] shadow-[var(--shadow-xs)]"
+          className="absolute inset-0 rounded-full bg-[var(--accent-soft)]"
           transition={{ type: 'spring', stiffness: 420, damping: 34 }}
           aria-hidden="true"
-        >
-          {/* El filo de aurora a la izquierda: dónde estás, sin leer nada. */}
-          <span
-            className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full"
-            style={{ backgroundImage: 'var(--aurora)' }}
-          />
-        </motion.span>
+        />
       )}
       <Link
         href={item.href}
         aria-current={active ? 'page' : undefined}
-        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[15px] ${
+        className={`relative flex items-center gap-3 px-4 py-2.5 rounded-full text-[15px] ${
           active
             ? 'text-[var(--accent)] font-semibold'
             : 'text-[var(--ink-muted)] font-medium hover:text-[var(--ink)]'

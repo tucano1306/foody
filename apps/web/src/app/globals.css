@@ -4,59 +4,67 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ══════════════════════════════════════════════════════════════════════════
-   FOODY AURORA — SISTEMA DE DISEÑO (oct 2026)
+   FOODY ÍNDIGO — SISTEMA DE DISEÑO (nov 2026)
    ══════════════════════════════════════════════════════════════════════════
 
-   El dueño pidió una app que se vea de hoy —o de mañana—, didáctica y bonita.
-   La identidad pasa de «un solo azul» a una AURORA: índigo eléctrico como
-   color de acción, violeta como color de atención y celeste como luz. Siguen
-   siendo tres azules primos —la app no cambia de carácter—, pero ahora tienen
-   brillo, profundidad y un degradado propio que se reconoce de un vistazo.
+   El dueño pidió que Foody se viera y se sintiera como affirm.com. De ahí se
+   tomó el LENGUAJE, no los recursos: ni logo, ni nombre, ni sus fuentes, ni
+   sus imágenes. Lo que se copió, medido en su página:
 
-   Cómo llega a toda la app sin reescribir 137 componentes: las gamas que ya
-   usan (`brand`, `sky`, `blue`, `slate`, `navy`) se REDEFINEN aquí. Cada
-   tono conserva su puesto —el 50 es tinte, el 500 es acción, el 900 es
-   tinta—, así que una clase como `bg-sky-50/70` sigue significando «tarjeta
-   suave» y solo cambia de color. Los contrastes de texto se midieron: blanco
-   sobre brand-600 = 6.8:1, sobre sky-500 = 4.6:1, sobre blue-500 = 4.8:1;
-   slate-500 sobre blanco = 4.8:1.
+   - Noche índigo de fondo (#13131f) y tarjetas un punto más claras con un
+     filo de luz pervinca, sin sombras: la profundidad la da la luz, no el gris.
+   - Un solo acento, lavanda (#a8a9fc) en oscuro e índigo (#4a4af4) en claro.
+     Casi monocromo: el color se reserva para lo que se toca.
+   - Botones en píldora. El principal, en oscuro, es BLANCO con letra casi
+     negra; es lo que más se reconoce de ese estilo.
+   - Titulares grandes en peso LIGERO (300) con el tracking apretado, y texto
+     corrido sereno. Tarjetas de 24 px de radio.
+
+   Cómo llega a toda la app sin reescribir 137 componentes: igual que con la
+   Aurora, las gamas que ya usan (`brand`, `sky`, `blue`, `slate`, `navy`) se
+   REDEFINEN aquí y cada tono conserva su puesto —el 50 es tinte, el 500 es
+   acción, el 900 es tinta—. Contrastes medidos: blanco sobre brand-600 =
+   5.9:1, sobre sky-500 = 4.7:1; slate-500 sobre blanco = 5.3:1; lavanda
+   (#a8a9fc) sobre #0c0c14 = 9:1.
 
    Las superficies son tokens semánticos (--surface, --ink, --line…) que
    cambian solos en oscuro, sin un `dark:` por clase.
    ══════════════════════════════════════════════════════════════════════════ */
 
 @theme {
-  /* ─── Marca: índigo eléctrico (acción principal) ─────────────────────── */
-  --color-brand-50:  #f1f0ff;
-  --color-brand-100: #e5e3ff;
-  --color-brand-200: #cdc9ff;
-  --color-brand-300: #aba3ff;
-  --color-brand-400: #8a7cff;
-  --color-brand-500: #6b5cff;
-  --color-brand-600: #5843ef;
-  --color-brand-700: #4834cc;
-  --color-brand-800: #3b2ca4;
-  --color-brand-900: #2e2581;
+  /* ─── Marca: índigo (acción principal) ──────────────────────────────────
+     El 300 es la lavanda del acento oscuro; el 600, el índigo del claro. */
+  --color-brand-50:  #f0f0ff;
+  --color-brand-100: #e2e2ff;
+  --color-brand-200: #c9c9fe;
+  --color-brand-300: #a8a9fc;
+  --color-brand-400: #8384f8;
+  --color-brand-500: #6162f6;
+  --color-brand-600: #4a4af4;
+  --color-brand-700: #3b39d6;
+  --color-brand-800: #2a27a8;
+  --color-brand-900: #14127a;
 
-  /* ─── sky: hielo → celeste eléctrico ────────────────────────────────────
+  /* ─── sky: pervinca ──────────────────────────────────────────────────────
      Es la gama más usada (≈800 clases): tintes de tarjeta y bordes en los
-     tonos claros, interruptores y enlaces en los vivos. Los claros tiran a
-     lavanda para casar con el índigo; los vivos son el celeste de la aurora. */
-  --color-sky-50:  #f3f5ff;
-  --color-sky-100: #e7ebff;
-  --color-sky-200: #d3daff;
-  --color-sky-300: #a8b9ff;
-  --color-sky-400: #4b9bff;
-  --color-sky-500: #1a6fe6;
-  --color-sky-600: #165fcc;
-  --color-sky-700: #1450a8;
-  --color-sky-800: #143f84;
-  --color-sky-900: #133468;
+     tonos claros, interruptores y enlaces en los vivos. El 400 es el pervinca
+     de los filos de luz; el 500 aguanta letra blanca. */
+  --color-sky-50:  #f4f6ff;
+  --color-sky-100: #e9edff;
+  --color-sky-200: #d6deff;
+  --color-sky-300: #b6c4fd;
+  --color-sky-400: #8f9ffa;
+  --color-sky-500: #5266ea;
+  --color-sky-600: #4255d0;
+  --color-sky-700: #3545aa;
+  --color-sky-800: #2a3785;
+  --color-sky-900: #212b66;
 
   /* ─── blue: violeta (atención, riesgo, avisos) ──────────────────────────
-     En el monocromo anterior «blue» hacía de color de aviso. Sigue en ese
-     puesto, ahora en violeta: se distingue del celeste de la acción sin
-     recurrir al rojo, que en una app de dinero asusta más de lo que informa. */
+     Se queda como estaba: es el único matiz que se aparta del índigo, y en
+     un estilo casi monocromo es justo lo que necesita un aviso para verse
+     sin recurrir al rojo, que en una app de dinero asusta más de lo que
+     informa. */
   --color-blue-50:  #f6f2ff;
   --color-blue-100: #ede5ff;
   --color-blue-200: #dccdff;
@@ -68,37 +76,41 @@
   --color-blue-800: #4f279e;
   --color-blue-900: #3e2180;
 
-  /* ─── slate: grafito frío (texto y neutros) ─────────────────────────── */
-  --color-slate-50:  #f7f8fc;
-  --color-slate-100: #eef0f7;
-  --color-slate-200: #e0e4ef;
-  --color-slate-300: #c6ccdc;
-  --color-slate-400: #949db8;
-  --color-slate-500: #687292;
-  --color-slate-600: #4d5672;
-  --color-slate-700: #384059;
-  --color-slate-800: #22283b;
-  --color-slate-900: #131726;
+  /* ─── slate: neutros casi puros (texto) ─────────────────────────────────
+     Menos azulados que el grafito de la Aurora: con un acento tan saturado,
+     un gris teñido compite con él en vez de dejarlo respirar. */
+  --color-slate-50:  #f7f7f8;
+  --color-slate-100: #efeff3;
+  --color-slate-200: #e2e2e9;
+  --color-slate-300: #c8c8d3;
+  --color-slate-400: #9a9aa9;
+  --color-slate-500: #696a7a;
+  --color-slate-600: #4f505e;
+  --color-slate-700: #393a47;
+  --color-slate-800: #23242e;
+  --color-slate-900: #121320;
 
-  /* ─── Navy: espacio profundo (fondos oscuros) ───────────────────────── */
-  --color-navy-50:  #eef0fa;
-  --color-navy-100: #dadff3;
-  --color-navy-200: #b4bde4;
-  --color-navy-300: #8592c9;
-  --color-navy-400: #56639f;
-  --color-navy-500: #343f72;
-  --color-navy-600: #232b55;
-  --color-navy-700: #171c3b;
-  --color-navy-800: #0e1127;
-  --color-navy-900: #070814;
+  /* ─── Navy: la noche índigo (fondos oscuros) ─────────────────────────── */
+  --color-navy-50:  #eeeef7;
+  --color-navy-100: #dcdcee;
+  --color-navy-200: #b9b9d9;
+  --color-navy-300: #8d8db8;
+  --color-navy-400: #60608c;
+  --color-navy-500: #3d3d61;
+  --color-navy-600: #2a2a45;
+  --color-navy-700: #1d1d33;
+  --color-navy-800: #13131f;
+  --color-navy-900: #0c0c14;
 
   /* ─── Tipografía ───────────────────────────────────────────────────────
-     Geist para leer —neutra, técnica, de cifras limpias— y Sora para los
-     titulares: geométrica y ancha, es la que da el aire «de mañana». Las dos
-     las auto-aloja next/font (app/layout.tsx): cero peticiones a terceros. */
+     Geist para leer —neutra y de cifras limpias: la app es casi toda
+     importes— y Outfit para los titulares: geométrica y redonda, en peso
+     ligero da el titular sereno de ese estilo. Es la alternativa abierta a la
+     fuente propietaria que usa la página de referencia. Las dos las
+     auto-aloja next/font (app/layout.tsx): cero peticiones a terceros. */
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system,
                "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: var(--font-sora), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-outfit), var(--font-geist), ui-sans-serif, system-ui, sans-serif;
 
   /*
    * Familia de LECTURA, para los párrafos que explican algo en vez de
@@ -124,33 +136,46 @@
    Se declaran fuera de @theme a propósito. Así .dark puede reasignar la misma
    variable y toda la app vira de golpe, sin un `dark:` por clase. */
 :root {
-  --page:        #f4f5fb;  /* fondo de la app */
+  --page:        #f7f7f8;  /* fondo de la app */
   --surface:     #ffffff;  /* tarjeta, hoja, modal */
-  --surface-2:   #f1f2f9;  /* relleno sutil: chips, inputs en reposo */
-  --surface-3:   #e7e9f5;  /* relleno activo */
-  --line:        #e4e6f1;  /* borde de 1 px */
-  --line-strong: #cfd3e6;
+  --surface-2:   #f2f2f6;  /* relleno sutil: chips, inputs en reposo */
+  --surface-3:   #e8e8f0;  /* relleno activo */
+  --line:        #e6e6ee;  /* borde de 1 px */
+  --line-strong: #d1d1de;
 
-  --ink:         #0c0e1d;  /* texto principal */
-  --ink-muted:   #586079;  /* secundario legible */
-  --ink-subtle:  #8a91ab;  /* metadatos */
+  --ink:         #101820;  /* texto principal */
+  --ink-muted:   #595e6c;  /* secundario legible */
+  --ink-subtle:  #868b99;  /* metadatos */
 
-  --accent:      #5843ef;
-  --accent-soft: #f1f0ff;
+  --accent:      #4a4af4;
+  --accent-soft: #f0f0ff;
   --on-accent:   #ffffff;
 
-  /* La firma de la aurora: índigo → violeta → celeste. Se usa en lo que
-     tiene que verse primero (botón principal, marca, pestaña activa). */
-  --aurora:      linear-gradient(135deg, #6b5cff 0%, #8a57f7 48%, #2f9bff 100%);
-  --aurora-soft: linear-gradient(135deg, #f1f0ff 0%, #f6f2ff 50%, #eef6ff 100%);
-  --glow:        0 10px 30px -10px rgb(107 92 255 / 0.55);
+  /* El botón principal. Va aparte del acento porque en oscuro NO es el
+     acento: es blanco con letra casi negra, como en la página de referencia. */
+  --cta:         #4a4af4;
+  --cta-hover:   #3b39d6;
+  --on-cta:      #ffffff;
 
-  /* Sombras tintadas de índigo: una sombra gris sobre un fondo lavanda se ve
-     sucia; teñida, parece luz. */
-  --shadow-xs: 0 1px 2px rgb(30 24 90 / 0.05);
-  --shadow-sm: 0 1px 2px rgb(30 24 90 / 0.04), 0 4px 14px -4px rgb(30 24 90 / 0.08);
-  --shadow-md: 0 2px 6px rgb(30 24 90 / 0.05), 0 14px 32px -12px rgb(30 24 90 / 0.18);
-  --shadow-lg: 0 18px 50px -16px rgb(30 24 90 / 0.28);
+  /* La firma: un barrido de índigo. Se usa de FONDO en lo que tiene que verse
+     primero (pestaña activa, avatar, cabecera) y siempre lleva letra blanca
+     encima, así que es igual de oscuro en los dos temas. */
+  --aurora:      linear-gradient(135deg, #3b39d6 0%, #4a4af4 55%, #5266ea 100%);
+  /* La misma firma para TEXTO (`.text-aurora`). Tiene que ser variable aparte:
+     en oscuro, el índigo de fondo sobre la noche no se leería; allí la letra
+     pasa a lavanda. */
+  --aurora-ink:  linear-gradient(135deg, #2a27a8 0%, #4a4af4 60%, #5266ea 100%);
+  /* Las tarjetas protagonistas se encienden por abajo, como las de la
+     referencia: un degradado vertical que acaba en pervinca. */
+  --aurora-soft: linear-gradient(180deg, #ffffff 0%, #f3f4ff 60%, #e6eaff 100%);
+  --glow:        0 8px 22px -10px rgb(74 74 244 / 0.45);
+
+  /* Sombras casi planas y neutras. En este estilo la profundidad la da el
+     filo de la tarjeta, no una sombra; la que queda solo separa del fondo. */
+  --shadow-xs: 0 1px 2px rgb(16 24 32 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(16 24 32 / 0.04), 0 4px 12px -6px rgb(16 24 32 / 0.08);
+  --shadow-md: 0 2px 6px rgb(16 24 32 / 0.05), 0 16px 32px -16px rgb(16 24 32 / 0.18);
+  --shadow-lg: 0 20px 48px -20px rgb(16 24 32 / 0.28);
 
   /* Muescas del dispositivo (iPhone con la PWA instalada). El layout declara
      viewportFit: 'cover', así que sin esto la barra inferior queda debajo de
@@ -165,24 +190,33 @@
 }
 
 html.dark {
-  --page:        #05060f;
-  --surface:     #0c0e1c;
-  --surface-2:   #141729;
-  --surface-3:   #1c2036;
-  --line:        #1d2138;
-  --line-strong: #2a2f4d;
+  /* La noche índigo de la referencia (#13131f). La tarjeta es su cristal
+     (rgba(27,27,48,.8) sobre ese fondo) ya resuelto a opaco: el mismo color
+     sin pagar un backdrop-filter por tarjeta en el móvil. La línea es el
+     pervinca al 10 % que dibuja su filo. */
+  --page:        #13131f;
+  --surface:     #1a1a2c;
+  --surface-2:   #212137;
+  --surface-3:   #2a2a44;
+  --line:        #272941;
+  --line-strong: #353857;
 
-  --ink:         #eceefb;
-  --ink-muted:   #a0a6c4;
-  --ink-subtle:  #6d7392;
+  --ink:         #f7f7f8;
+  --ink-muted:   #a1a1b0;
+  --ink-subtle:  #77788f;
 
-  --accent:      #8f85ff;
-  --accent-soft: #191739;
-  --on-accent:   #0a0820;
+  --accent:      #a8a9fc;
+  --accent-soft: #2a2a47;
+  --on-accent:   #0c0c14;
 
-  --aurora:      linear-gradient(135deg, #7b6dff 0%, #9a6bff 48%, #3aa6ff 100%);
-  --aurora-soft: linear-gradient(135deg, #16143a 0%, #1b1436 50%, #0f1a36 100%);
-  --glow:        0 10px 34px -8px rgb(123 109 255 / 0.55);
+  --cta:         #ffffff;
+  --cta-hover:   #e2e2ff;
+  --on-cta:      #0c0c14;
+
+  --aurora:      linear-gradient(135deg, #3b39d6 0%, #4a4af4 55%, #5c66ee 100%);
+  --aurora-ink:  linear-gradient(135deg, #e2e2ff 0%, #a8a9fc 55%, #9cadfc 100%);
+  --aurora-soft: linear-gradient(180deg, #1a1a2c 0%, #1e1f35 50%, #2c3150 100%);
+  --glow:        0 0 0 1px rgb(156 173 252 / 0.14), 0 10px 28px -14px rgb(156 173 252 / 0.45);
 
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 14px -4px rgb(0 0 0 / 0.5);
@@ -219,10 +253,11 @@ html.dark {
   }
 
   /* Los titulares necesitan tracking negativo o se ven sueltos: a partir de
-     20 px, cada salto de tamaño pide un poco más de apretado. */
+     20 px, cada salto de tamaño pide un poco más de apretado. Outfit es más
+     estrecha que Sora, así que aprieta menos. */
   h1, h2, h3 {
     font-family: var(--font-display);
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
   }
 
   /* Objetivo táctil mínimo en móvil.
@@ -260,11 +295,13 @@ html.dark {
   background-color: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  /* El filo de luz de arriba es lo que hace que una tarjeta parezca un
-     objeto y no un rectángulo pintado. */
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), var(--shadow-sm);
+  /* Casi plana: el borde de 1 px hace el trabajo y la sombra solo la despega
+     del fondo claro. */
+  box-shadow: var(--shadow-xs);
 }
-html.dark .card { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), var(--shadow-sm); }
+/* En oscuro, sin sombra: sobre la noche una sombra negra no se ve y ensucia.
+   El filo pervinca (--line) es lo que recorta la tarjeta. */
+html.dark .card { box-shadow: none; }
 
 /* Cristal esmerilado para lo que flota sobre el contenido: barra inferior,
    cabecera pegajosa, píldoras de filtro. Es el gesto visual que más separa
@@ -306,19 +343,21 @@ html.dark .card { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), var(--shado
   font-weight: 700;
 }
 /* Título de pantalla. clamp() en vez de tres breakpoints: escala continua,
-   sin el salto brusco que daba `text-xl sm:text-3xl md:text-4xl`. */
+   sin el salto brusco que daba `text-xl sm:text-3xl md:text-4xl`.
+   Grande y LIGERO (300): el titular de este estilo no grita, se impone por
+   tamaño. Por eso sube un escalón respecto al de la Aurora, que era 700. */
 .t-display {
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 1.2rem + 1.7vw, 2.25rem);
+  font-size: clamp(1.75rem, 1.25rem + 2vw, 2.75rem);
   line-height: 1.08;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-weight: 300;
+  letter-spacing: -0.035em;
   color: var(--ink);
 }
 
-/* Texto con la aurora dentro: la marca y alguna cifra estrella. */
+/* Texto con la firma dentro: la marca y alguna cifra estrella. */
 .text-aurora {
-  background: var(--aurora);
+  background: var(--aurora-ink);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -472,31 +511,40 @@ a:active,
 }
 
 /* ─── Botones ─────────────────────────────────────────────────────────────
-   La sombra de color bajo un botón (misma tinta que el relleno, muy difusa)
-   es lo que lo levanta del fondo sin tener que dibujarle un borde. */
+   Píldoras de color liso, sin degradado ni brillo: la forma ya dice «esto
+   se toca». El radio va aquí y no en cada componente a propósito — esta regla
+   no está en ninguna capa, así que gana al `rounded-xl` o `rounded-2xl` que
+   traiga el botón y la app entera pasa a píldora de una vez. */
 .btn-primary {
-  /* La aurora como relleno, con el índigo de base por si el degradado no
-     pinta: un botón principal no puede quedarse sin fondo. */
-  background-color: var(--color-brand-600);
-  background-image: linear-gradient(135deg, var(--color-brand-600) 0%, var(--color-blue-600) 100%);
-  color: #ffffff;
+  background-color: var(--cta);
+  background-image: none;
+  color: var(--on-cta);
   font-weight: 600;
   letter-spacing: -0.005em;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 1px 2px rgb(46 37 129 / 0.2), var(--glow);
+  border-radius: 9999px;
+  box-shadow: var(--shadow-xs);
 }
 .btn-primary:hover:not(:disabled) {
-  filter: brightness(1.06) saturate(1.05);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.26), 0 2px 4px rgb(46 37 129 / 0.22), 0 14px 34px -10px rgb(107 92 255 / 0.7);
-  transform: translateY(-1px);
+  background-color: var(--cta-hover);
 }
-.btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.btn-primary:active:not(:disabled) { transform: scale(0.97); }
 
-/* Variante suave: el azul de la marca sobre su propio tinte. Para acciones
+/* Los botones rellenos de índigo que se montan a mano (`bg-brand-600`, sin
+   `.btn-primary`) también son píldora. `~=` compara la clase entera: no
+   atrapa `hover:bg-brand-600` ni `bg-brand-600/20`, que son otra cosa. */
+:is(button, a)[class~="bg-brand-600"],
+:is(button, a)[class~="bg-brand-500"],
+:is(button, a)[class~="bg-[var(--accent)]"] {
+  border-radius: 9999px;
+}
+
+/* Variante suave: el índigo de la marca sobre su propio tinte. Para acciones
    secundarias que aun así quieren leerse como acción, no como texto. */
 .btn-soft {
   background-color: var(--accent-soft);
   color: var(--color-brand-700);
   font-weight: 600;
+  border-radius: 9999px;
 }
 .btn-soft:hover:not(:disabled) { background-color: var(--color-brand-100); }
 html.dark .btn-soft { color: var(--color-brand-300); }
@@ -506,55 +554,53 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
    que el barrido a azul dejó sin uso. Se mantiene el nombre porque dos
    pantallas lo llaman, apuntando ya al azul de la marca. */
 .btn-energy {
-  background-color: var(--color-brand-500);
-  background-image: var(--aurora);
-  color: #ffffff;
-  font-weight: 700;
+  background-color: var(--cta);
+  color: var(--on-cta);
+  font-weight: 600;
   letter-spacing: -0.005em;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), var(--glow);
+  border-radius: 9999px;
+  box-shadow: var(--shadow-xs);
 }
-.btn-energy:hover:not(:disabled) {
-  filter: brightness(1.06);
-  transform: translateY(-1px);
-}
-.btn-energy:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.btn-energy:hover:not(:disabled) { background-color: var(--cta-hover); }
+.btn-energy:active:not(:disabled) { transform: scale(0.97); }
 
 /* ─── Tarjeta de dato ─────────────────────────────────────────────────────── */
 .stat-card {
   position: relative;
   /* Contenedor de consulta: `.stat-amount` mide contra este ancho. */
   container-type: inline-size;
-  background: var(--surface);
+  /* Se enciende por abajo con el matiz de su dato, como las tarjetas de la
+     referencia. Sustituye a la franja de color a la izquierda de la Aurora:
+     dice lo mismo sin una raya que corte la tarjeta. color-mix con la
+     superficie hace que en oscuro funcione sin regla aparte. */
+  background: linear-gradient(
+    180deg,
+    var(--surface) 45%,
+    color-mix(in srgb, var(--stat-tint, var(--color-sky-400)) 12%, var(--surface)) 100%
+  );
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   padding: 1.1rem 1rem 1rem;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), var(--shadow-sm);
+  box-shadow: var(--shadow-xs);
   overflow: hidden;
   transition:
     transform 0.3s var(--ease-out),
     box-shadow 0.3s var(--ease-out),
     border-color 0.3s var(--ease-out);
 }
-.stat-card::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--aurora);
-  border-radius: 3px 0 0 3px;
-}
+html.dark .stat-card { box-shadow: none; }
 @media (hover: hover) {
   .stat-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
     border-color: var(--color-brand-200);
   }
-  html.dark .stat-card:hover { border-color: var(--color-brand-700); }
+  html.dark .stat-card:hover { border-color: color-mix(in srgb, var(--color-sky-400) 40%, var(--surface)); }
 }
-.stat-card[data-accent="energy"]::before { background: var(--color-brand-400); }
-.stat-card[data-accent="warn"]::before   { background: var(--color-brand-300); }
-.stat-card[data-accent="danger"]::before { background: var(--color-brand-600); }
-.stat-card[data-accent="brand"]::before  { background: var(--accent); }
+.stat-card[data-accent="energy"] { --stat-tint: var(--color-brand-400); }
+.stat-card[data-accent="warn"]   { --stat-tint: var(--color-blue-400); }
+.stat-card[data-accent="danger"] { --stat-tint: var(--color-blue-600); }
+.stat-card[data-accent="brand"]  { --stat-tint: var(--accent); }
 
 @keyframes foody-count-up {
   from { opacity: 0; transform: translateY(8px); }
@@ -637,7 +683,11 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
 
    Ahora es una malla de degradados casi quieta y muy tenue: da profundidad al
    fondo plano y desaparece en cuanto hay algo que leer encima. Los emojis
-   flotantes se fueron: eran lo que más delataba la edad de la interfaz. */
+   flotantes se fueron: eran lo que más delataba la edad de la interfaz.
+
+   Con el estilo Índigo la retícula de puntos también se fue (el fondo de la
+   referencia es liso) y las manchas pasaron a índigo y pervinca: en oscuro
+   son la luz que asoma por arriba de la noche. */
 .fun-bg {
   position: fixed;
   inset: 0;
@@ -656,27 +706,14 @@ html.dark .btn-soft:hover:not(:disabled) { background-color: var(--surface-3); }
   opacity: 0.5;
   animation: foody-blob-drift 40s var(--ease-smooth) infinite alternate;
 }
-.fun-blob-1 { top: -18%;    left: -12%;  background: radial-gradient(circle, #d9d4ff, transparent 68%); }
-.fun-blob-2 { top: 22%;     right: -18%; background: radial-gradient(circle, #cfe6ff, transparent 68%); animation-delay: -14s; animation-duration: 48s; }
-.fun-blob-3 { bottom: -22%; left: 20%;   background: radial-gradient(circle, #ecdcff, transparent 68%); animation-delay: -26s; animation-duration: 56s; }
+.fun-blob-1 { top: -18%;    left: -12%;  background: radial-gradient(circle, #e2e2ff, transparent 68%); }
+.fun-blob-2 { top: 22%;     right: -18%; background: radial-gradient(circle, #e1e7ff, transparent 68%); animation-delay: -14s; animation-duration: 48s; }
+.fun-blob-3 { bottom: -22%; left: 20%;   background: radial-gradient(circle, #ececff, transparent 68%); animation-delay: -26s; animation-duration: 56s; }
 
-html.dark .fun-blob   { opacity: 0.35; filter: blur(110px); }
-html.dark .fun-blob-1 { background: radial-gradient(circle, #2a1f7a, transparent 68%); }
-html.dark .fun-blob-2 { background: radial-gradient(circle, #0f3a78, transparent 68%); }
-html.dark .fun-blob-3 { background: radial-gradient(circle, #3b1a6e, transparent 68%); }
-
-/* Retícula de puntos que se desvanece hacia abajo: el detalle «de mañana».
-   Es un solo fondo estático (sin animar) y casi invisible: da textura de
-   instrumento sin competir con nada que se lea encima. */
-.fun-grid {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgb(88 67 239 / 0.13) 1px, transparent 1.2px);
-  background-size: 22px 22px;
-  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
-  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
-}
-html.dark .fun-grid { background-image: radial-gradient(rgb(143 133 255 / 0.12) 1px, transparent 1.2px); }
+html.dark .fun-blob   { opacity: 0.4; filter: blur(110px); }
+html.dark .fun-blob-1 { background: radial-gradient(circle, #2b2b78, transparent 68%); }
+html.dark .fun-blob-2 { background: radial-gradient(circle, #1f2c66, transparent 68%); }
+html.dark .fun-blob-3 { background: radial-gradient(circle, #26244f, transparent 68%); }
 
 @keyframes foody-blob-drift {
   from { transform: translate(0, 0) scale(1); }
@@ -720,10 +757,17 @@ html.dark .fun-grid { background-image: radial-gradient(rgb(143 133 255 / 0.12) 
 
 /* Latido del CTA «ya está todo en el carrito» */
 @keyframes foody-glow {
-  0%, 100% { box-shadow: 0 10px 25px -5px rgb(107 92 255 / 0.45); }
-  50%      { box-shadow: 0 10px 40px 2px rgb(107 92 255 / 0.7); }
+  0%, 100% { box-shadow: 0 10px 25px -5px rgb(74 74 244 / 0.4); }
+  50%      { box-shadow: 0 10px 40px 2px rgb(74 74 244 / 0.65); }
+}
+/* En oscuro el botón es blanco: un halo índigo debajo apenas se ve sobre la
+   noche, así que late en pervinca. */
+@keyframes foody-glow-oscuro {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(156 173 252 / 0); }
+  50%      { box-shadow: 0 0 0 6px rgb(156 173 252 / 0.22), 0 10px 36px -4px rgb(156 173 252 / 0.5); }
 }
 .animate-glow { animation: foody-glow 1.8s ease-in-out infinite; }
+html.dark .animate-glow { animation-name: foody-glow-oscuro; }
 
 /* ─── Barras de gráfico que crecen ────────────────────────────────────────── */
 @keyframes foody-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }

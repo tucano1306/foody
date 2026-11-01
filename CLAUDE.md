@@ -527,10 +527,11 @@ Datos duros que conviene tener a mano:
 
 | | |
 |---|---|
-| Acento | `#5843ef` claro · `#8f85ff` oscuro (Foody Aurora, oct 2026) |
-| Texto sobre el acento | `#ffffff` claro · `#0a0820` oscuro |
-| Firma | `var(--aurora)`: índigo → violeta → celeste |
-| Tipografía | Geist (texto) · Sora (titulares, `--font-display`) |
+| Acento | `#4a4af4` claro · `#a8a9fc` oscuro (Foody Índigo, nov 2026, estilo de affirm.com) |
+| Texto sobre el acento | `#ffffff` claro · `#0c0c14` oscuro |
+| Botón principal | `--cta`: índigo con letra blanca en claro · BLANCO con letra `#0c0c14` en oscuro; píldora |
+| Firma | `var(--aurora)`: barrido de índigo, siempre con letra blanca; `.text-aurora` usa `var(--aurora-ink)` (lavanda en oscuro) |
+| Tipografía | Geist (texto) · Outfit (titulares, `--font-display`; `.t-display` en peso 300) |
 | Retícula | 8px — 8, 16, 24, 32, 40, 48, 56, 64 |
 | Modo oscuro | `@custom-variant dark (&:where(.dark, .dark *))`, clase en `html` |
 | Iconos | Heroicons |

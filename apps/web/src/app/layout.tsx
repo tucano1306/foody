@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Sora } from 'next/font/google';
+import { Geist, Outfit } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import { ThemeProvider } from '@/components/layout/ThemeProvider';
@@ -7,11 +7,12 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { CelebrationProvider } from '@/components/ui/Celebration';
 
 /**
- * Las dos caras de Foody Aurora, auto-alojadas por Next al compilar.
+ * Las dos caras de Foody Índigo, auto-alojadas por Next al compilar.
  *
  * Geist para leer: neutra, técnica y con cifras de ancho fijo limpias —la app
- * es casi toda importes—. Sora para los titulares: geométrica y ancha, es la
- * que da el aire «de mañana» sin perder legibilidad en un móvil.
+ * es casi toda importes—. Outfit para los titulares: geométrica y redonda, en
+ * peso ligero (300) da el titular grande y sereno del estilo que pidió el
+ * dueño, y es la alternativa abierta a la fuente propietaria de la referencia.
  *
  * `next/font/google` las descarga al compilar y las sirve desde el propio
  * dominio, así que cumplen el `font-src 'self'` del CSP (next.config.ts) sin
@@ -24,10 +25,10 @@ const geist = Geist({
   variable: '--font-geist',
 });
 
-const sora = Sora({
+const outfit = Outfit({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-sora',
+  variable: '--font-outfit',
 });
 
 export const metadata: Metadata = {
@@ -47,8 +48,8 @@ export const viewport: Viewport = {
   // Antes el claro era #f8fafc y el fondo real #f0f6fd: en Android se veía una
   // franja de otro gris justo encima de la app.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f5fb' },
-    { media: '(prefers-color-scheme: dark)', color: '#05060f' },
+    { media: '(prefers-color-scheme: light)', color: '#f7f7f8' },
+    { media: '(prefers-color-scheme: dark)', color: '#13131f' },
   ],
   width: 'device-width',
   initialScale: 1,
@@ -69,7 +70,7 @@ export default function RootLayout({
   readonly children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={`${geist.variable} ${sora.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`${geist.variable} ${outfit.variable}`} suppressHydrationWarning>
       <head>
         {/* Preconnect to external image CDN to reduce LCP latency */}
         <link rel="preconnect" href="https://foody-uploads.s3.amazonaws.com" />

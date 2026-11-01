@@ -24,8 +24,8 @@ function formatRelative(iso: string): string {
 
 /** Light-to-deep blue palette (matches the rest of the dashboard). */
 const BLUE_PALETTE: readonly string[] = [
-  '#5843ef', // brand-600
-  '#6b5cff', // brand-500
+  '#4a4af4', // brand-600
+  '#6162f6', // brand-500
   '#8a7cff', // brand-400
   '#aba3ff', // brand-300
   '#cdc9ff', // brand-200

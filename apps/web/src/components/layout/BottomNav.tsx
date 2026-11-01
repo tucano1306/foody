@@ -55,7 +55,7 @@ export default function BottomNav({
           un objeto que se toca, no como el pie de la página. */}
       <nav
         aria-label="Navegación principal"
-        className="md:hidden fixed inset-x-3 z-40 glass rounded-[1.75rem] border border-[var(--line)] shadow-[var(--shadow-lg)]"
+        className="md:hidden fixed inset-x-3 z-40 glass rounded-full border border-[var(--line)] shadow-[var(--shadow-lg)]"
         style={{ bottom: 'calc(var(--safe-b) + 0.5rem)' }}
       >
         <ul className="grid grid-cols-5 px-1.5">
@@ -68,7 +68,7 @@ export default function BottomNav({
                   href={item.href}
                   onClick={() => haptic(8)}
                   aria-current={active ? 'page' : undefined}
-                  className="relative flex flex-col items-center justify-center gap-1 h-16 rounded-[1.4rem] touch-auto-size"
+                  className="relative flex flex-col items-center justify-center gap-1 h-16 rounded-full touch-auto-size"
                 >
                   {/* Píldora que se desliza de una pestaña a otra. Un solo
                       elemento compartido vía layoutId: el indicador VIAJA en
@@ -77,7 +77,7 @@ export default function BottomNav({
                   {active && (
                     <motion.span
                       layoutId="tab-pill"
-                      className="absolute inset-x-1.5 inset-y-1.5 rounded-[1.15rem] shadow-[var(--glow)]"
+                      className="absolute inset-x-1.5 inset-y-1.5 rounded-full shadow-[var(--glow)]"
                       style={{ backgroundImage: 'var(--aurora)' }}
                       transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                       aria-hidden="true"
@@ -115,12 +115,12 @@ export default function BottomNav({
               }}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
-              className="relative w-full flex flex-col items-center justify-center gap-1 h-16 rounded-[1.4rem] touch-auto-size"
+              className="relative w-full flex flex-col items-center justify-center gap-1 h-16 rounded-full touch-auto-size"
             >
               {moreActive && (
                 <motion.span
                   layoutId="tab-pill"
-                  className="absolute inset-x-1.5 inset-y-1.5 rounded-[1.15rem] shadow-[var(--glow)]"
+                  className="absolute inset-x-1.5 inset-y-1.5 rounded-full shadow-[var(--glow)]"
                   style={{ backgroundImage: 'var(--aurora)' }}
                   transition={{ type: 'spring', stiffness: 420, damping: 34 }}
                   aria-hidden="true"

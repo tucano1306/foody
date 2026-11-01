@@ -19,8 +19,8 @@ const BLUE_PALETTE: readonly string[] = [
   '#d3daff', // de lavanda claro…
   '#aba3ff',
   '#8a7cff',
-  '#6b5cff',
-  '#5843ef',
+  '#6162f6',
+  '#4a4af4',
   '#4834cc',
   '#3b2ca4',
   '#2e2581', // …a índigo profundo
