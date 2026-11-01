@@ -1,25 +1,32 @@
 # foody DESIGN.md
 
-> **⚠️ Oct 2026 — Foody Aurora.** Este inventario es ANTERIOR al rediseño. La
-> fuente de verdad de colores, tipografía y superficies es ahora
-> `src/app/globals.css` (bloque «FOODY AURORA»):
+> **⚠️ Nov 2026 — Foody Índigo.** Este inventario es ANTERIOR a los dos
+> rediseños (Aurora, oct 2026, e Índigo, nov 2026). La fuente de verdad de
+> colores, tipografía y superficies es `src/app/globals.css` (bloque «FOODY
+> ÍNDIGO»). Las secciones 1–3 de abajo ya están al día; las demás conservan
+> nombres y estructura del inventario.
 >
-> - **Acento**: índigo eléctrico `#5843ef` claro · `#8f85ff` oscuro. Firma
->   visual: `var(--aurora)` (índigo → violeta → celeste).
+> - **Origen**: el dueño pidió el lenguaje visual de affirm.com. Se copió el
+>   estilo (paleta, píldoras, tarjetas, titulares ligeros), no los recursos:
+>   ni logo, ni nombre, ni fuentes propietarias, ni imágenes ni textos.
+> - **Acento**: índigo `#4a4af4` en claro · lavanda `#a8a9fc` en oscuro.
+>   Botón principal: índigo con letra blanca en claro; **blanco con letra
+>   `#0c0c14` en oscuro** (`--cta` / `--on-cta`).
+> - **Firma**: `var(--aurora)` es un barrido de índigo (`#3b39d6 → #4a4af4 →
+>   #5266ea`) que siempre lleva letra blanca encima; `.text-aurora` usa
+>   `var(--aurora-ink)`, que en oscuro pasa a lavanda. `var(--aurora-soft)`
+>   enciende las tarjetas protagonistas por abajo.
 > - **Gamas redefinidas** con el mismo puesto de siempre: `brand` = índigo,
->   `sky` = hielo → celeste, `blue` = violeta (aviso/atención), `slate` =
->   grafito frío, `navy` = espacio profundo. Una clase como `bg-sky-50/70`
->   sigue significando «tarjeta suave»; solo cambió el color.
-> - **Tipografía**: Geist (texto, `--font-sans`) y Sora (titulares,
->   `--font-display`, ya puesta en `h1–h3` y `.t-display`).
-> - **Superficies**: `.card` con filo de luz, `.glass` para lo que flota,
->   `.btn-primary` en degradado con `var(--glow)`, `.text-aurora` para la
->   marca. Fondo con aurora y retícula de puntos (`FunBackground`).
-> - **Oscuro**: tintes claros, textos de tinta oscura y degradados pastel
->   tienen su equivalente en `html.dark` (ver globals.css).
->
-> Las tablas de abajo conservan nombres y estructura, pero sus hex son los
-> de antes. Para colores, manda globals.css.
+>   `sky` = pervinca, `blue` = violeta (aviso/atención, sin cambios),
+>   `slate` = neutros casi puros, `navy` = noche índigo.
+> - **Tipografía**: Geist (texto, `--font-sans`) y Outfit (titulares,
+>   `--font-display`). `.t-display` en peso 300.
+> - **Superficies**: `.card` casi plana (borde de 1 px, sin sombra en oscuro),
+>   radio 24 px; botones `.btn-*` y rellenos `bg-brand-600/500` en píldora;
+>   navegación lateral y dock en píldora. Fondo sin retícula.
+> - **Oscuro**: tintes claros, textos de tinta oscura, degradados pastel y
+>   animaciones con color tienen su equivalente en `html.dark` (ver
+>   globals.css).
 
 > **Leelo como inventario, no como criterio.** Generado automaticamente por
 > `skillui --dir apps/web` (analisis estatico, sin IA). Los tokens y los hex son
@@ -40,65 +47,67 @@
 
 ## 1. Visual Theme & Atmosphere
 
-This is a **light-themed** interface with a neutral, approachable feel. The light background emphasizes content clarity. Typography uses **sans-serif** throughout — a clean, modern choice that maintains consistency. Spacing follows a **8px base grid** (standard density), with scale: 8, 16, 24, 32, 40, 48, 56, 64px. La paleta se construye sobre una familia **brand** azul: el acento real es **#1a6ae8** en claro y **#5492fb** en oscuro, usado en CTAs, enlaces, anillos de foco y estados activos. Motion is expressive — spring physics, layout animations, and staggered reveals are part of the visual language.
+Foody Índigo: casi monocromo y sereno. En oscuro, una noche índigo (`#13131f`) con tarjetas un punto más claras recortadas por un filo pervinca, sin sombras; en claro, blanco roto (`#f7f7f8`) con tarjetas blancas casi planas. Un solo acento —índigo en claro, lavanda en oscuro— reservado para lo que se toca. Botones en píldora. Titulares grandes y ligeros (Outfit 300) sobre texto Geist. Retícula de 8px — 8, 16, 24, 32, 40, 48, 56, 64. El movimiento sigue siendo expresivo (muelles, layout animations, entradas escalonadas).
 
 ---
 
 ## 2. Color Palette & Roles
 
-| Token | Hex | Role | Use |
+| Token | Claro | Oscuro | Rol |
 |---|---|---|---|
-| color-brand-50 | `#eef5ff` | background | Page background, darkest surface |
-| color-brand-100 | `#d9e7ff` | surface | Card and panel backgrounds |
-| color-navy-700 | `#152442` | text-primary | Headings and body text |
-| color-navy-400 | `#4f6ba3` | text-muted | Captions, placeholders, secondary info |
-| accent | `#1a6ae8` | accent | CTAs, enlaces, foco, estados activos (oscuro: `#5492fb`) |
-| on-accent | `#ffffff` | on-accent | Texto e iconos ENCIMA del acento (oscuro: `#071022`) |
-| color-brand-300 | `#8ab5ff` | accent | CTAs, links, focus rings, active states |
-| color-brand-900 | `#14325f` | info | Informational highlights |
-| color-brand-400 | `#5492fb` | unknown | Palette color |
-| color-brand-500 | `#1a6ae8` | unknown | Palette color |
-| color-navy-900 | `#070d18` | unknown | Palette color |
-| color-brand-200 | `#b8d2ff` | unknown | Palette color |
-| color-brand-600 | `#1257cc` | unknown | Palette color |
-| color-brand-700 | `#1145a3` | unknown | Palette color |
-| color-brand-800 | `#133a81` | unknown | Palette color |
-| color-navy-200 | `#b3c4e2` | unknown | Palette color |
-| color-navy-300 | `#8199c7` | unknown | Palette color |
-| color-navy-500 | `#2c4677` | unknown | Palette color |
-| color-navy-800 | `#0e192f` | unknown | Palette color |
-| ink-muted | `#56677f` | unknown | Palette color |
-| ink-muted | `#9aabc4` | unknown | Palette color |
+| `--accent` | `#4a4af4` | `#a8a9fc` | Enlaces, foco, estado activo, tintes de acción |
+| `--on-accent` | `#ffffff` | `#0c0c14` | Texto e iconos ENCIMA del acento |
+| `--cta` | `#4a4af4` | `#ffffff` | Relleno de `.btn-primary` / `.btn-energy` |
+| `--cta-hover` | `#3b39d6` | `#e2e2ff` | Ídem al pasar el ratón |
+| `--on-cta` | `#ffffff` | `#0c0c14` | Letra del botón principal |
+| `--aurora` | `#3b39d6 → #4a4af4 → #5266ea` | `#3b39d6 → #4a4af4 → #5c66ee` | Fondo con letra blanca: pestaña activa, avatar |
+| `--aurora-ink` | `#2a27a8 → #4a4af4 → #5266ea` | `#e2e2ff → #a8a9fc → #9cadfc` | Texto `.text-aurora` |
+
+Gamas (`@theme`):
+
+| Gama | 50 | 100 | 300 | 500 | 600 | 900 | Puesto |
+|---|---|---|---|---|---|---|---|
+| `brand` | `#f0f0ff` | `#e2e2ff` | `#a8a9fc` | `#6162f6` | `#4a4af4` | `#14127a` | Índigo, acción principal |
+| `sky` | `#f4f6ff` | `#e9edff` | `#b6c4fd` | `#5266ea` | `#4255d0` | `#212b66` | Pervinca: tintes, bordes, enlaces |
+| `blue` | `#f6f2ff` | `#ede5ff` | `#c2a8ff` | `#8a57f7` | `#7640e6` | `#3e2180` | Violeta: aviso, atención |
+| `slate` | `#f7f7f8` | `#efeff3` | `#c8c8d3` | `#696a7a` | `#4f505e` | `#121320` | Neutros, texto |
+| `navy` | `#eeeef7` | `#dcdcee` | `#8d8db8` | `#3d3d61` | `#2a2a45` | `#0c0c14` | Noche índigo (800 = `#13131f`) |
+
+Contrastes medidos: blanco sobre brand-600 = 5.9:1, sobre sky-500 = 4.7:1; slate-500 sobre blanco = 5.3:1; lavanda sobre `#0c0c14` = 9:1.
 
 ### Dark Mode Token Mapping
 
 | Variable | Light | Dark |
 |---|---|---|
-| `--page` | `#f4f7fb` | `#070d18` |
-| `--surface` | `#ffffff` | `#0f1626` |
-| `--surface-2` | `#f1f5f9` | `#182134` |
-| `--surface-3` | `#e6edf6` | `#212c44` |
-| `--line` | `#e5ebf3` | `#1e2942` |
-| `--line-strong` | `#cfd9e6` | `#2b3859` |
-| `--ink` | `#0b1220` | `#e9eef7` |
-| `--ink-muted` | `#56677f` | `#9aabc4` |
-| `--ink-subtle` | `#8496ac` | `#6b7e99` |
-| `--accent` | `#1a6ae8` | `#5492fb` |
-| `--accent-soft` | `#eef5ff` | `#12243f` |
-| `--on-accent` | `#ffffff` | `#071022` |
-| `--shadow-xs` | `0 1px 2px rgb(11 18 32 / 0.05)` | `0 1px 2px rgb(0 0 0 / 0.4)` |
-| `--shadow-sm` | `0 1px 2px rgb(11 18 32 / 0.04), 0 2px 8px -2px rgb(11 18 32 / 0.07)` | `0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px -2px rgb(0 0 0 / 0.45)` |
-| `--shadow-md` | `0 2px 4px rgb(11 18 32 / 0.04), 0 10px 26px -10px rgb(11 18 32 / 0.14)` | `0 2px 4px rgb(0 0 0 / 0.35), 0 10px 26px -10px rgb(0 0 0 / 0.6)` |
-| `--shadow-lg` | `0 10px 44px -14px rgb(11 18 32 / 0.22)` | `0 10px 44px -14px rgb(0 0 0 / 0.7)` |
+| `--page` | `#f7f7f8` | `#13131f` |
+| `--surface` | `#ffffff` | `#1a1a2c` |
+| `--surface-2` | `#f2f2f6` | `#212137` |
+| `--surface-3` | `#e8e8f0` | `#2a2a44` |
+| `--line` | `#e6e6ee` | `#272941` |
+| `--line-strong` | `#d1d1de` | `#353857` |
+| `--ink` | `#101820` | `#f7f7f8` |
+| `--ink-muted` | `#595e6c` | `#a1a1b0` |
+| `--ink-subtle` | `#868b99` | `#77788f` |
+| `--accent` | `#4a4af4` | `#a8a9fc` |
+| `--accent-soft` | `#f0f0ff` | `#2a2a47` |
+| `--on-accent` | `#ffffff` | `#0c0c14` |
+| `--aurora-soft` | `#ffffff → #f3f4ff → #e6eaff` (vertical) | `#1a1a2c → #1e1f35 → #2c3150` (vertical) |
+| `--glow` | `0 8px 22px -10px rgb(74 74 244 / 0.45)` | filo pervinca 14 % + halo pervinca |
+| `--shadow-xs` | `0 1px 2px rgb(16 24 32 / 0.04)` | `0 1px 2px rgb(0 0 0 / 0.4)` |
+| `--shadow-sm` | `0 1px 2px rgb(16 24 32 / 0.04), 0 4px 12px -6px rgb(16 24 32 / 0.08)` | `0 1px 2px rgb(0 0 0 / 0.35), 0 4px 14px -4px rgb(0 0 0 / 0.5)` |
+| `--shadow-md` | `0 2px 6px rgb(16 24 32 / 0.05), 0 16px 32px -16px rgb(16 24 32 / 0.18)` | `0 2px 6px rgb(0 0 0 / 0.4), 0 14px 32px -12px rgb(0 0 0 / 0.65)` |
+| `--shadow-lg` | `0 20px 48px -20px rgb(16 24 32 / 0.28)` | `0 18px 50px -16px rgb(0 0 0 / 0.75)` |
+
+En oscuro `.card` y `.stat-card` van sin sombra: el filo (`--line`) las recorta.
 
 ### CSS Variable Tokens
 
 ```css
---radius-card: 1.25rem;
---ink-muted: #56677f;
---accent: #1a6ae8;
---accent-soft: #eef5ff;
---on-accent: #ffffff;
+--radius-card: 1.5rem;   /* 24 px */
+--radius-sheet: 2rem;
+--accent: #4a4af4;       /* oscuro: #a8a9fc */
+--cta: #4a4af4;          /* oscuro: #ffffff */
+--on-cta: #ffffff;       /* oscuro: #0c0c14 */
 ```
 
 
@@ -107,23 +116,23 @@ This is a **light-themed** interface with a neutral, approachable feel. The ligh
 ## 3. Typography Rules
 
 **Font Stack:**
-- **sans-serif** — Heading 1, Heading 2, Heading 3, Body, Caption
+- **Geist** (`--font-sans`) — texto, cifras (`tabular-nums` en todo el body)
+- **Outfit** (`--font-display`) — `h1–h3`, `.t-display`, la marca
+- Serifa del sistema (`--font-reading`) — solo los consejos del Plan Financiero
 
 | Role | Font | Size | Weight |
 |---|---|---|---|
-| Heading 1 | sans-serif | 48px / 3rem | 700 |
-| Heading 2 | sans-serif | 32px / 2rem | 600 |
-| Heading 3 | sans-serif | 24px / 1.5rem | 600 |
-| Body | sans-serif | 16px / 1rem | 400 |
-| Caption | sans-serif | 12px / 0.75rem | 400 |
+| Título de pantalla (`.t-display`) | Outfit | `clamp(1.75rem, 1.25rem + 2vw, 2.75rem)` | 300, tracking -0.035em |
+| Heading 2–3 | Outfit | según el componente | el del componente, tracking -0.02em |
+| Body | Geist | 14–16px | 400 |
+| Etiqueta (`.t-label`) | Geist | 12px | 600 |
+| Metadato (`.t-meta`) | Geist | 12px | 500 |
 
 **Typographic Rules:**
-- Use **sans-serif** for all text — do not mix font families
-- Maintain consistent hierarchy: no more than 3-4 font sizes per screen
-- Headings use bold (600-700), body uses regular (400)
-- Line height: 1.5 for body text, 1.2 for headings
-- Use color and opacity for secondary hierarchy, not additional font sizes
-
+- Titulares grandes en peso LIGERO: se imponen por tamaño, no por grosor
+- Cifras con `.t-num` (700, tracking -0.02em); importes que deben caber, `.stat-amount`
+- No más de 3–4 tamaños por pantalla; la jerarquía secundaria va por color (`--ink-muted`, `--ink-subtle`)
+- Nada de MAYÚSCULAS con tracking abierto en etiquetas
 
 ---
 

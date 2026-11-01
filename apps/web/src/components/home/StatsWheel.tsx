@@ -23,8 +23,8 @@ interface Props {
 
 /** Light-to-deep blue palette. */
 const BLUE_PALETTE: readonly string[] = [
-  '#6b5cff', // índigo (brand-500)
-  '#4b9bff', // celeste (sky-400)
+  '#6162f6', // índigo (brand-500)
+  '#8f9ffa', // celeste (sky-400)
   '#8a57f7', // violeta (blue-500)
   '#a8b9ff', // hielo (sky-300)
   '#4834cc', // índigo profundo (brand-700)

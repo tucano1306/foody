@@ -1,5 +1,7 @@
 /**
  * Fondo ambiental: tres manchas de degradado muy difusas detrás de todo.
+ * (La retícula de puntos de la Aurora se quitó con el estilo Índigo: el fondo
+ * que se tomó de referencia es liso.)
  *
  * Antes esto montaba además doce emojis de comida subiendo por la pantalla en
  * bucle infinito, en todas las secciones. Era lo que más delataba la edad de la
@@ -14,7 +16,6 @@
 export default function FunBackground() {
   return (
     <div aria-hidden="true" className="fun-bg">
-      <div className="fun-grid" />
       <div className="fun-blob fun-blob-1" />
       <div className="fun-blob fun-blob-2" />
       <div className="fun-blob fun-blob-3" />
