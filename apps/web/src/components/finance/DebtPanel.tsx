@@ -122,6 +122,22 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
     onChanged();
   }, [close, onChanged]);
 
+  /**
+   * «Deshacer» del aviso de borrado. Desde aquí se borraron una vez unas
+   * tarjetas reales creyendo quitar sus metas; ahora van a la papelera de
+   * Deudas y este botón las devuelve sin tener que ir a buscarlas allí.
+   */
+  const deshacerBorrado = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/debts/${id}/restore`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) throw new Error(String(res.status));
+      toast.show('Recuperada', 'success');
+      onChanged();
+    } catch {
+      toast.show('No se pudo recuperar: sigue en la papelera de Deudas', 'error');
+    }
+  }, [toast, onChanged]);
+
   if (debts.overdueTotal <= 0 && debts.creditBalance <= 0) return null;
 
   const max = Math.max(...debts.payoffOrder.map((d) => d.debt), 1);
@@ -381,7 +397,13 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
           // La hoja sigue abierta con el dato fresco; el plan se recalcula
           // detrás para que los totales de arriba no se queden viejos.
           onChanged={(updated) => { setModal({ kind: 'detail', debt: updated }); onChanged(); }}
-          onDeleted={() => { toast.show('Deuda eliminada', 'success'); afterChange(); }}
+          onDeleted={(id) => {
+            toast.show('Deuda en la papelera', 'success', {
+              etiqueta: 'Deshacer',
+              alTocar: () => void deshacerBorrado(id),
+            });
+            afterChange();
+          }}
           onPay={() => setModal({ kind: 'pay', debt: modal.debt })}
           onEdit={() => setModal({ kind: 'edit', debt: modal.debt })}
         />

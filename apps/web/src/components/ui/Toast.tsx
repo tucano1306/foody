@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CheckCircleIcon,
@@ -8,15 +8,29 @@ import {
   InformationCircleIcon,
 } from '@heroicons/react/24/solid';
 
+/** Un botón en el propio aviso, para arrepentirse sin ir a buscar nada. */
+export interface AccionDeToast {
+  readonly etiqueta: string;
+  readonly alTocar: () => void;
+}
+
 interface Toast {
   id: number;
   message: string;
   tone: 'success' | 'error' | 'info';
+  accion?: AccionDeToast;
 }
 
 interface ToastCtx {
-  readonly show: (message: string, tone?: Toast['tone']) => void;
+  readonly show: (message: string, tone?: Toast['tone'], accion?: AccionDeToast) => void;
 }
+
+/**
+ * Un aviso con botón dura más: 2,8 s alcanzan para leer «Guardado», no para
+ * leer «Tarjeta en la papelera», entender qué pasó y llegar a «Deshacer».
+ */
+const DURACION = 2800;
+const DURACION_CON_ACCION = 7000;
 
 const Ctx = createContext<ToastCtx | null>(null);
 
@@ -48,11 +62,15 @@ function dropToast(id: number) {
 
 export function ToastProvider({ children }: { readonly children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // Los avisos cuya acción ya se tocó. Hace falta además de quitarlos de la
+  // lista: mientras el aviso se desvanece su botón sigue ahí, y un doble
+  // toque rápido en «Deshacer» mandaba dos veces la misma petición.
+  const usadas = useRef(new Set<number>());
 
-  const show = useCallback((message: string, tone: Toast['tone'] = 'success') => {
+  const show = useCallback((message: string, tone: Toast['tone'] = 'success', accion?: AccionDeToast) => {
     const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, tone }]);
-    setTimeout(() => setToasts(dropToast(id)), 2800);
+    setToasts((prev) => [...prev, { id, message, tone, accion }]);
+    setTimeout(() => setToasts(dropToast(id)), accion ? DURACION_CON_ACCION : DURACION);
   }, []);
 
   const value = useMemo(() => ({ show }), [show]);
@@ -87,6 +105,20 @@ export function ToastProvider({ children }: { readonly children: React.ReactNode
               >
                 <Icon className={`w-5 h-5 shrink-0 ${TONE_COLOR[t.tone]}`} />
                 <span className="text-sm font-semibold text-white">{t.message}</span>
+                {t.accion && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usadas.current.has(t.id)) return;
+                      usadas.current.add(t.id);
+                      setToasts(dropToast(t.id));
+                      t.accion?.alTocar();
+                    }}
+                    className="-my-1.5 -mr-2 ml-1 shrink-0 rounded-full px-3 py-1.5 text-sm font-bold text-brand-300 transition-colors hover:bg-white/10 active:bg-white/15"
+                  >
+                    {t.accion.etiqueta}
+                  </button>
+                )}
               </motion.output>
             );
           })}

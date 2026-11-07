@@ -13,6 +13,7 @@ import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
 import { resumenEnMetas } from '@/lib/deuda-a-meta';
 import { findDuplicateObligations, type ObligationPayment } from '@/lib/duplicate-obligations';
+import type { DeudaEnPapelera } from '@/lib/papelera-deudas';
 import { haptic } from '@/lib/haptic';
 import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
 import ScopeTabs from '@/components/ui/ScopeTabs';
@@ -31,6 +32,7 @@ import DebtPaymentModal from './DebtPaymentModal';
 import DebtWizardModal from './DebtWizardModal';
 import CaminoLibre from './CaminoLibre';
 import PasarAMetasSheet from './PasarAMetasSheet';
+import PapeleraDeDeudas from './PapeleraDeDeudas';
 import { fmtDateFull, fmtMoney, fmtMoneyShort, KIND_META } from './debt-ui';
 
 interface Props {
@@ -97,6 +99,12 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
    * Metas» sin recargar.
    */
   const [enMetas, setEnMetas] = useState<ReadonlySet<string>>(() => new Set(initial.enMetas ?? []));
+  /**
+   * Lo borrado, que ya no se pierde. Se apunta aquí al momento de borrar, sin
+   * esperar a recargar, para que la papelera diga ya lo que acaba de entrar.
+   */
+  const [papelera, setPapelera] = useState<DeudaEnPapelera[]>(initial.papelera ?? []);
+  const [recuperando, setRecuperando] = useState<string | null>(null);
   const router = useRouter();
   const toast = useToast();
   /**
@@ -236,6 +244,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
     if (snapshot.cardStatements) setEstados(snapshot.cardStatements);
     if (snapshot.creditTerms) setTerminos(snapshot.creditTerms);
     if (snapshot.enMetas) setEnMetas(new Set(snapshot.enMetas));
+    if (snapshot.papelera) setPapelera(snapshot.papelera);
   }, []);
 
   const currency = debts[0]?.currency ?? 'USD';
@@ -277,10 +286,79 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
     });
   }, []);
 
-  const remove = useCallback((id: string) => {
-    setDebts((prev) => prev.filter((d) => d.id !== id));
+  /**
+   * Saca de la lista lo que el servidor ya mandó a la papelera y lo apunta en
+   * ella. La fecha es la del dispositivo: solo sirve para agrupar el gesto
+   * hasta la próxima carga, que trae la del servidor.
+   */
+  function aLaPapelera(quitadas: readonly DebtWithProjection[]) {
+    const ids = new Set(quitadas.map((d) => d.id));
+    const ahora = new Date().toISOString();
+    setDebts((prev) => prev.filter((d) => !ids.has(d.id)));
+    setPapelera((prev) => [
+      ...quitadas.map((d) => ({
+        id: d.id,
+        name: d.name,
+        kind: d.kind,
+        issuer: d.issuer,
+        accountLast4: d.accountLast4,
+        cardGroup: d.cardGroup,
+        balance: d.currentBalance,
+        currency: d.currency,
+        deletedAt: ahora,
+      })),
+      ...prev.filter((p) => !ids.has(p.id)),
+    ]);
+  }
+
+  /**
+   * Saca de la papelera `id` (y los tramos borrados con ella). Lo que vuelve
+   * se pide entero al servidor en vez de reconstruirlo aquí: trae el interés
+   * que se devengó mientras estaba fuera, sus estados de cuenta y sus metas.
+   */
+  async function recuperar(id: string, ids: readonly string[]) {
+    setRecuperando(id);
+    try {
+      const res = await fetch(`/api/debts/${id}/restore`, { method: 'POST', credentials: 'include' });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? 'No se pudo recuperar');
+      }
+      setPapelera((prev) => prev.filter((p) => !ids.includes(p.id)));
+      haptic();
+      try {
+        const lista = await fetch('/api/debts', { credentials: 'include' });
+        if (!lista.ok) throw new Error('lista');
+        replaceAll((await lista.json()) as DebtsSnapshot);
+        toast.show('Recuperada', 'success');
+      } catch {
+        // Ya está fuera de la papelera en la base; lo que falló es solo
+        // volver a pintar la lista. Decirlo evita que se recupere dos veces.
+        toast.show('Recuperada. Abre Deudas de nuevo para verla', 'info');
+      }
+    } catch (err) {
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      toast.show(offline ? 'Sin conexión: no se recuperó nada' : (err as Error).message, 'error');
+    } finally {
+      setRecuperando(null);
+    }
+  }
+
+  /** El aviso de después de borrar: dice a dónde fue y deja deshacerlo ahí mismo. */
+  function avisarPapelera(mensaje: string, quitadas: readonly DebtWithProjection[]) {
+    const ids = quitadas.map((d) => d.id);
+    if (ids.length === 0) return;
+    toast.show(mensaje, 'success', { etiqueta: 'Deshacer', alTocar: () => void recuperar(ids[0], ids) });
+  }
+
+  /** El detalle ya hizo el DELETE: aquí solo se apunta y se avisa. */
+  function borradaDesdeElDetalle(id: string) {
+    const d = debts.find((x) => x.id === id);
     setDetailId(null);
-  }, []);
+    if (!d) return;
+    aLaPapelera([d]);
+    avisarPapelera('Deuda en la papelera', [d]);
+  }
 
   /**
    * El menú «⋯» de una tarjeta o de una deuda, armado con lo que hay HOY.
@@ -353,7 +431,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
         {
           emoji: '🗑️',
           label: 'Borrar tarjeta',
-          hint: `Sus ${tramos.length} tramos y su historial`,
+          hint: `Va a la papelera con sus ${tramos.length} tramos`,
           destructive: true,
           onClick: () =>
             setBorrado({
@@ -383,7 +461,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
       {
         emoji: '🗑️',
         label: 'Borrar deuda',
-        hint: 'Con todo su historial',
+        hint: 'Va a la papelera',
         destructive: true,
         onClick: () => setBorrado({ tipo: 'deuda', id: d.id, titulo: d.name, metas: enMetas.has(d.id) ? 1 : 0 }),
       },
@@ -392,8 +470,9 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   }, [menu, debts, estados, terminos, enMetas, router]);
 
   /**
-   * Borra lo confirmado. La lista se actualiza con la respuesta del servidor,
-   * no antes: si la base dice que no, la tarjeta sigue ahí y un aviso lo dice.
+   * Manda a la papelera lo confirmado. La lista se actualiza con la respuesta
+   * del servidor, no antes: si la base dice que no, la tarjeta sigue ahí y un
+   * aviso lo dice.
    */
   async function confirmarBorrado() {
     if (!borrado || borrando) return;
@@ -405,16 +484,14 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? 'No se pudo borrar');
       }
-      if (borrado.tipo === 'tarjeta') {
-        const group = borrado.group;
-        setDebts((prev) => prev.filter((d) => d.cardGroup !== group));
-        setEstados((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== group)));
-        setTerminos((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== group)));
-      } else {
-        remove(borrado.id);
-      }
+      // Sus estados de cuenta y condiciones se quedan en memoria a propósito:
+      // si se deshace, la tarjeta vuelve con su mínimo sin esperar a nada.
+      const b = borrado;
+      const quitadas = debts.filter((d) => (b.tipo === 'tarjeta' ? d.cardGroup === b.group : d.id === b.id));
+      aLaPapelera(quitadas);
+      if (b.tipo === 'deuda') setDetailId(null);
       haptic([10, 30, 10]);
-      toast.show(borrado.tipo === 'tarjeta' ? 'Tarjeta borrada' : 'Deuda borrada', 'success');
+      avisarPapelera(b.tipo === 'tarjeta' ? 'Tarjeta en la papelera' : 'Deuda en la papelera', quitadas);
       setBorrado(null);
     } catch (err) {
       const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
@@ -548,6 +625,16 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
         Agregar deuda
       </button>
 
+      {/* ─── Papelera: lo borrado vuelve con su historial ──────────────────
+          Al final y plegada: es a donde se viene a buscar algo, no algo que
+          mirar cada día. Sale también con la lista vacía, que es justo
+          cuando más falta hace (se borró todo y hay que encontrarlo). */}
+      <PapeleraDeDeudas
+        filas={papelera}
+        recuperando={recuperando}
+        onRecuperar={(id, ids) => void recuperar(id, ids)}
+      />
+
       <AnimatePresence>
         {wizardOpen && (
           <DebtWizardModal
@@ -563,7 +650,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             debt={detail}
             onClose={() => setDetailId(null)}
             onChanged={upsert}
-            onDeleted={remove}
+            onDeleted={borradaDesdeElDetalle}
             onPay={() => {
               setPayId(detail.id);
               setDetailId(null);
@@ -664,15 +751,16 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
         message={
           borrado
             ? (borrado.tipo === 'tarjeta'
-                ? `Se van sus ${borrado.tramos} tramos, sus abonos y sus estados de cuenta.`
-                : 'Se va con todos sus abonos.') +
-              // Las metas no se borran: la FK las desengancha (ver deleteCard).
+                ? `Va a la papelera con sus ${borrado.tramos} tramos y todo su historial.`
+                : 'Va a la papelera con todo su historial.') +
+              // Las metas no se tocan: siguen en el Plan con sus propias
+              // cifras mientras la deuda está fuera (ver getFinancePlan).
               (borrado.metas === 1
                 ? ' Su meta se queda en el Plan.'
                 : borrado.metas > 1
                   ? ` Sus ${borrado.metas} metas se quedan en el Plan.`
                   : '') +
-              ' No se puede deshacer.'
+              ' La recuperas cuando quieras.'
             : undefined
         }
         confirmLabel="Sí, borrar"

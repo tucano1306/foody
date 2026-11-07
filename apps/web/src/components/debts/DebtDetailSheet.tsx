@@ -663,24 +663,32 @@ export default function DebtDetailSheet({
             <CardLinkPicker debt={debt} candidates={cardCandidates} onChanged={onSnapshot} />
           )}
 
-          {/* Borrar: escondido tras confirmación, nunca a un toque de distancia */}
+          {/* Borrar: escondido tras confirmación, nunca a un toque de distancia.
+              La confirmación dice A DÓNDE va: desde el Plan se llega aquí
+              pensando en la meta, y antes este «Sí, borrar» se llevaba la
+              deuda con todos sus abonos sin decirlo. */}
           {confirmDelete ? (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                className={`flex-1 rounded-2xl py-3 text-sm ${BTN_SOFT}`}
-              >
-                Mejor no
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={removeDebt}
-                className="flex-1 rounded-2xl bg-blue-600 py-3 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50"
-              >
-                Sí, borrar
-              </button>
+            <div className="flex flex-col gap-2">
+              <p className="text-center text-xs text-slate-500">
+                Va a la papelera de Deudas con todo su historial.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className={`flex-1 rounded-2xl py-3 text-sm ${BTN_SOFT}`}
+                >
+                  Mejor no
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={removeDebt}
+                  className="flex-1 rounded-2xl bg-blue-600 py-3 text-sm font-bold text-white transition active:scale-95 disabled:opacity-50"
+                >
+                  Sí, borrar
+                </button>
+              </div>
             </div>
           ) : (
             <button
