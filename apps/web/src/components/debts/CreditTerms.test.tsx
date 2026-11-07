@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// DebtsView usa el router para «Ver en Metas»; fuera del App Router no lo hay.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { PLANTILLAS, type CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { buildPortfolio, projectDebt, type RatePeriod } from '@/lib/debt-engine';
@@ -102,23 +105,33 @@ afterEach(() => {
   document.body.style.overflow = '';
 });
 
+/**
+ * Las condiciones viven en el menú «⋯» de la tarjeta: se abre y se toca la
+ * acción. Devuelve el botón de la acción para poder mirar su segunda línea.
+ */
+function condicionesEnElMenu(): HTMLElement {
+  fireEvent.click(screen.getByRole('button', { name: /Más acciones/ }));
+  return screen.getByRole('button', { name: /Condiciones del banco/ });
+}
+
 async function abrirCondiciones(terms?: Record<string, CondicionesDeCredito>) {
   render(<DebtsView initial={snapshot(TARJETA, terms)} />);
-  fireEvent.click(screen.getByRole('button', { name: /Condiciones del banco/ }));
+  fireEvent.click(condicionesEnElMenu());
   await screen.findByRole('heading', { name: 'Condiciones del banco' });
 }
 
 describe('la tarjeta dice de qué banco son sus reglas', () => {
-  it('el botón enseña la plantilla, y abre las condiciones', async () => {
+  it('la acción del menú enseña la plantilla, y abre las condiciones', async () => {
     render(<DebtsView initial={snapshot(TARJETA)} />);
-    expect(screen.getByRole('button', { name: '🏦 Condiciones del banco · Bank of America' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Condiciones del banco/ }));
+    const accion = condicionesEnElMenu();
+    expect(within(accion).getByText('Bank of America')).toBeInTheDocument();
+    fireEvent.click(accion);
     expect(await screen.findByRole('heading', { name: 'Pago mínimo' })).toBeInTheDocument();
   });
 
   it('sin condiciones en el snapshot el botón no se queda mudo: abre las de por defecto', async () => {
     render(<DebtsView initial={{ debts: TARJETA, portfolio: buildPortfolio([]) }} />);
-    fireEvent.click(screen.getByRole('button', { name: /Condiciones del banco/ }));
+    fireEvent.click(condicionesEnElMenu());
     expect(await screen.findByRole('heading', { name: 'Pago mínimo' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Bank of America/ })).toHaveAttribute('aria-pressed', 'true');
   });
@@ -202,7 +215,8 @@ describe('guardar', () => {
         { debtId: 'promo-oct', tipo: 'cero', interesDiferido: null },
       ],
     });
-    expect(await screen.findByRole('button', { name: '🏦 Condiciones del banco · a tu medida' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Condiciones del banco' })).toBeNull());
+    expect(within(condicionesEnElMenu()).getByText('A tu medida')).toBeInTheDocument();
   });
 
   it('si el servidor dice que no, se queda abierto con su motivo', async () => {

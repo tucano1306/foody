@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// DebtsView usa el router para «Ver en Metas»; fuera del App Router no lo hay.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, projectDebt } from '@/lib/debt-engine';
 import DebtsView from './DebtsView';
@@ -94,7 +97,8 @@ describe('DebtsView — la app no se queda pegada al gestionar una deuda', () =>
     expect(document.body.style.overflow).toBe('');
 
     // 1. Abrir el detalle tocando la tarjeta.
-    fireEvent.click(screen.getByRole('button', { name: /Tarjeta Azul/ }));
+    // La tarjeta, no su «⋯» (que también lleva el nombre, para el lector de pantalla).
+    fireEvent.click(screen.getByRole('button', { name: /^(?!Más acciones).*Tarjeta Azul/ }));
     const hoja = await screen.findByRole('heading', { name: /Tarjeta Azul/ });
     expect(document.body.style.overflow).toBe('hidden');
 
@@ -123,7 +127,8 @@ describe('DebtsView — la app no se queda pegada al gestionar una deuda', () =>
   it('devuelve el scroll tras el camino detalle → editar → cerrar', async () => {
     render(<DebtsView initial={snapshot()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Tarjeta Azul/ }));
+    // La tarjeta, no su «⋯» (que también lleva el nombre, para el lector de pantalla).
+    fireEvent.click(screen.getByRole('button', { name: /^(?!Más acciones).*Tarjeta Azul/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Editar datos/ }));
     await screen.findByRole('heading', { name: /Editar/ });
 

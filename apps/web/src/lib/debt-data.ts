@@ -770,6 +770,12 @@ export interface DebtsSnapshot {
    * presentes, guardadas o por defecto. Opcional por la misma razón.
    */
   creditTerms?: Record<string, CondicionesDeCredito>;
+  /**
+   * Las deudas que ya persigue alguna meta del Plan. Con esto, «🎯 Pasar a
+   * Metas» dice «Ya está en Metas» en vez de ofrecer una copia. Opcional por
+   * la misma razón que los dos de arriba.
+   */
+  enMetas?: string[];
 }
 
 function mapCondiciones(r: Record<string, unknown>): CondicionesDeCredito {
@@ -950,9 +956,23 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
       status: d.projection.status,
     }));
 
-  const cardStatements = await ultimosEstadosDeTarjeta(userId).catch(() => ({}));
-  const creditTerms = await condicionesDeLasCuentas(userId, debts).catch(() => ({}));
-  return { debts, portfolio: buildPortfolio(portfolioInput, now), cardStatements, creditTerms };
+  const [cardStatements, creditTerms, enMetas] = await Promise.all([
+    ultimosEstadosDeTarjeta(userId).catch(() => ({})),
+    condicionesDeLasCuentas(userId, debts).catch(() => ({})),
+    // Un adorno del menú: si falla (o la tabla de metas aún no existe), el
+    // menú ofrece pasar a Metas y el servidor descarta la copia al crearla.
+    deudasConMeta(userId).catch(() => [] as string[]),
+  ]);
+  return { debts, portfolio: buildPortfolio(portfolioInput, now), cardStatements, creditTerms, enMetas };
+}
+
+/** Las deudas del usuario enganchadas a alguna meta del Plan, de cualquier estado. */
+async function deudasConMeta(userId: string): Promise<string[]> {
+  const rows = await sql`
+    SELECT DISTINCT debt_id FROM finance_goals
+     WHERE user_id = ${userId} AND debt_id IS NOT NULL
+  `;
+  return (rows as Record<string, unknown>[]).map((r) => String(r.debt_id));
 }
 
 /** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
@@ -1234,6 +1254,50 @@ export async function deleteDebt(userId: string, debtId: string): Promise<boolea
   await ensureDebtSchema();
   const rows = await sql`DELETE FROM debts WHERE id = ${debtId} AND user_id = ${userId} RETURNING id`;
   return rows.length > 0;
+}
+
+/**
+ * Borra una tarjeta entera: todos sus tramos y lo que cuelga de ella.
+ *
+ * Antes solo se podía borrar tramo a tramo desde el detalle de cada uno, y al
+ * borrar el penúltimo la tarjeta se deshacía en una deuda suelta a medio
+ * borrar. Ahora es un gesto, y una sola sentencia: o se va todo o no se va
+ * nada (Postgres ejecuta una sentencia con CTE de escritura de una vez).
+ *
+ * Qué se lleva:
+ * - los tramos, de cualquier estado, y en cascada su libro mayor y sus
+ *   avisos de fin del 0 % (FK con ON DELETE CASCADE);
+ * - los estados de cuenta de la tarjeta (`card_statements`, sin FK: la clave
+ *   es el grupo, no una fila);
+ * - las condiciones del banco de la tarjeta, y las que tuviera algún tramo de
+ *   cuando era una deuda suelta (`credit_terms`, misma razón).
+ *
+ * Qué NO se lleva: las metas que la perseguían. La FK las desengancha (ON
+ * DELETE SET NULL) y se quedan en el Plan con sus últimas cifras: el usuario
+ * decidió ese objetivo, y eso sobrevive a dejar de seguir la tarjeta aquí.
+ *
+ * Devuelve cuántos tramos se borraron; 0 = la tarjeta no es del usuario.
+ */
+export async function deleteCard(userId: string, cardGroup: string): Promise<number> {
+  await ensureDebtSchema();
+  const rows = await sql`
+    WITH borradas AS (
+      DELETE FROM debts
+       WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid
+      RETURNING id
+    ), estados AS (
+      DELETE FROM card_statements
+       WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid
+         AND EXISTS (SELECT 1 FROM borradas)
+    ), condiciones AS (
+      DELETE FROM credit_terms
+       WHERE user_id = ${userId}
+         AND (account_key = ${cardGroup}::uuid OR account_key IN (SELECT id FROM borradas))
+         AND EXISTS (SELECT 1 FROM borradas)
+    )
+    SELECT id FROM borradas
+  `;
+  return rows.length;
 }
 
 export interface RegisterPaymentInput {

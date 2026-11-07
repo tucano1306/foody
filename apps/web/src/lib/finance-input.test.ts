@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isError, validateGoalBody } from './finance-input';
+import { isError, MAX_DEUDAS_A_METAS, parseDebtIdsBody, validateGoalBody } from './finance-input';
 
 const base = { name: 'Viajar a Uruguay', targetAmount: 2400 };
 
@@ -40,5 +40,42 @@ describe('validateGoalBody — prioridad', () => {
     expect(parse({ ...base, priority: -5 }).priority).toBe(1);
     expect(parse({ ...base, priority: 999_999 }).priority).toBe(9999);
     expect(parse({ ...base, priority: 3.7 }).priority).toBe(3);
+  });
+});
+
+/**
+ * «Pasar a Metas» solo acepta ids: el nombre, el saldo y la fecha los lee el
+ * servidor de la deuda. Lo que se prueba aquí es que nada raro llegue hasta
+ * el `::uuid[]` de la consulta.
+ */
+describe('parseDebtIdsBody — qué deudas pasar a Metas', () => {
+  const A = '11111111-1111-4111-8111-111111111111';
+  const B = '22222222-2222-4222-8222-222222222222';
+
+  it('devuelve los ids en el orden pedido, sin repetidos', () => {
+    expect(parseDebtIdsBody({ debtIds: [B, A, B] })).toEqual([B, A]);
+  });
+
+  it('normaliza mayúsculas y espacios: el mismo id escrito distinto es el mismo', () => {
+    expect(parseDebtIdsBody({ debtIds: [` ${A.toUpperCase()} `, A] })).toEqual([A]);
+  });
+
+  it('sin lista, o vacía, es un error', () => {
+    expect(isError(parseDebtIdsBody({}))).toBe(true);
+    expect(isError(parseDebtIdsBody({ debtIds: [] }))).toBe(true);
+    expect(isError(parseDebtIdsBody({ debtIds: A }))).toBe(true);
+  });
+
+  it('un id que no es uuid tumba la petición entera, no se salta en silencio', () => {
+    expect(isError(parseDebtIdsBody({ debtIds: [A, "x' OR 1=1"] }))).toBe(true);
+    expect(isError(parseDebtIdsBody({ debtIds: [A, 42] }))).toBe(true);
+  });
+
+  it('pone tope a cuántas a la vez', () => {
+    const muchos = Array.from({ length: MAX_DEUDAS_A_METAS + 1 }, (_, i) =>
+      `${String(i).padStart(8, '0')}-1111-4111-8111-111111111111`,
+    );
+    expect(isError(parseDebtIdsBody({ debtIds: muchos }))).toBe(true);
+    expect(parseDebtIdsBody({ debtIds: muchos.slice(0, MAX_DEUDAS_A_METAS) })).toHaveLength(MAX_DEUDAS_A_METAS);
   });
 });

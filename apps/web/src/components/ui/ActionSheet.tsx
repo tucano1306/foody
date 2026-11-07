@@ -11,6 +11,11 @@ interface Action {
   readonly destructive?: boolean;
   /** Marca la acción como el estado actual del objeto (se ve palomeada). */
   readonly current?: boolean;
+  /**
+   * Una línea corta debajo: el dato que decide si tocar o no —«Mínimo $154 ·
+   * cubierto», «Ya está en tus Metas»—. Es un dato, nunca una instrucción.
+   */
+  readonly hint?: string;
 }
 
 interface Props {
@@ -37,8 +42,17 @@ export default function ActionSheet({ open, onClose, title, actions }: Props) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
-    if (!open && el.open) el.close();
+    // Sin `showModal` (Safari de iOS anterior a 15.4, y jsdom en las pruebas)
+    // la hoja se abre igual, sin capa modal: mejor eso que un menú que lanza
+    // una excepción y no aparece.
+    if (open && !el.open) {
+      if (typeof el.showModal === 'function') el.showModal();
+      else el.setAttribute('open', '');
+    }
+    if (!open && el.open) {
+      if (typeof el.close === 'function') el.close();
+      else el.removeAttribute('open');
+    }
   }, [open]);
 
   useEffect(() => {
@@ -106,8 +120,11 @@ export default function ActionSheet({ open, onClose, title, actions }: Props) {
                     {a.emoji}
                   </span>
                 )}
-                <span className={`flex-1 truncate ${a.destructive ? 'text-brand-600' : ''}`}>
-                  {a.label}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={`truncate ${a.destructive ? 'text-brand-600' : ''}`}>{a.label}</span>
+                  {a.hint && (
+                    <span className="truncate text-xs font-medium text-[var(--ink-muted)]">{a.hint}</span>
+                  )}
                 </span>
                 {a.current && <CheckIcon className="w-5 h-5 shrink-0" />}
               </button>

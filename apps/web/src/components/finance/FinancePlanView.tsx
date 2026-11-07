@@ -645,7 +645,8 @@ export default function FinancePlanView({ initialData }: Props) {
       <DebtPanel debts={view.debts} credits={data.credits} estados={data.cardStatements} onChanged={() => void refresh(true)} />
 
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
-      <section className="space-y-3">
+      {/* `id`: «Ver mis Metas» en Deudas aterriza aquí, no arriba del Plan. */}
+      <section id="metas" className="scroll-mt-24 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-black text-black">
             🎯 Tus metas
