@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRouteUser, notFound, unauthorized } from '@/lib/route-helpers';
-import { deleteDebt, getDebt, updateDebt } from '@/lib/debt-data';
+import { getDebt, mandarDeudaAPapelera, updateDebt } from '@/lib/debt-data';
 import { isValidationError, parseUpdateDebt } from '@/lib/debt-input';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -49,14 +49,20 @@ export async function PATCH(request: NextRequest, { params }: Ctx): Promise<Next
   }
 }
 
-/** DELETE /api/debts/[id] — borra la deuda y, en cascada, su libro mayor. */
+/**
+ * DELETE /api/debts/[id] — manda la deuda a la papelera.
+ *
+ * Ya no es un DELETE de verdad: se llevaba en cascada el libro mayor entero,
+ * y una vez se perdieron así unas tarjetas reales. La deuda se recupera con
+ * `POST /api/debts/[id]/restore`, con sus abonos intactos.
+ */
 export async function DELETE(request: NextRequest, { params }: Ctx): Promise<NextResponse> {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
   const { id } = await params;
   try {
-    const removed = await deleteDebt(user.userId, id);
+    const removed = await mandarDeudaAPapelera(user.userId, id);
     return removed ? new NextResponse(null, { status: 204 }) : notFound('Deuda no encontrada');
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Database error';

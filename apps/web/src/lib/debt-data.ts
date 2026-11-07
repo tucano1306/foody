@@ -48,6 +48,7 @@ import {
 import { normalizeShare } from './expense-scope';
 import { allocateCardPayment, ultimosDeLaTarjeta, type CardAllocation } from './card-payment';
 import { agrupacionesAutomaticas } from './tarjetas-auto';
+import type { DeudaEnPapelera } from './papelera-deudas';
 import { ajustesDeCuadre, diaDeVencimiento, diaDelEstado, momentoDelCuadre, nombreDeSaldoNuevo, saldosAlCierre } from './cuadre-tarjeta';
 import {
   camposDelMinimo,
@@ -335,6 +336,14 @@ export async function ensureDebtSchema(): Promise<void> {
   // Por tramo y no por tarjeta porque una misma tarjeta puede tener los dos.
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS promo_kind VARCHAR(10) NOT NULL DEFAULT 'cero'`;
   await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS deferred_interest DECIMAL(12,2)`;
+  // Cuándo se mandó a la papelera. Borrar ya no elimina la fila: el 7 nov 2026
+  // el dueño borró sus tarjetas desde el Plan creyendo que quitaba las metas, y
+  // con el DELETE se fueron también sus abonos (ON DELETE CASCADE), sin vuelta
+  // atrás. Ahora borrar = `status = 'archived'` + esta fecha, y nada más.
+  // La fecha además marca el GESTO: los tramos de una tarjeta borrada entera
+  // comparten el mismo valor (now() es el de la transacción), y recuperar trae
+  // de vuelta exactamente ese gesto, no tramos que se borraron otro día.
+  await sql`ALTER TABLE debts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
   // Las reglas del contrato de cada cuenta (condiciones-credito.ts): cómo se
   // calcula el mínimo, a dónde va un abono y qué cuesta pagar tarde. La clave
   // es la tarjeta (card_group) o la deuda suelta (su id), sin FK: un grupo no
@@ -776,6 +785,11 @@ export interface DebtsSnapshot {
    * la misma razón que los dos de arriba.
    */
   enMetas?: string[];
+  /**
+   * Las deudas borradas, para poder recuperarlas. Opcional por la misma razón
+   * que los de arriba, y porque si su consulta falla la pantalla sigue.
+   */
+  papelera?: DeudaEnPapelera[];
 }
 
 function mapCondiciones(r: Record<string, unknown>): CondicionesDeCredito {
@@ -956,14 +970,15 @@ export async function listDebts(userId: string, now: Date = new Date()): Promise
       status: d.projection.status,
     }));
 
-  const [cardStatements, creditTerms, enMetas] = await Promise.all([
+  const [cardStatements, creditTerms, enMetas, papelera] = await Promise.all([
     ultimosEstadosDeTarjeta(userId).catch(() => ({})),
     condicionesDeLasCuentas(userId, debts).catch(() => ({})),
     // Un adorno del menú: si falla (o la tabla de metas aún no existe), el
     // menú ofrece pasar a Metas y el servidor descarta la copia al crearla.
     deudasConMeta(userId).catch(() => [] as string[]),
+    listarPapelera(userId).catch(() => [] as DeudaEnPapelera[]),
   ]);
-  return { debts, portfolio: buildPortfolio(portfolioInput, now), cardStatements, creditTerms, enMetas };
+  return { debts, portfolio: buildPortfolio(portfolioInput, now), cardStatements, creditTerms, enMetas, papelera };
 }
 
 /** Las deudas del usuario enganchadas a alguna meta del Plan, de cualquier estado. */
@@ -1256,54 +1271,107 @@ export async function updateDebt(
   return getDebt(userId, debtId, now);
 }
 
-export async function deleteDebt(userId: string, debtId: string): Promise<boolean> {
+// ─── Papelera ─────────────────────────────────────────────────────────────────
+//
+// Desde la app ya no se borra NINGUNA deuda de verdad. Antes «Borrar» era un
+// DELETE, y en cascada se llevaba el libro mayor entero (abonos, intereses,
+// cargos); el 7 nov 2026 el dueño perdió así sus tarjetas al borrarlas desde el
+// Plan, y la única salida fue restaurar la base a una hora anterior.
+//
+// Ahora borrar es archivar con fecha (`deleted_at`). Todo lo demás se queda
+// donde estaba: el libro mayor, los estados de cuenta, las condiciones del
+// banco, el enlace con su meta. Las pantallas ya ignoraban `archived` —el
+// listado, el Plan, el abono a la tarjeta, el cron del 0 %—, así que la deuda
+// desaparece de todas partes y vuelve entera al recuperarla.
+
+/** Manda una deuda a la papelera. false = no existe, no es del usuario o ya estaba. */
+export async function mandarDeudaAPapelera(userId: string, debtId: string): Promise<boolean> {
   await ensureDebtSchema();
-  const rows = await sql`DELETE FROM debts WHERE id = ${debtId} AND user_id = ${userId} RETURNING id`;
+  const rows = await sql`
+    UPDATE debts SET status = 'archived', deleted_at = now(), updated_at = now()
+     WHERE id = ${debtId} AND user_id = ${userId} AND status <> 'archived'
+    RETURNING id
+  `;
   return rows.length > 0;
 }
 
 /**
- * Borra una tarjeta entera: todos sus tramos y lo que cuelga de ella.
+ * Manda una tarjeta entera a la papelera: todos sus tramos en un solo gesto.
  *
- * Antes solo se podía borrar tramo a tramo desde el detalle de cada uno, y al
- * borrar el penúltimo la tarjeta se deshacía en una deuda suelta a medio
- * borrar. Ahora es un gesto, y una sola sentencia: o se va todo o no se va
- * nada (Postgres ejecuta una sentencia con CTE de escritura de una vez).
+ * Antes era un DELETE que se llevaba también los estados de cuenta y las
+ * condiciones del banco. Ahora no se toca nada de eso: sin fila activa que los
+ * pida no se ven, y si la tarjeta vuelve, vuelve con su mínimo y sus reglas.
  *
- * Qué se lleva:
- * - los tramos, de cualquier estado, y en cascada su libro mayor y sus
- *   avisos de fin del 0 % (FK con ON DELETE CASCADE);
- * - los estados de cuenta de la tarjeta (`card_statements`, sin FK: la clave
- *   es el grupo, no una fila);
- * - las condiciones del banco de la tarjeta, y las que tuviera algún tramo de
- *   cuando era una deuda suelta (`credit_terms`, misma razón).
+ * Los tramos que ya estaban en la papelera conservan su propia fecha: se
+ * borraron en otro gesto y se recuperan por separado.
  *
- * Qué NO se lleva: las metas que la perseguían. La FK las desengancha (ON
- * DELETE SET NULL) y se quedan en el Plan con sus últimas cifras: el usuario
- * decidió ese objetivo, y eso sobrevive a dejar de seguir la tarjeta aquí.
- *
- * Devuelve cuántos tramos se borraron; 0 = la tarjeta no es del usuario.
+ * Devuelve cuántos tramos se archivaron; 0 = la tarjeta no es del usuario.
  */
-export async function deleteCard(userId: string, cardGroup: string): Promise<number> {
+export async function mandarTarjetaAPapelera(userId: string, cardGroup: string): Promise<number> {
   await ensureDebtSchema();
   const rows = await sql`
-    WITH borradas AS (
-      DELETE FROM debts
-       WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid
-      RETURNING id
-    ), estados AS (
-      DELETE FROM card_statements
-       WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid
-         AND EXISTS (SELECT 1 FROM borradas)
-    ), condiciones AS (
-      DELETE FROM credit_terms
-       WHERE user_id = ${userId}
-         AND (account_key = ${cardGroup}::uuid OR account_key IN (SELECT id FROM borradas))
-         AND EXISTS (SELECT 1 FROM borradas)
-    )
-    SELECT id FROM borradas
+    UPDATE debts SET status = 'archived', deleted_at = now(), updated_at = now()
+     WHERE user_id = ${userId} AND card_group = ${cardGroup}::uuid AND status <> 'archived'
+    RETURNING id
   `;
   return rows.length;
+}
+
+/**
+ * Saca de la papelera la deuda `debtId` y, si era un tramo, los demás tramos
+ * de su tarjeta que se borraron EN EL MISMO GESTO (misma `deleted_at`). Así
+ * «Deshacer» tras borrar una tarjeta de tres tramos devuelve los tres, y
+ * recuperar un tramo suelto no resucita otro que se borró la semana anterior.
+ *
+ * El estado vuelve a salir del saldo, como en `recomputeBalance`. Si pasó un
+ * ciclo en la papelera, el siguiente `listDebts` devenga ese interés: la
+ * deuda siguió existiendo en el banco mientras aquí no se veía.
+ *
+ * Devuelve cuántas filas volvieron; 0 = no estaba en la papelera del usuario.
+ */
+export async function restaurarDeLaPapelera(userId: string, debtId: string): Promise<number> {
+  await ensureDebtSchema();
+  const rows = await sql`
+    WITH objetivo AS (
+      SELECT id, card_group, deleted_at FROM debts
+       WHERE id = ${debtId} AND user_id = ${userId} AND status = 'archived'
+    )
+    UPDATE debts d SET
+      status = CASE WHEN d.current_balance > 0 THEN 'active' ELSE 'paid_off' END,
+      deleted_at = NULL,
+      updated_at = now()
+      FROM objetivo o
+     WHERE d.user_id = ${userId} AND d.status = 'archived'
+       AND (
+         d.id = o.id
+         OR (o.card_group IS NOT NULL AND d.card_group = o.card_group
+             AND d.deleted_at IS NOT DISTINCT FROM o.deleted_at)
+       )
+    RETURNING d.id
+  `;
+  return rows.length;
+}
+
+/** Lo que está en la papelera, lo más reciente primero. */
+export async function listarPapelera(userId: string): Promise<DeudaEnPapelera[]> {
+  await ensureDebtSchema();
+  const rows = await sql`
+    SELECT id, name, kind, issuer, account_last4, card_group, current_balance, currency, deleted_at
+      FROM debts
+     WHERE user_id = ${userId} AND status = 'archived'
+     ORDER BY deleted_at DESC NULLS LAST, name ASC
+  `;
+  return (rows as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id),
+    name: String(r.name ?? ''),
+    kind: String(r.kind ?? 'other') as DebtKind,
+    issuer: (r.issuer as string | null) ?? null,
+    accountLast4: (r.account_last4 as string | null) ?? null,
+    cardGroup: (r.card_group as string | null) ?? null,
+    balance: round2(num(r.current_balance)),
+    currency: String(r.currency ?? 'USD'),
+    deletedAt: r.deleted_at == null ? null : iso(r.deleted_at),
+  }));
 }
 
 export interface RegisterPaymentInput {
@@ -1341,7 +1409,11 @@ export async function registerPayment(
 ): Promise<RegisterPaymentResult | null> {
   await ensureDebtSchema();
 
-  const rows = await sql`SELECT * FROM debts WHERE id = ${debtId} AND user_id = ${userId} LIMIT 1`;
+  // Una deuda en la papelera no se abona: el abono movería un saldo que no se
+  // ve en ninguna pantalla. Para abonarla, primero se recupera.
+  const rows = await sql`
+    SELECT * FROM debts WHERE id = ${debtId} AND user_id = ${userId} AND status <> 'archived' LIMIT 1
+  `;
   if (rows.length === 0) return null;
 
   // Devengar antes de cobrar: el interés del ciclo tiene que estar en el libro

@@ -533,10 +533,16 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
       sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
       // Con la deuda enganchada al lado: una meta que persigue una tarjeta lee
       // sus cifras DE ella, y asi abonar en Deudas mueve el plan sin tocar nada.
+      //
+      // Una deuda en la papelera no cuenta como enganchada: la meta se queda
+      // con sus propias cifras, como cuando se borraba de verdad, y su botón
+      // no abona a una tarjeta que no se ve. El enlace (`debt_id`) no se toca,
+      // así que al recuperar la tarjeta la meta vuelve a seguirla sola.
       sql`
-        SELECT g.*, d.original_amount AS debt_original, d.current_balance AS debt_balance
+        SELECT g.*, d.original_amount AS debt_original, d.current_balance AS debt_balance,
+               (g.debt_id IS NOT NULL AND d.id IS NULL) AS debt_en_papelera
           FROM finance_goals g
-          LEFT JOIN debts d ON d.id = g.debt_id AND d.user_id = g.user_id
+          LEFT JOIN debts d ON d.id = g.debt_id AND d.user_id = g.user_id AND d.status <> 'archived'
          WHERE g.user_id = ${userId}
          ORDER BY g.priority ASC, g.target_date ASC NULLS LAST, g.created_at ASC
       `,
@@ -562,7 +568,7 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
   const goals = goalRows.map((r) => {
     const row = r as Record<string, unknown>;
     return goalWithDebt(
-      mapGoalRow(row),
+      mapGoalRow(row.debt_en_papelera ? { ...row, debt_id: null } : row),
       row.debt_original == null && row.debt_balance == null
         ? null
         : { originalAmount: num(row.debt_original), currentBalance: num(row.debt_balance) },

@@ -150,7 +150,7 @@ describe('el menú «⋯» de una tarjeta con tramos', () => {
     expect(hoja.getByText('Mínimo $154.00 · ✓ cubierto')).toBeInTheDocument();
     expect(hoja.getByText('El último cerró el 27 oct 2026')).toBeInTheDocument();
     expect(hoja.getByText('3 tramos · sin teclear nada')).toBeInTheDocument();
-    expect(hoja.getByText('Sus 3 tramos y su historial')).toBeInTheDocument();
+    expect(hoja.getByText('Va a la papelera con sus 3 tramos')).toBeInTheDocument();
   });
 
   it('«Abonar» del menú abre el mismo abono que el botón de la tarjeta', async () => {
@@ -282,14 +282,14 @@ describe('borrar la tarjeta: nunca a un toque', () => {
     fireEvent.click(screen.getByRole('button', { name: /Borrar tarjeta/ }));
 
     const dialogo = await screen.findByRole('alertdialog', { name: '¿Borrar Bank of America ···3650?' });
-    expect(dialogo).toHaveTextContent('Se van sus 3 tramos, sus abonos y sus estados de cuenta. No se puede deshacer.');
+    expect(dialogo).toHaveTextContent('Va a la papelera con sus 3 tramos y todo su historial. La recuperas cuando quieras.');
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Mejor no' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByText('Unlimited Cash 3650')).toBeInTheDocument();
   });
 
-  it('confirmado, borra la tarjeta entera y desaparece de la lista', async () => {
+  it('confirmado, manda la tarjeta entera a la papelera y desaparece de la lista', async () => {
     const fetchMock = vi.fn().mockResolvedValue(respuesta({ borrados: 3 }));
     vi.stubGlobal('fetch', fetchMock);
     render(<DebtsView initial={snapshot([...TARJETA, auto])} />);
@@ -364,7 +364,7 @@ describe('una deuda suelta también tiene su «⋯»', () => {
     menuDe('Auto GMC');
     fireEvent.click(screen.getByRole('button', { name: /Borrar deuda/ }));
     const dialogo = await screen.findByRole('alertdialog', { name: '¿Borrar Auto GMC?' });
-    expect(dialogo).toHaveTextContent('Se va con todos sus abonos. No se puede deshacer.');
+    expect(dialogo).toHaveTextContent('Va a la papelera con todo su historial. La recuperas cuando quieras.');
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Sí, borrar' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/debts/${auto.id}`, expect.objectContaining({ method: 'DELETE' })));
   });
