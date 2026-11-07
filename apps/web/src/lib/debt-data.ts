@@ -999,6 +999,11 @@ export interface CreditForPlan {
    * deudas sueltas, y las dos pantallas parecían hablar de cosas distintas.
    */
   cardGroup: string | null;
+  /**
+   * Qué es: el plan pinta una tarjeta con su plástico y un préstamo con su
+   * emoji. Sin él, un préstamo del auto salía con un plástico de tarjeta.
+   */
+  kind: DebtKind;
   accountLast4: string | null;
   currency: string;
   rate: number;
@@ -1033,7 +1038,7 @@ export async function listCreditsForPlan(
            min_includes_interest, extra_monthly, business_share,
            promo_ends_on, rate_after_promo, cycle_days,
            linked_payment_id, duplicate_dismissed, issuer,
-           card_group, account_last4, currency,
+           card_group, kind, account_last4, currency,
            promo_kind, deferred_interest, opened_at
     FROM debts
     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
@@ -1074,6 +1079,7 @@ export async function listCreditsForPlan(
       duplicateDismissed: Boolean(row.duplicate_dismissed),
       issuer: (row.issuer as string | null) ?? null,
       cardGroup: (row.card_group as string | null) ?? null,
+      kind: (row.kind as DebtKind) ?? 'other',
       accountLast4: (row.account_last4 as string | null) ?? null,
       currency: (row.currency as string | null) ?? 'USD',
       rate: num(row.rate),

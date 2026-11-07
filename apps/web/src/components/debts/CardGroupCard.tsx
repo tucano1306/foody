@@ -1,15 +1,15 @@
 'use client';
 
 import type { CardStatementInfo, DebtWithProjection } from '@/lib/debt-data';
-import { cardTitle, enPromocion, tasaVigente } from '@/lib/card-payment';
+import { cardTitle, tasaVigente, ultimosDeLaTarjeta } from '@/lib/card-payment';
 import { costoDelAtraso, type CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
-import { avisoDePromo } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
 import BotonMas from './BotonMas';
-import PromoAviso from './PromoAviso';
-import { BTN_PRIMARY, fmtDateFull, fmtMoney, fmtMoneyShort, fmtRate } from './debt-ui';
+import ChipDeCuenta from './ChipDeCuenta';
+import TramosDeTarjeta from './TramosDeTarjeta';
+import { BTN_PRIMARY, fmtDateFull, fmtMoney, fmtMoneyShort } from './debt-ui';
 
 interface Props {
   /** Los tramos de la tarjeta, ya filtrados por ámbito. */
@@ -62,7 +62,7 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
   return (
     <div className="flex flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm sm:col-span-2">
       <div className="flex items-center gap-3">
-        <span className="text-3xl leading-none" aria-hidden="true">💳</span>
+        <ChipDeCuenta ultimos={ultimosDeLaTarjeta(tramos)} />
         <div className="min-w-0 flex-1">
           {/* Sin `truncate`: a 375px cortaba en «Bank of Ame…» y se perdía justo
               lo que distingue la tarjeta, los últimos dígitos. */}
@@ -116,45 +116,15 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
         </p>
       )}
 
-      <ul className="flex flex-col gap-2">
-        {ordenados.map((t) => {
-          const promoViva = enPromocion(t, hoy);
-          const aviso = avisoDePromo(t, hoy);
-          return (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  haptic();
-                  onOpenTramo(t.id);
-                }}
-                className="flex w-full flex-col gap-1 rounded-2xl bg-sky-50/70 px-3.5 py-3 text-left transition active:scale-[0.99]"
-              >
-                <span className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate text-sm font-semibold text-black">{t.name}</span>
-                  <span className="shrink-0 text-sm font-extrabold text-black">
-                    {fmtMoney(t.currentBalance, t.currency)}
-                  </span>
-                </span>
-                <span className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
-                  {promoViva ? (
-                    <span className="rounded-full bg-white px-2 py-0.5 text-sky-700">
-                      0 % hasta el {fmtDateFull(t.promoEndsOn)}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">
-                      {t.promoEndsOn && t.rateAfterPromo != null
-                        ? fmtRate(t.rateAfterPromo, 'annual_nominal')
-                        : fmtRate(t.rate, t.ratePeriod)}
-                    </span>
-                  )}
-                </span>
-                {aviso && <PromoAviso aviso={aviso} currency={t.currency} />}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <TramosDeTarjeta
+        titulo={cardTitle(tramos)}
+        tramos={ordenados.map((t) => ({ ...t, balance: t.currentBalance }))}
+        formatoSaldo={(t) => fmtMoney(t.balance, t.currency)}
+        onOpen={(id) => {
+          haptic();
+          onOpenTramo(id);
+        }}
+      />
 
       {/* Abonar es lo de cada mes y va a la vista; lo demás (cuadrar, las
           condiciones del banco, pasar a Metas, borrar) vive en «⋯». Antes eran

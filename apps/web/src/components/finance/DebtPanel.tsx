@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import type { CardStatementInfo, CreditForPlan, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
+import { ultimosDeLaTarjeta } from '@/lib/card-payment';
 import type { CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { toDateKey } from '@/lib/debt-engine';
 import { avisoDePromo } from '@/lib/debt-promo';
@@ -13,6 +14,7 @@ import type { DebtOverview } from '@/lib/finance-engine';
 import { haptic } from '@/lib/haptic';
 import { agruparPorTarjeta } from '@/lib/plan-tarjetas';
 import { useToast } from '@/components/ui/Toast';
+import ChipDeCuenta from '@/components/debts/ChipDeCuenta';
 import PromoAviso from '@/components/debts/PromoAviso';
 import PlanCardGroup from './PlanCardGroup';
 import { fmtMoney, fmtMoneyFine } from './finance-ui';
@@ -135,6 +137,7 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
       return {
         ...c,
         cardGroup: d?.cardGroup ?? null,
+        kind: d?.kind ?? null,
         issuer: d?.issuer ?? null,
         accountLast4: d?.accountLast4 ?? null,
         currency: d?.currency ?? 'USD',
@@ -178,7 +181,10 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
           {/* Cada crédito abre su hoja: ahí se abona, se edita y se elimina.
               Antes esto era una lista de solo lectura y un botón al final que
               mandaba a otra pantalla a hacer lo mismo. */}
-          <ul className="space-y-2">
+          {/* 16 px entre tarjetas y no 8: con 8, y todas del mismo tono, la
+              lista se leía como un solo bloque y no se veía dónde acababa
+              una tarjeta y empezaba la siguiente. */}
+          <ul className="space-y-4">
             {filas.map((fila) => {
               if (fila.tipo === 'tarjeta') {
                 return (
@@ -198,15 +204,23 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
               const c = fila.credito;
               const aviso = avisoDePromo({ ...c, currentBalance: c.balance }, hoy);
               return (
-              <li key={c.id}>
+              // Una tarjeta suelta es una tarjeta como la de tramos: mismo
+              // cuerpo (`card`) y mismo sello. Antes era una fila translúcida
+              // idéntica a un tramo, y «Cash Rewards 8523» parecía otro saldo
+              // de la tarjeta de al lado.
+              <li key={c.id} className="card overflow-hidden">
                 <button
                   type="button"
                   onClick={() => void open(c.id)}
                   disabled={loadingId !== null}
-                  className="flex w-full items-center gap-2.5 rounded-2xl bg-white/70 px-3 py-2.5 text-left transition active:scale-[0.99] hover:bg-white disabled:opacity-60"
+                  className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-[var(--surface-2)] active:bg-[var(--surface-2)] disabled:opacity-60"
                 >
+                  <ChipDeCuenta ultimos={ultimosDeLaTarjeta([c])} kind={c.kind} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-black">{c.name}</span>
+                    {/* Sin `truncate`: con el sello al lado, a 375 px cortaba
+                        en «Cash Reward…» y se perdía lo que distingue la
+                        tarjeta. Mejor dos líneas que un nombre a medias. */}
+                    <span className="block text-sm font-bold leading-tight text-black">{c.name}</span>
                     <span className="block text-[11px] text-slate-500">
                       {loadingId === c.id
                         ? 'Abriendo…'
@@ -239,7 +253,7 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
                 {/* El mismo aviso del 0 % que en Deudas, también para una
                     tarjeta de un solo saldo. */}
                 {aviso && (
-                  <div className="mt-1.5">
+                  <div className="-mt-1 px-4 pb-4">
                     <PromoAviso aviso={aviso} currency={c.currency} />
                   </div>
                 )}
