@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon, EyeSlashIcon, TrashIcon } from '@heroicons/react/24/outline';
 import type { DebtMovement, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { listPeriods, summarizePeriod } from '@/lib/debt-cycles';
 import { buildSchedule, monthlyRateAfterPromo, toMonthlyRate } from '@/lib/debt-engine';
@@ -31,7 +31,13 @@ interface Props {
   readonly debt: DebtWithProjection;
   readonly onClose: () => void;
   readonly onChanged: (debt: DebtWithProjection) => void;
-  readonly onDeleted: (id: string) => void;
+  /** Sin él, la hoja no ofrece borrar: borrar una deuda solo se hace en Deudas. */
+  readonly onDeleted?: (id: string) => void;
+  /**
+   * Abierta desde el Plan: en el sitio de «Borrar esta deuda» va «Quitar del
+   * Plan», que no toca la deuda (ver fuera-del-plan.ts).
+   */
+  readonly onQuitarDelPlan?: () => void;
   readonly onPay: () => void;
   readonly onEdit: () => void;
   /** Las otras tarjetas, para decir que esta es otro saldo de una de ellas. */
@@ -82,6 +88,7 @@ export default function DebtDetailSheet({
   onClose,
   onChanged,
   onDeleted,
+  onQuitarDelPlan,
   onPay,
   onEdit,
   cardCandidates = [],
@@ -351,7 +358,7 @@ export default function DebtDetailSheet({
     try {
       const res = await fetch(`/api/debts/${debt.id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error('No se pudo borrar');
-      onDeleted(debt.id);
+      onDeleted?.(debt.id);
       onClose();
     } catch (err) {
       setError((err as Error).message);
@@ -663,11 +670,21 @@ export default function DebtDetailSheet({
             <CardLinkPicker debt={debt} candidates={cardCandidates} onChanged={onSnapshot} />
           )}
 
-          {/* Borrar: escondido tras confirmación, nunca a un toque de distancia.
-              La confirmación dice A DÓNDE va: desde el Plan se llega aquí
-              pensando en la meta, y antes este «Sí, borrar» se llevaba la
-              deuda con todos sus abonos sin decirlo. */}
-          {confirmDelete ? (
+          {/* Desde el Plan no se borra: el 7 nov 2026 el dueño llegó aquí
+              queriendo sacar sus tarjetas del Plan y «Sí, borrar» se las llevó
+              también de Deudas. En el Plan, lo que se ofrece es quitarla de la
+              vista; la deuda sigue entera donde estaba. */}
+          {onQuitarDelPlan ? (
+            <button
+              type="button"
+              onClick={() => { haptic(8); onQuitarDelPlan(); }}
+              className="mx-auto flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-slate-500 transition hover:text-slate-700 active:scale-95"
+            >
+              <EyeSlashIcon className="h-4 w-4" /> Quitar del Plan
+            </button>
+          ) : !onDeleted ? null : confirmDelete ? (
+            /* Borrar: escondido tras confirmación, nunca a un toque de
+               distancia, y diciendo A DÓNDE va. */
             <div className="flex flex-col gap-2">
               <p className="text-center text-xs text-slate-500">
                 Va a la papelera de Deudas con todo su historial.

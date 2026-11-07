@@ -4,19 +4,21 @@ import { useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import type { CardStatementInfo, CreditForPlan, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
-import { ultimosDeLaTarjeta } from '@/lib/card-payment';
-import type { CondicionesDeCredito } from '@/lib/condiciones-credito';
+import { cardTitle, ultimosDeLaTarjeta } from '@/lib/card-payment';
+import { claveDeCuenta, type CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { toDateKey } from '@/lib/debt-engine';
 import { avisoDePromo } from '@/lib/debt-promo';
 import type { DebtOverview } from '@/lib/finance-engine';
+import { resumenDeLoVisible } from '@/lib/fuera-del-plan';
 import { haptic } from '@/lib/haptic';
 import { agruparPorTarjeta } from '@/lib/plan-tarjetas';
 import { useToast } from '@/components/ui/Toast';
 import ChipDeCuenta from '@/components/debts/ChipDeCuenta';
 import PromoAviso from '@/components/debts/PromoAviso';
-import PlanCardGroup from './PlanCardGroup';
+import PlanCardGroup, { QuitarDelPlan } from './PlanCardGroup';
 import { fmtMoney, fmtMoneyFine } from './finance-ui';
 
 /**
@@ -66,6 +68,12 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
   const toast = useToast();
   const [modal, setModal] = useState<DebtModal>({ kind: 'none' });
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  /**
+   * Lo último que el dueño tocó, por cuenta (true = fuera del Plan). Manda
+   * sobre lo que trajo el servidor para que la tarjeta se vaya EN EL TOQUE y no
+   * cuando vuelva la respuesta; si el guardado falla, se deshace.
+   */
+  const [tocadas, setTocadas] = useState<Readonly<Record<string, boolean>>>({});
 
   const close = useCallback(() => setModal({ kind: 'none' }), []);
 
@@ -123,20 +131,40 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
   }, [close, onChanged]);
 
   /**
-   * «Deshacer» del aviso de borrado. Desde aquí se borraron una vez unas
-   * tarjetas reales creyendo quitar sus metas; ahora van a la papelera de
-   * Deudas y este botón las devuelve sin tener que ir a buscarlas allí.
+   * Quitar una cuenta del Plan, o devolverla. Desde aquí se borraron una vez
+   * unas tarjetas reales creyendo quitarlas del Plan; ahora el Plan no borra:
+   * esto solo cambia lo que el Plan enseña (fuera-del-plan.ts).
+   *
+   * Sin confirmación porque no se pierde nada, y el aviso dice dónde sigue la
+   * tarjeta —lo que el dueño quería tener seguro— y trae «Deshacer».
+   *
+   * No recalcula el plan: su dinero no cambia (la cuota sigue contando en el
+   * flujo del mes), así que no hace falta volver a pedirlo entero.
    */
-  const deshacerBorrado = useCallback(async (id: string) => {
+  async function ponerEnPlan(debtId: string, clave: string, enPlan: boolean) {
+    haptic(enPlan ? 8 : 12);
+    setTocadas((t) => ({ ...t, [clave]: !enPlan }));
     try {
-      const res = await fetch(`/api/debts/${id}/restore`, { method: 'POST', credentials: 'include' });
+      const res = await fetch(`/api/debts/${debtId}/plan`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enPlan }),
+      });
       if (!res.ok) throw new Error(String(res.status));
-      toast.show('Recuperada', 'success');
-      onChanged();
+      if (enPlan) {
+        toast.show('De vuelta en el Plan', 'success');
+      } else {
+        toast.show('Fuera del Plan · sigue en Deudas', 'success', {
+          etiqueta: 'Deshacer',
+          alTocar: () => void ponerEnPlan(debtId, clave, true),
+        });
+      }
     } catch {
-      toast.show('No se pudo recuperar: sigue en la papelera de Deudas', 'error');
+      setTocadas((t) => ({ ...t, [clave]: enPlan }));
+      toast.show(enPlan ? 'No se pudo volver a mostrar' : 'No se pudo quitar del Plan', 'error');
     }
-  }, [toast, onChanged]);
+  }
 
   if (debts.overdueTotal <= 0 && debts.creditBalance <= 0) return null;
 
@@ -147,33 +175,41 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
   // crédito no trae detalle (un plan recalculado con datos viejos), se pinta
   // suelto como antes: nunca desaparece una deuda por faltar un adorno.
   const detalle = new Map(credits.map((c) => [c.id, c]));
-  const filas = agruparPorTarjeta(
-    debts.creditOrder.map((c) => {
-      const d = detalle.get(c.id);
-      return {
-        ...c,
-        cardGroup: d?.cardGroup ?? null,
-        kind: d?.kind ?? null,
-        issuer: d?.issuer ?? null,
-        accountLast4: d?.accountLast4 ?? null,
-        currency: d?.currency ?? 'USD',
-        rate: d?.rate ?? 0,
-        ratePeriod: d?.ratePeriod ?? 'annual_nominal',
-        promoEndsOn: d?.promoEndsOn ?? null,
-        rateAfterPromo: d?.rateAfterPromo ?? null,
-        promoKind: d?.promoKind ?? 'cero',
-        deferredInterest: d?.deferredInterest ?? null,
-        openedAt: d?.openedAt ?? null,
-      };
-    }),
-  );
+  const enriquecidos = debts.creditOrder.map((c) => {
+    const d = detalle.get(c.id);
+    const cardGroup = d?.cardGroup ?? null;
+    const clave = claveDeCuenta({ id: c.id, cardGroup });
+    return {
+      ...c,
+      clave,
+      fueraDelPlan: tocadas[clave] ?? d?.fueraDelPlan ?? false,
+      cardGroup,
+      kind: d?.kind ?? null,
+      issuer: d?.issuer ?? null,
+      accountLast4: d?.accountLast4 ?? null,
+      currency: d?.currency ?? 'USD',
+      rate: d?.rate ?? 0,
+      ratePeriod: d?.ratePeriod ?? 'annual_nominal',
+      promoEndsOn: d?.promoEndsOn ?? null,
+      rateAfterPromo: d?.rateAfterPromo ?? null,
+      promoKind: d?.promoKind ?? 'cero',
+      deferredInterest: d?.deferredInterest ?? null,
+      openedAt: d?.openedAt ?? null,
+    };
+  });
+  const visibles = enriquecidos.filter((c) => !c.fueraDelPlan);
+  const filas = agruparPorTarjeta(visibles);
+  const filasFuera = agruparPorTarjeta(enriquecidos.filter((c) => c.fueraDelPlan));
+  // Las cifras de la cabecera y del pie, de lo que SE VE. El motor sigue
+  // contando todo (el dinero es real), y lo cuenta el flujo del mes.
+  const resumen = resumenDeLoVisible(visibles);
 
   return (
     <div className="space-y-4">
       {/* ─── Tarjetas y créditos ───────────────────────────────────────────
           Van primero porque son la deuda que CUESTA: mientras exista el saldo
           genera interés cada mes, cosa que un recibo atrasado no hace. */}
-      {debts.creditBalance > 0 && (
+      {visibles.length > 0 && (
         <section className="rounded-3xl border border-sky-200 bg-linear-to-br from-sky-100 to-blue-100 p-5">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
@@ -181,15 +217,15 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
                 💳 Tarjetas y créditos
               </h2>
               <p className="mt-1 text-xs text-slate-600">
-                {debts.creditMonthlyInterest > 0
-                  ? `Te cuestan ${fmtMoney(debts.creditMonthlyInterest)} al mes solo en intereses`
+                {resumen.monthlyInterest > 0
+                  ? `Te cuestan ${fmtMoney(resumen.monthlyInterest)} al mes solo en intereses`
                   : 'Sin intereses este mes'}
               </p>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-[11px] font-bold text-slate-600">Saldo</p>
               <p className="text-xl font-black tabular-nums text-black">
-                {fmtMoney(debts.creditBalance)}
+                {fmtMoney(resumen.balance)}
               </p>
             </div>
           </div>
@@ -213,6 +249,7 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
                       onOpenTramo={(id) => void open(id)}
                       onPay={() => void openCard(fila.grupo, 'card-pay')}
                       onCuadrar={() => void openCard(fila.grupo, 'card-cuadrar')}
+                      onQuitar={() => void ponerEnPlan(fila.tramos[0].id, fila.tramos[0].clave, false)}
                     />
                   </li>
                 );
@@ -273,6 +310,13 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
                     <PromoAviso aviso={aviso} currency={c.currency} />
                   </div>
                 )}
+                <div className="-mt-2 pb-2">
+                  <QuitarDelPlan
+                    titulo={c.name}
+                    disabled={loadingId !== null}
+                    onQuitar={() => void ponerEnPlan(c.id, c.clave, false)}
+                  />
+                </div>
               </li>
               );
             })}
@@ -284,11 +328,11 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
                 Comprometido al mes
               </p>
               <p className="text-lg font-black tabular-nums text-black">
-                {fmtMoney(debts.creditPayments)}
+                {fmtMoney(resumen.payments)}
                 <span className="text-xs font-medium text-slate-400">/mes</span>
               </p>
               <p className="text-[11px] text-slate-500">
-                {debts.creditOrder.some((c) => c.countedInPayments)
+                {visibles.some((c) => c.countedInPayments)
                   ? 'Sin contar las cuotas que ya cobra un recibo de Pagos'
                   : 'Ya restado de tu dinero libre'}
               </p>
@@ -305,6 +349,39 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
             </button>
           </div>
         </section>
+      )}
+
+      {/* ─── Fuera del Plan ────────────────────────────────────────────────
+          Plegado y al final, como las metas logradas: no estorba, pero lo que
+          se quitó de aquí se devuelve aquí, sin ir a buscarlo a otra pantalla. */}
+      {filasFuera.length > 0 && (
+        <details className="rounded-2xl border border-sky-200 bg-sky-50/60 px-4 py-3">
+          <summary className="flex cursor-pointer select-none items-center gap-1.5 text-sm font-bold text-slate-700">
+            <EyeSlashIcon className="h-4 w-4" aria-hidden="true" />
+            Fuera del Plan · {filasFuera.length}
+          </summary>
+          <ul className="mt-3 space-y-2" aria-label="Fuera del Plan">
+            {filasFuera.map((fila) => {
+              const tramos = fila.tipo === 'tarjeta' ? fila.tramos : [fila.credito];
+              const titulo = fila.tipo === 'tarjeta' ? cardTitle(tramos) : fila.credito.name;
+              const primero = tramos[0];
+              return (
+                <li key={primero.clave} className="flex items-center gap-3">
+                  <ChipDeCuenta ultimos={ultimosDeLaTarjeta(tramos)} kind={primero.kind} />
+                  <span className="min-w-0 flex-1 text-sm font-semibold leading-tight text-slate-700">{titulo}</span>
+                  <button
+                    type="button"
+                    onClick={() => void ponerEnPlan(primero.id, primero.clave, true)}
+                    aria-label={`Volver a mostrar ${titulo} en el Plan`}
+                    className="flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-2 text-[11px] font-bold text-blue-600 ring-1 ring-sky-200 transition active:scale-95 hover:bg-sky-50"
+                  >
+                    <EyeIcon className="h-4 w-4" aria-hidden="true" /> Mostrar
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
 
       {debts.overdueTotal > 0 && (
@@ -397,12 +474,12 @@ export default function DebtPanel({ debts, credits = [], estados = {}, onChanged
           // La hoja sigue abierta con el dato fresco; el plan se recalcula
           // detrás para que los totales de arriba no se queden viejos.
           onChanged={(updated) => { setModal({ kind: 'detail', debt: updated }); onChanged(); }}
-          onDeleted={(id) => {
-            toast.show('Deuda en la papelera', 'success', {
-              etiqueta: 'Deshacer',
-              alTocar: () => void deshacerBorrado(id),
-            });
-            afterChange();
+          // Sin `onDeleted`: desde el Plan no se borra ninguna deuda. En su
+          // sitio, quitarla de esta pantalla (la tarjeta entera si va en una).
+          onQuitarDelPlan={() => {
+            const { id, cardGroup } = modal.debt;
+            close();
+            void ponerEnPlan(id, claveDeCuenta({ id, cardGroup }), false);
           }}
           onPay={() => setModal({ kind: 'pay', debt: modal.debt })}
           onEdit={() => setModal({ kind: 'edit', debt: modal.debt })}

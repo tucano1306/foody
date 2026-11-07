@@ -1,5 +1,6 @@
 'use client';
 
+import { EyeSlashIcon } from '@heroicons/react/24/outline';
 import type { CardStatementInfo } from '@/lib/debt-data';
 import { cardTitle, ultimosDeLaTarjeta } from '@/lib/card-payment';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
@@ -40,6 +41,8 @@ interface Props {
   readonly onOpenTramo: (id: string) => void;
   readonly onPay: () => void;
   readonly onCuadrar: () => void;
+  /** La saca del Plan con sus tramos; en Deudas sigue igual. */
+  readonly onQuitar: () => void;
 }
 
 /** Días hasta una fecha YYYY-MM-DD, en el calendario del dispositivo. */
@@ -57,7 +60,7 @@ function diasHasta(clave: string, hoy: string): number {
  *
  * Además enseña lo que solo el plan sabe: cuánto aparta al mes para ella.
  */
-export default function PlanCardGroup({ tramos, estado, loadingId, grupo, onOpenTramo, onPay, onCuadrar }: Props) {
+export default function PlanCardGroup({ tramos, estado, loadingId, grupo, onOpenTramo, onPay, onCuadrar, onQuitar }: Props) {
   const hoy = toDateKey(new Date());
   const titulo = cardTitle(tramos.map((t) => ({ name: t.name, issuer: t.issuer, accountLast4: t.accountLast4 })));
   const total = tramos.reduce((s, t) => s + t.balance, 0);
@@ -153,6 +156,36 @@ export default function PlanCardGroup({ tramos, estado, loadingId, grupo, onOpen
           🧾 Cuadrar
         </button>
       </div>
+
+      {/* Debajo de lo que se usa cada mes y en gris, pero a un solo toque:
+          no destruye nada y «Deshacer» la trae de vuelta. */}
+      <QuitarDelPlan titulo={titulo} disabled={ocupado} onQuitar={onQuitar} />
     </div>
+  );
+}
+
+/**
+ * «Quitar del Plan», igual en una tarjeta con tramos y en una suelta. Lo que
+ * dice es lo que hace: la saca de ESTA pantalla, sin borrarla.
+ */
+export function QuitarDelPlan({
+  titulo,
+  disabled,
+  onQuitar,
+}: {
+  readonly titulo: string;
+  readonly disabled: boolean;
+  readonly onQuitar: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => { haptic(8); onQuitar(); }}
+      disabled={disabled}
+      aria-label={`Quitar ${titulo} del Plan`}
+      className="mx-auto flex w-fit items-center gap-1.5 rounded-full px-4 py-2 text-[11px] font-semibold text-slate-500 transition hover:bg-white/60 hover:text-slate-700 active:scale-95 disabled:opacity-60"
+    >
+      <EyeSlashIcon className="h-4 w-4" aria-hidden="true" /> Quitar del Plan
+    </button>
   );
 }

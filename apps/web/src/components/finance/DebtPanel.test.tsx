@@ -35,6 +35,7 @@ function credito(over: Partial<CreditForPlan> & Pick<CreditForPlan, 'id' | 'name
     promoKind: 'cero' as const,
     deferredInterest: null,
     openedAt: null,
+    fueraDelPlan: false,
     ...over,
   };
 }

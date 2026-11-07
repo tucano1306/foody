@@ -48,6 +48,7 @@ import {
 import { normalizeShare } from './expense-scope';
 import { allocateCardPayment, ultimosDeLaTarjeta, type CardAllocation } from './card-payment';
 import { agrupacionesAutomaticas } from './tarjetas-auto';
+import { clavesDeLaCuenta, idsFueraDelPlan } from './fuera-del-plan';
 import type { DeudaEnPapelera } from './papelera-deudas';
 import { ajustesDeCuadre, diaDeVencimiento, diaDelEstado, momentoDelCuadre, nombreDeSaldoNuevo, saldosAlCierre } from './cuadre-tarjeta';
 import {
@@ -362,6 +363,19 @@ export async function ensureDebtSchema(): Promise<void> {
       late_fee      DECIMAL(10,2),
       penalty_apr   DECIMAL(6,3),
       updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, account_key)
+    )
+  `;
+  // Las cuentas que el dueño quitó del Plan financiero (fuera-del-plan.ts).
+  // Es una preferencia de lo que el Plan ENSEÑA, y por eso vive aparte y sin
+  // FK hacia `debts`: quitar o devolver una tarjeta escribe aquí y en ningún
+  // otro sitio, así que no hay manera de que se lleve una deuda por delante.
+  // La clave es la de `credit_terms`: la tarjeta (card_group) o la deuda suelta.
+  await sql`
+    CREATE TABLE IF NOT EXISTS plan_hidden_accounts (
+      user_id       UUID          NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      account_key   UUID          NOT NULL,
+      hidden_at     TIMESTAMPTZ   NOT NULL DEFAULT now(),
       PRIMARY KEY (user_id, account_key)
     )
   `;
@@ -1032,6 +1046,11 @@ export interface CreditForPlan {
   deferredInterest: number | null;
   /** YYYY-MM-DD: desde cuándo corre un interés diferido. */
   openedAt: string | null;
+  /**
+   * El dueño la quitó del Plan: el Plan no la lista, pero su cuota sigue
+   * contando en el flujo del mes. En Deudas no cambia nada.
+   */
+  fueraDelPlan: boolean;
 }
 
 /**
@@ -1047,19 +1066,24 @@ export async function listCreditsForPlan(
   now: Date = new Date(),
 ): Promise<CreditForPlan[]> {
   await ensureDebtSchema();
-  const rows = await sql`
-    SELECT id, name, current_balance, rate, rate_period, strategy,
-           term_months, payoff_date, custom_payment, min_percent, min_floor,
-           min_includes_interest, extra_monthly, business_share,
-           promo_ends_on, rate_after_promo, cycle_days,
-           linked_payment_id, duplicate_dismissed, issuer,
-           card_group, kind, account_last4, currency,
-           promo_kind, deferred_interest, opened_at
-    FROM debts
-    WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
-  `;
+  const [rows, ocultas] = await Promise.all([
+    sql`
+      SELECT id, name, current_balance, rate, rate_period, strategy,
+             term_months, payoff_date, custom_payment, min_percent, min_floor,
+             min_includes_interest, extra_monthly, business_share,
+             promo_ends_on, rate_after_promo, cycle_days,
+             linked_payment_id, duplicate_dismissed, issuer,
+             card_group, kind, account_last4, currency,
+             promo_kind, deferred_interest, opened_at
+      FROM debts
+      WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
+    `,
+    // Si esta lectura falla, el Plan las enseña todas: mejor una tarjeta de
+    // más en la lista que un Plan que no carga. El dinero cuenta igual.
+    cuentasQuitadasDelPlan(userId).catch(() => new Set<string>()),
+  ]);
 
-  return rows.map((raw) => {
+  const creditos = rows.map((raw): CreditForPlan => {
     const row = raw as Record<string, unknown>;
     const balance = num(row.current_balance);
     const projection = projectDebt({
@@ -1104,8 +1128,66 @@ export async function listCreditsForPlan(
       promoKind: row.promo_kind === 'diferido' ? 'diferido' : 'cero',
       deferredInterest: numOrNull(row.deferred_interest),
       openedAt: claveDeFecha(row.opened_at),
+      fueraDelPlan: false,
     };
   });
+  const fuera = idsFueraDelPlan(creditos, ocultas);
+  return fuera.size === 0 ? creditos : creditos.map((c) => (fuera.has(c.id) ? { ...c, fueraDelPlan: true } : c));
+}
+
+/** Las claves guardadas en `plan_hidden_accounts` del usuario. */
+async function cuentasQuitadasDelPlan(userId: string): Promise<Set<string>> {
+  const rows = await sql`SELECT account_key FROM plan_hidden_accounts WHERE user_id = ${userId}`;
+  return new Set((rows as Record<string, unknown>[]).map((r) => String(r.account_key)));
+}
+
+/**
+ * Quita una cuenta del Plan financiero, o la devuelve. `debtId` es cualquiera
+ * de sus tramos: de qué cuenta se habla lo dice la base, no el cliente.
+ *
+ * SOLO escribe en `plan_hidden_accounts`. A `debts` le hace un SELECT para
+ * saber la cuenta y comprobar que es del usuario, y nada más: ni el saldo, ni
+ * el estado, ni la papelera. Por eso quitar una tarjeta del Plan no puede
+ * hacerla desaparecer de Deudas (debt-data.fuera-del-plan.test.ts lo vigila).
+ *
+ * Devuelve la clave de la cuenta, o null si la deuda no existe, es de otro
+ * usuario o está en la papelera.
+ */
+export async function ponerEnElPlan(userId: string, debtId: string, enPlan: boolean): Promise<string | null> {
+  await ensureDebtSchema();
+  // La deuda pedida y los demás tramos de su tarjeta, de cualquier estado: al
+  // devolverla hay que limpiar también una fila vieja guardada con el id de un
+  // tramo (fuera-del-plan.ts, «clavesDeLaCuenta»).
+  const rows = await sql`
+    SELECT t.id, t.card_group
+      FROM debts d
+      JOIN debts t ON t.user_id = d.user_id
+                  AND (t.id = d.id OR (d.card_group IS NOT NULL AND t.card_group = d.card_group))
+     WHERE d.id = ${debtId}::uuid AND d.user_id = ${userId} AND d.status <> 'archived'
+  `;
+  const tramos = (rows as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id),
+    cardGroup: (r.card_group as string | null) ?? null,
+  }));
+  const pedida = tramos.find((t) => t.id === debtId);
+  if (!pedida) return null;
+  const clave = claveDeCuenta(pedida);
+
+  if (enPlan) {
+    await sql`
+      DELETE FROM plan_hidden_accounts
+       WHERE user_id = ${userId} AND account_key = ANY(${clavesDeLaCuenta(tramos)}::uuid[])
+    `;
+  } else {
+    // La PK (user_id, account_key) es la restricción que hace saltar el
+    // conflicto: quitarla dos veces no duplica nada.
+    await sql`
+      INSERT INTO plan_hidden_accounts (user_id, account_key)
+      VALUES (${userId}, ${clave}::uuid)
+      ON CONFLICT (user_id, account_key) DO NOTHING
+    `;
+  }
+  return clave;
 }
 
 export async function getDebt(
