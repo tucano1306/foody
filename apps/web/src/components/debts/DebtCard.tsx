@@ -7,6 +7,7 @@ import SplitBar from './SplitBar';
 import { scopeOf } from '@/lib/expense-scope';
 import { toDateKey } from '@/lib/debt-engine';
 import { avisoDePromo } from '@/lib/debt-promo';
+import BotonMas from './BotonMas';
 import PromoAviso from './PromoAviso';
 import {
   fmtDateFull,
@@ -23,6 +24,8 @@ interface Props {
   readonly debt: DebtWithProjection;
   readonly onOpen: () => void;
   readonly onPay: () => void;
+  /** Abre el menú «⋯»: editar, condiciones del banco, pasar a Metas, borrar. */
+  readonly onMenu?: () => void;
 }
 
 /** El día de corte, dicho como se dice: "vence hoy", "en 3 días". */
@@ -41,7 +44,7 @@ function dueLabel(days: number): string {
  * fecha límite se muestra en la propia tarjeta: sin ella dos entradas del mismo
  * plástico serían indistinguibles en la lista.
  */
-export default function DebtCard({ debt, onOpen, onPay }: Props) {
+export default function DebtCard({ debt, onOpen, onPay, onMenu }: Props) {
   const kind = KIND_META[debt.kind] ?? KIND_META.other;
   const status = STATUS_META[debt.projection.status];
   const scope = scopeOf(debt.businessShare);
@@ -183,19 +186,26 @@ export default function DebtCard({ debt, onOpen, onPay }: Props) {
         )}
       </button>
 
-      {/* Acción principal siempre alcanzable con el pulgar */}
-      {!isPaid && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            haptic();
-            onPay();
-          }}
-          className="mt-2 w-full rounded-2xl bg-sky-500 py-3 text-sm font-bold text-white shadow-sm transition-all duration-150 hover:bg-sky-600 active:scale-95"
-        >
-          💸 Abonar
-        </button>
+      {/* Acción principal siempre alcanzable con el pulgar, y a su lado «⋯»
+          con lo demás. Una deuda liquidada ya no se abona, pero se puede
+          borrar o pasar a Metas: el «⋯» se queda, solo. */}
+      {(!isPaid || onMenu) && (
+        <div className="mt-2 flex items-stretch justify-end gap-2">
+          {!isPaid && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                haptic();
+                onPay();
+              }}
+              className="flex-1 rounded-2xl bg-sky-500 py-3 text-sm font-bold text-white shadow-sm transition-all duration-150 hover:bg-sky-600 active:scale-95"
+            >
+              💸 Abonar
+            </button>
+          )}
+          {onMenu && <BotonMas onClick={onMenu} de={debt.name} />}
+        </div>
       )}
     </div>
   );

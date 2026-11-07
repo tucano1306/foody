@@ -2,11 +2,12 @@
 
 import type { CardStatementInfo, DebtWithProjection } from '@/lib/debt-data';
 import { cardTitle, enPromocion, tasaVigente } from '@/lib/card-payment';
-import { PLANTILLAS, costoDelAtraso, type CondicionesDeCredito } from '@/lib/condiciones-credito';
+import { costoDelAtraso, type CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey } from '@/lib/debt-engine';
 import { avisoDePromo } from '@/lib/debt-promo';
 import { haptic } from '@/lib/haptic';
+import BotonMas from './BotonMas';
 import PromoAviso from './PromoAviso';
 import { BTN_PRIMARY, fmtDateFull, fmtMoney, fmtMoneyShort, fmtRate } from './debt-ui';
 
@@ -17,10 +18,13 @@ interface Props {
   readonly onPay: () => void;
   /** El último estado de cuenta guardado de esta tarjeta. */
   readonly estado?: CardStatementInfo | null;
-  readonly onCuadrar?: () => void;
   /** Las condiciones de su banco: con ellas, el mínimo sin cubrir dice lo que cuesta. */
   readonly condiciones?: CondicionesDeCredito | null;
-  readonly onCondiciones?: () => void;
+  /**
+   * Abre el menú «⋯» de la tarjeta: cuadrar, condiciones del banco, pasar a
+   * Metas y borrar. Lo arma DebtsView, que es quien tiene cada hoja.
+   */
+  readonly onMenu?: () => void;
 }
 
 /** Días hasta una fecha YYYY-MM-DD, contando en el calendario del dispositivo. */
@@ -37,7 +41,7 @@ function diasHasta(clave: string, hoy: string): number {
  * «Compras 3650» y «Unlimited Cash 3650» se pagan con el mismo mínimo. Ahora
  * se ven juntas, cada una con su tasa, y el abono se hace a la tarjeta.
  */
-export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = null, onCuadrar, condiciones = null, onCondiciones }: Props) {
+export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = null, condiciones = null, onMenu }: Props) {
   const hoy = toDateKey(new Date());
   const currency = tramos[0]?.currency ?? 'USD';
   const total = tramos.reduce((s, t) => s + t.currentBalance, 0);
@@ -152,41 +156,23 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
         })}
       </ul>
 
-      <button
-        type="button"
-        onClick={() => {
-          haptic();
-          onPay();
-        }}
-        className={`rounded-2xl py-3.5 text-sm ${BTN_PRIMARY}`}
-      >
-        💸 Abonar a la tarjeta
-      </button>
-      {onCuadrar && (
+      {/* Abonar es lo de cada mes y va a la vista; lo demás (cuadrar, las
+          condiciones del banco, pasar a Metas, borrar) vive en «⋯». Antes eran
+          líneas de texto sueltas debajo de la tarjeta, y cada acción nueva la
+          alargaba un poco más. */}
+      <div className="flex items-stretch gap-2">
         <button
           type="button"
           onClick={() => {
             haptic();
-            onCuadrar();
+            onPay();
           }}
-          className="-mt-2 rounded-2xl py-2.5 text-xs font-bold text-slate-600 transition hover:bg-sky-50 active:scale-[0.99]"
+          className={`flex-1 rounded-2xl py-3.5 text-sm ${BTN_PRIMARY}`}
         >
-          🧾 {estado ? 'Cuadrar con el nuevo estado de cuenta' : 'Cuadrar con el estado de cuenta'}
+          💸 Abonar a la tarjeta
         </button>
-      )}
-      {onCondiciones && (
-        <button
-          type="button"
-          onClick={() => {
-            haptic();
-            onCondiciones();
-          }}
-          className="-mt-3 rounded-2xl py-2 text-xs font-bold text-slate-500 transition hover:bg-sky-50 active:scale-[0.99]"
-        >
-          🏦 Condiciones del banco
-          {condiciones && <> · {condiciones.plantilla === 'propia' ? 'a tu medida' : PLANTILLAS[condiciones.plantilla].nombre}</>}
-        </button>
-      )}
+        {onMenu && <BotonMas onClick={onMenu} de={cardTitle(tramos)} />}
+      </div>
     </div>
   );
 }

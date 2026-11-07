@@ -8,10 +8,19 @@
  * Igual que budget-data.ts, vive fuera de los route handlers para poder usarse
  * también desde el render server-side de la página.
  */
+import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db';
 import { aCampoDeFecha } from '@/lib/app-time';
 import { getBudgetData } from '@/lib/budget-data';
-import { listCreditsForPlan, ultimosEstadosDeTarjeta, type CardStatementInfo, type CreditForPlan } from '@/lib/debt-data';
+import {
+  getDebt,
+  listCreditsForPlan,
+  ultimosEstadosDeTarjeta,
+  type CardStatementInfo,
+  type CreditForPlan,
+  type DebtWithProjection,
+} from '@/lib/debt-data';
+import { proponerMetas, type PorQueNo } from '@/lib/deuda-a-meta';
 import { monthlyCost, normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
@@ -614,4 +623,94 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     credits,
     cardStatements,
   };
+}
+
+// ─── Metas desde Deudas ──────────────────────────────────────────────────────
+
+export interface MetasDesdeDeudas {
+  /** Las metas nuevas, ya con las cifras que lee el Plan. */
+  creadas: FinanceGoal[];
+  /** Las deudas que no se convirtieron, y por qué. */
+  omitidas: { debtId: string; motivo: PorQueNo }[];
+}
+
+/**
+ * Una meta enganchada por cada deuda pedida: los tramos de una tarjeta, o una
+ * deuda suelta. Es lo que hay detrás de «🎯 Pasar a Metas» en Deudas.
+ *
+ * Todo sale de la base, nada del cliente: `getDebt` devenga el interés
+ * pendiente antes de proyectar, así que la meta nace con el saldo de HOY, el
+ * mismo que enseña Deudas. Y al quedar enganchada (`debt_id`), el Plan vuelve
+ * a leer esas cifras de la deuda cada vez: abonar la mueve sola.
+ *
+ * Integridad:
+ * - Una deuda de otro usuario no se encuentra (`getDebt` filtra por
+ *   `user_id`) y sale como `no_encontrada`: nunca se engancha una meta a una
+ *   deuda ajena.
+ * - Una deuda que ya persigue alguna meta no se duplica: dos metas sobre la
+ *   misma deuda leerían las mismas cifras y el Plan la contaría dos veces. Se
+ *   comprueba dos veces: al proponer, y otra vez DENTRO del INSERT
+ *   (`WHERE NOT EXISTS`), para que un segundo toque que llegue mientras el
+ *   primero se guarda no cree la copia. No es a prueba de dos peticiones
+ *   exactamente simultáneas —para eso haría falta un índice único, que
+ *   rompería las metas que hoy se enganchan a mano desde el formulario—; la
+ *   pantalla bloquea el botón mientras guarda, que es el caso real.
+ * - Se crean una a una y en orden de urgencia, cada una al final de la lista
+ *   del Plan. Si la base falla a mitad, las ya creadas quedan creadas y la
+ *   siguiente vez salen como `ya_en_metas`: reintentar es seguro.
+ */
+export async function crearMetasDesdeDeudas(
+  userId: string,
+  debtIds: readonly string[],
+  now: Date = new Date(),
+): Promise<MetasDesdeDeudas> {
+  await ensureFinanceSchema();
+
+  const encontradas = (await Promise.all(debtIds.map((id) => getDebt(userId, id, now)))).filter(
+    (d): d is DebtWithProjection => d !== null,
+  );
+  const yaEnganchadas = await sql`
+    SELECT debt_id FROM finance_goals
+     WHERE user_id = ${userId} AND debt_id = ANY(${[...debtIds]}::uuid[])
+  `;
+  const enMetas = new Set((yaEnganchadas as Record<string, unknown>[]).map((r) => String(r.debt_id)));
+
+  // «Hoy» en el calendario de la app: decide si un 0 % sigue vivo.
+  const hoy = aCampoDeFecha(now.toISOString());
+  const { metas, omitidas } = proponerMetas(debtIds, encontradas, hoy, enMetas);
+  const saldoDe = new Map(encontradas.map((d) => [d.id, d]));
+
+  const creadas: FinanceGoal[] = [];
+  for (const m of metas) {
+    // Casts explícitos: en un INSERT … SELECT los parámetros no heredan el
+    // tipo de la columna, y Postgres los adivinaría (ver la nota de
+    // inferencia de tipos de Neon: un decimal tipado como entero revienta).
+    const rows = await sql`
+      INSERT INTO finance_goals
+        (id, user_id, name, emoji, kind, target_amount, saved_amount, target_date,
+         priority, monthly_override, status, note, debt_id, created_at, updated_at)
+      SELECT
+        ${randomUUID()}::uuid, ${userId}::uuid, ${m.name}::text, ${m.emoji}::text, 'debt',
+        ${m.targetAmount}::numeric, ${m.savedAmount}::numeric, ${m.targetDate}::date,
+        (SELECT COALESCE(MAX(priority), 0) + 1 FROM finance_goals WHERE user_id = ${userId}::uuid),
+        NULL, 'active', ${m.note}::text, ${m.debtId}::uuid, NOW(), NOW()
+      WHERE NOT EXISTS (
+        SELECT 1 FROM finance_goals WHERE user_id = ${userId}::uuid AND debt_id = ${m.debtId}::uuid
+      )
+      RETURNING *
+    `;
+    if (rows.length === 0) {
+      omitidas.push({ debtId: m.debtId, motivo: 'ya_en_metas' });
+      continue;
+    }
+    const deuda = saldoDe.get(m.debtId);
+    creadas.push(
+      goalWithDebt(
+        mapGoalRow(rows[0] as Record<string, unknown>),
+        deuda ? { originalAmount: deuda.originalAmount, currentBalance: deuda.currentBalance } : null,
+      ),
+    );
+  }
+
+  return { creadas, omitidas };
 }

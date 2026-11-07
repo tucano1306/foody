@@ -136,6 +136,37 @@ export function validateGoalBody(body: Record<string, unknown>): GoalInput | Val
   };
 }
 
+// ─── Metas desde Deudas ──────────────────────────────────────────────────────
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Tope de deudas por petición. Una tarjeta real tiene tres o cuatro tramos;
+ * el tope solo existe para que un cuerpo hostil no convierta una petición en
+ * cientos de consultas.
+ */
+export const MAX_DEUDAS_A_METAS = 12;
+
+/**
+ * `{ debtIds: [...] }` → los ids, sin repetidos y en el orden pedido.
+ *
+ * Solo ids: el servidor lee el nombre, el saldo y la fecha de la base. Si
+ * aceptara cifras del cliente, la meta podría nacer con números que la deuda
+ * no tiene — justo lo que pasar a Metas de un toque viene a evitar.
+ */
+export function parseDebtIdsBody(body: Record<string, unknown>): string[] | ValidationError {
+  const raw = body.debtIds;
+  if (!Array.isArray(raw) || raw.length === 0) return { error: 'Elige al menos una deuda' };
+  const ids: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string' || !UUID.test(item.trim())) return { error: 'Deuda no válida' };
+    const id = item.trim().toLowerCase();
+    if (!ids.includes(id)) ids.push(id);
+  }
+  if (ids.length > MAX_DEUDAS_A_METAS) return { error: `Como mucho ${MAX_DEUDAS_A_METAS} deudas a la vez` };
+  return ids;
+}
+
 // ─── Ingresos ─────────────────────────────────────────────────────────────────
 
 export interface IncomeInput {

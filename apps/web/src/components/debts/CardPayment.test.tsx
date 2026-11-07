@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// DebtsView usa el router para «Ver en Metas»; fuera del App Router no lo hay.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 import type { DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, projectDebt, type RatePeriod } from '@/lib/debt-engine';
 import DebtsView from './DebtsView';

@@ -1,17 +1,24 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
 import { PlusIcon } from '@heroicons/react/24/solid';
 import type { CardStatementInfo, DebtWithProjection, DebtsSnapshot } from '@/lib/debt-data';
 import { buildPortfolio, type PortfolioDebt } from '@/lib/debt-engine';
 import { caminoDeDeudas } from '@/lib/camino-deudas';
 import { cardTitle } from '@/lib/card-payment';
-import { claveDeCuenta, condicionesDeLaCuenta, type CondicionesDeCredito } from '@/lib/condiciones-credito';
+import { claveDeCuenta, condicionesDeLaCuenta, PLANTILLAS, type CondicionesDeCredito } from '@/lib/condiciones-credito';
+import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
+import { toDateKey } from '@/lib/debt-engine';
+import { resumenEnMetas } from '@/lib/deuda-a-meta';
 import { findDuplicateObligations, type ObligationPayment } from '@/lib/duplicate-obligations';
 import { haptic } from '@/lib/haptic';
 import { matchesFilter, splitAmount, summarizeByScope, type ScopeFilter } from '@/lib/expense-scope';
 import ScopeTabs from '@/components/ui/ScopeTabs';
+import ActionSheet from '@/components/ui/ActionSheet';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 import DebtCard from './DebtCard';
 import CardGroupCard from './CardGroupCard';
 import CardPaymentModal from './CardPaymentModal';
@@ -23,7 +30,8 @@ import DebtEditModal from './DebtEditModal';
 import DebtPaymentModal from './DebtPaymentModal';
 import DebtWizardModal from './DebtWizardModal';
 import CaminoLibre from './CaminoLibre';
-import { fmtMoney, fmtMoneyShort, KIND_META } from './debt-ui';
+import PasarAMetasSheet from './PasarAMetasSheet';
+import { fmtDateFull, fmtMoney, fmtMoneyShort, KIND_META } from './debt-ui';
 
 interface Props {
   readonly initial: DebtsSnapshot;
@@ -36,6 +44,23 @@ interface Props {
   readonly payments?: readonly ObligationPayment[];
   /** Ámbito con el que abrir, si quien enlaza aquí ya sabe cuál quiere. */
   readonly initialScope?: ScopeFilter;
+}
+
+/** De qué es el menú «⋯» abierto: una tarjeta con tramos o una deuda suelta. */
+type Menu = { tipo: 'tarjeta'; group: string } | { tipo: 'deuda'; id: string };
+
+/** Lo que se va a borrar, con lo que la confirmación necesita decir. */
+type Borrado =
+  | { tipo: 'tarjeta'; group: string; titulo: string; tramos: number; metas: number }
+  | { tipo: 'deuda'; id: string; titulo: string; metas: number };
+
+/** Una acción del menú, tal como la pinta ActionSheet. */
+interface Accion {
+  label: string;
+  emoji: string;
+  hint?: string;
+  destructive?: boolean;
+  onClick: () => void;
 }
 
 /**
@@ -61,6 +86,19 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   // cuenta cuyas condiciones se están editando.
   const [terminos, setTerminos] = useState<Record<string, CondicionesDeCredito>>(initial.creditTerms ?? {});
   const [terminosDe, setTerminosDe] = useState<string | null>(null);
+  // El menú «⋯» abierto, la hoja de «Pasar a Metas» y el borrado por confirmar.
+  const [menu, setMenu] = useState<Menu | null>(null);
+  const [metasDe, setMetasDe] = useState<{ ids: string[]; titulo: string } | null>(null);
+  const [borrado, setBorrado] = useState<Borrado | null>(null);
+  const [borrando, setBorrando] = useState(false);
+  /**
+   * Las deudas que ya persigue alguna meta del Plan. Al pasar una a Metas se
+   * apunta aquí al momento, y el menú cambia «Pasar a Metas» por «Ver en
+   * Metas» sin recargar.
+   */
+  const [enMetas, setEnMetas] = useState<ReadonlySet<string>>(() => new Set(initial.enMetas ?? []));
+  const router = useRouter();
+  const toast = useToast();
   /**
    * Qué lado se está mirando.
    *
@@ -197,6 +235,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
     setDebts([...snapshot.debts].sort((a, b) => b.currentBalance - a.currentBalance));
     if (snapshot.cardStatements) setEstados(snapshot.cardStatements);
     if (snapshot.creditTerms) setTerminos(snapshot.creditTerms);
+    if (snapshot.enMetas) setEnMetas(new Set(snapshot.enMetas));
   }, []);
 
   const currency = debts[0]?.currency ?? 'USD';
@@ -242,6 +281,150 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
     setDebts((prev) => prev.filter((d) => d.id !== id));
     setDetailId(null);
   }, []);
+
+  /**
+   * El menú «⋯» de una tarjeta o de una deuda, armado con lo que hay HOY.
+   *
+   * Cada acción lleva debajo el dato que decide si tocarla —el mínimo y si
+   * está cubierto, el banco de sus condiciones, si ya está en Metas—, nunca
+   * una instrucción. Las acciones son siempre las mismas y en el mismo orden,
+   * para que el pulgar aprenda dónde está cada una; solo cambia «Pasar a
+   * Metas», que se vuelve «Ver en Metas» cuando ya no queda nada que pasar.
+   */
+  const acciones = useMemo((): { titulo: string; lista: Accion[] } | null => {
+    if (!menu) return null;
+    const hoy = toDateKey(new Date());
+
+    const accionMetas = (cuentas: DebtWithProjection[], titulo: string, hintPasar: string): Accion | null => {
+      const r = resumenEnMetas(cuentas, hoy, enMetas);
+      if (r.porPasar > 0) {
+        return {
+          emoji: '🎯',
+          label: 'Pasar a Metas',
+          hint: hintPasar,
+          onClick: () => setMetasDe({ ids: cuentas.map((d) => d.id), titulo }),
+        };
+      }
+      if (r.yaEnMetas > 0) {
+        return { emoji: '✅', label: 'Ver en Metas', hint: 'Ya está en tu Plan', onClick: () => router.push('/plan#metas') };
+      }
+      return null; // Todo pagado: no queda nada que perseguir.
+    };
+    const nombreDe = (c: CondicionesDeCredito | null | undefined) =>
+      c ? (c.plantilla === 'propia' ? 'A tu medida' : PLANTILLAS[c.plantilla].nombre) : undefined;
+
+    if (menu.tipo === 'tarjeta') {
+      // Con los saldos ENTEROS: el ámbito solo cambia lo que se enseña.
+      const tramos = debts.filter((d) => d.cardGroup === menu.group && d.status !== 'archived');
+      if (tramos.length === 0) return null;
+      const titulo = cardTitle(tramos);
+      const estado = estados[menu.group] ?? null;
+      const cobertura = estadoDelMinimo(estado);
+      const debe = tramos.reduce((s, d) => s + d.currentBalance, 0);
+      const cur = tramos[0].currency;
+      const porPasar = tramos.filter((t) => !enMetas.has(t.id) && t.currentBalance > 0).length;
+      const lista: (Accion | null)[] = [
+        debe > 0
+          ? {
+              emoji: '💸',
+              label: 'Abonar a la tarjeta',
+              hint:
+                estado && cobertura
+                  ? cobertura.cubierto
+                    ? `Mínimo ${fmtMoney(estado.minimumDue, cur)} · ✓ cubierto`
+                    : `Faltan ${fmtMoney(cobertura.falta, cur)} del mínimo`
+                  : undefined,
+              onClick: () => setPayCard(menu.group),
+            }
+          : null,
+        {
+          emoji: '🧾',
+          label: 'Cuadrar con el estado de cuenta',
+          hint: estado ? `El último cerró el ${fmtDateFull(estado.closingDate)}` : 'Aún sin ninguno',
+          onClick: () => setCuadrarCard(menu.group),
+        },
+        {
+          emoji: '🏦',
+          label: 'Condiciones del banco',
+          hint: nombreDe(terminos[menu.group]),
+          onClick: () => setTerminosDe(menu.group),
+        },
+        accionMetas(tramos, titulo, `${porPasar} ${porPasar === 1 ? 'tramo' : 'tramos'} · sin teclear nada`),
+        {
+          emoji: '🗑️',
+          label: 'Borrar tarjeta',
+          hint: `Sus ${tramos.length} tramos y su historial`,
+          destructive: true,
+          onClick: () =>
+            setBorrado({
+              tipo: 'tarjeta',
+              group: menu.group,
+              titulo,
+              tramos: tramos.length,
+              metas: tramos.filter((t) => enMetas.has(t.id)).length,
+            }),
+        },
+      ];
+      return { titulo, lista: lista.filter((a): a is Accion => a !== null) };
+    }
+
+    const d = debts.find((x) => x.id === menu.id);
+    if (!d) return null;
+    const lista: (Accion | null)[] = [
+      d.currentBalance > 0 ? { emoji: '💸', label: 'Abonar', onClick: () => setPayId(d.id) } : null,
+      { emoji: '✏️', label: 'Editar datos', onClick: () => setEditId(d.id) },
+      {
+        emoji: '🏦',
+        label: 'Condiciones del banco',
+        hint: nombreDe(terminos[claveDeCuenta(d)]),
+        onClick: () => setTerminosDe(claveDeCuenta(d)),
+      },
+      accionMetas([d], d.name, `Falta ${fmtMoney(d.currentBalance, d.currency)} · sin teclear nada`),
+      {
+        emoji: '🗑️',
+        label: 'Borrar deuda',
+        hint: 'Con todo su historial',
+        destructive: true,
+        onClick: () => setBorrado({ tipo: 'deuda', id: d.id, titulo: d.name, metas: enMetas.has(d.id) ? 1 : 0 }),
+      },
+    ];
+    return { titulo: d.name, lista: lista.filter((a): a is Accion => a !== null) };
+  }, [menu, debts, estados, terminos, enMetas, router]);
+
+  /**
+   * Borra lo confirmado. La lista se actualiza con la respuesta del servidor,
+   * no antes: si la base dice que no, la tarjeta sigue ahí y un aviso lo dice.
+   */
+  async function confirmarBorrado() {
+    if (!borrado || borrando) return;
+    setBorrando(true);
+    try {
+      const url = borrado.tipo === 'tarjeta' ? `/api/debts/cards/${borrado.group}` : `/api/debts/${borrado.id}`;
+      const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? 'No se pudo borrar');
+      }
+      if (borrado.tipo === 'tarjeta') {
+        const group = borrado.group;
+        setDebts((prev) => prev.filter((d) => d.cardGroup !== group));
+        setEstados((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== group)));
+        setTerminos((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== group)));
+      } else {
+        remove(borrado.id);
+      }
+      haptic([10, 30, 10]);
+      toast.show(borrado.tipo === 'tarjeta' ? 'Tarjeta borrada' : 'Deuda borrada', 'success');
+      setBorrado(null);
+    } catch (err) {
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      toast.show(offline ? 'Sin conexión: no se borró nada' : (err as Error).message, 'error');
+    } finally {
+      setBorrando(false);
+    }
+  }
+
+  const deudasAMetas = metasDe ? debts.filter((d) => metasDe.ids.includes(d.id)) : [];
 
   return (
     <div className="space-y-5">
@@ -308,9 +491,8 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
                 onOpenTramo={setDetailId}
                 onPay={() => setPayCard(b.group)}
                 estado={estados[b.group] ?? null}
-                onCuadrar={() => setCuadrarCard(b.group)}
                 condiciones={terminos[b.group] ?? null}
-                onCondiciones={() => setTerminosDe(b.group)}
+                onMenu={() => setMenu({ tipo: 'tarjeta', group: b.group })}
               />
             ) : (
               <DebtCard
@@ -318,6 +500,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
                 debt={b.debt}
                 onOpen={() => setDetailId(b.debt.id)}
                 onPay={() => setPayId(b.debt.id)}
+                onMenu={() => setMenu({ tipo: 'deuda', id: b.debt.id })}
               />
             ),
           )}
@@ -454,7 +637,53 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             onSaved={replaceAll}
           />
         )}
+        {metasDe && deudasAMetas.length > 0 && (
+          <PasarAMetasSheet
+            key="metas"
+            deudas={deudasAMetas}
+            titulo={metasDe.titulo}
+            enMetas={enMetas}
+            onClose={() => setMetasDe(null)}
+            onEnMetas={(ids) => setEnMetas((prev) => new Set([...prev, ...ids]))}
+          />
+        )}
       </AnimatePresence>
+
+      {/* ─── El menú «⋯» de cada tarjeta ──────────────────────────────────── */}
+      <ActionSheet
+        open={acciones !== null}
+        onClose={() => setMenu(null)}
+        title={acciones?.titulo}
+        actions={acciones?.lista ?? []}
+      />
+
+      {/* Borrar nunca está a un toque: el menú lo propone y esto lo confirma. */}
+      <ConfirmDialog
+        open={borrado !== null}
+        title={borrado ? `¿Borrar ${borrado.titulo}?` : ''}
+        message={
+          borrado
+            ? (borrado.tipo === 'tarjeta'
+                ? `Se van sus ${borrado.tramos} tramos, sus abonos y sus estados de cuenta.`
+                : 'Se va con todos sus abonos.') +
+              // Las metas no se borran: la FK las desengancha (ver deleteCard).
+              (borrado.metas === 1
+                ? ' Su meta se queda en el Plan.'
+                : borrado.metas > 1
+                  ? ` Sus ${borrado.metas} metas se quedan en el Plan.`
+                  : '') +
+              ' No se puede deshacer.'
+            : undefined
+        }
+        confirmLabel="Sí, borrar"
+        cancelLabel="Mejor no"
+        destructive
+        busy={borrando}
+        onConfirm={() => void confirmarBorrado()}
+        onCancel={() => {
+          if (!borrando) setBorrado(null);
+        }}
+      />
     </div>
   );
 }
