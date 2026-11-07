@@ -77,9 +77,13 @@ export default function DebtCard({ debt, onOpen, onPay, onMenu }: Props) {
             size={56}
             label={`${Math.round(debt.breakdown.progress)} % del capital pagado`}
           />
+          {/* Sin `truncate` en el nombre ni en la línea del banco: a 375 px
+              cortaba en «Adelanto 0 % 67…» y «···67…», justo los dígitos que
+              distinguen esta tarjeta de la de al lado. Dos líneas leen mejor
+              que una a medias. */}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-bold text-black">{debt.name}</p>
-            <p className="mt-0.5 truncate text-xs text-slate-500">
+            <p className="text-base font-bold leading-tight text-black">{debt.name}</p>
+            <p className="mt-0.5 text-xs text-slate-500">
               {debt.issuer ?? kind.label}
               {debt.accountLast4 && <span className="font-mono"> ···{debt.accountLast4}</span>}
               <span className="mx-1.5 text-slate-300">·</span>

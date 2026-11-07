@@ -1,14 +1,14 @@
 'use client';
 
 import type { CardStatementInfo } from '@/lib/debt-data';
-import { cardTitle, enPromocion } from '@/lib/card-payment';
+import { cardTitle, ultimosDeLaTarjeta } from '@/lib/card-payment';
 import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
 import { toDateKey, type RatePeriod } from '@/lib/debt-engine';
-import { avisoDePromo } from '@/lib/debt-promo';
 import type { TipoDePromo } from '@/lib/condiciones-credito';
 import { haptic } from '@/lib/haptic';
-import PromoAviso from '@/components/debts/PromoAviso';
-import { fmtDateFull, fmtRate } from '@/components/debts/debt-ui';
+import ChipDeCuenta from '@/components/debts/ChipDeCuenta';
+import TramosDeTarjeta from '@/components/debts/TramosDeTarjeta';
+import { fmtDateFull } from '@/components/debts/debt-ui';
 import { fmtMoneyFine } from './finance-ui';
 
 /** Un tramo tal como lo tiene el plan: su resumen más lo que hace falta para pintarlo. */
@@ -59,7 +59,6 @@ function diasHasta(clave: string, hoy: string): number {
  */
 export default function PlanCardGroup({ tramos, estado, loadingId, grupo, onOpenTramo, onPay, onCuadrar }: Props) {
   const hoy = toDateKey(new Date());
-  const currency = tramos[0]?.currency ?? 'USD';
   const titulo = cardTitle(tramos.map((t) => ({ name: t.name, issuer: t.issuer, accountLast4: t.accountLast4 })));
   const total = tramos.reduce((s, t) => s + t.balance, 0);
   const interes = tramos.reduce((s, t) => s + t.monthlyInterest, 0);
@@ -70,9 +69,12 @@ export default function PlanCardGroup({ tramos, estado, loadingId, grupo, onOpen
   const ocupado = loadingId !== null;
 
   return (
-    <div className="space-y-2.5 rounded-2xl bg-white/70 p-3">
-      <div className="flex items-center gap-2.5 px-1">
-        <span className="text-2xl leading-none" aria-hidden="true">💳</span>
+    // `card` y no `bg-white/70`: el blanco translúcido sobre la lavanda de la
+    // sección, sin borde, dejaba las tarjetas sin contorno y pegadas a la
+    // vecina; en oscuro, además, del mismo `--surface` que sus tramos.
+    <div className="card space-y-3 p-4">
+      <div className="flex items-center gap-3">
+        <ChipDeCuenta ultimos={ultimosDeLaTarjeta(tramos)} />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold leading-tight text-black">{titulo}</span>
           <span className="block text-[11px] text-slate-500">{tramos.length} saldos · un solo mínimo</span>
@@ -111,42 +113,14 @@ export default function PlanCardGroup({ tramos, estado, loadingId, grupo, onOpen
         </div>
       )}
 
-      <ul className="space-y-1.5" aria-label={`Saldos de ${titulo}`}>
-        {ordenados.map((t) => {
-          const promoViva = enPromocion(t, hoy);
-          const aviso = avisoDePromo({ ...t, currentBalance: t.balance }, hoy);
-          return (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => onOpenTramo(t.id)}
-                disabled={ocupado}
-                className="flex w-full flex-col gap-1 rounded-xl bg-sky-50/80 px-3 py-2.5 text-left transition active:scale-[0.99] hover:bg-sky-50 disabled:opacity-60"
-              >
-                <span className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-black">{t.name}</span>
-                  <span className="shrink-0 text-sm font-black tabular-nums text-black">{fmtMoneyFine(t.balance)}</span>
-                  <span aria-hidden="true" className="shrink-0 text-sm text-slate-300">›</span>
-                </span>
-                <span className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
-                  {loadingId === t.id ? (
-                    <span className="text-slate-500">Abriendo…</span>
-                  ) : promoViva ? (
-                    <span className="rounded-full bg-white px-2 py-0.5 text-sky-700">0 % hasta el {fmtDateFull(t.promoEndsOn)}</span>
-                  ) : (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">
-                      {t.promoEndsOn && t.rateAfterPromo != null
-                        ? fmtRate(t.rateAfterPromo, 'annual_nominal')
-                        : fmtRate(t.rate, t.ratePeriod)}
-                    </span>
-                  )}
-                </span>
-                {aviso && <PromoAviso aviso={aviso} currency={currency} />}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <TramosDeTarjeta
+        titulo={titulo}
+        tramos={ordenados}
+        formatoSaldo={(t) => fmtMoneyFine(t.balance)}
+        onOpen={onOpenTramo}
+        abriendo={loadingId}
+        disabled={ocupado}
+      />
 
       {/* Lo que el plan aparta al mes para la tarjeta: la suma de lo que pide
           cada tramo con la estrategia que tiene en Deudas. Al lado del mínimo

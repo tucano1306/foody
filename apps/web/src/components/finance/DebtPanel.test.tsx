@@ -25,6 +25,7 @@ function credito(over: Partial<CreditForPlan> & Pick<CreditForPlan, 'id' | 'name
     duplicateDismissed: false,
     issuer: 'Bank of America',
     cardGroup: GRUPO,
+    kind: 'credit_card',
     accountLast4: '3650',
     currency: 'USD',
     rate: 23.99,
@@ -45,8 +46,8 @@ const credits: CreditForPlan[] = [
   credito({ id: '6791', name: 'Adelanto 0 % 6791', balance: 6052, installment: 550, cardGroup: null, accountLast4: '6791', rate: 0, promoEndsOn: '2027-09-27', rateAfterPromo: 27.49 }),
 ];
 
-function overview(): DebtOverview {
-  const creditOrder = [...credits]
+function overview(lista: readonly CreditForPlan[] = credits): DebtOverview {
+  const creditOrder = [...lista]
     .sort((a, b) => b.monthlyInterest - a.monthlyInterest || b.balance - a.balance)
     .map((c) => ({
       id: c.id,
@@ -215,5 +216,62 @@ describe('el Plan pinta las tarjetas como Deudas', () => {
     expect(dialogo).toBeInTheDocument();
     // Solo los tramos de ESTA tarjeta: «Otra tarjeta» no entra en el reparto.
     expect(screen.getByText(/Bank of America ···3650 · debes \$12,463\.04/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * «Las tarjetas se ven muy unidas, cuesta saber cuál es cuál»: los tramos de
+ * la 3650 eran cajas del mismo tono que «Cash Rewards 8523» y que la tarjeta
+ * que los contenía. Ahora solo la cabecera de una cuenta lleva sello, los
+ * tramos van en una bandeja propia y cada tarjeta suelta es una tarjeta.
+ */
+describe('cada tarjeta se distingue de la de al lado', () => {
+  const sellos = () => [...document.querySelectorAll('[data-chip-cuenta]')].map((s) => s.getAttribute('data-chip-cuenta'));
+
+  it('cada cuenta lleva un sello con sus dígitos, y sus tramos no', () => {
+    render(<DebtPanel debts={overview()} credits={credits} estados={{ [GRUPO]: estado }} onChanged={vi.fn()} />);
+
+    // Una por cuenta y en el orden de la lista: la 3650 (sus tres saldos) y la 6791.
+    expect(sellos()).toEqual(['3650', '6791']);
+    const bandeja = screen.getByRole('list', { name: 'Saldos de Bank of America ···3650' });
+    expect(bandeja.querySelector('[data-chip-cuenta]')).toBeNull();
+  });
+
+  it('una tarjeta suelta es una tarjeta entera, con su aviso del 0 % dentro', () => {
+    // El aviso sale a 90 días o menos del fin del 0 %: la 6791 real acaba en
+    // septiembre de 2027, así que aquí se acerca a fin de año.
+    const cerca = credits.map((c) => (c.id === '6791' ? { ...c, promoEndsOn: '2026-12-31' } : c));
+    render(<DebtPanel debts={overview(cerca)} credits={cerca} estados={{ [GRUPO]: estado }} onChanged={vi.fn()} />);
+
+    const suelta = screen.getByText('Adelanto 0 % 6791').closest('li');
+    expect(suelta).toHaveClass('card');
+    // El aviso iba DEBAJO de la fila, fuera de ella, y parecía de la tarjeta
+    // siguiente; ahora vive dentro de su tarjeta.
+    expect(within(suelta as HTMLElement).getByText(/El 0 % se acaba/)).toBeInTheDocument();
+  });
+
+  it('un préstamo lleva su emoji, no un plástico de tarjeta', () => {
+    const conAuto = [
+      ...credits,
+      credito({ id: 'auto', name: 'Auto GMC', balance: 9000, installment: 420, cardGroup: null, kind: 'auto', issuer: 'GMC', accountLast4: null, rate: 6.5 }),
+    ];
+    render(<DebtPanel debts={overview(conAuto)} credits={conAuto} estados={{ [GRUPO]: estado }} onChanged={vi.fn()} />);
+
+    const auto = screen.getByText('Auto GMC').closest('li') as HTMLElement;
+    expect(auto.querySelector('[data-chip-cuenta]')).toBeNull();
+    expect(within(auto).getByText('🚗')).toBeInTheDocument();
+    expect(sellos()).toEqual(['3650', '6791']);
+  });
+
+  it('al abrir un tramo, ese dice «Abriendo…» y los demás esperan', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+    render(<DebtPanel debts={overview()} credits={credits} estados={{ [GRUPO]: estado }} onChanged={vi.fn()} />);
+
+    const bandeja = within(screen.getByRole('list', { name: 'Saldos de Bank of America ···3650' }));
+    fireEvent.click(bandeja.getByRole('button', { name: /Compras 3650/ }));
+
+    await waitFor(() => expect(bandeja.getByRole('button', { name: /Compras 3650/ })).toHaveTextContent('Abriendo…'));
+    for (const b of bandeja.getAllByRole('button')) expect(b).toBeDisabled();
+    expect(bandeja.getByRole('button', { name: /Saldo nuevo 3650/ })).not.toHaveTextContent('Abriendo…');
   });
 });
