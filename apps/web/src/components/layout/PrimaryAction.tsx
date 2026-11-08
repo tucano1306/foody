@@ -26,6 +26,14 @@ const ACTIONS: readonly { readonly match: string; readonly href: string; readonl
   { match: '/shopping-trips', href: '/shopping-trips/new', label: 'Compra' },
 ];
 
+/**
+ * Alto del botón y su separación de la barra. Viven aquí, juntos, porque el
+ * hueco del final de la página se calcula con ellos: si el botón crece y el
+ * hueco no, vuelve a tapar lo último de la lista.
+ */
+const ALTO = '3.5rem';
+const SEPARACION = '0.75rem';
+
 export default function PrimaryAction() {
   const pathname = usePathname();
 
@@ -34,27 +42,48 @@ export default function PrimaryAction() {
   const action = ACTIONS.find((a) => pathname === a.match);
 
   return (
-    <AnimatePresence>
+    <>
+      {/* El hueco que ocupa el botón, al final de la página.
+
+          El botón flota encima de la barra de pestañas, y `main` solo deja
+          sitio a la barra: al llegar abajo, la última tarjeta se quedaba
+          DEBAJO del botón y no había forma de subirla — en Compras tapaba el
+          importe del último mes; en Productos, el nombre del último producto.
+          Este hueco mide lo mismo que el botón más su separación de la barra,
+          así que lo último de la lista siempre puede quedar por encima, con
+          el mismo aire que `main` deja sobre la barra. Va fuera de la
+          animación: el hueco no tiene que esperar a que el botón entre. */}
       {action && (
-        <motion.div
-          key={action.href}
-          initial={{ opacity: 0, y: 24, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 24, scale: 0.9 }}
-          transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-          className="md:hidden fixed right-4 z-30"
-          style={{ bottom: 'calc(var(--tabbar-h) + 0.75rem)' }}
-        >
-          <Link
-            href={action.href}
-            onClick={() => haptic(10)}
-            className="btn-primary flex items-center gap-2 rounded-full pl-4 pr-5 h-14 text-[15px]"
-          >
-            <PlusIcon className="w-5 h-5 shrink-0" />
-            {action.label}
-          </Link>
-        </motion.div>
+        <div
+          aria-hidden="true"
+          data-hueco-accion
+          className="md:hidden shrink-0"
+          style={{ height: `calc(${ALTO} + ${SEPARACION})` }}
+        />
       )}
-    </AnimatePresence>
+      <AnimatePresence>
+        {action && (
+          <motion.div
+            key={action.href}
+            initial={{ opacity: 0, y: 24, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+            className="md:hidden fixed right-4 z-30"
+            style={{ bottom: `calc(var(--tabbar-h) + ${SEPARACION})` }}
+          >
+            <Link
+              href={action.href}
+              onClick={() => haptic(10)}
+              className="btn-primary flex items-center gap-2 rounded-full pl-4 pr-5 text-[15px]"
+              style={{ height: ALTO }}
+            >
+              <PlusIcon className="w-5 h-5 shrink-0" />
+              {action.label}
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
