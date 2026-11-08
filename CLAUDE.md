@@ -160,9 +160,10 @@ con nombres autogenerados.
 | Postgres | 17, `aws-us-east-1` |
 
 20 objetos en `public`: 19 tablas más la vista `trip_kind_amounts`. Ojo, varias
-tablas (`debts`, `credit_terms`, `finance_goals`, `budget_settings`, `pantry_shares`…) **no** las
-crea `ensure-schema.ts` sino los `ensure*` de `debt-data.ts`, `finance-data.ts` y
-`ensure-sharing-schema.ts`.
+tablas (`debts`, `credit_terms`, `plan_hidden_accounts`, `finance_goals`, `budget_settings`,
+`pantry_shares`…) **no** las crea `ensure-schema.ts` sino los `ensure*` de `debt-data.ts`,
+`finance-data.ts` y `ensure-sharing-schema.ts`. (`plan_hidden_accounts` nace con el
+primer arranque tras el deploy de «Quitar del Plan»; hasta entonces no está en la base.)
 
 El conector está en modo escritura: tiene herramientas destructivas. No las uses
 sin preguntar al dueño del proyecto.
@@ -563,6 +564,12 @@ Otras convenciones observadas:
   comportamiento de producción.
 - No metas `SELECT *` sobre `products` en código que corra en cada página.
 - No filtres la lista de la compra por `household_id`.
+- No vuelvas a poner «borrar deuda» en el Plan financiero. El 7 nov 2026 el
+  dueño quiso sacar sus tarjetas del Plan, «Borrar» se las llevó de Deudas y
+  hubo que restaurar Neon. En el Plan solo se quita de la vista
+  (`lib/fuera-del-plan.ts`, tabla `plan_hidden_accounts`, sin FK a `debts`);
+  borrar —que es mandar a la papelera, nunca un `DELETE`— solo se hace en Deudas.
+  Lo vigilan `debt-data.fuera-del-plan.test.ts` y `debt-data.papelera.test.ts`.
 - No asumas que `pnpm lint` en la web pasa eslint — es `tsc --noEmit`.
 - No leas ni escribas `.env`, `.env.local`, `.env.vercel.local` ni `cookies.txt`.
   Están en `.gitignore` y llevan credenciales reales.

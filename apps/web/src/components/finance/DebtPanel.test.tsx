@@ -3,6 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { CardStatementInfo, CreditForPlan, DebtWithProjection } from '@/lib/debt-data';
 import { projectDebt, type RatePeriod } from '@/lib/debt-engine';
 import type { DebtOverview } from '@/lib/finance-engine';
+import { ToastProvider } from '@/components/ui/Toast';
 import DebtPanel from './DebtPanel';
 
 /**
@@ -154,6 +155,7 @@ beforeAll(async () => {
   // Los modales se cargan con next/dynamic: precargados, el import se
   // resuelve al momento y el test no depende de lo rápido que transforme.
   await import('@/components/debts/CardPaymentModal');
+  await import('@/components/debts/DebtDetailSheet');
 });
 
 beforeEach(() => {
@@ -274,5 +276,153 @@ describe('cada tarjeta se distingue de la de al lado', () => {
     await waitFor(() => expect(bandeja.getByRole('button', { name: /Compras 3650/ })).toHaveTextContent('Abriendo…'));
     for (const b of bandeja.getAllByRole('button')) expect(b).toBeDisabled();
     expect(bandeja.getByRole('button', { name: /Saldo nuevo 3650/ })).not.toHaveTextContent('Abriendo…');
+  });
+});
+
+/**
+ * «En el Plan me salen las 3 tarjetas, que no son metas; las quiero quitar de
+ * allí con seguridad de que no se me van a borrar en Deudas». El 7 nov 2026 lo
+ * único que había era «Borrar», y se las llevó de Deudas. Ahora el Plan quita
+ * de la vista y no borra nada.
+ */
+describe('quitar una tarjeta del Plan sin tocarla en Deudas', () => {
+  type Llamada = { url: string; method: string; body: unknown };
+  let llamadas: Llamada[] = [];
+
+  /** Un fetch que apunta cada llamada y responde por la URL. */
+  function servidor(respuestas: { plan?: number; detalle?: DebtWithProjection } = {}) {
+    llamadas = [];
+    const fetchMock = vi.fn(async (url: string, init: RequestInit = {}) => {
+      llamadas.push({
+        url,
+        method: init.method ?? 'GET',
+        body: typeof init.body === 'string' ? JSON.parse(init.body) : null,
+      });
+      if (url.endsWith('/plan')) {
+        return new Response(JSON.stringify({ clave: GRUPO }), { status: respuestas.plan ?? 200 });
+      }
+      if (url.includes('/movements')) return new Response('[]', { status: 200 });
+      if (respuestas.detalle && url === `/api/debts/${respuestas.detalle.id}`) {
+        return new Response(JSON.stringify(respuestas.detalle), { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+  }
+
+  /** Nada de lo que hizo la pantalla es un DELETE, y nada fue a otra ruta que /plan para escribir. */
+  function noBorroNada() {
+    expect(llamadas.filter((l) => l.method === 'DELETE')).toEqual([]);
+    for (const l of llamadas.filter((x) => x.method !== 'GET')) expect(l.url).toMatch(/\/plan$/);
+  }
+
+  function pintar(lista: readonly CreditForPlan[] = credits) {
+    return render(
+      <ToastProvider>
+        <DebtPanel debts={overview(lista)} credits={lista} estados={{ [GRUPO]: estado }} onChanged={vi.fn()} />
+      </ToastProvider>,
+    );
+  }
+
+  const tarjeta3650 = () => screen.queryByRole('list', { name: 'Saldos de Bank of America ···3650' });
+  const saldoDeLaCabecera = () => screen.getByText('Saldo').nextElementSibling;
+
+  it('cada cuenta del Plan tiene su «Quitar del Plan»: la tarjeta de tres saldos uno solo', () => {
+    servidor();
+    pintar();
+    expect(screen.getAllByRole('button', { name: /^Quitar .* del Plan$/ }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Quitar Bank of America ···3650 del Plan',
+      'Quitar Adelanto 0 % 6791 del Plan',
+    ]);
+  });
+
+  it('al tocar, la tarjeta se va en el acto con sus tres saldos, se guarda con un PUT y el aviso dice que sigue en Deudas', async () => {
+    servidor();
+    pintar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar Bank of America ···3650 del Plan' }));
+
+    // En el acto: sin esperar a la respuesta.
+    expect(tarjeta3650()).toBeNull();
+    expect(screen.queryByText('Compras 3650')).toBeNull();
+    // La cabecera cuenta lo que se ve: solo la 6791.
+    expect(saldoDeLaCabecera()).toHaveTextContent('$6,052');
+
+    await waitFor(() => expect(llamadas).toHaveLength(1));
+    // Con el id de un tramo: de qué cuenta se habla lo decide el servidor.
+    expect(llamadas[0]).toEqual({ url: '/api/debts/compras/plan', method: 'PUT', body: { enPlan: false } });
+    expect(await screen.findByText('Fuera del Plan · sigue en Deudas')).toBeInTheDocument();
+    noBorroNada();
+
+    // Y queda a mano para volver.
+    const fuera = within(screen.getByRole('list', { name: 'Fuera del Plan' }));
+    expect(fuera.getByText('Bank of America ···3650')).toBeInTheDocument();
+    expect(screen.getByText(/Fuera del Plan · 1/)).toBeInTheDocument();
+  });
+
+  it('«Deshacer» la devuelve al Plan', async () => {
+    servidor();
+    pintar();
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar Bank of America ···3650 del Plan' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Deshacer' }));
+
+    expect(tarjeta3650()).not.toBeNull();
+    await waitFor(() => expect(llamadas).toHaveLength(2));
+    expect(llamadas[1]).toEqual({ url: '/api/debts/compras/plan', method: 'PUT', body: { enPlan: true } });
+    expect(screen.queryByRole('list', { name: 'Fuera del Plan' })).toBeNull();
+    noBorroNada();
+  });
+
+  it('si no se pudo guardar, la tarjeta vuelve y el aviso lo dice', async () => {
+    servidor({ plan: 500 });
+    pintar();
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar Adelanto 0 % 6791 del Plan' }));
+
+    expect(await screen.findByText('No se pudo quitar del Plan')).toBeInTheDocument();
+    expect(screen.getByText('Adelanto 0 % 6791')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Fuera del Plan' })).toBeNull();
+  });
+
+  it('lo que el servidor ya trae fuera del Plan no se lista, y «Mostrar» lo devuelve', async () => {
+    servidor();
+    const conLa6791Fuera = credits.map((c) => (c.id === '6791' ? { ...c, fueraDelPlan: true } : c));
+    pintar(conLa6791Fuera);
+
+    expect(screen.getByRole('button', { name: 'Quitar Bank of America ···3650 del Plan' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Quitar Adelanto 0 % 6791 del Plan' })).toBeNull();
+    // Saldo de la 3650 sola.
+    expect(saldoDeLaCabecera()).toHaveTextContent('$13,016');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volver a mostrar Adelanto 0 % 6791 en el Plan' }));
+    expect(screen.getByRole('button', { name: 'Quitar Adelanto 0 % 6791 del Plan' })).toBeInTheDocument();
+    await waitFor(() => expect(llamadas).toHaveLength(1));
+    expect(llamadas[0]).toEqual({ url: '/api/debts/6791/plan', method: 'PUT', body: { enPlan: true } });
+    expect(await screen.findByText('De vuelta en el Plan')).toBeInTheDocument();
+  });
+
+  it('con todas fuera, la sección de tarjetas no se pinta y solo queda «Fuera del Plan»', () => {
+    servidor();
+    pintar(credits.map((c) => ({ ...c, fueraDelPlan: true })));
+    expect(screen.queryByText('💳 Tarjetas y créditos')).toBeNull();
+    expect(screen.getByText(/Fuera del Plan · 2/)).toBeInTheDocument();
+  });
+
+  it('la hoja de detalle abierta desde el Plan no ofrece borrar: ofrece quitar del Plan', async () => {
+    const detalle = tramo('6791', 'Adelanto 0 % 6791', 6052, 0, { cardGroup: null, accountLast4: '6791' });
+    servidor({ detalle });
+    pintar();
+
+    fireEvent.click(screen.getByText('Adelanto 0 % 6791').closest('button') as HTMLButtonElement);
+    const quitar = await screen.findByRole('button', { name: 'Quitar del Plan' }, { timeout: 3000 });
+    expect(screen.queryByText('Borrar esta deuda')).toBeNull();
+    expect(screen.queryByText('Sí, borrar')).toBeNull();
+
+    fireEvent.click(quitar);
+    await waitFor(() => expect(llamadas.some((l) => l.method === 'PUT')).toBe(true));
+    expect(llamadas.find((l) => l.method === 'PUT')).toEqual({
+      url: '/api/debts/6791/plan', method: 'PUT', body: { enPlan: false },
+    });
+    expect(screen.queryByRole('button', { name: 'Quitar Adelanto 0 % 6791 del Plan' })).toBeNull();
+    noBorroNada();
   });
 });
