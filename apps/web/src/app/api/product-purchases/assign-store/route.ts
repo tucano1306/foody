@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { nombreDeTiendaCanonico } from '@/lib/stores-data';
 import { programarSyncComputo } from '@/lib/computo/programar';
 
 /**
@@ -23,10 +24,12 @@ export async function PATCH(request: NextRequest) {
     // validated below
   }
 
-  const store = body.store?.trim();
-  if (!store || store.length > 60) {
+  const escrita = body.store?.trim();
+  if (!escrita || escrita.length > 60) {
     return NextResponse.json({ message: 'Nombre de tienda inválido' }, { status: 400 });
   }
+  // Escrita como ya existe: «publix» sumaría al Publix de siempre, no a otro.
+  const store = (await nombreDeTiendaCanonico(user.userId, escrita)) ?? escrita;
 
   const purchases = await sql`
     UPDATE product_purchases

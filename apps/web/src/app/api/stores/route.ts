@@ -1,52 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
-import { randomUUID } from 'node:crypto';
+import { leerSucursalNueva } from '@/lib/store-input';
+import { crearSucursal, listarTiendas } from '@/lib/stores-data';
 
-// GET /api/stores
+/**
+ * GET /api/stores — tus tiendas (por nombre, con sus compras), sus sucursales
+ * con ubicación y las repetidas que convendría unir.
+ */
 export async function GET(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
-
-  // Per-user isolation
-  const rows = await sql`SELECT * FROM stores WHERE user_id = ${user.userId} ORDER BY name ASC`;
-  return NextResponse.json(rows);
+  return NextResponse.json(await listarTiendas(user.userId));
 }
 
-// POST /api/stores
+/**
+ * POST /api/stores — guarda una sucursal: «📍 Estoy aquí» o un punto del mapa.
+ * El nombre se guarda como ya existe («publix» → «Publix»).
+ */
 export async function POST(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
-    body = await request.json() as Record<string, unknown>;
+    body = await request.json();
   } catch {
-    return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ message: 'JSON no válido' }, { status: 400 });
   }
-
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name) {
-    return NextResponse.json({ message: 'name is required' }, { status: 422 });
-  }
-  if (name.length > 255) {
-    return NextResponse.json({ message: 'name must be 255 characters or fewer' }, { status: 422 });
-  }
-
-  const address = typeof body.address === 'string' ? body.address.slice(0, 500) : null;
-  const latitude = typeof body.latitude === 'number' ? body.latitude : null;
-  const longitude = typeof body.longitude === 'number' ? body.longitude : null;
+  const lectura = leerSucursalNueva(body);
+  if (!lectura.ok) return NextResponse.json({ message: lectura.error }, { status: 422 });
 
   try {
-    const id = randomUUID();
-    const rows = await sql`
-      INSERT INTO stores (id, name, address, latitude, longitude, user_id, household_id, created_at, updated_at)
-      VALUES (${id}, ${name}, ${address}, ${latitude}, ${longitude}, ${user.userId}, NULL, NOW(), NOW())
-      RETURNING *
-    `;
-    return NextResponse.json(rows[0], { status: 201 });
+    return NextResponse.json(await crearSucursal(user.userId, lectura.valor), { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Database error';
-    return NextResponse.json({ message }, { status: 500 });
+    console.error('[stores] no se pudo crear la sucursal:', err);
+    return NextResponse.json({ message: 'No se pudo guardar la tienda' }, { status: 500 });
   }
 }

@@ -278,3 +278,62 @@ describe('SupermarketView · la ronda de precios', () => {
     expect(screen.queryByRole('button', { name: /sin precio/ })).not.toBeInTheDocument();
   });
 });
+
+/**
+ * La tienda se pone al empezar (o sola al llegar) y viaja con la compra: al
+ * cerrar va la sucursal, pero solo si sigue siendo de la tienda escrita.
+ * Cambiar el nombre en «Finalizar compra» a otra tienda la deja fuera.
+ */
+describe('SupermarketView · la tienda de la compra', () => {
+  const P1 = '11111111-1111-4111-8111-111111111111';
+  const PUBLIX = { id: P1, nombre: 'Publix', direccion: '12800 Pines Blvd', lat: 26, lng: -80.3 };
+  const TIENDAS = [{ nombre: 'Publix', usos: 16, ultima: null, kind: 'grocery' as const, sucursales: [PUBLIX] }];
+
+  beforeEach(() => {
+    localStorage.setItem(
+      'foody-sky-session-v2',
+      JSON.stringify({ ...SESION, storeName: 'Publix', storeBranch: { id: P1, nombre: 'Publix' }, storeOrigen: 'llegada' }),
+    );
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+    Object.defineProperty(globalThis.navigator, 'geolocation', {
+      configurable: true,
+      value: { watchPosition: vi.fn(() => 1), clearWatch: vi.fn(), getCurrentPosition: vi.fn() },
+    });
+  });
+
+  function cuerpoDelCierre(): Record<string, unknown> {
+    const llamada = vi.mocked(fetch).mock.calls.find(([u]) => String(u) === '/api/shopping-list/complete');
+    expect(llamada).toBeDefined();
+    return JSON.parse(String(llamada![1]!.body));
+  }
+
+  it('la tienda guardada sale en el chip y su sucursal va al cerrar', async () => {
+    render(<SupermarketView initialItems={ITEMS} tiendas={TIENDAS} sucursales={[PUBLIX]} />);
+    expect(await screen.findByRole('button', { name: /Tienda: Publix · Pines Blvd/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Finalizar · / }));
+    expect(screen.getByLabelText(/En qué supermercado/)).toHaveValue('Publix');
+    fireEvent.click(screen.getByRole('button', { name: '✓ Confirmar' }));
+
+    await waitFor(() => expect(cuerpoDelCierre()).toMatchObject({ storeName: 'Publix', storeId: P1 }));
+  });
+
+  it('si al cerrar se escribe otra tienda, la sucursal no va', async () => {
+    render(<SupermarketView initialItems={ITEMS} tiendas={TIENDAS} sucursales={[PUBLIX]} />);
+    await screen.findByRole('button', { name: /Tienda: Publix/ });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Finalizar · / }));
+    fireEvent.change(screen.getByLabelText(/En qué supermercado/), { target: { value: 'Aldi' } });
+    fireEvent.click(screen.getByRole('button', { name: '✓ Confirmar' }));
+
+    await waitFor(() => expect(cuerpoDelCierre().storeName).toBe('Aldi'));
+    expect(cuerpoDelCierre()).not.toHaveProperty('storeId');
+  });
+
+  it('una sesión guardada antes de las sucursales se sigue leyendo', async () => {
+    localStorage.setItem('foody-sky-session-v2', JSON.stringify({ ...SESION, storeName: 'Publix' }));
+    render(<SupermarketView initialItems={ITEMS} tiendas={TIENDAS} sucursales={[PUBLIX]} />);
+    // Sin sucursal: el chip dice el nombre a secas.
+    expect(await screen.findByRole('button', { name: 'Tienda: Publix. Cambiar' })).toBeInTheDocument();
+  });
+});

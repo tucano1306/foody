@@ -96,7 +96,7 @@ conectes y no lo borres.
 - `src/middleware.ts` — solo cubre 7 rutas (`/home`, `/supermarket`,
   `/products`, `/payments`, `/household`, `/stats`, `/shopping-trips`).
 - `app/(app)/layout.tsx` — `getSession()` + `redirect('/login')`. **Este cubre
-  todo el grupo `(app)`**, incluidas `/budget`, `/debts`, `/plan` y `/sharing`,
+  todo el grupo `(app)`**, incluidas `/budget`, `/debts`, `/plan`, `/sharing` y `/stores`,
   que no están en el matcher del middleware. No es un agujero: no hace falta
   añadirlas al matcher.
 - Cada página además revalida la sesión por su cuenta.
@@ -635,6 +635,47 @@ los demás no hay chip, ni ruta (404), ni sincronización.
   parte en dos. Sin empresa de negocio en Computo, eso se queda pendiente
   (`omitido`) y la hoja lo avisa: nunca cae en la personal.
 - La deuda no es gasto: los abonos de Deudas no se mandan.
+
+## Tiendas y ubicación
+
+`/stores` y el chip «📍 ¿Dónde compras?» del Súper. Sin IA y sin cambios de
+esquema: `stores` ya existía en producción (no la crea `ensure-schema.ts`), y
+`shopping_trips.store_id` / `product_purchases.store_id` ya apuntaban a ella.
+
+- **Tienda = NOMBRE** (`store_name` de cada compra). **Sucursal = fila de
+  `stores`** (ese nombre en un sitio, con coordenadas). Las estadísticas siguen
+  por nombre; la sucursal solo dice en cuál.
+- **Nombres** (`lib/tiendas.ts`): al escribir, se corrige solo por clave EXACTA
+  («publix» → «Publix»); todas las rutas que guardan una tienda pasan por
+  `nombreDeTiendaCanonico` / `resolverTiendaDelViaje` (`lib/stores-data.ts`).
+  Juntar «CVS Pharmacy» con «CVS» va por la raíz y **solo se propone**: la
+  tarjeta «¿Son la misma tienda?» espera el toque del dueño. Unir y renombrar
+  son la misma ruta (`POST /api/stores/merge`), en una transacción, y llama a
+  `programarSyncComputo` porque cambia la descripción del gasto allí.
+- **`storeId` ajeno**: las rutas de compras aceptaban cualquiera. Ahora
+  `resolverTiendaDelViaje` lo exige UUID, del usuario y del mismo nombre que la
+  compra; si no, va `null`.
+- **Llegada** (`lib/geo.ts`, `TiendaDelViaje.tsx`): con el Súper abierto se
+  vigila el GPS (3 min por apertura, solo con la pantalla a la vista) y se
+  compara con las sucursales. Radio 150 m; con precisión peor de 200 m no se
+  decide. Lo elegido a mano manda: la app propone, nunca pisa.
+- **Privacidad**: la posición no se guarda ni sale del teléfono. A la búsqueda
+  va redondeada a 2 decimales (~1 km) ya desde el cliente; a la base, solo las
+  coordenadas de la tienda. «Estoy aquí» guarda la posición COMO tienda.
+- **OpenStreetMap / Nominatim** (`lib/osm.ts`): gratis con condiciones: 1
+  consulta por segundo como mucho, User-Agent que identifique la app (sin el
+  email del usuario), nada de buscar mientras se teclea, y caché. Todo pasa por
+  el servidor (`/api/stores/search`, `/api/stores/reverse`). Si un día se
+  quedan cortos, el siguiente paso es un proveedor de pago, no saltarse eso.
+- **Mapa**: Leaflet 1.9 con mosaicos de `tile.openstreetmap.org` (atribución
+  obligatoria, la pinta Leaflet). Necesita tres cosas que ya están puestas y
+  que se rompen sin avisar en local: `img-src` de la CSP con los hosts de OSM,
+  `Permissions-Policy: geolocation=(self)` (antes `()`, que bloqueaba el GPS
+  aunque el usuario dijera que sí) y `sw.js` dejando pasar los mosaicos (el
+  `fetch` del service worker obedece a `connect-src`, y su caché de imágenes no
+  tiene tope).
+- El asistente de voz no está montado: «voy a Publix» funciona escrito o con
+  el dictado del teclado (`quitarVoyA`).
 
 ---
 

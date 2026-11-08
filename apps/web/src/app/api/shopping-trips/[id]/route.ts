@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
+import { nombreDeTiendaCanonico } from '@/lib/stores-data';
 import { allocate, resolveItems, round2 } from '@/lib/trip-allocation';
 import type { ShoppingTripItemDto, TripSplitDto } from '@foody/types';
 import { normalizeShare } from '@/lib/expense-scope';
@@ -56,9 +57,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const kind = body.kind === undefined ? null : normalizeExpenseKind(body.kind);
   const effectiveKind = kind ?? normalizeExpenseKind(current.kind);
 
-  const storeName = typeof body.storeName === 'string' && body.storeName.trim().length > 0
-    ? body.storeName.trim()
-    : null;
+  // Escrito como ya existe («publix» → «Publix»); vacío = no cambia.
+  const storeName = await nombreDeTiendaCanonico(user.userId, body.storeName);
   const purchasedAt = typeof body.purchasedAt === 'string' ? body.purchasedAt : null;
   const totalAmount = typeof body.totalAmount === 'number' && Number.isFinite(body.totalAmount)
     ? round2(body.totalAmount)

@@ -10,9 +10,15 @@ import type { PushSubscription } from 'web-push';
 import { refreshLastPurchase } from '@/lib/last-purchase';
 import { programarSyncComputo } from '@/lib/computo/programar';
 import { resolverPreciosDeCompra, type PrecioResuelto } from '@/lib/precios-compra';
+import { resolverTiendaDelViaje } from '@/lib/stores-data';
 
 interface CompletionBody {
   storeName?: string;
+  /**
+   * La sucursal donde se hizo la compra, si el Súper la sabe (la eligió el
+   * dueño o la detectó al llegar). Se comprueba que es suya antes de usarla.
+   */
+  storeId?: string;
   totalAmount?: number;
   quantities?: Record<string, number>;
   unitPrices?: Record<string, number>;
@@ -22,11 +28,11 @@ interface CompletionBody {
 
 type CartItem = { product_id: string; quantity_needed: string };
 
-async function insertTrip(storeName: string | null, userId: string, now: string): Promise<string | null> {
+async function insertTrip(storeName: string | null, storeId: string | null, userId: string, now: string): Promise<string | null> {
   try {
     const rows = await sql`
-      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at, updated_at)
-      VALUES (${storeName}, ${now}, 0, 'USD', ${userId}, ${now}, ${now})
+      INSERT INTO shopping_trips (store_name, store_id, date, total_spent, currency, user_id, created_at, updated_at)
+      VALUES (${storeName}, ${storeId}, ${now}, 0, 'USD', ${userId}, ${now}, ${now})
       RETURNING id
     `;
     return (rows[0] as { id: string }).id;
@@ -35,8 +41,8 @@ async function insertTrip(storeName: string | null, userId: string, now: string)
   }
   try {
     const rows = await sql`
-      INSERT INTO shopping_trips (store_name, date, total_spent, currency, user_id, created_at)
-      VALUES (${storeName}, ${now}, 0, 'USD', ${userId}, ${now})
+      INSERT INTO shopping_trips (store_name, store_id, date, total_spent, currency, user_id, created_at)
+      VALUES (${storeName}, ${storeId}, ${now}, 0, 'USD', ${userId}, ${now})
       RETURNING id
     `;
     return (rows[0] as { id: string }).id;
@@ -125,7 +131,6 @@ export async function POST(request: NextRequest) {
   let body: CompletionBody = {};
   try { body = (await request.json()) as CompletionBody; } catch { /* body is optional */ }
 
-  const storeName = body.storeName?.trim() || null;
   const quantities: Record<string, number> = body.quantities ?? {};
   const userTotalAmount = typeof body.totalAmount === 'number' && body.totalAmount > 0 ? body.totalAmount : null;
   const rawUnitPrices = (typeof body.unitPrices === 'object' && body.unitPrices !== null)
@@ -133,6 +138,10 @@ export async function POST(request: NextRequest) {
     : {};
 
   await ensurePurchaseSchema();
+
+  // El nombre como ya existe («publix» → «Publix»), y la sucursal solo si es
+  // del usuario y sigue siendo la del nombre (pudo cambiarlo al cerrar).
+  const { storeName, storeId } = await resolverTiendaDelViaje(user.userId, body.storeName, body.storeId);
 
   // Per-user isolation
   const rawItems = await sql`
@@ -155,7 +164,7 @@ export async function POST(request: NextRequest) {
 
   const [priceMap, tripId] = await Promise.all([
     fetchPriceMap(productIds),
-    insertTrip(storeName, user.userId, now),
+    insertTrip(storeName, storeId, user.userId, now),
   ]);
 
   // Lo tecleado en el súper manda; si no, el último precio; si tampoco, la

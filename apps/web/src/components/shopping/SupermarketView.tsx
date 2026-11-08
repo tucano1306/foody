@@ -30,6 +30,9 @@ import { CATEGORY_ORDER, categoryEmoji } from '@/lib/categories';
 import { lockBodyScroll } from '@/lib/scroll-lock';
 import { siguienteSinPrecio, type LineaRonda } from '@/lib/ronda-precios';
 import TripBoard from './TripBoard';
+import TiendaDelViaje from './TiendaDelViaje';
+import { claveDeTienda, type Sucursal, type TiendaResumen } from '@/lib/tiendas';
+import type { SeleccionTienda } from '@/lib/geo';
 
 const PriceScannerModal = dynamic(() => import('./PriceScannerModal'), { ssr: false });
 const PhotoLightbox = dynamic(() => import('@/components/ui/PhotoLightbox'), { ssr: false });
@@ -52,6 +55,9 @@ interface Props {
    * que hace que esa diferencia se entienda en vez de parecer un error.
    */
   readonly initialApartados?: ReadonlyArray<{ readonly productId: string; readonly name: string }>;
+  /** Tus tiendas y sus sucursales: el selector «¿A dónde vas?» y la llegada. */
+  readonly tiendas?: readonly TiendaResumen[];
+  readonly sucursales?: readonly Sucursal[];
 }
 
 type Filter = 'all' | 'urgent' | 'low';
@@ -97,6 +103,14 @@ interface PersistedState {
   entries: Record<string, PriceEntry[]>;
   cartTimes: Record<string, number>;
   storeName: string;
+  /**
+   * En qué sucursal (fila de `stores`), con el nombre que tenía al elegirla.
+   * Si al cerrar se escribe otra tienda en el nombre, la sucursal deja de
+   * valer y no se manda: el nombre escrito es lo último que dijo el dueño.
+   */
+  storeBranch: { id: string; nombre: string } | null;
+  /** Quién puso la tienda: el dueño o la llegada. Ver `SeleccionTienda`. */
+  storeOrigen: SeleccionTienda['origen'];
   totalAmount: string;
 }
 
@@ -105,7 +119,7 @@ interface PersistedState {
 const STORAGE_KEY = 'foody-sky-session-v2';
 
 function loadPersisted(): PersistedState {
-  const empty: PersistedState = { entries: {}, cartTimes: {}, storeName: '', totalAmount: '' };
+  const empty: PersistedState = { entries: {}, cartTimes: {}, storeName: '', storeBranch: null, storeOrigen: 'elegida', totalAmount: '' };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return empty;
@@ -114,6 +128,11 @@ function loadPersisted(): PersistedState {
       entries: parsed.entries ?? {},
       cartTimes: parsed.cartTimes ?? {},
       storeName: parsed.storeName ?? '',
+      storeBranch:
+        parsed.storeBranch && typeof parsed.storeBranch.id === 'string' && typeof parsed.storeBranch.nombre === 'string'
+          ? { id: parsed.storeBranch.id, nombre: parsed.storeBranch.nombre }
+          : null,
+      storeOrigen: parsed.storeOrigen === 'llegada' ? 'llegada' : 'elegida',
       totalAmount: parsed.totalAmount ?? '',
     };
   } catch {
@@ -253,7 +272,17 @@ export function resumenDeCompra(articulos: number, total: string): string {
     : cuantos;
 }
 
-export default function SupermarketView({ initialItems, pastStoreNames, allCategories = [], initialApartados = [] }: Props) {
+const SIN_TIENDAS: readonly TiendaResumen[] = [];
+const SIN_SUCURSALES: readonly Sucursal[] = [];
+
+export default function SupermarketView({
+  initialItems,
+  pastStoreNames,
+  allCategories = [],
+  initialApartados = [],
+  tiendas = SIN_TIENDAS,
+  sucursales = SIN_SUCURSALES,
+}: Props) {
   const router = useRouter();
   const toast = useToast();
   const { celebrate } = useCelebration();
@@ -281,6 +310,8 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   const [knownBrands, setKnownBrands] = useState<Record<string, string[]>>({});
   const [cartTimes, setCartTimes] = useState<Record<string, number>>({});
   const [storeName, setStoreName] = useState('');
+  const [storeBranch, setStoreBranch] = useState<PersistedState['storeBranch']>(null);
+  const [storeOrigen, setStoreOrigen] = useState<PersistedState['storeOrigen']>('elegida');
   const [totalAmount, setTotalAmount] = useState('');
 
   useEffect(() => {
@@ -288,6 +319,8 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
     setEntries(persisted.entries);
     setCartTimes(persisted.cartTimes);
     setStoreName(persisted.storeName);
+    setStoreBranch(persisted.storeBranch);
+    setStoreOrigen(persisted.storeOrigen);
     setTotalAmount(persisted.totalAmount);
     setHydrated(true);
   }, []);
@@ -295,14 +328,38 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, cartTimes, storeName, totalAmount } satisfies PersistedState));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ entries, cartTimes, storeName, storeBranch, storeOrigen, totalAmount } satisfies PersistedState),
+      );
     } catch { /* storage full/blocked — keep going, worst case state is in memory */ }
-  }, [hydrated, entries, cartTimes, storeName, totalAmount]);
+  }, [hydrated, entries, cartTimes, storeName, storeBranch, storeOrigen, totalAmount]);
+
+  /**
+   * La tienda de esta compra tal como la ven el chip y el cierre. La sucursal
+   * solo cuenta si sigue siendo de la tienda escrita: cambiar el nombre en
+   * «Finalizar compra» a otra tienda la deja fuera sin borrarla.
+   */
+  const nombreTienda = storeName.trim();
+  const seleccionTienda = useMemo<SeleccionTienda | null>(() => {
+    if (!nombreTienda) return null;
+    const storeId =
+      storeBranch && claveDeTienda(storeBranch.nombre) === claveDeTienda(nombreTienda) ? storeBranch.id : null;
+    return { nombre: nombreTienda, storeId, origen: storeOrigen };
+  }, [nombreTienda, storeBranch, storeOrigen]);
+
+  function cambiarTienda(sel: SeleccionTienda | null) {
+    setStoreName(sel?.nombre ?? '');
+    setStoreBranch(sel?.storeId ? { id: sel.storeId, nombre: sel.nombre } : null);
+    setStoreOrigen(sel?.origen ?? 'elegida');
+  }
 
   function clearSession() {
     setEntries({});
     setCartTimes({});
     setStoreName('');
+    setStoreBranch(null);
+    setStoreOrigen('elegida');
     setTotalAmount('');
     try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
   }
@@ -572,6 +629,9 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           storeName: storeName.trim() || undefined,
+          // La sucursal solo si es de la tienda escrita; el servidor vuelve a
+          // comprobar que es tuya y que el nombre cuadra.
+          storeId: seleccionTienda?.storeId ?? undefined,
           totalAmount: parseMoney(totalAmount) ?? undefined,
           quantities,
           unitPrices: Object.keys(unitPrices).length > 0 ? unitPrices : undefined,
@@ -766,6 +826,9 @@ export default function SupermarketView({ initialItems, pastStoreNames, allCateg
         onAbrirCarrito={openCartSheet}
         onPonerPrecios={empezarRonda}
       />
+
+      {/* ─── La tienda: puesta al empezar (o sola al llegar), no al cerrar ── */}
+      <TiendaDelViaje tiendas={tiendas} sucursales={sucursales} seleccion={seleccionTienda} onCambiar={cambiarTienda} />
 
       {/* ─── Search + add + filters ──────────────────────────────────────────── */}
       <div className="space-y-3">

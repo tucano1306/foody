@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
+import { resolverTiendaDelViaje } from '@/lib/stores-data';
 import { refreshLastPurchase } from '@/lib/last-purchase';
 
 async function findProduct(id: string, userId: string) {
@@ -56,10 +57,9 @@ export async function POST(
     typeof body.purchasedAt === 'string' && !Number.isNaN(Date.parse(body.purchasedAt))
       ? body.purchasedAt
       : new Date().toISOString();
-  const storeName =
-    typeof body.storeName === 'string' && body.storeName.trim() ? body.storeName.trim() : null;
-  const storeId =
-    typeof body.storeId === 'string' && body.storeId ? body.storeId : null;
+  // El nombre como ya existe («publix» → «Publix»); la sucursal, solo si es
+  // del usuario (antes se guardaba cualquier id que llegara).
+  const { storeName, storeId } = await resolverTiendaDelViaje(user.userId, body.storeName, body.storeId);
 
   const purchaseId = randomUUID();
 
