@@ -568,6 +568,13 @@ Otras convenciones observadas:
   Están en `.gitignore` y llevan credenciales reales.
 - No cambies el nombre de la cookie (`foody_session`) ni el issuer/audience del
   JWT sin migrar las sesiones activas.
+- No vuelvas a poner las tarjetas de Deudas en el Plan financiero, ni un «Borrar»
+  de deuda en ningún componente de `components/finance`. La sección «Tarjetas y
+  créditos» se quitó a petición del dueño (7 nov 2026), y desde su «Borrar» se
+  perdieron una vez las tarjetas de verdad. Lo vigila `DebtPanel.test.tsx`.
+- No aportes a una meta enganchada a una deuda (`debt_id`): lee lo abonado del
+  saldo de la deuda. El abono va a Deudas (`AbonoDeMeta`); la ruta
+  `/contribute` responde 409.
 
 ---
 

@@ -1,19 +1,21 @@
 'use client';
 
+import type { MouseEvent } from 'react';
 import type { CardStatementInfo, DebtWithProjection } from '@/lib/debt-data';
-import { cardTitle, tasaVigente, ultimosDeLaTarjeta } from '@/lib/card-payment';
-import { costoDelAtraso, type CondicionesDeCredito } from '@/lib/condiciones-credito';
-import { estadoDelMinimo } from '@/lib/cuadre-tarjeta';
-import { toDateKey } from '@/lib/debt-engine';
+import { cardTitle, ultimosDeLaTarjeta } from '@/lib/card-payment';
+import type { CondicionesDeCredito } from '@/lib/condiciones-credito';
 import { haptic } from '@/lib/haptic';
 import BotonMas from './BotonMas';
 import ChipDeCuenta from './ChipDeCuenta';
+import MinimoDeLaTarjeta from './MinimoDeLaTarjeta';
 import TramosDeTarjeta from './TramosDeTarjeta';
-import { BTN_PRIMARY, fmtDateFull, fmtMoney, fmtMoneyShort } from './debt-ui';
+import { BTN_PRIMARY, fmtMoney, fmtMoneyShort } from './debt-ui';
 
 interface Props {
   /** Los tramos de la tarjeta, ya filtrados por ámbito. */
   readonly tramos: readonly DebtWithProjection[];
+  /** Abre la tarjeta entera: su hoja con los saldos y el historial. */
+  readonly onOpen?: () => void;
   readonly onOpenTramo: (id: string) => void;
   readonly onPay: () => void;
   /** El último estado de cuenta guardado de esta tarjeta. */
@@ -27,110 +29,107 @@ interface Props {
   readonly onMenu?: () => void;
 }
 
-/** Días hasta una fecha YYYY-MM-DD, contando en el calendario del dispositivo. */
-function diasHasta(clave: string, hoy: string): number {
-  const [y1, m1, d1] = hoy.split('-').map(Number);
-  const [y2, m2, d2] = clave.split('-').map(Number);
-  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
-}
-
 /**
  * Una tarjeta con varios tramos: el plástico arriba, sus saldos dentro.
  *
  * Antes cada tramo era una tarjeta suelta en la lista, y nada decía que
  * «Compras 3650» y «Unlimited Cash 3650» se pagan con el mismo mínimo. Ahora
  * se ven juntas, cada una con su tasa, y el abono se hace a la tarjeta.
+ *
+ * Se toca por cualquier sitio para entrar, como una deuda suelta. Antes solo
+ * respondían sus tramos y sus botones: tocar la cabecera o el mínimo no hacía
+ * nada, y la tarjeta parecía rota al lado de las demás. No puede ser un
+ * `<button>` entero porque lleva botones dentro (los tramos, abonar, «⋯»);
+ * por eso la cabecera es el botón de verdad —para el teclado y el lector de
+ * pantalla— y el resto de la superficie le pasa el toque.
  */
-export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = null, condiciones = null, onMenu }: Props) {
-  const hoy = toDateKey(new Date());
+export default function CardGroupCard({ tramos, onOpen, onOpenTramo, onPay, estado = null, condiciones = null, onMenu }: Props) {
   const currency = tramos[0]?.currency ?? 'USD';
+  const titulo = cardTitle(tramos);
   const total = tramos.reduce((s, t) => s + t.currentBalance, 0);
   const interesMes = tramos.reduce((s, t) => s + t.projection.monthlyInterest, 0);
   const ordenados = [...tramos].sort((a, b) => b.currentBalance - a.currentBalance);
-  const cobertura = estadoDelMinimo(estado);
-  const venceEn = estado?.dueDate ? diasHasta(estado.dueDate, hoy) : null;
-  // Lo que cuesta no llegar, solo con el mínimo pendiente y a una semana o
-  // menos del vencimiento (o ya pasado): antes, sería ruido en cada visita.
-  const atraso =
-    condiciones && cobertura && !cobertura.cubierto && venceEn !== null && venceEn <= 7
-      ? costoDelAtraso(
-          condiciones,
-          tramos.map((t) => ({ balance: t.currentBalance, apr: tasaVigente({ ...t, balance: t.currentBalance }, hoy) * 1200 })),
-        )
-      : null;
+
+  const abrir = () => {
+    if (!onOpen) return;
+    haptic();
+    onOpen();
+  };
+
+  /**
+   * Un toque en la superficie abre la tarjeta; uno en un control de dentro es
+   * de ese control. Se mira el destino real del toque y no se para la
+   * propagación en cada hijo: así un botón nuevo que se añada mañana no abre
+   * la tarjeta por accidente.
+   */
+  const alTocarLaSuperficie = (e: MouseEvent<HTMLDivElement>) => {
+    const destino = e.target as HTMLElement;
+    if (destino.closest('button, a, input, select, textarea, [role="button"]')) return;
+    abrir();
+  };
+
+  const cabecera = (
+    <>
+      <ChipDeCuenta ultimos={ultimosDeLaTarjeta(tramos)} />
+      <span className="min-w-0 flex-1">
+        {/* Sin `truncate`: a 375px cortaba en «Bank of Ame…» y se perdía
+            justo lo que distingue la tarjeta, los últimos dígitos. */}
+        <span className="block text-base font-bold leading-tight text-black">{titulo}</span>
+        <span className="block text-xs text-slate-500">
+          {tramos.length} tramos · un solo mínimo
+          {interesMes > 0 && <> · {fmtMoney(interesMes, currency)} de interés al mes</>}
+        </span>
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="block text-xl font-extrabold leading-tight text-black">{fmtMoneyShort(total, currency)}</span>
+        <span className="block text-[11px] text-slate-400">debes hoy</span>
+      </span>
+    </>
+  );
+
+  const encabezado = onOpen ? (
+    <button
+      type="button"
+      onClick={abrir}
+      aria-label={`Abrir ${titulo} · debes ${fmtMoney(total, currency)}`}
+      className="-m-2 flex items-center gap-3 rounded-2xl p-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+    >
+      {cabecera}
+    </button>
+  ) : (
+    <div className="flex items-center gap-3">{cabecera}</div>
+  );
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm sm:col-span-2">
-      <div className="flex items-center gap-3">
-        <ChipDeCuenta ultimos={ultimosDeLaTarjeta(tramos)} />
-        <div className="min-w-0 flex-1">
-          {/* Sin `truncate`: a 375px cortaba en «Bank of Ame…» y se perdía justo
-              lo que distingue la tarjeta, los últimos dígitos. */}
-          <p className="text-base font-bold leading-tight text-black">{cardTitle(tramos)}</p>
-          <p className="text-xs text-slate-500">
-            {tramos.length} tramos · un solo mínimo
-            {interesMes > 0 && <> · {fmtMoney(interesMes, currency)} de interés al mes</>}
-          </p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-xl font-extrabold leading-tight text-black">{fmtMoneyShort(total, currency)}</p>
-          <p className="text-[11px] text-slate-400">debes hoy</p>
-        </div>
+    // `data-accion` marca lo que tiene su propio toque: al apretarlo, la
+    // tarjeta no se hunde, para que no parezca que se va a abrir entera.
+    <div
+      onClick={onOpen ? alTocarLaSuperficie : undefined}
+      className={`flex flex-col gap-4 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm transition-all duration-200 sm:col-span-2${
+        onOpen ? ' cursor-pointer hover:shadow-md [&:active:not(:has([data-accion]_:active))]:scale-[0.99]' : ''
+      }`}
+    >
+      {encabezado}
+
+      <MinimoDeLaTarjeta tramos={tramos} estado={estado} condiciones={condiciones} />
+
+      <div data-accion>
+        <TramosDeTarjeta
+          titulo={titulo}
+          tramos={ordenados.map((t) => ({ ...t, balance: t.currentBalance }))}
+          formatoSaldo={(t) => fmtMoney(t.balance, t.currency)}
+          onOpen={(id) => {
+            haptic();
+            onOpenTramo(id);
+          }}
+        />
       </div>
-
-      {/* El mínimo del estado, a la vista: cuánto y cuándo, y si ya está.
-          Es la pregunta de cada mes con esta tarjeta, y la respuesta estaba
-          en un PDF. */}
-      {estado && cobertura && (
-        <div
-          className={`flex items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 ${
-            cobertura.cubierto ? 'bg-sky-50/70' : 'border border-blue-200 bg-blue-50'
-          }`}
-        >
-          <span className="min-w-0">
-            <span className="block text-[11px] font-semibold text-slate-600">
-              Mínimo del estado{estado.dueDate ? ` · vence el ${fmtDateFull(estado.dueDate)}` : ''}
-            </span>
-            <span className="block text-base font-extrabold text-black">{fmtMoney(estado.minimumDue, currency)}</span>
-          </span>
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
-              cobertura.cubierto ? 'bg-white text-sky-700' : 'bg-blue-100 text-blue-800'
-            }`}
-          >
-            {cobertura.cubierto
-              ? '✓ Cubierto'
-              : venceEn !== null && venceEn >= 0
-                ? `Faltan ${fmtMoney(cobertura.falta, currency)} · ${venceEn === 0 ? 'hoy' : `en ${venceEn} ${venceEn === 1 ? 'día' : 'días'}`}`
-                : `Faltan ${fmtMoney(cobertura.falta, currency)}`}
-          </span>
-        </div>
-      )}
-
-      {atraso && (
-        <p className="-mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-[11px] font-semibold leading-snug text-amber-950">
-          ⚠️ {venceEn !== null && venceEn < 0 ? 'Venció sin cubrir' : 'Si no llega a tiempo'}:
-          {atraso.cargo != null && <> cargo de <strong>{fmtMoney(atraso.cargo, currency)}</strong></>}
-          {atraso.cargo != null && atraso.tasaPenal != null && ' y'}
-          {atraso.tasaPenal != null && <> la tasa puede subir al <strong>{atraso.tasaPenal} %</strong></>}
-        </p>
-      )}
-
-      <TramosDeTarjeta
-        titulo={cardTitle(tramos)}
-        tramos={ordenados.map((t) => ({ ...t, balance: t.currentBalance }))}
-        formatoSaldo={(t) => fmtMoney(t.balance, t.currency)}
-        onOpen={(id) => {
-          haptic();
-          onOpenTramo(id);
-        }}
-      />
 
       {/* Abonar es lo de cada mes y va a la vista; lo demás (cuadrar, las
           condiciones del banco, pasar a Metas, borrar) vive en «⋯». Antes eran
           líneas de texto sueltas debajo de la tarjeta, y cada acción nueva la
           alargaba un poco más. */}
-      <div className="flex items-stretch gap-2">
+      <div data-accion className="flex items-stretch gap-2">
         <button
           type="button"
           onClick={() => {
@@ -141,7 +140,7 @@ export default function CardGroupCard({ tramos, onOpenTramo, onPay, estado = nul
         >
           💸 Abonar a la tarjeta
         </button>
-        {onMenu && <BotonMas onClick={onMenu} de={cardTitle(tramos)} />}
+        {onMenu && <BotonMas onClick={onMenu} de={titulo} />}
       </div>
     </div>
   );

@@ -39,7 +39,6 @@ function payload(): FinancePlanPayload {
     history: [],
     payments: [...INPUT.fixedPayments],
     credits: [],
-    cardStatements: {},
   };
 }
 
