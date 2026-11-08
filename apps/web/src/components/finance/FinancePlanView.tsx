@@ -17,6 +17,7 @@ import { topPlanChange } from '@/lib/plan-diff';
 import { applyOrder, moveInOrder } from '@/lib/goal-order';
 import { agruparPorTarjeta, sugerirDeudaParaMeta } from '@/lib/plan-tarjetas';
 import { cardTitle } from '@/lib/card-payment';
+import AbonoDeMeta, { cargarDestinoDelAbono, type DestinoAbierto } from './AbonoDeMeta';
 import AdviceFeed from './AdviceFeed';
 import BusinessPanel from './BusinessPanel';
 import CashFlowCard from './CashFlowCard';
@@ -40,6 +41,8 @@ type Modal =
   | { kind: 'goal'; goal: FinanceGoal | null; preset?: GoalKind }
   | { kind: 'income' }
   | { kind: 'contribute'; goal: GoalProjection }
+  /** El abono de una meta enganchada: se asienta en Deudas, no en la meta. */
+  | { kind: 'abono'; destino: DestinoAbierto }
   /** Solo lectura: qué mide la nota de salud y de qué periodo habla. */
   | { kind: 'health' };
 
@@ -261,6 +264,42 @@ export default function FinancePlanView({ initialData }: Props) {
     await refresh();
   }
 
+  /** Evita abrir dos veces el abono con un doble toque mientras llega Deudas. */
+  const abriendoAbono = useRef(false);
+
+  /**
+   * «Aportar» a una meta suelta escribe en la meta. En una meta enganchada a
+   * una deuda, en cambio, el abono va a Deudas con su propio modal: la meta lee
+   * el saldo de la deuda, así que un aporte a ella se borraba en la siguiente
+   * carga y la tarjeta seguía igual en Deudas.
+   */
+  async function abrirAporte(goal: GoalProjection) {
+    if (!goal.debtId) {
+      setModal({ kind: 'contribute', goal });
+      return;
+    }
+    if (abriendoAbono.current) return;
+    abriendoAbono.current = true;
+    haptic(10);
+    try {
+      const destino = await cargarDestinoDelAbono(goal.debtId);
+      if (destino.tipo === 'nada') {
+        toast.show(
+          destino.motivo === 'liquidada' ? 'Esa deuda ya está liquidada' : 'Esa tarjeta ya no está en Deudas',
+          'info',
+        );
+        // Lo que enseña el Plan ya no es lo que hay en Deudas: se relee.
+        await refresh(true);
+        return;
+      }
+      setModal({ kind: 'abono', destino });
+    } catch {
+      toast.show('No se pudo abrir la tarjeta', 'error');
+    } finally {
+      abriendoAbono.current = false;
+    }
+  }
+
   async function completeGoal(goalId: string) {
     await send(`/api/finance/goals/${goalId}`, 'PATCH', { status: 'done' });
     celebrate(() => confettiRain(['🎉', '🏆']));
@@ -378,7 +417,7 @@ export default function FinancePlanView({ initialData }: Props) {
         // proyección. Con `data` mostraría los números del plan completo aunque
         // el usuario tenga el negocio excluido.
         const projection = view.goals.find((g) => g.goalId === action.goalId);
-        if (projection) setModal({ kind: 'contribute', goal: projection });
+        if (projection) void abrirAporte(projection);
         return;
       }
       default:
@@ -642,7 +681,7 @@ export default function FinancePlanView({ initialData }: Props) {
       />
 
       {/* ─── Deuda ───────────────────────────────────────────────────────── */}
-      <DebtPanel debts={view.debts} credits={data.credits} estados={data.cardStatements} onChanged={() => void refresh(true)} />
+      <DebtPanel debts={view.debts} />
 
       {/* ─── Metas ───────────────────────────────────────────────────────── */}
       {/* `id`: «Ver mis Metas» en Deudas aterriza aquí, no arriba del Plan. */}
@@ -685,7 +724,7 @@ export default function FinancePlanView({ initialData }: Props) {
             onReorder={previewOrder}
             onCommit={commitOrder}
             onMove={moveGoal}
-            onContribute={(goal) => setModal({ kind: 'contribute', goal })}
+            onContribute={(goal) => void abrirAporte(goal)}
             onEdit={(goal) => {
               const raw = data.rawGoals.find((g) => g.id === goal.goalId) ?? null;
               setModal({ kind: 'goal', goal: raw });
@@ -778,6 +817,18 @@ export default function FinancePlanView({ initialData }: Props) {
           goal={modal.goal}
           onContribute={(amount, note) => contribute(modal.goal.goalId, amount, note)}
           onClose={closeModal}
+        />
+      )}
+      {modal.kind === 'abono' && (
+        <AbonoDeMeta
+          destino={modal.destino}
+          onClose={closeModal}
+          // El modal de Deudas se cierra solo y trae su propio festejo; aquí
+          // queda releer el Plan, que es lo que mueve la meta.
+          onPaid={() => {
+            toast.show('Abonado en Deudas', 'success');
+            void refresh(true);
+          }}
         />
       )}
 

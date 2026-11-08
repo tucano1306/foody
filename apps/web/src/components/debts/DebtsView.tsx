@@ -21,6 +21,7 @@ import ActionSheet from '@/components/ui/ActionSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import DebtCard from './DebtCard';
+import CardDetailSheet from './CardDetailSheet';
 import CardGroupCard from './CardGroupCard';
 import CardPaymentModal from './CardPaymentModal';
 import CardStatementModal from './CardStatementModal';
@@ -80,6 +81,8 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
   const [editId, setEditId] = useState<string | null>(null);
   const [payId, setPayId] = useState<string | null>(null);
   const [payCard, setPayCard] = useState<string | null>(null);
+  // La tarjeta de tramos que se tiene abierta (su `card_group`).
+  const [tarjetaAbierta, setTarjetaAbierta] = useState<string | null>(null);
   const [cuadrarCard, setCuadrarCard] = useState<string | null>(null);
   // El último estado de cuenta de cada tarjeta. Tras un abono se suma lo
   // abonado al momento, sin volver a pedirlo: la tarjeta dice «✓ Cubierto» ya.
@@ -256,6 +259,12 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
     ? debts.filter((d) => claveDeCuenta(d) === terminosDe && d.status !== 'archived')
     : [];
   const detail = debts.find((d) => d.id === detailId) ?? null;
+  // Los mismos tramos que pinta su tarjeta en la lista: si la tarjeta deja de
+  // estar (se liquidó, se fue a la papelera, cambió el ámbito), la hoja se
+  // cierra sola en vez de quedarse enseñando una tarjeta que ya no está.
+  const abierta = tarjetaAbierta
+    ? bloques.find((b): b is Extract<typeof b, { tipo: 'tarjeta' }> => b.tipo === 'tarjeta' && b.group === tarjetaAbierta) ?? null
+    : null;
   const paying = debts.find((d) => d.id === payId) ?? null;
   const editing = debts.find((d) => d.id === editId) ?? null;
   const target = portfolio.avalanche[0] ?? null;
@@ -565,6 +574,7 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
               <CardGroupCard
                 key={b.group}
                 tramos={b.tramos}
+                onOpen={() => setTarjetaAbierta(b.group)}
                 onOpenTramo={setDetailId}
                 onPay={() => setPayCard(b.group)}
                 estado={estados[b.group] ?? null}
@@ -642,6 +652,29 @@ export default function DebtsView({ initial, payments = [], initialScope = 'all'
             currency={currency}
             onClose={() => setWizardOpen(false)}
             onCreated={upsert}
+          />
+        )}
+        {abierta && (
+          <CardDetailSheet
+            key="tarjeta"
+            tramos={abierta.tramos}
+            estado={estados[abierta.group] ?? null}
+            condiciones={terminos[abierta.group] ?? null}
+            onClose={() => setTarjetaAbierta(null)}
+            // Como la hoja de una deuda al abonar: se cierra y deja paso a la
+            // siguiente, en vez de apilar dos hojas.
+            onOpenTramo={(id) => {
+              setTarjetaAbierta(null);
+              setDetailId(id);
+            }}
+            onPay={() => {
+              setTarjetaAbierta(null);
+              setPayCard(abierta.group);
+            }}
+            onMenu={() => {
+              setTarjetaAbierta(null);
+              setMenu({ tipo: 'tarjeta', group: abierta.group });
+            }}
           />
         )}
         {detail && (
