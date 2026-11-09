@@ -1,6 +1,6 @@
 /* Foody service worker — offline-first shell, stale-while-revalidate API, mutation queue, web push */
 
-const VERSION = 'foody-v74';
+const VERSION = 'foody-v75';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const IMAGES_CACHE = `${VERSION}-images`;
@@ -309,6 +309,13 @@ globalThis.addEventListener('fetch', (event) => {
     }
     return;
   }
+
+  // Los mosaicos del mapa (OpenStreetMap) no pasan por aquí. Dos razones: el
+  // `fetch` del service worker obedece al `connect-src` de la CSP, que no
+  // incluye a OSM, así que interceptarlos los rompería; y guardarlos en la
+  // caché de imágenes, que no tiene tope, llenaría el teléfono de mosaicos.
+  // El navegador ya los cachea con las cabeceras que manda OSM.
+  if (url.hostname === 'tile.openstreetmap.org' || url.hostname.endsWith('.tile.openstreetmap.org')) return;
 
   // RSC navigation/prefetch payloads: always network-first, never cached as
   // stale. Falls back to cache only when truly offline.

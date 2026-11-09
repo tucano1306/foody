@@ -1,4 +1,6 @@
 import { api } from '@/lib/api';
+import { getSession } from '@/lib/session';
+import { listarTiendas, type TiendasDelUsuario } from '@/lib/stores-data';
 import SupermarketView from '@/components/shopping/SupermarketView';
 import UltimaCompra from '@/components/shopping/UltimaCompra';
 import ModeToggle from '@/components/layout/ModeToggle';
@@ -7,8 +9,11 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Supermercado' };
 
+const SIN_TIENDAS: TiendasDelUsuario = { tiendas: [], sucursales: [], repetidas: [] };
+
 export default async function SupermarketPage() {
-  const [items, topStores, catalogo, apartados, ultima] = await Promise.all([
+  const session = await getSession();
+  const [items, topStores, catalogo, apartados, ultima, tiendas] = await Promise.all([
     api.shoppingList.get().catch(() => []),
     // Ya no pinta «el súper favorito»: solo da las sugerencias de tienda del
     // modal de finalizar, ordenadas por visitas.
@@ -20,6 +25,9 @@ export default async function SupermarketPage() {
     // Lo que «no estaba en el súper» hoy: se nombra al pie de la lista.
     api.shoppingList.skipped().catch(() => [] as Array<{ productId: string; name: string }>),
     api.shoppingTrips.latest().catch(() => null),
+    // Tus tiendas y dónde está cada una: el selector «¿A dónde vas?» y el
+    // aviso al llegar. Si falla, el Súper funciona igual sin ellas.
+    session.userId ? listarTiendas(session.userId).catch(() => SIN_TIENDAS) : SIN_TIENDAS,
   ]);
   const allCategories = [
     ...new Set(catalogo.map((p) => p.category?.trim()).filter((c): c is string => !!c)),
@@ -48,7 +56,14 @@ export default async function SupermarketPage() {
       {ultima && <UltimaCompra trip={ultima.trip} items={ultima.items} />}
 
       {/* ─── Shopping list ──────────────────────────────────────────────────── */}
-      <SupermarketView allCategories={allCategories} initialItems={items} initialApartados={apartados} pastStoreNames={pastStoreNames} />
+      <SupermarketView
+        allCategories={allCategories}
+        initialItems={items}
+        initialApartados={apartados}
+        pastStoreNames={pastStoreNames}
+        tiendas={tiendas.tiendas}
+        sucursales={tiendas.sucursales}
+      />
     </div>
   );
 }

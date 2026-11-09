@@ -11,6 +11,7 @@ import {
   BanknotesIcon,
   FlagIcon,
   ScaleIcon,
+  MapPinIcon,
 } from '@heroicons/react/24/outline';
 import {
   HomeIcon as HomeSolid,
@@ -24,6 +25,7 @@ import {
   BanknotesIcon as BanknotesSolid,
   FlagIcon as FlagSolid,
   ScaleIcon as ScaleSolid,
+  MapPinIcon as MapPinSolid,
 } from '@heroicons/react/24/solid';
 
 export interface NavDestination {
@@ -44,7 +46,7 @@ export interface NavSection {
 }
 
 /**
- * Las once secciones de la app, agrupadas. Es la ÚNICA lista: la barra lateral
+ * Las doce secciones de la app, agrupadas. Es la ÚNICA lista: la barra lateral
  * de escritorio, la barra de pestañas del móvil y la hoja «Más» leen de aquí,
  * así que no puede haber dos menús que se contradigan.
  */
@@ -56,6 +58,9 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { href: '/supermarket', icon: ShoppingCartIcon, iconActive: CartSolid, label: 'Súper' },
       { href: '/products', icon: CubeIcon, iconActive: CubeSolid, label: 'Productos' },
       { href: '/shopping-trips', icon: ReceiptPercentIcon, iconActive: ReceiptSolid, label: 'Compras' },
+      // Junto a Compras: las tiendas salen de los tickets, y lo que se hace
+      // aquí (unir nombres, decir dónde está cada una) es para el Súper.
+      { href: '/stores', icon: MapPinIcon, iconActive: MapPinSolid, label: 'Tiendas' },
     ],
   },
   {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized } from '@/lib/route-helpers';
+import { resolverTiendaDelViaje } from '@/lib/stores-data';
 import { randomUUID } from 'node:crypto';
 import { allocate, resolveItems, round2 } from '@/lib/trip-allocation';
 import type { Allocation } from '@/lib/trip-allocation';
@@ -58,8 +59,9 @@ export async function POST(request: NextRequest) {
   const strategy: AllocationStrategy = body.allocationStrategy ?? 'manual_partial';
   const currency = body.currency ?? 'USD';
   const purchasedAt = body.purchasedAt ?? new Date().toISOString();
-  const storeName = body.storeName ?? null;
-  const storeId = body.storeId ?? null;
+  // El nombre como ya existe («publix» → «Publix»), para no volver a partir
+  // las estadísticas; la sucursal, solo si es del usuario.
+  const { storeName, storeId } = await resolverTiendaDelViaje(user.userId, body.storeName, body.storeId);
   const now = new Date().toISOString();
   // Qué clase de gasto es. Ausente = super, que es el caso normal y el
   // comportamiento que la app tenía antes de que existiera esta columna.

@@ -15,7 +15,10 @@ const CSP = [
   // cubre un solo nivel: con `*.blob.vercel-storage.com` la miniatura se veía
   // (va por /_next/image, mismo origen) pero el zoom, que usa la URL directa,
   // salía roto. Se listan ambas formas por si el host cambia de estructura.
-  "img-src 'self' data: blob: https://*.amazonaws.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.vercel-storage.com",
+  // tile.openstreetmap.org: los mosaicos del mapa de Tiendas (Leaflet los
+  // pinta como <img>). Se listan el host y sus subdominios a/b/c por si la
+  // plantilla de mosaicos vuelve a usarlos.
+  "img-src 'self' data: blob: https://*.amazonaws.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://*.vercel-storage.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
   "font-src 'self'",
   // cdn.jsdelivr.net: Tesseract.js WASM core + traineddata downloads
   "connect-src 'self' https://*.neon.tech https://cdn.jsdelivr.net",
@@ -56,7 +59,10 @@ const nextConfig: NextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
+          // geolocation=(self): Tiendas guarda dónde está cada una y el Súper
+          // detecta a cuál llegas. Solo esta web; la posición no sale del
+          // teléfono (ver lib/geo.ts).
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(self)' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'Content-Security-Policy', value: CSP },
         ],
