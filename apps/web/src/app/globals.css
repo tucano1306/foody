@@ -371,6 +371,11 @@ html.dark .card { box-shadow: none; }
 html.dark .bg-white          { background-color: var(--surface); }
 html.dark .bg-slate-50       { background-color: var(--surface-2); }
 html.dark .bg-slate-100      { background-color: var(--surface-2); }
+/* Pistas de carga, interruptores apagados y asas de hoja: en claro, un gris
+   un punto más hondo que el relleno; en oscuro, lo mismo con la superficie. */
+html.dark .bg-slate-200,
+html.dark .bg-slate-200\/70,
+html.dark .bg-slate-200\/80 { background-color: var(--surface-3); }
 html.dark .bg-slate-800      { background-color: var(--surface-2); }
 html.dark .bg-slate-900      { background-color: var(--surface); }
 html.dark .border-slate-100,
@@ -390,6 +395,7 @@ html.dark .bg-sky-50,
 html.dark .bg-sky-50\/70,
 html.dark .bg-sky-50\/80,
 html.dark .bg-sky-50\/60,
+html.dark .bg-sky-50\/90,
 html.dark .bg-white\/60,
 html.dark .bg-white\/70,
 html.dark .bg-white\/80,
@@ -398,10 +404,13 @@ html.dark .bg-sky-50\/50     { background-color: var(--surface); }
 /* Las variantes translúcidas de los tintes también: `bg-blue-50/70` no es la
    misma clase que `bg-blue-50`, y sin su línea aquí las tarjetas del
    consejero se quedaban en lavanda claro con la letra ya pasada a clara —
-   ilegibles. Las bg-white/10…/30 NO van: son velos sobre degradados de
-   color, y en oscuro tienen que seguir siendo velos. */
+   ilegibles. Pasó dos veces (la segunda, con los tonos «crítico» y «aviso»,
+   /80 y /90): por eso `globals-oscuro.test.ts` exige una línea aquí para
+   cada tinte claro que se use. Las bg-white/10…/30 NO van: son velos sobre
+   degradados de color, y en oscuro tienen que seguir siendo velos. */
 html.dark .bg-sky-100,
 html.dark .bg-sky-100\/70,
+html.dark .bg-sky-100\/80,
 html.dark .bg-blue-50,
 html.dark .bg-blue-50\/60,
 html.dark .bg-blue-50\/70,
@@ -413,6 +422,15 @@ html.dark .bg-sky-50\/40     { background-color: var(--surface-2); }
 html.dark .border-sky-50,
 html.dark .border-sky-100,
 html.dark .border-sky-200    { border-color: var(--line); }
+/* Las tarjetas con franja (`border-sky-200 border-l-4 border-l-blue-500`)
+   pierden la franja con la línea de arriba: `border-color` pisa también el
+   lado izquierdo, y en el consejero era lo único que separaba un aviso
+   crítico de una idea. Cada franja vuelve a su color. */
+html.dark .border-l-blue-500 { border-left-color: var(--color-blue-500); }
+html.dark .border-l-sky-500  { border-left-color: var(--color-sky-500); }
+html.dark .border-l-sky-400  { border-left-color: var(--color-sky-400); }
+html.dark .border-l-sky-300  { border-left-color: var(--color-sky-300); }
+html.dark .border-l-sky-200  { border-left-color: var(--color-sky-200); }
 
 /* Textos de tinta oscura (sky/blue/brand 600–900) sobre fondo oscuro no se
    leen: en oscuro pasan al tono claro de su misma gama. */
