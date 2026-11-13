@@ -56,7 +56,7 @@ const SUELTA_DEUDA = deuda(SUELTA, 'Cash Rewards 8523', 800, { cardGroup: null, 
 function credito(d: DebtWithProjection): CreditForPlan {
   return {
     id: d.id, name: d.name, balance: d.currentBalance, installment: 50, monthlyInterest: 10, monthsToPayoff: 20,
-    neverPaysOff: false, businessShare: 0, linkedPaymentId: null, duplicateDismissed: false, issuer: d.issuer,
+    payoffDate: null, neverPaysOff: false, businessShare: 0, linkedPaymentId: null, duplicateDismissed: false, issuer: d.issuer,
     cardGroup: d.cardGroup, kind: d.kind, accountLast4: d.accountLast4, currency: d.currency, rate: d.rate,
     ratePeriod: d.ratePeriod, promoEndsOn: d.promoEndsOn, rateAfterPromo: d.rateAfterPromo, promoKind: d.promoKind,
     deferredInterest: d.deferredInterest, openedAt: d.openedAt,
@@ -85,6 +85,9 @@ function payload(goals: FinanceGoal[]): FinancePlanPayload {
   };
   return {
     ...buildFinancePlan(input),
+    // Recién calculada, como la manda el servidor: una foto vieja hace que la
+    // pantalla se relea sola al montar (ver FinancePlanView.fresco.test.tsx).
+    generatedAt: new Date().toISOString(),
     incomes: [...input.incomes],
     rawGoals: goals,
     contributions: [],

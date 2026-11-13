@@ -80,3 +80,71 @@ describe('goalWithDebt — la meta lee sus cifras de la tarjeta', () => {
     expect(g.savedAmount).toBe(0);
   });
 });
+
+/**
+ * «Si yo hago abonos en Deudas, ese abono y cualquier otra transacción que
+ * haga en las tarjetas se debe reflejar también en Metas, y la meta
+ * actualizarse.»
+ *
+ * El saldo ya se leía de la deuda. Lo que NO la seguía: el objetivo se
+ * encogía al abonar una tarjeta que había subido con consumos, la fecha se
+ * quedaba en la del día en que se creó la meta, y la meta de una tarjeta ya
+ * pagada seguía en la lista de activas.
+ */
+describe('goalWithDebt — el objetivo recuerda lo más que se ha debido', () => {
+  const g = meta({ debtId: 'd1' });
+
+  it('el caso que fallaba: abrió en $200, subió a $800 con consumos, abono de $300', () => {
+    // Sin el pico el objetivo era max(200, 500) = 500 y «llevas» $0: un abono
+    // de $300 que no movía la meta.
+    const r = goalWithDebt(g, { originalAmount: 200, currentBalance: 500, peakBalance: 800 });
+    expect(r.targetAmount).toBe(800);
+    expect(r.savedAmount).toBe(300);
+  });
+
+  it('cada abono cuenta entero, uno detrás de otro', () => {
+    const tras = (saldo: number) =>
+      goalWithDebt(g, { originalAmount: 200, currentBalance: saldo, peakBalance: 800 }).savedAmount;
+    expect([800, 700, 450, 0].map(tras)).toEqual([0, 100, 350, 800]);
+  });
+
+  it('un consumo sube lo que falta, no borra el objetivo', () => {
+    const r = goalWithDebt(g, { originalAmount: 1000, currentBalance: 760, peakBalance: 1000 });
+    expect(r.targetAmount - r.savedAmount).toBe(760);
+    expect(r.targetAmount).toBe(1000);
+  });
+
+  it('sin movimientos (pico null) queda como antes', () => {
+    const r = goalWithDebt(g, { originalAmount: 1000, currentBalance: 700, peakBalance: null });
+    expect([r.targetAmount, r.savedAmount]).toEqual([1000, 300]);
+  });
+
+  it('un pico corrupto no propaga basura', () => {
+    const r = goalWithDebt(g, { originalAmount: 1000, currentBalance: 700, peakBalance: Number.NaN });
+    expect([r.targetAmount, r.savedAmount]).toEqual([1000, 300]);
+  });
+});
+
+describe('goalWithDebt — la fecha también se lee de la deuda', () => {
+  const deuda = { originalAmount: 1000, currentBalance: 400 };
+
+  it('la meta que sigue a la deuda toma la fecha que la deuda propone hoy', () => {
+    const g = meta({ debtId: 'd1', dateFollowsDebt: true, targetDate: '2027-03-08' });
+    expect(goalWithDebt(g, { ...deuda, targetDate: '2026-12-13' }).targetDate).toBe('2026-12-13');
+  });
+
+  it('si a ese ritmo no termina nunca, se queda sin fecha', () => {
+    const g = meta({ debtId: 'd1', dateFollowsDebt: true, targetDate: '2027-03-08' });
+    expect(goalWithDebt(g, { ...deuda, targetDate: null }).targetDate).toBeNull();
+  });
+
+  it('la fecha que escribió el usuario no se toca', () => {
+    const g = meta({ debtId: 'd1', dateFollowsDebt: false, targetDate: '2027-06-30' });
+    expect(goalWithDebt(g, { ...deuda, targetDate: '2026-12-13' }).targetDate).toBe('2027-06-30');
+  });
+
+  it('una deuda que no dice fecha (ya pagada) deja la que había', () => {
+    const g = meta({ debtId: 'd1', dateFollowsDebt: true, targetDate: '2027-03-08' });
+    expect(goalWithDebt(g, { originalAmount: 1000, currentBalance: 0 }).targetDate).toBe('2027-03-08');
+  });
+});

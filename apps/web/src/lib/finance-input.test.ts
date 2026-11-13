@@ -79,3 +79,25 @@ describe('parseDebtIdsBody — qué deudas pasar a Metas', () => {
     expect(parseDebtIdsBody({ debtIds: muchos.slice(0, MAX_DEUDAS_A_METAS) })).toHaveLength(MAX_DEUDAS_A_METAS);
   });
 });
+
+/**
+ * Si la fecha de la meta la pone la deuda. `null` no es «no»: es «no lo
+ * dije», y la ruta entonces deja lo que había. Un teléfono con una versión
+ * vieja de la app manda el formulario sin este campo, y editar el nombre de
+ * una meta desde ahí no puede apagar el seguimiento de su fecha.
+ */
+describe('validateGoalBody — la fecha sigue a la deuda', () => {
+  it('sin el campo devuelve null', () => {
+    expect(parse(base).dateFollowsDebt).toBeNull();
+  });
+
+  it('respeta sí y no cuando llegan', () => {
+    expect(parse({ ...base, dateFollowsDebt: true }).dateFollowsDebt).toBe(true);
+    expect(parse({ ...base, dateFollowsDebt: false }).dateFollowsDebt).toBe(false);
+  });
+
+  it('lo que no es un booleano cuenta como no dicho', () => {
+    expect(parse({ ...base, dateFollowsDebt: 'true' }).dateFollowsDebt).toBeNull();
+    expect(parse({ ...base, dateFollowsDebt: 1 }).dateFollowsDebt).toBeNull();
+  });
+});

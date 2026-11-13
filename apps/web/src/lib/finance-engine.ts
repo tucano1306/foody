@@ -106,12 +106,34 @@ export interface FinanceGoal {
    * decía «llevas $157» sobre una tarjeta que no había bajado un centavo.
    */
   debtId?: string | null;
+  /**
+   * La fecha de la meta la pone la deuda, no el usuario.
+   *
+   * Una meta pasada desde Deudas nace con la fecha que la deuda propone: el
+   * fin del 0 %, o cuándo termina a la cuota de hoy. Esa segunda era una foto
+   * del día en que se creó: tras un abono grande la deuda acababa en un mes y
+   * la meta seguía diciendo «faltan 115 días». Con esto puesto la fecha se
+   * vuelve a leer de la deuda en cada carga, igual que el saldo. Se apaga en
+   * cuanto el usuario escribe su propia fecha: esa es una decisión suya.
+   */
+  dateFollowsDebt?: boolean;
 }
 
 /** Lo que hace falta saber de una deuda para alimentar la meta que la persigue. */
 export interface GoalDebtLink {
   originalAmount: number;
   currentBalance: number;
+  /**
+   * Lo más que se ha debido desde que la meta existe (el saldo más alto que
+   * dejó ver el libro de movimientos). `null` si no ha habido movimientos.
+   */
+  peakBalance?: number | null;
+  /**
+   * La fecha que la deuda propone HOY (YYYY-MM-DD, o `null` = no termina
+   * nunca a este ritmo). `undefined` = no se sabe —la deuda ya está pagada o
+   * no está en el plan—, y entonces la meta conserva la fecha que tenía.
+   */
+  targetDate?: string | null;
 }
 
 /**
@@ -132,13 +154,25 @@ export interface GoalDebtLink {
  * puede dejar el saldo POR ENCIMA de lo que se debía al abrir la deuda, y
  * entonces «llevas abonado» saldría negativo y el objetivo sería menor que lo
  * que falta. Así el objetivo crece con la deuda, que es lo que de verdad pasó.
+ *
+ * Y con el PICO (`peakBalance`), el objetivo además no se encoge al abonar.
+ * Sin él, una tarjeta que abrió en $200 y subió a $800 con consumos tenía el
+ * objetivo pegado al saldo: abonar $300 la dejaba en «$0 de $500», un abono
+ * que no movía la meta. El pico recuerda los $800: «$300 de $800».
+ *
+ * La fecha, igual que las cifras: si la meta la tomó de la deuda
+ * (`dateFollowsDebt`), se vuelve a leer de ella. Un abono acerca la fecha de
+ * liquidación y un consumo la aleja; la meta dice lo mismo que Deudas.
  */
 export function goalWithDebt(goal: FinanceGoal, debt: GoalDebtLink | null | undefined): FinanceGoal {
   if (!goal.debtId || !debt) return goal;
-  const dinero = (n: number) => (Number.isFinite(n) && n > 0 ? n : 0);
+  const dinero = (n: number | null | undefined) => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : 0);
   const saldo = dinero(debt.currentBalance);
-  const target = round2(Math.max(dinero(debt.originalAmount), saldo));
-  return { ...goal, targetAmount: target, savedAmount: round2(Math.max(0, target - saldo)) };
+  const target = round2(Math.max(dinero(debt.originalAmount), saldo, dinero(debt.peakBalance)));
+  const conCifras = { ...goal, targetAmount: target, savedAmount: round2(Math.max(0, target - saldo)) };
+  return goal.dateFollowsDebt === true && debt.targetDate !== undefined
+    ? { ...conCifras, targetDate: debt.targetDate }
+    : conCifras;
 }
 
 /** Un pago mensual recurrente ya registrado en la sección Pagos. */
@@ -688,7 +722,12 @@ function projectGoal(goal: FinanceGoal, now: Date): GoalProjection {
     projectedDate: null,
     monthsLate: 0,
     feasibility: 'no_date',
-    status: goal.status,
+    // Una meta enganchada no la «logra» el usuario con un toque: la logra la
+    // deuda al quedar en cero. Antes se quedaba en la lista de activas al
+    // 100 %, con un botón «Abonar la tarjeta» sobre una tarjeta ya pagada,
+    // hasta que alguien la marcaba. Solo se deriva aquí —la meta guardada
+    // sigue `active`—: si la tarjeta vuelve a tener saldo, la meta vuelve sola.
+    status: goal.debtId && goal.status === 'active' && targetAmount > 0 && remaining <= 0 ? 'done' : goal.status,
   };
 }
 
@@ -1608,6 +1647,23 @@ function adviceForGoal(goal: GoalProjection, cash: CashFlow, input: PlanInput, o
       title: `${goal.name} va justa`,
       body: `Llegas al ${fecha}, pero se lleva casi todo tu margen (${money(goal.requiredMonthly)} de ${money(cash.goalsBudget)} disponibles). Cualquier gasto imprevisto la descarrila: intenta adelantar ${money(goal.requiredWeekly)} cada semana en vez de esperar al fin de mes.`,
       action: { label: 'Registrar aporte', kind: 'contribute', goalId: goal.goalId },
+    });
+    return;
+  }
+
+  if (goal.feasibility === 'on_track' && goal.daysLeft !== null && goal.cuotaTarjeta !== null) {
+    // La meta de una tarjeta no se «aparta»: la paga la cuota de la tarjeta.
+    // Con el texto de las metas de ahorro salía «Apartando $1 al mes — o $0
+    // por semana — tienes los $553 para el 8 de febrero 2058», que no dice
+    // nada de lo que pasa: lo que falta, y que se abona en la tarjeta.
+    out.push({
+      id: `goal-ok-${goal.goalId}`,
+      topic: 'goals',
+      tone: 'good',
+      icon: goal.emoji || '✅',
+      title: `${goal.name} va en camino`,
+      body: `Con la cuota de la tarjeta (${money(goal.cuotaTarjeta)} al mes) la terminas el ${fecha}. Faltan ${money(goal.remaining)} y llevas el ${Math.round(goal.percentComplete)}%.`,
+      action: { label: 'Abonar la tarjeta', kind: 'contribute', goalId: goal.goalId },
     });
     return;
   }

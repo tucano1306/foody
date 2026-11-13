@@ -47,6 +47,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       -- enganche, target_amount y saved_amount de arriba dejan de mandar: se
       -- leen de la deuda al cargar el plan (ver goalWithDebt).
       debt_id          = ${input.debtId},
+      -- Si la fecha la pone la deuda. COALESCE: un cliente que no lo manda
+      -- (una versión vieja de la app) no cambia lo que había. El cast es por
+      -- la inferencia de tipos de Neon: un NULL sin tipo no es un booleano.
+      date_follows_debt = COALESCE(${input.dateFollowsDebt}::boolean, date_follows_debt, false),
       -- COALESCE y no asignación directa: el formulario ya no manda prioridad,
       -- y editar el nombre de una meta no puede deshacer el orden que el
       -- usuario armó arrastrando las tarjetas.

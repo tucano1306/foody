@@ -990,6 +990,34 @@ async function deudasConMeta(userId: string): Promise<string[]> {
   return (rows as Record<string, unknown>[]).map((r) => String(r.debt_id));
 }
 
+/**
+ * Cobra el interés que esté pendiente en las deudas vivas del usuario.
+ *
+ * `listDebts` ya lo hace al abrir Deudas. El Plan no lo hacía: leía el saldo
+ * guardado tal cual, así que el día que cerraba un ciclo la meta de una
+ * tarjeta decía «faltan $523.40» y Deudas, al abrirla después, «$533.86». Las
+ * dos pantallas tienen que hablar del mismo saldo sin depender de cuál se
+ * abrió antes.
+ *
+ * Es barato casi siempre: una consulta, y por deuda solo cuentas en memoria
+ * hasta que de verdad cierra un ciclo. Y es seguro repetirlo: el índice único
+ * por (deuda, mes) descarta el doble cobro, igual que en `listDebts`.
+ *
+ * Devuelve si algún saldo cambió.
+ */
+export async function devengarPendiente(userId: string, now: Date = new Date()): Promise<boolean> {
+  await ensureDebtSchema();
+  const rows = await sql`
+    SELECT * FROM debts
+     WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
+  `;
+  let cambio = false;
+  for (const row of rows) {
+    if (await accrueDueInterest(mapDebt(row as Record<string, unknown>), now)) cambio = true;
+  }
+  return cambio;
+}
+
 /** Lo mínimo que el Plan Financiero necesita saber de cada crédito. */
 export interface CreditForPlan {
   id: string;
@@ -998,6 +1026,11 @@ export interface CreditForPlan {
   installment: number;
   monthlyInterest: number;
   monthsToPayoff: number | null;
+  /**
+   * YYYY-MM-DD: cuándo termina a la cuota de hoy. Es la fecha que lleva la
+   * meta del Plan cuando sigue a esta deuda (ver `fechaQueProponeLaDeuda`).
+   */
+  payoffDate: string | null;
   neverPaysOff: boolean;
   /** 0-100: qué parte de la cuota corresponde al negocio. */
   businessShare: number;
@@ -1088,6 +1121,7 @@ export async function listCreditsForPlan(
       installment: projection.installment,
       monthlyInterest: projection.monthlyInterest,
       monthsToPayoff: projection.monthsToPayoff,
+      payoffDate: projection.payoffDate,
       neverPaysOff: projection.neverPaysOff,
       businessShare: normalizeShare(row.business_share),
       linkedPaymentId: (row.linked_payment_id as string | null) ?? null,

@@ -575,6 +575,15 @@ Otras convenciones observadas:
 - No aportes a una meta enganchada a una deuda (`debt_id`): lee lo abonado del
   saldo de la deuda. El abono va a Deudas (`AbonoDeMeta`); la ruta
   `/contribute` responde 409.
+- No guardes en una meta enganchada copia de nada de su deuda. Saldo, objetivo,
+  fecha (`date_follows_debt`) y «lograda» se calculan de la deuda en cada carga
+  (`goalWithDebt`, `projectGoal`), y el Plan cobra el interés pendiente antes
+  de leer (`devengarPendiente`) para decir el mismo saldo que Deudas. La tabla
+  de qué mueve cada movimiento está en `metas-siguen-a-deudas.test.ts`.
+- No dejes una pantalla con `useState(initialData)` sin tomar la foto nueva del
+  servidor: `router.refresh()` (al volver a la app, al deslizar para recargar)
+  la recalcula y la pantalla la tiraba. Pasó en el Plan: la meta seguía sin el
+  abono hecho en Deudas. Lo vigila `FinancePlanView.fresco.test.tsx`.
 
 ---
 

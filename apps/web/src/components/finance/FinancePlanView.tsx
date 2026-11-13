@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { PlusIcon, BriefcaseIcon, ArrowPathIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
@@ -16,6 +16,7 @@ import type { AdviceAction, FinanceGoal, GoalKind, GoalProjection, PlanInput } f
 import { topPlanChange } from '@/lib/plan-diff';
 import { applyOrder, moveInOrder } from '@/lib/goal-order';
 import { agruparPorTarjeta, sugerirDeudaParaMeta } from '@/lib/plan-tarjetas';
+import { fechaQueProponeLaDeuda } from '@/lib/deuda-a-meta';
 import { cardTitle } from '@/lib/card-payment';
 import AbonoDeMeta, { cargarDestinoDelAbono, type DestinoAbierto } from './AbonoDeMeta';
 import AdviceFeed from './AdviceFeed';
@@ -29,7 +30,7 @@ import GrocerySpendCard from './GrocerySpendCard';
 import HealthDetailSheet from './HealthDetailSheet';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
 import OtherSpendCard from './OtherSpendCard';
-import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel } from './finance-ui';
+import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel, todayKey } from './finance-ui';
 
 interface Props {
   readonly initialData: FinancePlanPayload;
@@ -96,6 +97,13 @@ function HealthRing({ score }: { readonly score: number }) {
     </div>
   );
 }
+
+/**
+ * A partir de cuándo una foto del plan se considera devuelta del historial y
+ * no recién calculada. Holgado: una carga lenta en el móvil tarda segundos, y
+ * releer de más solo cuesta una petición.
+ */
+const FOTO_VIEJA_MS = 20_000;
 
 export default function FinancePlanView({ initialData }: Props) {
   const router = useRouter();
@@ -169,6 +177,42 @@ export default function FinancePlanView({ initialData }: Props) {
     }
   }, [toast]);
 
+  /**
+   * El servidor manda una foto nueva y la pantalla la toma.
+   *
+   * `data` arranca de `initialData` y después vive por su cuenta, así que lo
+   * que llegaba más tarde se perdía: al volver a la app o deslizar para
+   * recargar, el servidor recalculaba el plan (`router.refresh()`) y el Plan
+   * seguía enseñando las metas de antes del abono hecho en Deudas. Se compara
+   * la referencia, no el contenido: el primer render ya la tiene puesta.
+   */
+  const fotoDelServidor = useRef(initialData);
+  useEffect(() => {
+    if (fotoDelServidor.current === initialData) return;
+    fotoDelServidor.current = initialData;
+    setData(initialData);
+  }, [initialData]);
+
+  /**
+   * Y si la foto con la que se monta ya es vieja, se relee sin avisar.
+   *
+   * Pasa al volver ATRÁS: Next devuelve la página como estaba al salir, no la
+   * pide otra vez. Plan → Deudas → abonar → atrás enseñaba la meta sin el
+   * abono, y nada la corregía. Una foto recién calculada tiene segundos; una
+   * devuelta del historial, lo que haya durado la visita a la otra pantalla
+   * (`generatedAt` lo pone el motor al calcular el plan).
+   */
+  const refrescarSiEsVieja = useRef(refresh);
+  refrescarSiEsVieja.current = refresh;
+  useEffect(() => {
+    const edad = Date.now() - Date.parse(initialData.generatedAt);
+    if (Number.isFinite(edad) && edad > FOTO_VIEJA_MS) {
+      // Sin red la foto vieja se queda: es lo que había antes de este efecto.
+      refrescarSiEsVieja.current(true).catch(() => undefined);
+    }
+    // Solo al montar: después manda `router.refresh()` (el efecto de arriba).
+  }, []);
+
   /** Todas las mutaciones pasan por aquí: lanza el error del servidor tal cual. */
   const send = useCallback(async (url: string, method: string, body?: unknown) => {
     const res = await fetch(url, {
@@ -232,6 +276,8 @@ export default function FinancePlanView({ initialData }: Props) {
       status: raw.status,
       note: raw.note,
       debtId,
+      // La meta escrita a mano conserva su fecha; sin fecha, toma la de la tarjeta.
+      dateFollowsDebt: raw.targetDate === null,
     };
     try {
       await send(`/api/finance/goals/${raw.id}`, 'PATCH', payload);
@@ -788,6 +834,7 @@ export default function FinancePlanView({ initialData }: Props) {
               balance: c.balance,
               tarjeta,
               promoEndsOn: c.promoEndsOn,
+              fechaPropuesta: fechaQueProponeLaDeuda(c, todayKey()).fecha,
             }));
           })}
           onSave={saveGoal}
