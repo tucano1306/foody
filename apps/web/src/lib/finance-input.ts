@@ -71,6 +71,15 @@ export interface GoalInput {
    * mande el cliente en esos dos campos deja de mandar. Ver goalWithDebt.
    */
   debtId: string | null;
+  /**
+   * Si la fecha la pone la deuda (ver `dateFollowsDebt` en FinanceGoal).
+   *
+   * `null` = el cliente no lo dijo: una meta nueva no la sigue y una que se
+   * edita se queda como estaba. Importa por los teléfonos que siguen con una
+   * versión vieja de la app: al editar el nombre de una meta mandan el
+   * formulario sin este campo, y eso no puede apagar el seguimiento.
+   */
+  dateFollowsDebt: boolean | null;
   monthlyOverride: number | null;
   status: GoalStatus;
   note: string | null;
@@ -130,6 +139,7 @@ export function validateGoalBody(body: Record<string, unknown>): GoalInput | Val
       typeof body.debtId === 'string' && /^[0-9a-f-]{36}$/i.test(body.debtId.trim())
         ? body.debtId.trim()
         : null,
+    dateFollowsDebt: typeof body.dateFollowsDebt === 'boolean' ? body.dateFollowsDebt : null,
     monthlyOverride,
     status,
     note: parseText(body.note, 1000) || null,

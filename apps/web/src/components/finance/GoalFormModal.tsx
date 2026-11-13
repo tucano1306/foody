@@ -19,6 +19,8 @@ export interface GoalPayload {
   note: string | null;
   /** Tarjeta o crédito que esta meta liquida. `null` = una meta normal. */
  debtId: string | null;
+  /** La fecha la pone la deuda y se mueve con ella; `false` = la escribió el usuario. */
+  dateFollowsDebt?: boolean;
 }
 
 interface Props {
@@ -39,6 +41,11 @@ interface Props {
   tarjeta?: string | null;
   /** Fin de su 0 %, YYYY-MM-DD: es la fecha que suele llevar la meta. */
   promoEndsOn?: string | null;
+  /**
+   * La fecha que la deuda propone hoy (fin del 0 %, o cuándo termina a su
+   * cuota), YYYY-MM-DD. `null` = a este ritmo no termina.
+   */
+  fechaPropuesta?: string | null;
  }[];
  readonly onSave: (payload: GoalPayload) => Promise<void>;
  readonly onClose: () => void;
@@ -79,6 +86,12 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
  const linked = debts.find((d) => d.id === debtId) ?? null;
  const [saved, setSaved] = useState(goal ? String(goal.savedAmount) : '');
  const [date, setDate] = useState(goal?.targetDate ?? '');
+ /**
+  * La fecha la pone la tarjeta. Escribir una fecha a mano lo apaga —quien
+  * teclea una fecha quiere ESA—, y el botón de al lado lo vuelve a encender.
+  */
+ const [sigueFecha, setSigueFecha] = useState(goal?.dateFollowsDebt === true && goal.debtId != null);
+ const fecha = sigueFecha && linked ? (linked.fechaPropuesta ?? '') : date;
  const [override, setOverride] = useState(goal?.monthlyOverride ? String(goal.monthlyOverride) : '');
  const [note, setNote] = useState(goal?.note ?? '');
  const [saving, setSaving] = useState(false);
@@ -96,7 +109,7 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
  const remaining = Math.max(0, targetAmount - savedAmount);
  if (remaining === 0) return { remaining, monthly: 0, weekly: 0, daily: 0, days: null, fits: true };
 
- const days = date ? daysUntil(date) : null;
+ const days = fecha ? daysUntil(fecha) : null;
  if (days === null) {
  const monthly = remaining / 12;
  return { remaining, monthly, weekly: monthly / 4.345, daily: monthly / DAYS_PER_MONTH, days: null, fits: monthly <= monthlyAvailable };
@@ -105,7 +118,7 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
 
  const monthly = remaining / (days / DAYS_PER_MONTH);
  return { remaining, monthly, weekly: (remaining / days) * 7, daily: remaining / days, days, fits: monthly <= monthlyAvailable };
- }, [target, saved, date, monthlyAvailable]);
+ }, [target, saved, fecha, monthlyAvailable]);
 
  function pickTemplate(t: Template) {
  setKind(t.kind);
@@ -128,7 +141,8 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
  targetAmount,
  debtId,
  savedAmount: parseMoney(saved) ?? 0,
- targetDate: date || null,
+ targetDate: fecha || null,
+ dateFollowsDebt: debtId !== null && sigueFecha,
  monthlyOverride: parseMoney(override),
  status: goal?.status ?? 'active',
  note: note.trim() || null,
@@ -241,7 +255,14 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
                 <button
                   key={d.id}
                   type="button"
-                  onClick={() => { haptic(6); setDebtId(debtId === d.id ? null : d.id); }}
+                  onClick={() => {
+                    haptic(6);
+                    const quitar = debtId === d.id;
+                    setDebtId(quitar ? null : d.id);
+                    // Sin fecha escrita, la de la tarjeta es la que tiene
+                    // sentido; con una ya tecleada, se respeta.
+                    setSigueFecha(!quitar && (sigueFecha || !date));
+                  }}
                   aria-pressed={debtId === d.id}
                   className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition ${
                     debtId === d.id
@@ -321,10 +342,25 @@ export default function GoalFormModal({ goal, preset, monthlyAvailable, debts, o
             id="goal-date"
             type="date"
             min={todayKey()}
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={fecha}
+            onChange={(e) => { setSigueFecha(false); setDate(e.target.value); }}
             className={inputCls}
           />
+          {/* Enganchada a una tarjeta, la fecha puede ser la suya: el fin del
+              0 % o el día en que termina a su cuota, que se mueve con cada
+              abono. Un toque la enciende o la apaga; escribir otra la apaga. */}
+          {linked && (
+            <button
+              type="button"
+              aria-pressed={sigueFecha}
+              onClick={() => { haptic(6); setSigueFecha(!sigueFecha); }}
+              className={`mt-2 rounded-full px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
+                sigueFecha ? 'bg-sky-500 text-white' : 'bg-white text-slate-600 ring-1 ring-sky-200'
+              }`}
+            >
+              🔗 La fecha de la tarjeta
+            </button>
+          )}
         </div>
 
         {/* Vista previa del esfuerzo */}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMOJI_DE_DEUDA, metaDesdeDeuda, proponerMetas, resumenEnMetas, type DeudaParaMeta } from './deuda-a-meta';
+import { EMOJI_DE_DEUDA, fechaQueProponeLaDeuda, metaDesdeDeuda, proponerMetas, resumenEnMetas, type DeudaParaMeta } from './deuda-a-meta';
 import { KIND_META } from '@/components/debts/debt-ui';
 import { buildFinancePlan, goalWithDebt, type FinanceGoal } from './finance-engine';
 
@@ -250,5 +250,55 @@ describe('resumenEnMetas — qué dice el menú', () => {
     expect(resumenEnMetas([deuda({ currentBalance: 0 }), compras], HOY, new Set([compras.id]))).toEqual({
       porPasar: 0, yaEnMetas: 1,
     });
+  });
+});
+
+/**
+ * La fecha que la deuda propone se calcula igual al crear la meta que en cada
+ * carga del Plan: por eso está sola y se prueba sola.
+ */
+describe('fechaQueProponeLaDeuda — la fecha se mueve con la deuda', () => {
+  const HOY_ = '2026-11-13';
+
+  it('con el 0 % vigente manda el fin de la promoción, diga lo que diga la cuota', () => {
+    expect(
+      fechaQueProponeLaDeuda({ promoEndsOn: '2027-01-25', payoffDate: '2058-01-13', neverPaysOff: false }, HOY_),
+    ).toEqual({ fecha: '2027-01-25', porQue: 'promo' });
+  });
+
+  it('el último día del 0 % todavía cuenta', () => {
+    expect(
+      fechaQueProponeLaDeuda({ promoEndsOn: HOY_, payoffDate: '2027-05-13', neverPaysOff: false }, HOY_).porQue,
+    ).toBe('promo');
+  });
+
+  it('con la promoción caducada, cuándo termina a la cuota de hoy', () => {
+    expect(
+      fechaQueProponeLaDeuda({ promoEndsOn: '2026-10-25', payoffDate: '2027-03-13', neverPaysOff: false }, HOY_),
+    ).toEqual({ fecha: '2027-03-13', porQue: 'ritmo' });
+  });
+
+  it('un abono acerca la fecha: la misma deuda, con menos saldo, termina antes', () => {
+    const antes = fechaQueProponeLaDeuda({ promoEndsOn: null, payoffDate: '2027-03-13', neverPaysOff: false }, HOY_);
+    const despues = fechaQueProponeLaDeuda({ promoEndsOn: null, payoffDate: '2026-12-13', neverPaysOff: false }, HOY_);
+    expect([antes.fecha, despues.fecha]).toEqual(['2027-03-13', '2026-12-13']);
+  });
+
+  it('si la cuota no la termina nunca, sin fecha: inventar una escondería el problema', () => {
+    expect(
+      fechaQueProponeLaDeuda({ promoEndsOn: null, payoffDate: null, neverPaysOff: true }, HOY_),
+    ).toEqual({ fecha: null, porQue: 'sin_fecha' });
+  });
+
+  it('propone lo mismo que al crear la meta', () => {
+    const d = deuda();
+    const creada = metaDesdeDeuda(d, HOY);
+    if (!creada.ok) throw new Error('esperaba una meta');
+    expect(
+      fechaQueProponeLaDeuda(
+        { promoEndsOn: d.promoEndsOn, payoffDate: d.projection.payoffDate, neverPaysOff: d.projection.neverPaysOff },
+        HOY,
+      ).fecha,
+    ).toBe(creada.meta.targetDate);
   });
 });

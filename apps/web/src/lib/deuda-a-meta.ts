@@ -126,6 +126,35 @@ function soloMes(clave: string): string {
   return p ? `${MESES[p[1] - 1]} ${p[0]}` : clave;
 }
 
+/** Lo que hace falta saber de una deuda para ponerle fecha a su meta. */
+export interface DeudaConFecha {
+  /** YYYY-MM-DD: último día del 0 %. */
+  promoEndsOn: string | null;
+  /** YYYY-MM-DD: cuándo termina a la cuota de hoy. */
+  payoffDate: string | null;
+  neverPaysOff: boolean;
+}
+
+/**
+ * La fecha que una deuda le propone a su meta, HOY.
+ *
+ * Está aparte de `metaDesdeDeuda` porque se usa dos veces: al crear la meta y
+ * en cada carga del Plan, para las metas cuya fecha sigue a la deuda
+ * (`dateFollowsDebt`). Con una sola función, la fecha que se ve al pasar la
+ * deuda a Metas es la que se seguirá viendo, y se mueve con cada abono.
+ */
+export function fechaQueProponeLaDeuda(
+  deuda: DeudaConFecha,
+  hoy: string,
+): { fecha: string | null; porQue: PorQueEsaFecha } {
+  if (deuda.promoEndsOn && promoVigente(deuda.promoEndsOn, hoy)) {
+    return { fecha: deuda.promoEndsOn.slice(0, 10), porQue: 'promo' };
+  }
+  const payoff = deuda.payoffDate?.slice(0, 10) ?? null;
+  if (!deuda.neverPaysOff && payoff && payoff >= hoy) return { fecha: payoff, porQue: 'ritmo' };
+  return { fecha: null, porQue: 'sin_fecha' };
+}
+
 /**
  * La meta que propone una deuda, o por qué no propone ninguna.
  *
@@ -167,23 +196,24 @@ export function metaDesdeDeuda(
     currentBalance: saldo,
   });
 
-  let targetDate: string | null = null;
-  let porQue: PorQueEsaFecha = 'sin_fecha';
+  const { fecha: targetDate, porQue } = fechaQueProponeLaDeuda(
+    {
+      promoEndsOn: deuda.promoEndsOn,
+      payoffDate: deuda.projection.payoffDate,
+      neverPaysOff: deuda.projection.neverPaysOff,
+    },
+    hoy,
+  );
   let motivo: string;
-  const payoff = deuda.projection.payoffDate?.slice(0, 10) ?? null;
 
-  if (deuda.promoEndsOn && promoVigente(deuda.promoEndsOn, hoy)) {
-    targetDate = deuda.promoEndsOn.slice(0, 10);
-    porQue = 'promo';
+  if (porQue === 'promo' && targetDate) {
     motivo =
       deuda.promoKind === 'diferido'
         ? `Para liquidarla antes de que acabe la promoción (${conDia(targetDate)}). ` +
           'Es interés diferido: si ese día queda algo, el banco cobra el interés de todo el periodo.'
         : `Para liquidarla antes de que acabe el 0 % (${conDia(targetDate)}).`;
-  } else if (!deuda.projection.neverPaysOff && payoff && payoff >= hoy) {
-    targetDate = payoff;
-    porQue = 'ritmo';
-    motivo = `Con la cuota de hoy la terminas en ${soloMes(payoff)}.`;
+  } else if (porQue === 'ritmo' && targetDate) {
+    motivo = `Con la cuota de hoy la terminas en ${soloMes(targetDate)}.`;
   } else if (deuda.projection.neverPaysOff) {
     motivo = 'Con la cuota de hoy no termina nunca: ponle fecha y el Plan te dice cuánto apartar.';
   } else {

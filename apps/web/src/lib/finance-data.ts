@@ -13,12 +13,13 @@ import { sql } from '@/lib/db';
 import { aCampoDeFecha } from '@/lib/app-time';
 import { getBudgetData } from '@/lib/budget-data';
 import {
+  devengarPendiente,
   getDebt,
   listCreditsForPlan,
   type CreditForPlan,
   type DebtWithProjection,
 } from '@/lib/debt-data';
-import { proponerMetas, type PorQueNo } from '@/lib/deuda-a-meta';
+import { fechaQueProponeLaDeuda, proponerMetas, type PorQueNo } from '@/lib/deuda-a-meta';
 import { monthlyCost, normalizeAnchorMonth, normalizeFrequency } from '@/lib/payment-frequency';
 import { normalizeShare } from '@/lib/expense-scope';
 import { normalizeExpenseKind } from '@/lib/expense-kind';
@@ -150,6 +151,23 @@ export async function ensureFinanceSchema(): Promise<void> {
     EXCEPTION WHEN duplicate_object THEN NULL;
     WHEN undefined_table THEN NULL;
     END $$`;
+  // La fecha de la meta la pone la deuda (ver `dateFollowsDebt`). Sin DEFAULT
+  // a propósito: NULL significa «de antes de esta columna», y es lo que deja
+  // distinguir las metas viejas para decidirlas UNA vez, aquí abajo.
+  await sql`ALTER TABLE finance_goals ADD COLUMN IF NOT EXISTS date_follows_debt BOOLEAN`;
+  // Las metas que ya existían: siguen a la deuda las que se pasaron desde
+  // Deudas, que nacieron con la fecha que la deuda propuso y llevan esa nota.
+  // Una enganchada a mano desde el formulario lleva la fecha que tecleó su
+  // dueño, y esa no se toca. Después de la primera vez no queda ningún NULL y
+  // esto no escribe nada.
+  //
+  // Con `.catch`: si esto fallara, las metas viejas se quedan en NULL, que se
+  // lee como «fecha propia» —lo que hacían hasta hoy—, y el Plan carga igual.
+  await sql`
+    UPDATE finance_goals
+       SET date_follows_debt = (debt_id IS NOT NULL AND COALESCE(note, '') LIKE 'Pasada desde Deudas.%')
+     WHERE date_follows_debt IS NULL
+  `.catch(() => undefined);
 
   await sql`
     CREATE TABLE IF NOT EXISTS finance_goal_contributions (
@@ -212,6 +230,7 @@ export function mapGoalRow(row: Record<string, unknown>): FinanceGoal {
     savedAmount: num(row.saved_amount),
     targetDate: dateKey(row.target_date),
     debtId: (row.debt_id as string | null | undefined) ?? null,
+    dateFollowsDebt: row.date_follows_debt === true,
     priority: Math.trunc(num(row.priority, 2)),
     monthlyOverride: row.monthly_override == null ? null : num(row.monthly_override),
     status: GOAL_STATUSES.includes(status) ? status : 'active',
@@ -522,9 +541,14 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
   await ensureExpenseKindSchema();
   await ensureTripSplitsSchema();
 
+  // El interés pendiente se cobra ANTES de leer: las metas enganchadas y las
+  // cuotas salen del saldo de la deuda, y tiene que ser el mismo que enseña
+  // Deudas. Si falla, el plan sigue con el saldo guardado, como hasta ahora.
+  await devengarPendiente(userId).catch(() => false);
+
   const [
     incomeRows, goalRows, contributionRows, fixedPayments, budget, breakdown, credits,
-    groceriesBusinessShare, otherSpend, otherBusinessShare,
+    groceriesBusinessShare, otherSpend, otherBusinessShare, picos,
   ] = await Promise.all([
       sql`SELECT * FROM finance_income_sources WHERE user_id = ${userId} ORDER BY created_at ASC`,
       // Con la deuda enganchada al lado: una meta que persigue una tarjeta lee
@@ -555,16 +579,30 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
       // antes en vez de caerse entero.
       loadOtherSpend(userId).catch(() => EMPTY_OTHER_SPEND),
       loadOtherBusinessShare(userId).catch(() => 0),
+      // Aparte de la consulta de metas, y con su `.catch`: es un afinado del
+      // objetivo, y si fallara el plan tiene que seguir como estaba.
+      picosDeLasMetas(userId).catch(() => new Map<string, number>()),
     ]);
 
   const incomes = incomeRows.map((r) => mapIncomeRow(r as Record<string, unknown>));
+  // La fecha que cada deuda viva propone hoy, para las metas que la siguen.
+  // Una deuda que no está aquí (ya pagada, o la lista falló) no propone nada
+  // y su meta conserva la fecha guardada.
+  const hoy = aCampoDeFecha(new Date().toISOString());
+  const fechaDe = new Map(credits.map((c) => [c.id, fechaQueProponeLaDeuda(c, hoy).fecha]));
   const goals = goalRows.map((r) => {
     const row = r as Record<string, unknown>;
+    const meta = mapGoalRow(row.debt_en_papelera ? { ...row, debt_id: null } : row);
     return goalWithDebt(
-      mapGoalRow(row.debt_en_papelera ? { ...row, debt_id: null } : row),
+      meta,
       row.debt_original == null && row.debt_balance == null
         ? null
-        : { originalAmount: num(row.debt_original), currentBalance: num(row.debt_balance) },
+        : {
+            originalAmount: num(row.debt_original),
+            currentBalance: num(row.debt_balance),
+            peakBalance: picos.get(meta.id) ?? null,
+            targetDate: meta.debtId ? fechaDe.get(meta.debtId) : undefined,
+          },
     );
   });
   const contributions = contributionRows.map((r) => mapContributionRow(r as Record<string, unknown>));
@@ -621,6 +659,30 @@ export async function getFinancePlan(userId: string, extraMonthly = 0): Promise<
     payments: fixedPayments,
     credits,
   };
+}
+
+/**
+ * Lo más que ha debido la deuda de cada meta enganchada, desde que la meta
+ * existe: el saldo más alto que dejó ver el libro de movimientos.
+ *
+ * Con ello el objetivo de la meta no se encoge al abonar una tarjeta que
+ * subió con consumos (ver `goalWithDebt`). Solo cuenta desde que la meta
+ * existe: lo anterior ya está en la cifra con la que nació. Una meta sin
+ * movimientos posteriores no sale, y su objetivo queda como siempre.
+ */
+async function picosDeLasMetas(userId: string): Promise<Map<string, number>> {
+  const rows = await sql`
+    SELECT g.id AS goal_id, MAX(GREATEST(m.balance_before, m.balance_after)) AS pico
+      FROM finance_goals g
+      JOIN debt_movements m ON m.debt_id = g.debt_id AND m.occurred_at >= g.created_at
+     WHERE g.user_id = ${userId} AND g.debt_id IS NOT NULL
+     GROUP BY g.id
+  `;
+  return new Map(
+    (rows as Record<string, unknown>[])
+      .filter((r) => r.pico != null)
+      .map((r) => [String(r.goal_id), num(r.pico)]),
+  );
 }
 
 // ─── Metas desde Deudas ──────────────────────────────────────────────────────
@@ -686,12 +748,13 @@ export async function crearMetasDesdeDeudas(
     const rows = await sql`
       INSERT INTO finance_goals
         (id, user_id, name, emoji, kind, target_amount, saved_amount, target_date,
-         priority, monthly_override, status, note, debt_id, created_at, updated_at)
+         priority, monthly_override, status, note, debt_id, date_follows_debt, created_at, updated_at)
       SELECT
         ${randomUUID()}::uuid, ${userId}::uuid, ${m.name}::text, ${m.emoji}::text, 'debt',
         ${m.targetAmount}::numeric, ${m.savedAmount}::numeric, ${m.targetDate}::date,
         (SELECT COALESCE(MAX(priority), 0) + 1 FROM finance_goals WHERE user_id = ${userId}::uuid),
-        NULL, 'active', ${m.note}::text, ${m.debtId}::uuid, NOW(), NOW()
+        -- La fecha la propuso la deuda: que la siga (un abono la acerca).
+        NULL, 'active', ${m.note}::text, ${m.debtId}::uuid, true, NOW(), NOW()
       WHERE NOT EXISTS (
         SELECT 1 FROM finance_goals WHERE user_id = ${userId}::uuid AND debt_id = ${m.debtId}::uuid
       )
