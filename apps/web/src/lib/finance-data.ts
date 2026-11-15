@@ -270,9 +270,18 @@ function mapContributionRow(row: Record<string, unknown>): GoalContribution {
 
 // ─── Pagos fijos (reutiliza los agregados de la sección Pagos) ────────────────
 
-async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
+/**
+ * Exportada para su prueba: la consulta y el mapeo se equivocan juntos.
+ *
+ * `frequency` y `anchor_month` faltaban en el SELECT desde que existen los
+ * recibos cada varios meses. El mapeo de abajo los leía, recibía `undefined`
+ * y caía a «mensual»: un seguro semestral de $120, pagado en marzo, contaba
+ * $120 enteros cada mes y salía «atrasado» en abril, con el consejero
+ * pidiendo ponerse al día con algo que no vence hasta septiembre.
+ */
+export async function loadFixedPayments(userId: string): Promise<FixedPaymentInput[]> {
   const [rows, paidRows] = await Promise.all([
-    sql`SELECT id, name, amount, due_day, created_at, business_share FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`,
+    sql`SELECT id, name, amount, due_day, frequency, anchor_month, created_at, business_share FROM monthly_payments WHERE user_id = ${userId} AND is_active = true ORDER BY due_day ASC`,
     sql`SELECT payment_id, month, year, amount, actual_amount, paid_at FROM payment_records WHERE user_id = ${userId} AND status = 'paid'`,
   ]);
 

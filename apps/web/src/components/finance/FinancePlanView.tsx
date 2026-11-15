@@ -30,7 +30,7 @@ import GrocerySpendCard from './GrocerySpendCard';
 import HealthDetailSheet from './HealthDetailSheet';
 import IncomeModal, { type IncomePayload } from './IncomeModal';
 import OtherSpendCard from './OtherSpendCard';
-import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel, todayKey } from './finance-ui';
+import { BTN_PRIMARY, BTN_SOFT, LABEL, NUM, fmtMoney, healthColor, healthLabel, palabraDelResto, todayKey } from './finance-ui';
 
 interface Props {
   readonly initialData: FinancePlanPayload;
@@ -536,16 +536,19 @@ export default function FinancePlanView({ initialData }: Props) {
   );
 
   /**
-   * Cuotas de crédito del negocio que este plan NO está contando.
+   * Mínimos de crédito del negocio que este plan NO está contando.
    *
    * `data` es siempre el plan COMPLETO tal como lo calculó el servidor y
    * `view` es lo que se está mirando, así que su diferencia es exactamente lo
    * que se dejó fuera al apagar «contar el negocio». Con el negocio incluido
    * las dos son la misma cifra y esto da cero.
+   *
+   * De los MÍNIMOS y no de las cuotas: es la cifra de la fila de «Tu mes» que
+   * acompaña, y con las cuotas el aviso hablaba de otro número.
    */
   const creditsBusinessExcluded = Math.max(
     0,
-    Math.round((data.cashFlow.creditPayments - view.cashFlow.creditPayments) * 100) / 100,
+    Math.round((data.cashFlow.creditMinimums - view.cashFlow.creditMinimums) * 100) / 100,
   );
 
   /**
@@ -605,9 +608,13 @@ export default function FinancePlanView({ initialData }: Props) {
                   </p>
                 )}
               </div>
+              {/* Tras lo que PIDE el mes, no tras el plan de las tarjetas: lo
+                  que se abona de más para liquidar un 0 % es una decisión, y
+                  restado aquí parecía un mes que no cierra. «Tu mes» lo enseña
+                  aparte. */}
               <div>
-                <p className={`text-[11px] font-bold ${LABEL}`}>Libre al mes</p>
-                <p className={`font-black tabular-nums ${NUM}`}>{fmtMoney(cash.available)}</p>
+                <p className={`text-[11px] font-bold ${LABEL}`}>{palabraDelResto(cash)}</p>
+                <p className={`font-black tabular-nums ${NUM}`}>{fmtMoney(Math.abs(cash.afterObligations))}</p>
               </div>
             </div>
           </div>

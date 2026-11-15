@@ -2,7 +2,7 @@
 
 import type { CashFlow, HealthBreakdown } from '@/lib/finance-engine';
 import ModalShell from './ModalShell';
-import { HEALTH_TIERS, LABEL, NUM, fmtMoney, healthColor, healthLabel } from './finance-ui';
+import { HEALTH_TIERS, LABEL, NUM, fmtMoney, healthColor, healthLabel, palabraDelResto } from './finance-ui';
 
 interface Props {
   readonly breakdown: HealthBreakdown;
@@ -157,14 +157,18 @@ export default function HealthDetailSheet({ breakdown, cash, businessIncluded, o
           </div>
           <div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm font-bold text-slate-800">Libre al mes</span>
-              <span className={`text-sm font-black tabular-nums ${NUM}`}>{fmtMoney(cash.available)}</span>
+              <span className="text-sm font-bold text-slate-800">{palabraDelResto(cash)}</span>
+              <span className={`text-sm font-black tabular-nums ${NUM}`}>{fmtMoney(Math.abs(cash.afterObligations))}</span>
             </div>
             <p className="text-[11px] text-slate-500">
               Lo que entra menos pagos fijos ({fmtMoney(cash.fixedPayments)}), súper (
               {fmtMoney(cash.groceriesEstimate)}), gasto fuera del súper ({fmtMoney(cash.otherExpenses)}) y
-              cuotas de crédito ({fmtMoney(cash.creditPayments)}). El desglose completo está justo debajo,
-              en «Tu mes».
+              los mínimos de tus tarjetas y créditos ({fmtMoney(cash.creditMinimums)}).
+              {/* Sin esto, quien sabe lo que abona a su tarjeta no encontraba
+                  esa cifra en la cuenta y creía que la app la había olvidado. */}
+              {cash.creditPlanExtra > 0 &&
+                ` Lo que tu plan abona de más a las tarjetas (${fmtMoney(cash.creditPlanExtra)}) sale de lo libre, como una meta.`}
+              {' '}El desglose completo está justo debajo, en «Tu mes».
             </p>
           </div>
         </div>

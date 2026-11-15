@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { diffPlans, monthsBetween, topPlanChange, type PlanSnapshot } from './plan-diff';
-import type { GoalProjection } from './finance-engine';
+import { buildFinancePlan, type GoalProjection } from './finance-engine';
 
 function goal(over: Partial<GoalProjection> = {}): GoalProjection {
   return {
@@ -30,8 +30,8 @@ function goal(over: Partial<GoalProjection> = {}): GoalProjection {
   };
 }
 
-function snap(goals: GoalProjection[], available = 500): PlanSnapshot {
-  return { goals, cashFlow: { available, goalsBudget: available } };
+function snap(goals: GoalProjection[], libre = 500): PlanSnapshot {
+  return { goals, cashFlow: { afterObligations: libre, goalsBudget: libre } };
 }
 
 describe('monthsBetween', () => {
@@ -142,6 +142,30 @@ describe('diffPlans', () => {
     const c = topPlanChange(snap([goal()], 400), snap([goal()], 320));
     expect(c?.tone).toBe('info');
     expect(c?.message).toContain('$80');
+  });
+
+  it('subir el abono de una tarjeta no es «menos libre»: es una decisión, no un gasto', () => {
+    // Mínimo del banco $90; el plan pasa de abonar el mínimo a $3,000 para
+    // liquidarla antes. Cifras inventadas.
+    const conCuota = (installment: number) =>
+      buildFinancePlan({
+        incomes: [{ id: 'i', name: 'Sueldo', amount: 5000, frequency: 'monthly', isActive: true, note: null }],
+        goals: [],
+        fixedPayments: [],
+        credits: [{
+          id: 'c', name: 'Tarjeta', balance: 9000, installment, monthlyInterest: 0,
+          monthsToPayoff: null, neverPaysOff: false, minimumPayment: 90,
+        }],
+        groceriesMonthly: 400,
+        groceriesSource: 'limit',
+        groceriesSpentThisMonth: 0,
+        now: new Date(2026, 10, 15, 12),
+      });
+    const antes = conCuota(90);
+    const despues = conCuota(3000);
+    // Lo que sí cambia —lo que le queda al plan para metas— lo cuentan las metas.
+    expect(despues.cashFlow.goalsBudget).toBeLessThan(antes.cashFlow.goalsBudget);
+    expect(topPlanChange(antes, despues)).toBeNull();
   });
 
   it('calla ante centavos de diferencia', () => {

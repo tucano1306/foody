@@ -1,9 +1,10 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { ChevronRightIcon } from '@heroicons/react/24/solid';
 import type { CashFlow } from '@/lib/finance-engine';
 import type { BaselineSource } from '@/lib/grocery-insights';
-import { CARD, LABEL, NUM, fmtMoney } from './finance-ui';
+import { CARD, LABEL, NUM, fmtMoney, palabraDelResto } from './finance-ui';
 
 const GROCERY_HINT: Record<BaselineSource, string> = {
   pace: 'según tus compras reales',
@@ -21,7 +22,7 @@ interface Props {
   readonly onOpenDebts: () => void;
   readonly onOpenTrips: () => void;
   /**
-   * Cuotas de crédito del NEGOCIO que se quedaron fuera de este plan.
+   * Mínimos de crédito del NEGOCIO que se quedaron fuera de este plan.
    *
    * Llega desde fuera porque solo la pantalla sabe si se está mirando el plan
    * personal o el completo; la tarjeta se limita a decirlo cuando lo hay.
@@ -48,14 +49,28 @@ interface Row {
   onClick?: () => void;
 }
 
+/** A dónde va lo libre, una vez cubierto lo que pide el mes. */
+interface Destino {
+  key: string;
+  emoji: string;
+  label: string;
+  amount: number;
+  onClick: () => void;
+}
+
 /**
  * La cascada del mes: de lo que entra a lo que queda libre. Cada barra es
  * proporcional al ingreso, así se ve de un vistazo qué se está comiendo el sueldo.
+ *
+ * La cascada para en lo que PIDE el mes; lo que el plan hace después con lo
+ * libre —abonar de más a una tarjeta, ponerse al día, las metas— va debajo,
+ * cada cosa con su cifra. Todo junto en la cascada, liquidar un 0 % a tiempo se
+ * leía como un gasto del mes que no cabía.
  */
 export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget, onOpenDebts, onOpenTrips, creditsBusinessExcluded = 0 }: Props) {
   const base = Math.max(
     cash.monthlyIncome,
-    cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditPayments,
+    cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditMinimums,
     1,
   );
 
@@ -111,35 +126,48 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
     });
   }
 
-  // Las cuotas de tarjetas y créditos: dinero ya comprometido, con su propia
-  // fila para que no se confunda con los recibos fijos.
-  if (cash.creditPayments > 0) {
+  // Tarjetas y créditos: lo que EXIGE el banco —los mínimos, y la cuota de un
+  // préstamo—, con su propia fila para que no se confunda con los recibos.
+  if (cash.creditMinimums > 0) {
     rows.push({
       key: 'credits',
       emoji: '💳',
       label: 'Tarjetas y créditos',
-      // Cuando hay cuotas del negocio fuera del plan hay que DECIRLO. Si no,
+      // Cuando hay mínimos del negocio fuera del plan hay que DECIRLO. Si no,
       // esta cifra no cuadra con la suma de las tarjetas que se ven en Deudas y
       // parece un error de la app: «me estás metiendo el coche del negocio».
       hint:
         creditsBusinessExcluded > 0
           ? `solo tu parte personal · ${fmtMoney(creditsBusinessExcluded)} del negocio fuera`
-          : 'cuotas de tus deudas',
+          : 'lo que pide el banco',
       hintAlways: creditsBusinessExcluded > 0,
-      amount: -cash.creditPayments,
+      amount: -cash.creditMinimums,
       bar: 'from-blue-400 to-blue-500',
       onClick: onOpenDebts,
     });
   }
 
+  const destinos: Destino[] = [];
+  // Lo que el plan abona por encima del mínimo, casi siempre para llegar a
+  // cero antes de que acabe un 0 %. Con su nombre y su cifra: quien sabe lo
+  // que manda a su tarjeta tiene que encontrarlo aquí.
+  if (cash.creditPlanExtra > 0) {
+    destinos.push({
+      key: 'plan',
+      emoji: '🎯',
+      label: 'Abonos de más a tarjetas',
+      amount: cash.creditPlanExtra,
+      onClick: onOpenDebts,
+    });
+  }
+  // La reserva para lo atrasado sale de lo libre, como el plan de las
+  // tarjetas: dentro de la cascada, la suma de las filas no daba lo libre.
   if (cash.debtCatchUp > 0) {
-    rows.push({
+    destinos.push({
       key: 'debt',
-      emoji: '🔴',
+      emoji: '⏳',
       label: 'Ponerse al día',
-      hint: 'abono a pagos atrasados',
-      amount: -cash.debtCatchUp,
-      bar: 'from-blue-400 to-blue-500',
+      amount: cash.debtCatchUp,
       onClick: onOpenPayments,
     });
   }
@@ -183,23 +211,42 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
         })}
       </div>
 
-      {/* Resultado */}
-      <div className="mt-4 rounded-2xl p-4 flex items-center justify-between gap-3 bg-linear-to-r from-sky-100 to-blue-100">
-        <div>
-          <p className={`text-[11px] font-bold ${LABEL}`}>
-            {cash.available >= 0 ? 'Te queda libre' : 'Te falta cada mes'}
-          </p>
-          <p className={`text-2xl font-black tabular-nums ${NUM}`}>{fmtMoney(Math.abs(cash.available))}</p>
+      {/* Resultado: lo que queda tras lo que pide el mes, y a dónde va */}
+      <div className="mt-4 rounded-2xl p-4 bg-linear-to-r from-sky-100 to-blue-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className={`text-[11px] font-bold ${LABEL}`}>{palabraDelResto(cash, 'Te queda libre')}</p>
+            <p className={`text-2xl font-black tabular-nums ${NUM}`}>{fmtMoney(Math.abs(cash.afterObligations))}</p>
+          </div>
+          <div className="text-right">
+            <p className={`text-[11px] ${LABEL}`}>Para metas</p>
+            <p className={`text-base font-black tabular-nums ${NUM}`}>{fmtMoney(cash.goalsBudget)}</p>
+            {cash.unallocated > 0 && (
+              <p className="text-[11px] font-semibold text-black">
+                {fmtMoney(cash.unallocated)} sin asignar
+              </p>
+            )}
+          </div>
         </div>
-        <div className="text-right">
-          <p className={`text-[11px] ${LABEL}`}>Para metas</p>
-          <p className={`text-base font-black tabular-nums ${NUM}`}>{fmtMoney(cash.goalsBudget)}</p>
-          {cash.unallocated > 0 && (
-            <p className="text-[11px] font-semibold text-black">
-              {fmtMoney(cash.unallocated)} sin asignar
-            </p>
-          )}
-        </div>
+
+        {destinos.length > 0 && (
+          <ul className="mt-3 border-t border-sky-200 pt-2">
+            {destinos.map((d) => (
+              <li key={d.key}>
+                <button
+                  type="button"
+                  onClick={d.onClick}
+                  className="flex w-full items-center gap-2 py-1.5 text-left"
+                >
+                  <span aria-hidden="true">{d.emoji}</span>
+                  <span className={`min-w-0 flex-1 text-xs font-bold ${LABEL}`}>{d.label}</span>
+                  <span className={`text-sm font-black tabular-nums ${NUM}`}>{fmtMoney(d.amount)}</span>
+                  <ChevronRightIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

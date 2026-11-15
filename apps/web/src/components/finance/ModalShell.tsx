@@ -15,6 +15,14 @@ interface Props {
   readonly onClose: () => void;
   readonly children: React.ReactNode;
   readonly footer?: React.ReactNode;
+  /**
+   * El título salta de línea en vez de cortarse con «…».
+   *
+   * El nombre de una tarjeta o de una meta cabe en una línea; el título de un
+   * consejo es una frase con su cifra —«la cuota no llega a tiempo», «el 0 %
+   * se acaba en 70 días»— y cortado perdía justo lo que decía.
+   */
+  readonly wrapTitle?: boolean;
 }
 
 /**
@@ -30,6 +38,7 @@ export default function ModalShell({
   onClose,
   children,
   footer,
+  wrapTitle = false,
 }: Props) {
   const dragControls = useDragControls();
 
@@ -93,9 +102,9 @@ export default function ModalShell({
           <div className="sm:hidden mx-auto mb-3 h-1.5 w-10 rounded-full bg-slate-400/40" aria-hidden="true" />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-lg font-black text-black flex items-center gap-2">
+              <h2 className={`text-lg font-black text-black flex gap-2 ${wrapTitle ? 'items-start leading-snug' : 'items-center'}`}>
                 {emoji && <span aria-hidden="true">{emoji}</span>}
-                <span className="truncate">{title}</span>
+                <span className={wrapTitle ? 'min-w-0' : 'truncate'}>{title}</span>
               </h2>
               {subtitle && <p className="text-xs text-slate-600 mt-1">{subtitle}</p>}
             </div>

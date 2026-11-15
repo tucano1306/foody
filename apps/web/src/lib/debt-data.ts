@@ -48,6 +48,7 @@ import {
 import { normalizeShare } from './expense-scope';
 import { allocateCardPayment, ultimosDeLaTarjeta, type CardAllocation } from './card-payment';
 import { agrupacionesAutomaticas } from './tarjetas-auto';
+import { minimosDelBanco } from './plan-tarjetas';
 import type { DeudaEnPapelera } from './papelera-deudas';
 import { ajustesDeCuadre, diaDeVencimiento, diaDelEstado, momentoDelCuadre, nombreDeSaldoNuevo, saldosAlCierre } from './cuadre-tarjeta';
 import {
@@ -1065,6 +1066,14 @@ export interface CreditForPlan {
   deferredInterest: number | null;
   /** YYYY-MM-DD: desde cuándo corre un interés diferido. */
   openedAt: string | null;
+  /**
+   * Lo que exige el banco este mes: el mínimo de Deudas, con las condiciones
+   * de su cuenta (ver `minimosDelBanco`). Lo que pasa de aquí en `installment`
+   * es el plan del usuario para liquidarla, no una obligación.
+   */
+  minimumPayment: number;
+  /** Día del mes en que vence: decide cuántas cuotas caben antes del fin del 0 %. */
+  dueDay: number | null;
 }
 
 /**
@@ -1080,21 +1089,32 @@ export async function listCreditsForPlan(
   now: Date = new Date(),
 ): Promise<CreditForPlan[]> {
   await ensureDebtSchema();
-  const rows = await sql`
-    SELECT id, name, current_balance, rate, rate_period, strategy,
-           term_months, payoff_date, custom_payment, min_percent, min_floor,
-           min_includes_interest, extra_monthly, business_share,
-           promo_ends_on, rate_after_promo, cycle_days,
-           linked_payment_id, duplicate_dismissed, issuer,
-           card_group, kind, account_last4, currency,
-           promo_kind, deferred_interest, opened_at
-    FROM debts
-    WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
-  `;
+  const [rows, filasDeCondiciones] = await Promise.all([
+    sql`
+      SELECT id, name, current_balance, rate, rate_period, strategy,
+             term_months, payoff_date, custom_payment, min_percent, min_floor,
+             min_includes_interest, extra_monthly, business_share,
+             promo_ends_on, rate_after_promo, cycle_days, due_day,
+             linked_payment_id, duplicate_dismissed, issuer,
+             card_group, kind, account_last4, currency,
+             promo_kind, deferred_interest, opened_at
+      FROM debts
+      WHERE user_id = ${userId} AND status = 'active' AND current_balance > 0
+    `,
+    // Las condiciones solo afinan el mínimo. Si su consulta falla, el mínimo
+    // sale de las de por defecto y el plan sigue con todos sus créditos: sin
+    // este `.catch` se caía la lista entera, y con ella las cuotas del mes.
+    sql`SELECT * FROM credit_terms WHERE user_id = ${userId}`.catch(() => []),
+  ]);
+  const guardadas = new Map(
+    (filasDeCondiciones as Record<string, unknown>[]).map((r) => [String(r.account_key), mapCondiciones(r)]),
+  );
 
-  return rows.map((raw) => {
+  const proyectados = rows.map((raw) => {
     const row = raw as Record<string, unknown>;
     const balance = num(row.current_balance);
+    // Con tipo propio: dentro del objeto, el literal se ensancha a `string`.
+    const promoKind: TipoDePromo = row.promo_kind === 'diferido' ? 'diferido' : 'cero';
     const projection = projectDebt({
       balance,
       rate: num(row.rate),
@@ -1135,11 +1155,23 @@ export async function listCreditsForPlan(
       ratePeriod: (row.rate_period as RatePeriod) ?? 'monthly',
       promoEndsOn: dateKey(row.promo_ends_on),
       rateAfterPromo: numOrNull(row.rate_after_promo),
-      promoKind: row.promo_kind === 'diferido' ? 'diferido' : 'cero',
+      promoKind,
       deferredInterest: numOrNull(row.deferred_interest),
       openedAt: claveDeFecha(row.opened_at),
+      dueDay: numOrNull(row.due_day),
+      // Para el mínimo: la estrategia y los campos de la regla de una suelta.
+      strategy: (row.strategy as PayoffStrategy) ?? 'fixed_installment',
+      minPercent: numOrNull(row.min_percent),
+      minFloor: numOrNull(row.min_floor),
+      minIncludesInterest: row.min_includes_interest === true,
     };
   });
+
+  const minimos = minimosDelBanco(proyectados, guardadas);
+  return proyectados.map(({ strategy: _s, minPercent: _p, minFloor: _f, minIncludesInterest: _i, ...credito }) => ({
+    ...credito,
+    minimumPayment: minimos.get(credito.id) ?? credito.installment,
+  }));
 }
 
 export async function getDebt(
