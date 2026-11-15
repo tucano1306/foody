@@ -15,7 +15,7 @@
 
 import type { DuplicateSuspect } from './duplicate-obligations';
 import type { TipoDePromo } from './condiciones-credito';
-import { monthsUntilDate } from './debt-engine';
+import { cuotasHastaLaFecha } from './debt-engine';
 import { avisoDePromo, promoRisk } from './debt-promo';
 import { personalGroceryInsight, type BaselineSource, type GroceryInsight } from './grocery-insights';
 import { personalOtherSpend, type OtherSpendInsight } from './other-spend';
@@ -2129,6 +2129,7 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   // Una meta enlazada a una tarjeta del plan se paga con la cuota de esa
   // tarjeta (ver `cuotaTarjeta`).
   const cuotaDe = new Map(credits.map((c) => [c.id, Math.max(0, c.installment)]));
+  const venceDe = new Map(credits.map((c) => [c.id, c.dueDay ?? null]));
   for (const p of projections) {
     const cuota = p.debtId ? cuotaDe.get(p.debtId) : undefined;
     if (cuota === undefined) continue;
@@ -2140,7 +2141,9 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     // llegar a tiempo en tres pagos salía «corta» por un tercio, y el
     // consejero decía «la cuota no llega» de la cuota hecha para llegar.
     if (p.remaining > 0 && p.targetDate && p.daysLeft !== null && p.daysLeft >= 0) {
-      p.requiredMonthly = round2(p.remaining / monthsUntilDate(p.targetDate, now));
+      p.requiredMonthly = round2(
+        p.remaining / cuotasHastaLaFecha(p.targetDate, now, p.debtId ? venceDe.get(p.debtId) : null),
+      );
     }
   }
   const overrides = new Map(input.goals.map((g) => [g.id, g.monthlyOverride]));

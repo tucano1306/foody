@@ -48,6 +48,11 @@ export function fmtMonths(months: number | null): string {
   return [yearPart, monthPart].filter(Boolean).join(' y ') || '0 meses';
 }
 
+/** "1 cuota", "3 cuotas": pagos que caben, no meses del calendario. */
+export function fmtCuotas(n: number): string {
+  return `${n} ${n === 1 ? 'cuota' : 'cuotas'}`;
+}
+
 const MONTHS_ES = [
   'ene', 'feb', 'mar', 'abr', 'may', 'jun',
   'jul', 'ago', 'sep', 'oct', 'nov', 'dic',

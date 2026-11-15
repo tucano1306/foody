@@ -978,6 +978,26 @@ export function monthsUntilDate(payoffDate: string, now: Date = new Date()): num
   return Math.max(1, Math.min(adjusted, MAX_SCHEDULE_MONTHS));
 }
 
+/**
+ * Cuántas cuotas reparte la estrategia «antes de una fecha»: las que caben
+ * hasta `fecha`, contando la de este mes si aún no ha vencido.
+ *
+ * Con día de vencimiento se cuentan los VENCIMIENTOS, con la misma regla que el
+ * aviso del fin de un 0 % (`promoMonthsLeft`). Contando meses de calendario,
+ * entre el vencimiento y el día del mes de la fecha salía una cuota de más:
+ * del 23 al 25 de noviembre, una tarjeta que vence el 22 con fecha el 25 de
+ * enero «tenía» tres cuotas cuando solo quedaban dos. La cuota se quedaba
+ * corta, y el aviso del 0 % —que sí cuenta vencimientos— decía «no llegas» de
+ * la cuota hecha para llegar, para volver a «llegas» unos días después.
+ *
+ * Sin día de vencimiento, los meses de `monthsUntilDate`. Nunca menos de 1:
+ * si ya no cabe ninguna, lo que queda es pagarlo todo ahora.
+ */
+export function cuotasHastaLaFecha(fecha: string, now: Date = new Date(), dueDay?: number | null): number {
+  if (dueDay == null || dueDay < 1 || dueDay > 31) return monthsUntilDate(fecha, now);
+  return Math.max(1, promoMonthsLeft(fecha, now, dueDay));
+}
+
 /** Cuota que impone la estrategia, antes de sumar el abono extra. */
 export function installmentFor(input: DebtInput): number {
   const balance = safeAmount(input.balance);
@@ -997,7 +1017,7 @@ export function installmentFor(input: DebtInput): number {
       // fecha. Si un mes se abona de menos, al siguiente sube sola — que es lo
       // que de verdad hace falta para llegar a una fecha tope.
       if (!input.payoffDate) return 0;
-      const months = monthsUntilDate(input.payoffDate, input.now ?? new Date());
+      const months = cuotasHastaLaFecha(input.payoffDate, input.now ?? new Date(), input.dueDay);
       return frenchInstallment(balance, monthlyRate, months);
     }
     case 'minimum': {

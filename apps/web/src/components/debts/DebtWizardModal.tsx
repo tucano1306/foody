@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { ChevronLeftIcon } from '@heroicons/react/24/solid';
 import type { DebtWithProjection } from '@/lib/debt-data';
 import type { DebtKind, PayoffStrategy, RatePeriod } from '@/lib/debt-engine';
-import { monthsUntilDate, projectDebt, toDateKey } from '@/lib/debt-engine';
+import { cuotasHastaLaFecha, projectDebt, toDateKey } from '@/lib/debt-engine';
 import { haptic } from '@/lib/haptic';
 import { confettiRain } from '@/lib/fx';
 import ModalShell from '@/components/finance/ModalShell';
@@ -14,6 +14,7 @@ import { parseMoney, parseDecimal } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
+  fmtCuotas,
   fmtMonths,
   fmtMoney,
   KIND_META,
@@ -401,9 +402,10 @@ export default function DebtWizardModal({ currency, onClose, onCreated }: Props)
                   />
                   {payoffDate && projection && (
                     <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
-                      Quedan {monthsUntilDate(payoffDate)}{' '}
-                      {monthsUntilDate(payoffDate) === 1 ? 'mes' : 'meses'} · si un mes abonas de
-                      menos, la cuota sube sola al siguiente
+                      {/* Las cuotas que reparte la cuota de arriba: con el día de pago,
+                          los vencimientos que caben, no los meses del calendario. */}
+                      Quedan {fmtCuotas(cuotasHastaLaFecha(payoffDate, new Date(), dueDay))} · si un mes
+                      abonas de menos, la cuota sube sola al siguiente
                     </p>
                   )}
                 </div>

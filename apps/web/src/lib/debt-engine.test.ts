@@ -10,6 +10,7 @@ import {
   buildPortfolio,
   buildSchedule,
   completedMonthlyCycles,
+  cuotasHastaLaFecha,
   frenchInstallment,
   installmentFor,
   minimumPayment,
@@ -25,6 +26,7 @@ import {
   type DebtInput,
   type PortfolioDebt,
 } from './debt-engine';
+import { promoRisk } from './debt-promo';
 
 // "Ahora" fijo para que las proyecciones con fecha sean deterministas.
 const NOW = new Date(2026, 7, 4); // 4 de agosto de 2026
@@ -541,6 +543,51 @@ describe('monthsUntilDate', () => {
   });
 });
 
+describe('cuotasHastaLaFecha — las cuotas que caben, contadas como el aviso del 0 %', () => {
+  // Una tarjeta que vence el 22 y tiene que quedar en cero el 25 de enero.
+  const dia = (d: number, m = 10, y = 2026) => new Date(y, m, d, 12);
+
+  it('antes del vencimiento cuenta el de este mes', () => {
+    // 15 nov: 22 nov, 22 dic y 22 ene.
+    expect(cuotasHastaLaFecha('2027-01-25', dia(15), 22)).toBe(3);
+  });
+
+  it('el día del vencimiento todavía cuenta', () => {
+    expect(cuotasHastaLaFecha('2027-01-25', dia(22), 22)).toBe(3);
+  });
+
+  it('pasado el vencimiento, ya no: aunque el día de la fecha no haya llegado', () => {
+    // 23–25 nov: el mes de calendario decía tres; caben dos, 22 dic y 22 ene.
+    expect(monthsUntilDate('2027-01-25', dia(23))).toBe(3);
+    for (const d of [23, 24, 25, 26, 30]) {
+      expect(cuotasHastaLaFecha('2027-01-25', dia(d), 22)).toBe(2);
+    }
+  });
+
+  it('con la fecha antes del vencimiento de su mes, ese mes no cuenta', () => {
+    // Fecha el 20 de enero: el 22 de enero ya cae fuera. El 15 de noviembre
+    // caben 22 nov y 22 dic; el calendario decía tres.
+    expect(monthsUntilDate('2027-01-20', dia(15))).toBe(3);
+    expect(cuotasHastaLaFecha('2027-01-20', dia(15), 22)).toBe(2);
+  });
+
+  it('un vencimiento el 31 cae el último día de los meses cortos', () => {
+    // 15 nov → 30 nov, 31 dic, 31 ene y 28 feb.
+    expect(cuotasHastaLaFecha('2027-02-28', dia(15), 31)).toBe(4);
+  });
+
+  it('nunca baja de 1: sin vencimientos por delante, se paga todo ya', () => {
+    expect(cuotasHastaLaFecha('2026-11-20', dia(15), 22)).toBe(1);
+    expect(cuotasHastaLaFecha('2026-01-01', dia(15), 22)).toBe(1);
+  });
+
+  it('sin día de vencimiento, los meses de siempre', () => {
+    expect(cuotasHastaLaFecha('2027-01-25', dia(23))).toBe(monthsUntilDate('2027-01-25', dia(23)));
+    expect(cuotasHastaLaFecha('2027-01-25', dia(23), null)).toBe(3);
+    expect(cuotasHastaLaFecha('2027-01-25', dia(23), 0)).toBe(3);
+  });
+});
+
 describe('estrategia por fecha límite', () => {
   const base: DebtInput = {
     balance: 1200,
@@ -572,6 +619,44 @@ describe('estrategia por fecha límite', () => {
 
   it('sin fecha no hay cuota que calcular', () => {
     expect(installmentFor({ ...base, payoffDate: null })).toBe(0);
+  });
+
+  it('con día de pago, reparte entre los vencimientos que caben', () => {
+    // 4 ago, vence el 22: del 22 ago al 22 ene caben seis; con fecha el 20
+    // de enero, el 22 de enero queda fuera y son cinco.
+    expect(installmentFor({ ...base, payoffDate: '2027-01-25', dueDay: 22 })).toBe(200);
+    expect(installmentFor({ ...base, payoffDate: '2027-01-20', dueDay: 22 })).toBe(240);
+  });
+
+  it('su cuota llega a tiempo según el aviso del fin del 0 %, día por día', () => {
+    // Antes, entre el vencimiento y el día del mes de la fecha, la estrategia
+    // contaba una cuota de más que el aviso: la cuota hecha para llegar salía
+    // «no llegas» unos días al mes y volvía a «llegas» después.
+    let vistos = 0;
+    for (const fin of ['2027-01-25', '2027-01-20']) {
+      for (let d = new Date(2026, 10, 1, 12); d <= new Date(2027, 0, 20, 12); d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 12)) {
+        const tarjeta = { ...base, balance: 9000, rate: 0, payoffDate: fin, dueDay: 22, now: d };
+        const riesgo = promoRisk({
+          balance: 9000,
+          installment: installmentFor(tarjeta),
+          promoEndsOn: fin,
+          rateAfterPromo: 24,
+          dueDay: 22,
+          now: d,
+        });
+        // Sin vencimientos por delante no hay cuota que comparar: ver abajo.
+        if (riesgo.monthsLeft === 0) continue;
+        vistos++;
+        expect(riesgo.willMissDeadline, `${fin} visto el ${toDateKey(d)}`).toBe(false);
+      }
+    }
+    // Que el bucle mire de verdad: casi tres meses de una fecha, y uno y medio de la otra.
+    expect(vistos).toBeGreaterThan(100);
+  });
+
+  it('pasado el último vencimiento antes de la fecha, pide el saldo entero ya', () => {
+    // Fecha el 20 de enero, vence el 22: el 23 de diciembre ya no cabe ninguno.
+    expect(installmentFor({ ...base, balance: 9000, payoffDate: '2027-01-20', dueDay: 22, now: new Date(2026, 11, 23, 12) })).toBe(9000);
   });
 
   it('la proyección liquida justo en la fecha pedida', () => {

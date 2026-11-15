@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { DebtWithProjection } from '@/lib/debt-data';
 import type { DebtKind, PayoffStrategy, RatePeriod } from '@/lib/debt-engine';
-import { monthsUntilDate, projectDebt, toDateKey } from '@/lib/debt-engine';
+import { cuotasHastaLaFecha, projectDebt, toDateKey } from '@/lib/debt-engine';
 import { haptic } from '@/lib/haptic';
 import ModalShell from '@/components/finance/ModalShell';
 import ScopePicker from '@/components/ui/ScopePicker';
@@ -12,6 +12,7 @@ import { parseMoney, parseDecimal } from '@/lib/money-input';
 import {
   BTN_PRIMARY,
   BTN_SOFT,
+  fmtCuotas,
   fmtMonths,
   fmtMoney,
   KIND_META,
@@ -391,9 +392,10 @@ export default function DebtEditModal({ debt, onClose, onSaved }: Props) {
             />
             {payoffDate && (
               <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-[11px] font-semibold text-slate-600">
-                Quedan {monthsUntilDate(payoffDate)}{' '}
-                {monthsUntilDate(payoffDate) === 1 ? 'mes' : 'meses'} · la cuota se recalcula sola
-                cada mes
+                {/* Las cuotas que reparte la cuota: con el día de pago, los
+                    vencimientos que caben, no los meses del calendario. */}
+                Quedan {fmtCuotas(cuotasHastaLaFecha(payoffDate, new Date(), dueDay))} · la cuota se
+                recalcula sola cada mes
               </p>
             )}
           </div>
