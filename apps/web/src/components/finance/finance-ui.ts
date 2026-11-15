@@ -10,7 +10,7 @@
  * (decisión del usuario), así que las superficies tienen que seguir claras o
  * el negro quedaría ilegible. Por eso aquí no hay variantes `dark:`.
  */
-import type { AdviceTone, Feasibility, GoalKind, IncomeFrequency } from '@/lib/finance-engine';
+import type { AdviceTone, CashFlow, Feasibility, GoalKind, IncomeFrequency } from '@/lib/finance-engine';
 
 export const fmtMoney = (n: number, decimals = 0) =>
   new Intl.NumberFormat('en-US', {
@@ -89,43 +89,37 @@ export const FEASIBILITY_META: Record<Feasibility, FeasibilityMeta> = {
   no_date:  { label: 'Sin fecha',     icon: '🗓️', chip: 'bg-sky-50 text-slate-600' },
 };
 
-export interface ToneMeta {
-  card: string;
-  title: string;
-  body: string;
-}
+/**
+ * El cuadro del emoji de cada consejo: cuanto más urgente, más azul.
+ *
+ * Es la única marca de color de la gravedad —aquí no hay rojos ni verdes—, y
+ * no va sola: la dicen también el orden de la lista y la frase del título.
+ */
+export const TONE_TILE: Record<AdviceTone, string> = {
+  critical: 'bg-blue-200',
+  warning: 'bg-sky-200',
+  info: 'bg-sky-100',
+  idea: 'bg-sky-100',
+  good: 'bg-white',
+};
 
 /**
- * La gravedad del consejo se lee en el borde izquierdo: cuanto más oscuro el
- * azul, más urgente. El icono hace el resto.
+ * La palabra para lo que queda del mes tras lo que PIDE (`afterObligations`):
+ * pagos fijos, super, otros gastos y los mínimos del banco.
+ *
+ * En negativo hay dos casos que no son el mismo. Con ingreso suelto, a mitad
+ * de mes faltan cheques por llegar: «faltan por cobrar». Con sueldo fijo, el
+ * mes no cierra: «te falta cada mes». La cabecera, «Tu mes» y la hoja de la
+ * nota lo dicen con la misma palabra; con palabras distintas parecían tres
+ * cifras diferentes.
  */
-export const TONE_META: Record<AdviceTone, ToneMeta> = {
-  critical: {
-    card: 'bg-sky-100/80 border-sky-200 border-l-4 border-l-blue-500',
-    title: 'text-slate-900',
-    body: 'text-slate-700',
-  },
-  warning: {
-    card: 'bg-sky-50/90 border-sky-200 border-l-4 border-l-sky-400',
-    title: 'text-slate-900',
-    body: 'text-slate-700',
-  },
-  idea: {
-    card: 'bg-sky-50/70 border-sky-100 border-l-4 border-l-sky-300',
-    title: 'text-slate-900',
-    body: 'text-slate-700',
-  },
-  good: {
-    card: 'bg-blue-50/70 border-sky-100 border-l-4 border-l-sky-200',
-    title: 'text-slate-900',
-    body: 'text-slate-700',
-  },
-  info: {
-    card: 'bg-sky-50/60 border-sky-100 border-l-4 border-l-sky-200',
-    title: 'text-slate-900',
-    body: 'text-slate-700',
-  },
-};
+export function palabraDelResto(
+  cash: Pick<CashFlow, 'afterObligations' | 'variableIncome'>,
+  libre = 'Libre al mes',
+): string {
+  if (cash.afterObligations >= 0) return libre;
+  return cash.variableIncome ? 'Faltan por cobrar' : 'Te falta cada mes';
+}
 
 export const FREQUENCY_LABEL: Record<IncomeFrequency, string> = {
   monthly: 'Mensual',

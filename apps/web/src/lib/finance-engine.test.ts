@@ -272,12 +272,38 @@ describe('buildFinancePlan — deudas atrasadas', () => {
     expect(debts.monthsToClear).toBeNull();
   });
 
-  it('avisa como crítico y propone un plan concreto', () => {
+  it('avisa como crítico, con cada pago y lo que hace falta para ponerse al día', () => {
     const { advice } = buildFinancePlan(conDeuda);
     const deuda = advice.find((a) => a.id === 'overdue-debt');
     expect(deuda?.tone).toBe('critical');
-    expect(deuda?.body).toContain('3 meses');
-    expect(advice.some((a) => a.id === 'snowball-order')).toBe(true);
+    expect(deuda?.title).toBe('2 pagos atrasados: $570');
+    // Cada pago con su importe, el más chico primero: la bola de nieve ya no
+    // es otro consejo que nombra las mismas deudas con otras palabras.
+    expect(deuda?.figures?.slice(0, 2)).toEqual([
+      { label: 'Internet', value: '$120' },
+      { label: 'Tarjeta', value: '$450' },
+    ]);
+    expect(deuda?.figures).toContainEqual({ label: 'Para ponerte al día', value: '$190 al mes · 3 meses' });
+    expect(deuda?.steps?.[0]).toContain('Empieza por Internet');
+    expect(advice.some((a) => a.id === 'snowball-order')).toBe(false);
+  });
+
+  it('lo primero que dice es que se puede marcar: un atraso suele ser un pago sin apuntar', () => {
+    const { advice } = buildFinancePlan(conDeuda);
+    expect(advice.find((a) => a.id === 'overdue-debt')?.body).toBe(
+      'Si ya los pagaste, márcalos en Pagos y desaparecen.',
+    );
+  });
+
+  it('con un solo pago atrasado lo nombra en el título', () => {
+    const { advice } = buildFinancePlan(plan({
+      fixedPayments: [
+        payment({ id: 'p3', name: 'Internet', amount: 60, accumulatedDebt: 120, missedMonths: 2, isPaidThisMonth: false }),
+      ],
+    }));
+    const deuda = advice.find((a) => a.id === 'overdue-debt');
+    expect(deuda?.title).toBe('«Internet» lleva $120 sin pagar');
+    expect(deuda?.steps).toBeUndefined();
   });
 });
 
@@ -347,9 +373,23 @@ describe('buildFinancePlan — tarjetas y créditos', () => {
       plan({ credits: [credit({ name: 'Visa', monthlyInterest: 60 })] }),
     );
     const aviso = advice.find((a) => a.id === 'credit-interest');
-    expect(aviso?.title).toContain('$60');
+    expect(aviso?.title).toBe('Pagas $60 al mes de intereses');
     expect(aviso?.body).toContain('$720'); // 60 × 12 al año
-    expect(aviso?.body).toContain('Visa');
+    expect(aviso?.figures).toEqual([{ label: 'Visa', value: '$60 al mes' }]);
+  });
+
+  it('con varias, la que más cobra va primero y ahí apunta lo que se abone de más', () => {
+    const { advice } = buildFinancePlan(
+      plan({
+        credits: [
+          credit({ id: 'a', name: 'Visa', monthlyInterest: 20 }),
+          credit({ id: 'b', name: 'Tienda', monthlyInterest: 45 }),
+        ],
+      }),
+    );
+    const aviso = advice.find((a) => a.id === 'credit-interest');
+    expect(aviso?.figures?.map((f) => f.label)).toEqual(['Tienda', 'Visa']);
+    expect(aviso?.steps?.[0]).toContain('Tienda');
   });
 
   it('sin créditos no emite consejos de crédito', () => {
@@ -367,7 +407,189 @@ describe('buildFinancePlan — tarjetas y créditos', () => {
     );
     expect(cashFlow.available).toBe(1500 - 900 - 400 - 400);
     const deficit = advice.find((a) => a.id === 'negative-flow');
-    expect(deficit?.body).toContain('créditos');
+    expect(deficit?.title).toBe('Este mes sale $200 más de lo que entra');
+    expect(deficit?.figures).toContainEqual({ label: 'Mínimos de tarjetas y créditos', value: '$400' });
+  });
+});
+
+describe('lo que pide el mes y lo que abonas de más a tus tarjetas', () => {
+  // Una tarjeta de $9,000 al 0 % que el usuario decidió dejar en cero en tres
+  // meses: el banco pide $90 y su plan abona $3,000.
+  const tarjeta = credit({ id: 't', name: 'Tarjeta al 0 %', balance: 9000, installment: 3000, monthlyInterest: 0, minimumPayment: 90 });
+
+  it('separa el mínimo del banco de lo que el plan abona de más', () => {
+    const { cashFlow } = buildFinancePlan(plan({ credits: [tarjeta] }));
+    expect(cashFlow.creditPayments).toBe(3000);
+    expect(cashFlow.creditMinimums).toBe(90);
+    expect(cashFlow.creditPlanExtra).toBe(2910);
+    expect(cashFlow.afterObligations).toBe(3000 - 900 - 400 - 90);
+    expect(cashFlow.available).toBe(cashFlow.afterObligations - 2910);
+  });
+
+  it('abonar de más no se anuncia como «gastas más de lo que ingresas»', () => {
+    const { advice } = buildFinancePlan(plan({ credits: [tarjeta] }));
+    expect(advice.some((a) => a.id === 'negative-flow')).toBe(false);
+    const aviso = advice.find((a) => a.id === 'plan-exceeds-month');
+    expect(aviso?.tone).toBe('warning');
+    expect(aviso?.title).toBe('Tus abonos de más a tarjetas pasan el mes por $1,300');
+    expect(aviso?.figures).toEqual([
+      { label: 'Libre tras lo que pide el mes', value: '$1,610' },
+      { label: 'Abonos de más a tarjetas', value: '$2,910' },
+      { label: 'Falta', value: '$1,300' },
+    ]);
+    expect(aviso?.action?.kind).toBe('open_debts');
+  });
+
+  it('si los abonos de más caben, no hay nada que decir del mes', () => {
+    const { advice } = buildFinancePlan(plan({ incomes: [income({ amount: 6000 })], credits: [tarjeta] }));
+    expect(advice.some((a) => a.id === 'plan-exceeds-month' || a.id === 'negative-flow')).toBe(false);
+  });
+
+  it('un mínimo mayor que la cuota no cuenta de más: cuenta la cuota', () => {
+    const { cashFlow } = buildFinancePlan(plan({ credits: [credit({ installment: 50, minimumPayment: 80 })] }));
+    expect(cashFlow.creditMinimums).toBe(50);
+    expect(cashFlow.creditPlanExtra).toBe(0);
+  });
+
+  it('sin mínimo conocido, la cuota entera es lo que pide: el plan de siempre', () => {
+    const { cashFlow } = buildFinancePlan(plan({ credits: [credit({ installment: 250 })] }));
+    expect(cashFlow.creditMinimums).toBe(250);
+    expect(cashFlow.creditPlanExtra).toBe(0);
+    expect(cashFlow.afterObligations).toBe(cashFlow.available);
+  });
+
+  it('una cuota que ya cobra un pago mensual no cuenta ni como mínimo', () => {
+    const { cashFlow } = buildFinancePlan(plan({
+      fixedPayments: [payment(), payment({ id: 'auto', name: 'Auto', amount: 300 })],
+      credits: [credit({ installment: 300, minimumPayment: 300, linkedPaymentId: 'auto' })],
+    }));
+    expect(cashFlow.creditMinimums).toBe(0);
+    expect(cashFlow.creditPlanExtra).toBe(0);
+  });
+
+  it('la vista personal se queda con su parte del mínimo, como de la cuota', () => {
+    const mixta = credit({ installment: 400, minimumPayment: 100, businessShare: 50 });
+    const { cashFlow } = buildFinancePlan(personalOnlyInput(plan({ credits: [mixta] })));
+    expect(cashFlow.creditPayments).toBe(200);
+    expect(cashFlow.creditMinimums).toBe(50);
+  });
+
+  it('la nota de salud mide lo libre tras lo que pide el mes, no tras abonar de más', () => {
+    const p = buildFinancePlan(plan({ credits: [tarjeta] }));
+    const flujo = explainHealthScore(p.cashFlow, p.goals, p.debts).parts.find((x) => x.key === 'flow');
+    expect(p.cashFlow.savingsRate).toBeCloseTo(1610 / 3000, 2);
+    expect(flujo?.points).toBe(40);
+    expect(flujo?.detail).toContain('$1,610');
+  });
+});
+
+describe('ingreso suelto: a mitad de mes «falta» son cheques por llegar', () => {
+  const cheque = (over: Partial<IncomeSource> = {}): IncomeSource =>
+    income({ id: 'c1', name: 'Cheque', frequency: 'one_time', amount: 1000, receivedOn: '2026-07-15', ...over });
+
+  it('lo marca como ingreso variable', () => {
+    expect(buildFinancePlan(plan({ incomes: [cheque()] })).cashFlow.variableIncome).toBe(true);
+    expect(buildFinancePlan(plan()).cashFlow.variableIncome).toBe(false);
+  });
+
+  it('no da la alarma de «sale más de lo que entra» con lo cobrado a medias', () => {
+    // $1,000 cobrados − $900 fijos − $400 de super: faltan $300, pero el mes
+    // no ha terminado y el plan solo cuenta lo que ya entró.
+    const { cashFlow, advice } = buildFinancePlan(plan({ incomes: [cheque()] }));
+    expect(cashFlow.afterObligations).toBe(-300);
+    expect(advice.some((a) => a.id === 'negative-flow' || a.id === 'plan-exceeds-month')).toBe(false);
+  });
+
+  it('la nota de salud lo dice como lo que es: faltan por cobrar', () => {
+    const p = buildFinancePlan(plan({ incomes: [cheque()] }));
+    const flujo = explainHealthScore(p.cashFlow, p.goals, p.debts).parts.find((x) => x.key === 'flow');
+    expect(flujo?.detail).toBe('Van cobrados $1,000: faltan $300 por cobrar para cubrir lo que pide el mes.');
+  });
+
+  it('con sueldo fijo, el mismo hueco SÍ es alarma, con sus cifras en columna', () => {
+    const p = buildFinancePlan(plan({ incomes: [income({ amount: 1000 })] }));
+    const a = p.advice.find((x) => x.id === 'negative-flow');
+    expect(a?.tone).toBe('critical');
+    expect(a?.title).toBe('Este mes sale $300 más de lo que entra');
+    expect(a?.figures).toEqual([
+      { label: 'Entra', value: '$1,000' },
+      { label: 'Pagos fijos', value: '$900' },
+      { label: 'Super', value: '$400' },
+      { label: 'Falta', value: '$300' },
+    ]);
+    const flujo = explainHealthScore(p.cashFlow, p.goals, p.debts).parts.find((x) => x.key === 'flow');
+    expect(flujo?.detail).toBe('Lo que pide el mes pasa de lo que entra en $300: no queda nada libre.');
+  });
+});
+
+describe('el fin de un 0 %', () => {
+  // 22 jul 2026. La tarjeta vence el 15: hasta el 30 de septiembre caben las
+  // cuotas del 15 de agosto y del 15 de septiembre (la de julio ya pasó).
+  const alCero = (over: Partial<CreditInput> = {}) =>
+    credit({
+      id: 'tc', name: 'Tarjeta al 0 %', balance: 2000, installment: 1000, monthlyInterest: 0,
+      promoEndsOn: '2026-09-30', rateAfterPromo: 24, dueDay: 15, ...over,
+    });
+  const promo = (c: CreditInput, over: Partial<PlanInput> = {}) =>
+    buildFinancePlan(plan({ credits: [c], ...over })).advice.find((a) => a.id === 'promo-tc');
+
+  it('con la cuota que llega, lo dice y da la fecha de la última cuota', () => {
+    const a = promo(alCero());
+    expect(a?.tone).toBe('info');
+    expect(a?.title).toBe('Tarjeta al 0 %: el 0 % se acaba en 70 días');
+    expect(a?.body).toBe('Tu cuota de $1,000 la deja en cero a tiempo.');
+    expect(a?.figures).toEqual([
+      { label: 'Saldo al 0 %', value: '$2,000' },
+      { label: 'Último día al 0 %', value: '30 de septiembre 2026' },
+      // La cuota es justo la que hace falta: una fila, no dos con la misma cifra.
+      { label: 'Tu cuota', value: '$1,000 al mes · 2 cuotas' },
+      { label: 'Última cuota', value: '15 de septiembre 2026' },
+    ]);
+    expect(a?.action?.kind).toBe('open_debts');
+  });
+
+  it('con una cuota mayor de la que hace falta, enseña las dos', () => {
+    const a = promo(alCero({ installment: 1500 }));
+    expect(a?.tone).toBe('info');
+    expect(a?.figures).toContainEqual({ label: 'Tu cuota', value: '$1,500 al mes' });
+    expect(a?.figures).toContainEqual({ label: 'Para llegar a cero', value: '$1,000 al mes · 2 cuotas' });
+  });
+
+  it('con la cuota corta, dice cuánto quedaría y cuánto hace falta', () => {
+    const a = promo(alCero({ installment: 400 }));
+    expect(a?.tone).toBe('warning');
+    expect(a?.body).toBe('A tu cuota quedarían $1,200 cobrando interés.');
+    expect(a?.figures).toContainEqual({ label: 'Para llegar a cero', value: '$1,000 al mes · 2 cuotas' });
+    expect(a?.figures?.some((f) => f.label === 'Interés después (24 %)')).toBe(true);
+  });
+
+  it('a 30 días o menos, una cuota corta es crítica', () => {
+    // Hasta el 20 de agosto solo cabe la cuota del 15.
+    const a = promo(alCero({ installment: 400, promoEndsOn: '2026-08-20' }));
+    expect(a?.tone).toBe('critical');
+    expect(a?.title).toContain('en 29 días');
+    expect(a?.figures).toContainEqual({ label: 'Para llegar a cero', value: '$2,000 al mes · 1 cuota' });
+  });
+
+  it('un interés diferido dice lo que cobran de golpe', () => {
+    const a = promo(alCero({ installment: 400, promoKind: 'diferido', deferredInterest: 350 }));
+    expect(a?.body).toBe('A tu cuota quedarían $1,200, y cobrarían $350 de golpe.');
+    expect(a?.figures).toContainEqual({ label: 'Si queda saldo, cobran de golpe', value: '$350' });
+  });
+
+  it('calla si falta mucho, si ya terminó o si no queda saldo', () => {
+    expect(promo(alCero({ promoEndsOn: '2027-01-31' }))).toBeUndefined();
+    // Después del fin lo que cuesta lo dice el consejo de los intereses.
+    expect(promo(alCero({ promoEndsOn: '2026-07-01' }))).toBeUndefined();
+    expect(promo(alCero({ balance: 0, installment: 0 }))).toBeUndefined();
+  });
+
+  it('la meta que persigue esa tarjeta no repite «la cuota no llega»', () => {
+    const meta = goal({ id: 'gt', name: 'Dejar la tarjeta en cero', kind: 'debt', debtId: 'tc', targetAmount: 2000, targetDate: '2026-09-30' });
+    const { advice, goals } = buildFinancePlan(plan({ credits: [alCero({ installment: 400 })], goals: [meta] }));
+    expect(goals[0].feasibility).toBe('at_risk');
+    expect(advice.some((a) => a.id === 'promo-tc')).toBe(true);
+    expect(advice.some((a) => a.id === 'goal-risk-gt')).toBe(false);
   });
 });
 
@@ -664,8 +886,17 @@ describe('buildFinancePlan — consejos', () => {
   it('sin ingresos tampoco emite los consejos de flujo, que saldrían de dividir entre cero', () => {
     const { advice } = buildFinancePlan(plan({ incomes: [] }));
     expect(advice.some((a) => a.id === 'negative-flow')).toBe(false);
-    expect(advice.some((a) => a.id === 'low-savings-rate')).toBe(false);
-    expect(advice.some((a) => a.id === 'healthy-savings-rate')).toBe(false);
+    expect(advice.some((a) => a.id === 'plan-exceeds-month')).toBe(false);
+  });
+
+  it('no repite el margen libre que ya enseñan «Tu mes» y la nota de salud', () => {
+    // 57 % libre y 7 % libre: antes, «tu tasa de ahorro es del 57 %» y «solo
+    // te queda libre el 7 %», las mismas cifras que la cabecera y «Tu mes».
+    for (const p of [plan(), plan({ incomes: [income({ amount: 1400 })] })]) {
+      const ids = buildFinancePlan(p).advice.map((a) => a.id);
+      expect(ids).not.toContain('healthy-savings-rate');
+      expect(ids).not.toContain('low-savings-rate');
+    }
   });
 
   it('no repite el "crea tu primera meta" que ya muestra la sección vacía', () => {
@@ -682,10 +913,19 @@ describe('buildFinancePlan — consejos', () => {
     );
     const tones = advice.map((a) => a.tone);
     expect(tones[0]).toBe('critical');
+    // Lo que hay que arreglar, lo que conviene saber, las ideas y lo que va bien.
     expect(tones).toEqual([...tones].sort((a, b) => {
-      const w = { critical: 0, warning: 1, idea: 2, good: 3, info: 4 } as const;
+      const w = { critical: 0, warning: 1, info: 2, idea: 3, good: 4 } as const;
       return w[a] - w[b];
     }));
+  });
+
+  it('un dato de dinero real va antes que una idea para ahorrar', () => {
+    // El interés de una tarjeta (info) y una idea de super: con la idea
+    // delante, el interés quedaba escondido detrás de «Ver más».
+    const { advice } = buildFinancePlan(plan({ credits: [credit({ monthlyInterest: 20 })] }));
+    const ids = advice.map((a) => a.id);
+    expect(ids.indexOf('credit-interest')).toBeLessThan(ids.indexOf('surplus-boost'));
   });
 
   it('propone destino para el sobrante mensual', () => {
@@ -732,44 +972,28 @@ describe('buildFinancePlan — consejos desde las compras reales', () => {
     const { advice } = conCompras({});
     const pace = advice.find((a) => a.id === 'grocery-pace-over-limit');
     expect(pace?.tone).toBe('warning');
-    expect(pace?.body).toContain('$420');   // llevas
-    expect(pace?.body).toContain('22 días');
-    expect(pace?.body).toContain('$192');   // exceso proyectado
+    expect(pace?.title).toBe('El super va camino de $592');
+    expect(pace?.body).toBe('Tu límite es $400: te pasarías $192.');
+    expect(pace?.figures).toContainEqual({ label: 'Llevas en 22 días', value: '$420' });
   });
 
-  it('celebra ir por debajo del límite y ofrece aportar el sobrante', () => {
+  it('pasarse por poco no es un aviso: hace falta $10 o el 10 % del límite', () => {
+    // $30 sobre $400 es ruido del mes; $40 ya es el 10 %.
+    expect(conCompras({ projectedMonthEnd: 430, overLimit: 30 }).advice.some((a) => a.id === 'grocery-pace-over-limit')).toBe(false);
+    expect(conCompras({ projectedMonthEnd: 440, overLimit: 40 }).advice.some((a) => a.id === 'grocery-pace-over-limit')).toBe(true);
+  });
+
+  it('ir por debajo del límite no es un consejo: ya lo enseña la tarjeta «Super»', () => {
     const { advice } = conCompras({ projectedMonthEnd: 300, overLimit: -100, limit: 400 });
-    const under = advice.find((a) => a.id === 'grocery-under-limit');
-    expect(under?.tone).toBe('good');
-    expect(under?.action?.kind).toBe('contribute');
-    expect(under?.body).toContain('$100');
+    expect(advice.some((a) => a.id === 'grocery-under-limit')).toBe(false);
   });
 
-  it('sin metas, el sobrante del super invita a crear una en vez de aportar a la nada', () => {
-    const { advice } = conCompras({ projectedMonthEnd: 300, overLimit: -100, limit: 400 }, { goals: [] });
-    const under = advice.find((a) => a.id === 'grocery-under-limit');
-    expect(under?.action?.kind).toBe('add_goal');
-    expect(under?.action?.goalId).toBeUndefined();
-  });
-
-  it('detecta el alza contra el promedio y nombra la categoría culpable', () => {
-    const { advice } = conCompras({ projectedMonthEnd: 800, avgMonthly: 550, trendPct: 45.5, overLimit: 400 });
-    const trend = advice.find((a) => a.id === 'grocery-trend-up');
-    expect(trend?.title).toContain('46%');
-    expect(trend?.body).toContain('carnes');
-    expect(trend?.body).toContain('$250'); // 800 − 550
-  });
-
-  it('reconoce el mes en que se gasta menos que el promedio', () => {
-    const { advice } = conCompras({ projectedMonthEnd: 300, avgMonthly: 550, trendPct: -45.5, overLimit: -100 });
-    const down = advice.find((a) => a.id === 'grocery-trend-down');
-    expect(down?.tone).toBe('good');
-    expect(down?.body).toContain('$250');
-  });
-
-  it('no juzga la tendencia con menos de dos meses de historial', () => {
-    const { advice } = conCompras({ monthsWithData: 1, trendPct: 80, projectedMonthEnd: 900 });
-    expect(advice.some((a) => a.id.startsWith('grocery-trend'))).toBe(false);
+  it('la tendencia contra el promedio tampoco: la tarjeta «Super» la enseña con su chip', () => {
+    const arriba = conCompras({ projectedMonthEnd: 800, avgMonthly: 550, trendPct: 45.5, overLimit: 400 });
+    const abajo = conCompras({ projectedMonthEnd: 300, avgMonthly: 550, trendPct: -45.5, overLimit: -100 });
+    for (const { advice } of [arriba, abajo]) {
+      expect(advice.some((a) => a.id.startsWith('grocery-trend'))).toBe(false);
+    }
   });
 
   it('propone recortar la categoría dominante solo si alguna meta lo necesita', () => {
@@ -779,8 +1003,8 @@ describe('buildFinancePlan — consejos desde las compras reales', () => {
     const apretado = conCompras({}, { incomes: [income({ amount: 1700 })] });
     const lever = apretado.advice.find((a) => a.id === 'grocery-category-lever');
     expect(lever?.title).toContain('carnes');
-    expect(lever?.body).toContain('$27');  // 15% de 180
-    expect(lever?.body).toContain('$324'); // al año
+    expect(lever?.body).toBe('Un 15 % menos ahí libera $27 al mes.'); // 15 % de 180
+    expect(lever?.figures).toContainEqual({ label: 'Un 15 % menos, en un año', value: '$324' });
     expect(lever?.action?.kind).toBe('open_trips');
   });
 
@@ -814,13 +1038,31 @@ describe('buildFinancePlan — consejos desde las compras reales', () => {
   });
 
   it('traduce el ahorro en meses de adelanto de la meta prioritaria', () => {
-    // Meta de $2100 restantes con $700/mes asignados → 3 meses; con +$700 → 2.
+    // Meta sin fecha de $2,100: $175 al mes son 12 meses; con $700 más, 3.
     const { advice } = conCompras(
-      { projectedMonthEnd: 300, overLimit: -700, limit: 1000 },
+      { projectedMonthEnd: 1700, overLimit: 700, limit: 1000 },
       { goals: [goal({ targetAmount: 2100, targetDate: null })] },
     );
-    const under = advice.find((a) => a.id === 'grocery-under-limit');
-    expect(under?.body).toMatch(/adelantas \d+ mes/);
+    const pace = advice.find((a) => a.id === 'grocery-pace-over-limit');
+    expect(pace?.steps?.[0]).toBe(
+      'Quedarte en el límite te deja esos $700. Mandándolos a Viaje a Argentina llega 9 meses antes.',
+    );
+  });
+
+  it('nunca propone ese ahorro para la meta de una tarjeta, que no se movería', () => {
+    // Antes salía «son $20 más al mes para» la meta que liquida una tarjeta:
+    // su avance se lee de la deuda, y la ruta de aportes responde 409.
+    const { advice } = conCompras(
+      { projectedMonthEnd: 1700, overLimit: 700, limit: 1000 },
+      {
+        credits: [credit({ id: 'tc', name: 'Tarjeta', balance: 2100, installment: 175, monthlyInterest: 0 })],
+        goals: [goal({ id: 'gt', name: 'Dejar la tarjeta', kind: 'debt', debtId: 'tc', targetAmount: 2100, targetDate: null })],
+      },
+    );
+    const pace = advice.find((a) => a.id === 'grocery-pace-over-limit');
+    expect(pace).toBeDefined();
+    expect(pace?.steps).toBeUndefined();
+    expect(advice.some((a) => a.action?.kind === 'contribute' && a.action.goalId === 'gt')).toBe(false);
   });
 });
 
@@ -950,7 +1192,7 @@ describe('otherExpensesMonthly — el gasto que no es super', () => {
     expect(p.cashFlow.available).toBeLessThan(0);
     const alerta = p.advice.find((a) => a.id === 'negative-flow');
     expect(alerta).toBeDefined();
-    expect(alerta?.body).toContain('fuera del super');
+    expect(alerta?.figures).toContainEqual({ label: 'Fuera del super', value: '$400' });
   });
 
   it('se reparte entre personal y negocio con su propio porcentaje', () => {
@@ -1004,53 +1246,20 @@ describe('consejos sobre el gasto que no es super', () => {
     };
   }
 
-  it('nombra el tipo de gasto que se lleva el mes', () => {
-    const p = buildFinancePlan(plan({ otherExpensesMonthly: 300, otherSpend: otherSpend() }));
-    const a = p.advice.find((x) => x.id === 'other-top-dining');
-    expect(a).toBeDefined();
-    expect(a?.title).toContain('Comida fuera');
+  // Reparto por tipo, tendencia y el lugar que más pesa ya los enseña la
+  // tarjeta «Fuera del super». Contarlos otra vez aquí —«Comida fuera se
+  // lleva $90», «va 50 % arriba»— era la mitad del ruido del consejero.
+  it('no repite lo que ya enseña la tarjeta «Fuera del super»', () => {
+    for (const over of [{}, { trendPct: -40, projectedMonthEnd: 120, avgMonthly: 200, biggestMover: null }]) {
+      const p = buildFinancePlan(plan({ otherExpensesMonthly: 300, otherSpend: otherSpend(over) }));
+      expect(p.advice.some((x) => x.id.startsWith('other-'))).toBe(false);
+    }
   });
 
-  it('avisa cuando la tendencia sube de verdad', () => {
-    const p = buildFinancePlan(plan({ otherExpensesMonthly: 300, otherSpend: otherSpend() }));
-    const a = p.advice.find((x) => x.id === 'other-trend-up');
-    expect(a?.tone).toBe('warning');
-    expect(a?.body).toContain('Comida fuera');
-  });
-
-  it('felicita cuando baja', () => {
-    const p = buildFinancePlan(plan({
-      otherExpensesMonthly: 100,
-      otherSpend: otherSpend({ trendPct: -40, projectedMonthEnd: 120, avgMonthly: 200, biggestMover: null }),
-    }));
-    expect(p.advice.find((x) => x.id === 'other-trend-down')?.tone).toBe('good');
-  });
-
-  it('calla con un solo mes de historial: comparar contra ruido no es un consejo', () => {
-    const p = buildFinancePlan(plan({
-      otherExpensesMonthly: 300,
-      otherSpend: otherSpend({ monthsWithData: 1 }),
-    }));
-    expect(p.advice.find((x) => x.id === 'other-trend-up')).toBeUndefined();
-  });
-
-  it('calla del todo si no hay gastos de este tipo', () => {
-    const p = buildFinancePlan(plan({ otherSpend: otherSpend({ hasData: false }) }));
-    expect(p.advice.some((x) => x.id.startsWith('other-'))).toBe(false);
-  });
-
-  it('no señala un reparto normal como si fuera un problema', () => {
-    const p = buildFinancePlan(plan({
-      otherExpensesMonthly: 300,
-      otherSpend: otherSpend({
-        trendPct: 0,
-        byKind: [
-          { kind: 'dining', currentMonth: 90, prevMonth: 90, count: 2, deltaPct: 0, share: 30 },
-          { kind: 'fuel', currentMonth: 90, prevMonth: 90, count: 2, deltaPct: 0, share: 30 },
-        ],
-      }),
-    }));
-    expect(p.advice.some((x) => x.id.startsWith('other-top-'))).toBe(false);
+  it('pero SÍ cuenta en el mes: lo de fuera del super resta igual', () => {
+    const sin = buildFinancePlan(plan());
+    const con = buildFinancePlan(plan({ otherExpensesMonthly: 300, otherSpend: otherSpend() }));
+    expect(con.cashFlow.afterObligations).toBe(sin.cashFlow.afterObligations - 300);
   });
 });
 
@@ -1070,14 +1279,15 @@ describe('meta en riesgo — la explicación distingue la CAUSA', () => {
     const uno = advice.filter((a) => a.id === 'goals-need-income');
     expect(uno).toHaveLength(1);
     expect(uno[0].title).toContain('2 metas');
-    expect(uno[0].body).toContain('no sabe cuánto ganas');
+    expect(uno[0].body).toBe('Sin ingresos cargados, el plan no tiene qué repartir.');
+    expect(uno[0].figures?.map((f) => f.label)).toEqual(['Viaje a Argentina', 'Coche', 'Entre todas']);
   });
 
   it('sin ingresos NO vuelve a pedir el dato que ya pide la cabecera', () => {
     const { advice } = buildFinancePlan(plan({ incomes: [], goals: [meta] }));
     const aviso = advice.find((a) => a.id === 'goals-need-income');
     expect(aviso?.action).toBeUndefined();
-    expect(aviso?.steps?.[0]).toContain('Ingresos');
+    expect(aviso?.steps).toBeUndefined();
   });
 
   it('con una sola meta habla en singular', () => {
@@ -1087,23 +1297,21 @@ describe('meta en riesgo — la explicación distingue la CAUSA', () => {
     );
   });
 
-  it('mes en rojo: lo dice UNA vez, nombra las metas paradas y de dónde sale el hueco', () => {
+  it('mes en rojo: lo dice UNA vez, en el aviso del mes, y nombra las metas paradas', () => {
+    // Antes eran dos tarjetas —«gastas más de lo que ingresas» y «tu meta no
+    // avanza este mes»— con las mismas cifras sumadas de otra manera.
     const { advice } = buildFinancePlan(plan({
       incomes: [income({ amount: 1000 })],
       fixedPayments: [payment({ amount: 900 })],
       goals: [meta],
     }));
-    const a = advice.find((x) => x.id === 'goals-no-room');
-    expect(a?.title).toBe('Tu meta no avanza este mes');
-    // Abre con el dato, no con dos negaciones: la version anterior empezaba
-    // «No es un problema de esta meta, es del mes», que hay que releer.
-    expect(a?.body).toContain('se te va más de lo que entra');
-    expect(a?.body).toContain('$1,000');
+    expect(advice.some((x) => x.id === 'goals-no-room')).toBe(false);
+    expect(advice.filter((x) => x.id.startsWith('goal-risk-'))).toHaveLength(0);
+    const a = advice.find((x) => x.id === 'negative-flow');
+    expect(a?.title).toBe('Este mes sale $300 más de lo que entra');
     // Nombra cuál está parada: es lo que se perdería al fundir las tarjetas.
-    expect(a?.body).toContain(meta.name);
-    expect(a?.topic).toBe('goals');
+    expect(a?.steps).toEqual([`Mientras tanto, ${meta.name} no recibe nada.`]);
     expect(a?.action?.kind).toBe('open_payments');
-    expect(a?.steps?.some((s) => s.includes('pagos fijos'))).toBe(true);
   });
 
   it('con VARIAS metas paradas sigue habiendo UNA sola tarjeta', () => {
@@ -1119,13 +1327,12 @@ describe('meta en riesgo — la explicación distingue la CAUSA', () => {
       ],
     }));
 
-    expect(advice.filter((a) => a.id === 'goals-no-room')).toHaveLength(1);
+    expect(advice.filter((a) => a.id === 'negative-flow')).toHaveLength(1);
     expect(advice.filter((a) => a.id.startsWith('goal-risk-'))).toHaveLength(0);
 
-    const a = advice.find((x) => x.id === 'goals-no-room');
-    expect(a?.title).toBe('Tus metas no avanzan este mes');
     // Las tres, enumeradas como se enumera al hablar.
-    expect(a?.body).toContain('Viaje, Laptop y Fondo');
+    const a = advice.find((x) => x.id === 'negative-flow');
+    expect(a?.steps).toEqual(['Mientras tanto, Viaje, Laptop y Fondo no reciben nada.']);
   });
 
   it('otras metas se llevan el dinero: lo dice y ofrece prioridad', () => {
@@ -1140,7 +1347,7 @@ describe('meta en riesgo — la explicación distingue la CAUSA', () => {
     }));
     const a = advice.find((x) => x.id === 'goal-risk-g2');
     expect(a?.title).toContain('no recibe nada');
-    expect(a?.body).toContain('se los reparten enteros');
+    expect(a?.body).toBe('Tus otras metas se reparten antes todo lo libre.');
     expect(a?.steps?.some((s) => s.includes('prioridad'))).toBe(true);
   });
 
@@ -1152,7 +1359,8 @@ describe('meta en riesgo — la explicación distingue la CAUSA', () => {
     }));
     const a = advice.find((x) => x.id.startsWith('goal-risk-'));
     expect(a?.title).toContain('no llega a tiempo');
-    expect(a?.body).toContain('Se queda corta por');
+    expect(a?.body).toMatch(/^Recibe \$[\d,]+ al mes y necesita \$[\d,]+ al mes\.$/);
+    expect(a?.figures?.map((f) => f.label)).toEqual(['Faltan', 'Para el', 'Recibe', 'Necesita']);
     expect(a?.steps && a.steps.length).toBeGreaterThan(0);
   });
 
@@ -1190,7 +1398,7 @@ describe('meta vencida — no promete fechas sin ritmo', () => {
       goals: [goal({ targetAmount: 2000, savedAmount: 500, targetDate: '2026-07-01' })],
     }));
     const a = advice.find((x) => x.id.startsWith('goal-overdue-'));
-    expect(a?.body).toContain('los tendrías hacia el');
+    expect(a?.body).toMatch(/^Al ritmo de hoy llega el \d+ de [a-z]+ \d{4}\.$/);
   });
 
   it('sin ritmo NO dice "al ritmo de $0 la lograrías"', () => {
@@ -1200,7 +1408,7 @@ describe('meta vencida — no promete fechas sin ritmo', () => {
       goals: [goal({ targetAmount: 2000, savedAmount: 500, targetDate: '2026-07-01' })],
     }));
     const a = advice.find((x) => x.id.startsWith('goal-overdue-'));
-    expect(a?.body).toContain('no puede apartarle nada');
+    expect(a?.body).toBe('Ahora no recibe nada, así que no hay fecha nueva que prometer.');
     expect(a?.body).not.toContain('al ritmo de $0');
   });
 });

@@ -105,13 +105,52 @@ describe('una meta enlazada a una tarjeta se paga con la cuota de la tarjeta', (
   });
 
   it('si no alcanza, lo dice con la cuota de la tarjeta, no con «el plan le aparta»', () => {
-    const corta = { ...enlazada, targetDate: '2027-01-25' };
+    // Hasta el 25 de diciembre caben tres cuotas: a $2,860 no llegan.
+    const corta = { ...enlazada, targetDate: '2026-12-25' };
     const p = buildFinancePlan(plan({ goals: [corta], credits: [unlimited] }));
     const [g] = p.goals;
     expect(g.feasibility).toBe('at_risk');
     expect(g.shortfallMonthly).toBeGreaterThan(0);
     const consejo = p.advice.find((a) => a.title.includes('la cuota no llega'));
-    expect(consejo?.body).toContain('La cuota de la tarjeta es de $2,860');
+    expect(consejo?.figures).toContainEqual({ label: 'Cuota de la tarjeta', value: '$2,860 al mes' });
+    expect(`${consejo?.title} ${consejo?.body}`).not.toMatch(/aparta/);
+    // La cuota se cambia en Deudas: a la meta no se le aporta.
+    expect(consejo?.action?.kind).toBe('open_debts');
+  });
+
+  it('cuenta las cuotas que caben hasta la fecha, no meses con decimales', () => {
+    // Sin día de pago, del 24 de octubre al 25 de enero caben cuatro cuotas
+    // (oct, nov, dic y ene), que es como cuenta la estrategia «antes de una
+    // fecha» de Deudas.
+    // Con meses de 30.44 días eran 3.06 meses y «hacían falta» $3,740: el
+    // consejero decía que no llegaba la misma cuota que Deudas calculó para
+    // llegar.
+    const justa = { ...enlazada, targetDate: '2027-01-25' };
+    const p = buildFinancePlan(plan({ goals: [justa], credits: [unlimited] }));
+    const [g] = p.goals;
+    expect(g.requiredMonthly).toBe(2860);
+    expect(g.feasibility).toBe('on_track');
+    expect(p.advice.some((a) => a.title.includes('la cuota no llega'))).toBe(false);
+  });
+
+  it('con día de pago, cuenta los vencimientos que caben, como la cuota de Deudas', () => {
+    // Cifras inventadas. 23 nov, la tarjeta vence el 22 y la meta es para el
+    // 25 de enero: quedan 22 dic y 22 ene. La cuota de Deudas reparte entre
+    // esos dos, y la meta pide lo mismo.
+    const tarjeta: CreditInput = {
+      id: 'tc', name: 'Tarjeta', balance: 9000, installment: 4500, monthlyInterest: 0,
+      monthsToPayoff: 2, neverPaysOff: false, dueDay: 22,
+    };
+    const conFecha = meta({ id: 'm', debtId: 'tc', targetAmount: 9000, savedAmount: 0, targetDate: '2027-01-25' });
+    const now = new Date(2026, 10, 23, 12);
+
+    const [g] = buildFinancePlan(plan({ goals: [conFecha], credits: [tarjeta], now })).goals;
+    expect(g.requiredMonthly).toBe(4500);
+    expect(g.feasibility).toBe('on_track');
+
+    // La cuota de tres meses del calendario ya no llega: solo quedan dos pagos.
+    const corta = buildFinancePlan(plan({ goals: [conFecha], credits: [{ ...tarjeta, installment: 3000 }], now }));
+    expect(corta.goals[0].feasibility).toBe('at_risk');
   });
 
   it('sin enlazar, sigue pidiendo su propio aporte (y la página ofrece enlazarla)', () => {

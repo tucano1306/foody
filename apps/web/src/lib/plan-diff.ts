@@ -32,7 +32,7 @@ export interface PlanChange {
 
 export interface PlanSnapshot {
   goals: readonly GoalProjection[];
-  cashFlow: Pick<CashFlow, 'available' | 'goalsBudget'>;
+  cashFlow: Pick<CashFlow, 'afterObligations' | 'goalsBudget'>;
 }
 
 /** Cambio mínimo en el dinero libre para que merezca mencionarse. */
@@ -150,8 +150,11 @@ export function diffPlans(before: PlanSnapshot, after: PlanSnapshot): PlanChange
 
   // 5. Si ninguna meta se movió, el dinero libre del mes es lo único que hay
   //    que contar: es el aviso de "esto entró, esto salió".
+  //    El libre de la cabecera (`afterObligations`), no `available`: subir el
+  //    abono de una tarjeta para liquidarla antes es una decisión, y el aviso
+  //    decía «te quedan $X menos libres» con la cabecera sin moverse.
   if (out.length === 0) {
-    const delta = after.cashFlow.available - before.cashFlow.available;
+    const delta = after.cashFlow.afterObligations - before.cashFlow.afterObligations;
     if (Math.abs(delta) >= MIN_MONEY_DELTA) {
       out.push({
         id: 'free-money',

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { agruparPorTarjeta, sugerirDeudaParaMeta } from './plan-tarjetas';
+import type { CondicionesDeCredito } from './condiciones-credito';
+import { agruparPorTarjeta, minimosDelBanco, sugerirDeudaParaMeta, type CreditoParaMinimo } from './plan-tarjetas';
 
 const G = 'grupo-3650';
 
@@ -74,5 +75,64 @@ describe('sugerirDeudaParaMeta', () => {
   it('el último dígito declarado cuenta aunque el nombre no lo lleve', () => {
     const sinNumero = { ...unlimited, name: 'Unlimited Cash' };
     expect(sugerirDeudaParaMeta(meta({}), [sinNumero, compras])).toBe(sinNumero);
+  });
+});
+
+describe('minimosDelBanco — lo que exige el banco, aparte del plan para liquidar', () => {
+  // Una tarjeta de $9,000 al 0 % que el usuario quiere dejar en cero en tres
+  // meses: su plan abona $3,000, el banco pide mucho menos.
+  const tramo = (over: Partial<CreditoParaMinimo> = {}): CreditoParaMinimo => ({
+    id: 't', cardGroup: null, kind: 'credit_card', strategy: 'by_date', balance: 9000, installment: 3000,
+    monthlyInterest: 0, issuer: 'Bank of America', currency: 'USD', minPercent: null, minFloor: null,
+    minIncludesInterest: false, ...over,
+  });
+
+  it('con un plan para llegar a cero, el mínimo es el del banco y no la cuota del plan', () => {
+    // Bank of America: 1 % + intereses, piso de $35. Sobre $9,000 al 0 %: $90.
+    expect(minimosDelBanco([tramo()], new Map()).get('t')).toBe(90);
+  });
+
+  it('nunca pasa de la cuota: el piso de $35 no sube una cuota de $20', () => {
+    expect(minimosDelBanco([tramo({ balance: 500, installment: 20 })], new Map()).get('t')).toBe(20);
+  });
+
+  it('en «mínimo», la cuota ya es lo que pide el banco', () => {
+    expect(minimosDelBanco([tramo({ strategy: 'minimum', installment: 120 })], new Map()).get('t')).toBe(120);
+  });
+
+  it('un préstamo no tiene mínimo aparte: su cuota es la del contrato', () => {
+    expect(minimosDelBanco([tramo({ kind: 'auto', installment: 450 })], new Map()).get('t')).toBe(450);
+  });
+
+  it('una tarjeta con tramos tiene UN mínimo, repartido entre ellos por saldo', () => {
+    // $6,000 + $3,000 de la misma cuenta: el 1 % de $9,000 son $90.
+    const m = minimosDelBanco(
+      [
+        tramo({ id: 'a', cardGroup: 'g', balance: 6000, installment: 2000 }),
+        tramo({ id: 'b', cardGroup: 'g', balance: 3000, installment: 1000 }),
+      ],
+      new Map(),
+    );
+    expect([m.get('a'), m.get('b')]).toEqual([60, 30]);
+  });
+
+  it('usa las condiciones guardadas de la cuenta, las mismas que lee Deudas', () => {
+    const fija: CondicionesDeCredito = {
+      plantilla: 'fijo',
+      minimo: { regla: 'fijo', porcentaje: 0, piso: 0, fijo: 150 },
+      abono: 'ley_eeuu',
+      atraso: { cargo: null, tasaPenal: null },
+    };
+    const m = minimosDelBanco(
+      [tramo({ id: 'a', cardGroup: 'g', balance: 6000 }), tramo({ id: 'b', cardGroup: 'g', balance: 3000 })],
+      new Map([['g', fija]]),
+    );
+    expect([m.get('a'), m.get('b')]).toEqual([100, 50]);
+  });
+
+  it('una suelta lee su regla de sus campos: un piso sin porcentaje es «el mayor entre el 5 % y el piso»', () => {
+    // Igual que en Deudas. Un mínimo que es siempre la misma cifra se guarda
+    // como «cuota fija», no como piso.
+    expect(minimosDelBanco([tramo({ issuer: null, balance: 4000, minFloor: 60 })], new Map()).get('t')).toBe(200);
   });
 });

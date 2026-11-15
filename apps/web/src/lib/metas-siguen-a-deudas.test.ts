@@ -95,25 +95,36 @@ describe('cada movimiento de Deudas mueve la meta', () => {
 });
 
 describe('el consejero habla de la tarjeta, no de apartar', () => {
-  it('una meta de tarjeta en camino dice la cuota y lo que falta, y manda a abonar', () => {
-    // El texto de las metas de ahorro daba «Apartando $1 al mes — o $0 por
-    // semana — tienes los $553 para el 8 de febrero 2058».
-    const g = goalWithDebt(meta(), { originalAmount: 553.4, currentBalance: 523.4, targetDate: '2058-02-08' });
-    const plan = buildFinancePlan({
-      ...planCon([g]),
-      credits: [{
-        id: DEUDA, name: 'Saldo nuevo 3650', balance: 523.4, installment: 10.47, monthlyInterest: 10.46,
-        monthsToPayoff: 375, neverPaysOff: false,
-      }],
-    });
-    const consejo = plan.advice.find((a) => a.id === 'goal-ok-g1');
+  const credito = {
+    id: DEUDA, name: 'Saldo nuevo 3650', balance: 523.4, installment: 10.47, monthlyInterest: 10.46,
+    monthsToPayoff: 375, neverPaysOff: false,
+  };
 
-    // El consejero habla en dólares enteros, como en el resto de sus tarjetas.
-    expect(consejo?.body).toBe(
-      'Con la cuota de la tarjeta ($10 al mes) la terminas el 8 de febrero 2058. Faltan $523 y llevas el 5%.',
+  it('una meta de tarjeta en camino no sale en el consejero: ya lo dice su tarjeta en «Tus metas»', () => {
+    // El texto de las metas de ahorro daba «Apartando $1 al mes — o $0 por
+    // semana — tienes los $553 para el 8 de febrero 2058». Luego dijo la
+    // cuota; ahora no dice nada, porque la barra de la meta ya lo enseña y
+    // repetirlo empujaba lo importante fuera de la vista.
+    const g = goalWithDebt(meta(), { originalAmount: 553.4, currentBalance: 523.4, targetDate: '2058-02-08' });
+    const plan = buildFinancePlan({ ...planCon([g]), credits: [credito] });
+
+    expect(plan.goals[0].feasibility).toBe('on_track');
+    expect(plan.advice.filter((a) => a.id.endsWith('-g1'))).toEqual([]);
+    expect(plan.advice.map((a) => `${a.title} ${a.body}`).join(' ')).not.toMatch(/Apartando|por semana/);
+  });
+
+  it('si la cuota no llega, lo dice con la cuota de la tarjeta y manda a Deudas, no a aportar', () => {
+    const g = goalWithDebt(
+      meta({ dateFollowsDebt: false, targetDate: '2026-12-31' }),
+      { originalAmount: 553.4, currentBalance: 523.4 },
     );
-    expect(consejo?.body).not.toMatch(/Apartando|por semana/);
-    expect(consejo?.action).toMatchObject({ label: 'Abonar la tarjeta', kind: 'contribute', goalId: 'g1' });
+    const plan = buildFinancePlan({ ...planCon([g]), credits: [credito] });
+    const consejo = plan.advice.find((a) => a.id === 'goal-risk-g1');
+
+    expect(consejo?.title).toBe('Compras 3650: la cuota no llega a tiempo');
+    // El consejero habla en dólares enteros, como en el resto de sus tarjetas.
+    expect(consejo?.figures).toContainEqual({ label: 'Cuota de la tarjeta', value: '$10 al mes' });
+    expect(consejo?.action).toMatchObject({ kind: 'open_debts' });
   });
 });
 

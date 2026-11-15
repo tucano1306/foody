@@ -59,7 +59,7 @@ function credito(d: DebtWithProjection): CreditForPlan {
     payoffDate: null, neverPaysOff: false, businessShare: 0, linkedPaymentId: null, duplicateDismissed: false, issuer: d.issuer,
     cardGroup: d.cardGroup, kind: d.kind, accountLast4: d.accountLast4, currency: d.currency, rate: d.rate,
     ratePeriod: d.ratePeriod, promoEndsOn: d.promoEndsOn, rateAfterPromo: d.rateAfterPromo, promoKind: d.promoKind,
-    deferredInterest: d.deferredInterest, openedAt: d.openedAt,
+    deferredInterest: d.deferredInterest, openedAt: d.openedAt, minimumPayment: 50, dueDay: d.dueDay,
   };
 }
 
