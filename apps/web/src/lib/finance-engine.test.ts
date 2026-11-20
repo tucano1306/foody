@@ -1662,24 +1662,25 @@ describe('buildFinancePlan — cheques y pagos sueltos', () => {
 });
 
 /**
- * «Si coloco 31,397.5 la app deberia darme ese calculo mensual tomando en
- * cuenta el año en curso y la fecha actual.»
+ * «Si coloco 27,654.5 la app deberia darme ese calculo mensual tomando en
+ * cuenta el año en curso y la fecha actual.» (El importe es inventado: este
+ * repo es publico.)
  *
  * Es un ACUMULADO: lo cobrado de enero a hoy. Repartirlo entre 12 inventa los
  * meses que aun no han pasado, y el resultado sale un 33 % por debajo. Por eso
- * `ytd` no comparte boton con `yearly`: un sueldo anual de $31.397,50 SI son
- * $2.616,46 al mes, y confundir las dos cosas es la diferencia entre creer que
- * ganas eso y saber que ganas $3.924,69.
+ * `ytd` no comparte boton con `yearly`: un sueldo anual de $27.654,50 SI son
+ * $2.304,54 al mes, y confundir las dos cosas es la diferencia entre creer que
+ * ganas eso y saber que ganas $3.456,81.
  */
 describe('monthlyEquivalent — lo que llevo cobrado este año', () => {
   const AGO_30 = new Date(2026, 7, 30); // 30 de agosto de 2026: 8 meses
 
   it('reparte el acumulado entre los meses que YA pasaron', () => {
-    expect(monthlyEquivalent(31_397.5, 'ytd', AGO_30)).toBeCloseTo(3924.69, 2);
+    expect(monthlyEquivalent(27_654.5, 'ytd', AGO_30)).toBeCloseTo(3456.81, 2);
   });
 
   it('el mismo importe como sueldo anual es otra cosa, y menor', () => {
-    expect(monthlyEquivalent(31_397.5, 'yearly', AGO_30)).toBeCloseTo(2616.46, 2);
+    expect(monthlyEquivalent(27_654.5, 'yearly', AGO_30)).toBeCloseTo(2304.54, 2);
   });
 
   it('el divisor lo pone el calendario, no el importe', () => {
@@ -1691,21 +1692,21 @@ describe('monthlyEquivalent — lo que llevo cobrado este año', () => {
   it('el mes en curso cuenta entero: el dia no mueve la cifra', () => {
     // Lo contrario exigiria un divisor fraccionario que en enero se dispara.
     for (const dia of [1, 15, 30]) {
-      expect(monthlyEquivalent(31_397.5, 'ytd', new Date(2026, 7, dia))).toBeCloseTo(3924.69, 2);
+      expect(monthlyEquivalent(27_654.5, 'ytd', new Date(2026, 7, dia))).toBeCloseTo(3456.81, 2);
     }
   });
 
   it('en diciembre el acumulado y el sueldo anual convergen', () => {
     const dic = new Date(2026, 11, 15);
-    expect(monthlyEquivalent(31_397.5, 'ytd', dic)).toBeCloseTo(monthlyEquivalent(31_397.5, 'yearly', dic), 2);
+    expect(monthlyEquivalent(27_654.5, 'ytd', dic)).toBeCloseTo(monthlyEquivalent(27_654.5, 'yearly', dic), 2);
   });
 
   it('el plan entero usa esa cifra, no la de dividir entre 12', () => {
     const { cashFlow } = buildFinancePlan(
-      plan({ incomes: [income({ amount: 31_397.5, frequency: 'ytd' })], now: AGO_30 }),
+      plan({ incomes: [income({ amount: 27_654.5, frequency: 'ytd' })], now: AGO_30 }),
     );
-    expect(cashFlow.recurringIncome).toBeCloseTo(3924.69, 2);
+    expect(cashFlow.recurringIncome).toBeCloseTo(3456.81, 2);
     // ingreso − 900 de pagos fijos − 400 de super
-    expect(cashFlow.available).toBeCloseTo(2624.69, 2);
+    expect(cashFlow.available).toBeCloseTo(2156.81, 2);
   });
 });
