@@ -15,18 +15,27 @@
  * negocio, en su módulo de Gastos y con la categoría que el usuario usa allí.
  * Un gasto mixto se parte en dos.
  *
+ * Los INGRESOS van por el mismo contrato, con ref `income:<id>`: Computo los
+ * apunta como ingreso (ver `ingresosAComputo`).
+ *
  * Módulo PURO. Se prueba en mapeo.test.ts.
  */
 import type { ExpenseKind } from '../expense-kind';
 import { expenseKindMeta, normalizeExpenseKind } from '../expense-kind';
 import { aCampoDeFecha } from '../app-time';
+import type { IncomeSource } from '../finance-engine';
 
 export type DestinoComputo = 'personal' | 'negocio';
 
+/**
+ * Lo que se manda a Computo: un gasto o, con ref `income:`, un ingreso. Los
+ * dos tienen la misma forma y el mismo camino (plan, huella, lotes); solo
+ * cambia lo que Computo hace con ellos.
+ */
 export interface GastoComputo {
   /**
-   * Identidad estable del gasto en Foody: `trip:<id>:<tipo>` o `payment:<id>`,
-   * con `:negocio` al final para la parte de negocio.
+   * Identidad estable en Foody: `trip:<id>:<tipo>` o `payment:<id>` (con
+   * `:negocio` al final para la parte de negocio), o `income:<id>`.
    */
   readonly ref: string;
   /** El día del gasto, YYYY-MM-DD, en la hora de Miami. */
@@ -174,6 +183,44 @@ export function gastoDePago(p: PagoRegistrado): GastoComputo {
 /** El pago ya repartido entre lo personal y lo de negocio: lo que se manda. */
 export function gastosDePago(p: PagoRegistrado): GastoComputo[] {
   return repartirPorNegocio(gastoDePago(p), p.businessShare);
+}
+
+/**
+ * La categoría que Foody propone para un ingreso. Computo solo la usa si la
+ * empresa no tiene ni un ingreso todavía; si no, copia la de los ingresos
+ * parecidos que el usuario ya tecleó allí («Constructora» → «Servicios»).
+ */
+export const CATEGORIA_DE_INGRESO = 'Otros Ingresos';
+
+/** Las notas de Computo admiten 500 caracteres: la nota del usuario se recorta para que quepa todo. */
+const NOTA_DE_INGRESO_MAX = 400;
+
+/**
+ * Un ingreso de Foody, como lo apunta Computo.
+ *
+ * Solo van los cheques y pagos sueltos (`one_time`): son dinero que entró UN
+ * día, que es lo que Computo apunta. Un sueldo mensual, semanal o anual es una
+ * tasa («gano $X al mes») y un acumulado del año es una foto: ninguno dice qué
+ * día entró qué dinero, así que no se mandan. Un ingreso apagado tampoco: en
+ * el Plan no cuenta.
+ *
+ * La parte de NEGOCIO (`business_share`) es facturación de la empresa, no
+ * dinero de casa: no entra en la empresa personal, y en la de negocio Computo
+ * no tiene dónde ponerla. Sale solo la parte personal.
+ */
+export function ingresosAComputo(i: IncomeSource): GastoComputo[] {
+  if (i.frequency !== 'one_time' || !i.isActive || !i.receivedOn) return [];
+  const nota = i.note?.trim().slice(0, NOTA_DE_INGRESO_MAX);
+  const ingreso: GastoComputo = {
+    ref: `income:${i.id}`,
+    fecha: i.receivedOn,
+    monto: round2(i.amount),
+    categoria: CATEGORIA_DE_INGRESO,
+    descripcion: i.name.trim() || 'Ingreso',
+    notas: nota ? `Desde Foody · Ingresos · ${nota}` : 'Desde Foody · Ingresos',
+    destino: 'personal',
+  };
+  return repartirPorNegocio(ingreso, i.businessShare).filter((p) => p.destino === 'personal');
 }
 
 /**

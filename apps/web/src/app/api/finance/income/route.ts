@@ -5,6 +5,7 @@ import { getRouteUser, unauthorized } from '@/lib/route-helpers';
 import { ensureFinanceSchema, mapIncomeRow } from '@/lib/finance-data';
 import { isError, validateIncomeBody } from '@/lib/finance-input';
 import { normalizeShare } from '@/lib/expense-scope';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 // GET /api/finance/income
 export async function GET(request: NextRequest) {
@@ -32,6 +33,9 @@ export async function POST(request: NextRequest) {
 
   const input = validateIncomeBody(body);
   if (isError(input)) return NextResponse.json(input, { status: 422 });
+  // Un cheque o pago suelto entra en Computo como ingreso, después de responder
+  // (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
 
   await ensureFinanceSchema();
   const rows = await sql`

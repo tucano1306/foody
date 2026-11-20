@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { destinoDeRef, huella, type GastoComputo } from './mapeo';
-import { planificar, planVacio } from './plan';
+import { inicioDeIngresos, planificar, planVacio } from './plan';
 
 const gasto = (ref: string, monto = 10): GastoComputo => ({
   ref,
@@ -65,5 +65,48 @@ describe('planificar — solo la diferencia', () => {
   it('una ref repetida es la misma cosa: se manda una vez', () => {
     const plan = planificar([gasto('trip:a:grocery'), gasto('trip:a:grocery')], []);
     expect(plan.upserts).toHaveLength(1);
+  });
+});
+
+/**
+ * Desde qué día van los ingresos: lo cobrado hasta el día en que el usuario
+ * tecleó a mano su último ingreso en Computo ya está allí, aunque sea sumado.
+ */
+describe('inicioDeIngresos', () => {
+  const HOY = '2026-11-19';
+
+  it('el día siguiente al último ingreso tecleado a mano', () => {
+    expect(inicioDeIngresos('2026-10-13', '2026-10-25', HOY)).toBe('2026-10-26');
+    expect(inicioDeIngresos('2026-10-13', '2026-10-13', HOY)).toBe('2026-10-14');
+  });
+
+  it('sin nada tecleado, o tecleado antes, desde el día de los gastos', () => {
+    expect(inicioDeIngresos('2026-10-13', null, HOY)).toBe('2026-10-13');
+    expect(inicioDeIngresos('2026-10-13', '2026-09-30', HOY)).toBe('2026-10-13');
+    expect(inicioDeIngresos('2026-10-13', '2026-10-12', HOY)).toBe('2026-10-13');
+  });
+
+  it('cruza meses, años, bisiestos y cambios de hora sin perder ni repetir un día', () => {
+    expect(inicioDeIngresos('2026-01-01', '2026-10-31', HOY)).toBe('2026-11-01');
+    expect(inicioDeIngresos('2026-01-01', '2026-12-31', '2027-02-01')).toBe('2027-01-01');
+    expect(inicioDeIngresos('2028-01-01', '2028-02-28', '2028-12-31')).toBe('2028-02-29');
+    expect(inicioDeIngresos('2027-01-01', '2027-02-28', '2027-12-31')).toBe('2027-03-01');
+    // Fin y comienzo del horario de verano en Miami.
+    expect(inicioDeIngresos('2026-01-01', '2026-11-01', HOY)).toBe('2026-11-02');
+    expect(inicioDeIngresos('2026-01-01', '2026-03-08', HOY)).toBe('2026-03-09');
+  });
+
+  it('nunca después de hoy: lo tecleado hoy no deja fuera lo que llegue hoy', () => {
+    expect(inicioDeIngresos('2026-10-13', HOY, HOY)).toBe(HOY);
+    expect(inicioDeIngresos('2026-12-01', null, HOY)).toBe(HOY);
+  });
+});
+
+describe('planificar — los ingresos, como un gasto más', () => {
+  it('nuevos se mandan; borrados se borran o, si solo se enlazaron, se sueltan', () => {
+    const ingreso = { ...gasto('income:i1', 500), categoria: 'Otros Ingresos' };
+    expect(planificar([ingreso], []).upserts).toEqual([ingreso]);
+    expect(planVacio(planificar([ingreso], [enviado(ingreso)]))).toBe(true);
+    expect(planificar([], [enviado(ingreso, true)]).borrar).toEqual([{ ref: 'income:i1', modo: 'desvincular', destino: 'personal' }]);
   });
 });

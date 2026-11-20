@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 import { getRouteUser, unauthorized, notFound } from '@/lib/route-helpers';
 import { ensureFinanceSchema, mapIncomeRow } from '@/lib/finance-data';
 import { isError, parseAmount, validateIncomeBody } from '@/lib/finance-input';
+import { programarSyncComputo } from '@/lib/computo/programar';
 
 // PATCH /api/finance/income/:id
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
+  // Apagar, corregir o mover un cheque cambia lo que debe estar en Computo:
+  // se lleva después de responder (solo el dueño; ver lib/computo).
+  programarSyncComputo(user.userId);
 
   await ensureFinanceSchema();
 
@@ -75,6 +79,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
   const { id } = await params;
+  // Lo que Foody creó en Computo se borra allí; lo que solo enlazó, se suelta.
+  programarSyncComputo(user.userId);
 
   await ensureFinanceSchema();
   const rows = await sql`

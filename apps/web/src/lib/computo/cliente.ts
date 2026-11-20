@@ -41,6 +41,20 @@ export interface EmpresasComputo {
   readonly empresaNegocio: EmpresaComputo | null;
 }
 
+/**
+ * Lo que dice el ping de los ingresos. `null` si Computo no dice nada: es una
+ * versión que todavía no los acepta, y una ref `income:` le haría rechazar el
+ * lote entero, con los gastos dentro.
+ */
+export interface IngresosEnComputo {
+  /** El día (en Miami) en que el usuario tecleó a mano su último ingreso allí. */
+  readonly ultimoTecleado: string | null;
+}
+
+export interface PingComputo extends EmpresasComputo {
+  readonly ingresos: IngresosEnComputo | null;
+}
+
 export interface RespuestaComputo extends EmpresasComputo {
   readonly resultados: readonly ResultadoComputo[];
 }
@@ -113,9 +127,17 @@ function empresas(json: Record<string, unknown>): EmpresasComputo {
   };
 }
 
-/** Comprueba la conexión y dice en qué empresas entran los gastos. */
-export async function pingComputo(config: ConfigComputo): Promise<EmpresasComputo> {
-  return empresas(await llamar(config, { ping: true }));
+function ingresos(json: Record<string, unknown>): IngresosEnComputo | null {
+  const i = json.ingresos;
+  if (!i || typeof i !== 'object') return null;
+  const ultimo = (i as Record<string, unknown>).ultimoTecleado;
+  return { ultimoTecleado: typeof ultimo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ultimo) ? ultimo : null };
+}
+
+/** Comprueba la conexión y dice en qué empresas entran los gastos, y si acepta ingresos. */
+export async function pingComputo(config: ConfigComputo): Promise<PingComputo> {
+  const json = await llamar(config, { ping: true });
+  return { ...empresas(json), ingresos: ingresos(json) };
 }
 
 export async function enviarLote(

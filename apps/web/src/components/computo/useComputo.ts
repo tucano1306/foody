@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+/** Un gasto o, con ref `income:`, un ingreso: los dos esperan igual su turno. */
 export interface GastoPendiente {
   ref: string;
   fecha: string;
@@ -14,7 +15,14 @@ export interface GastoPendiente {
 export interface EstadoComputo {
   disponible: true;
   activo: boolean;
+  /** Desde qué día van los gastos. */
   desde: string;
+  /**
+   * Desde qué día van los ingresos. `null` hasta la primera sincronización con
+   * cobros: entonces se fija solo, al día siguiente del último ingreso que el
+   * usuario tecleó a mano en Computo.
+   */
+  ingresosDesde: string | null;
   empresa: string | null;
   /** Donde entra lo de negocio, si Computo tiene empresa de negocio. */
   empresaNegocio: string | null;
@@ -31,7 +39,7 @@ export type AccionPrevista = 'creado' | 'actualizado' | 'sin_cambios' | 'vincula
 export interface Prevision {
   ref: string;
   accion: AccionPrevista;
-  /** Negocio: la categoría con la que lo apuntaría, copiada de lo que ya hay allí. */
+  /** Negocio e ingresos: la categoría con la que lo apuntaría, copiada de lo que ya hay allí. */
   categoria?: string;
   motivo?: string;
 }
@@ -89,7 +97,7 @@ export function useComputo() {
   );
 
   const guardar = useCallback(
-    async (cambios: { activo?: boolean; desde?: string }) => {
+    async (cambios: { activo?: boolean; desde?: string; ingresosDesde?: string }) => {
       const nuevo = await accion<EstadoComputo>(() =>
         fetch(URL, {
           method: 'PUT',

@@ -11,13 +11,15 @@ const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 async function estado(userId: string) {
   const enlace = await leerEnlace(userId);
   const desde = enlace?.desde ?? hoyClave();
+  const ingresosDesde = enlace?.ingresosDesde ?? null;
   // Lo pendiente se calcula siempre, también apagado: es lo que se mandaría
   // al encenderlo, y verlo antes es lo que da confianza para hacerlo.
-  const plan = await calcularPlan(userId, desde).catch(() => null);
+  const plan = await calcularPlan(userId, desde, ingresosDesde).catch(() => null);
   return {
     disponible: true,
     activo: enlace?.activo ?? false,
     desde,
+    ingresosDesde,
     empresa: enlace?.empresa ?? null,
     empresaNegocio: enlace?.empresaNegocio ?? null,
     ultimaSync: enlace?.ultimaSync ?? null,
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(await estado(user.userId));
 }
 
-/** PUT — encender/apagar y elegir desde qué día se mandan los gastos. */
+/** PUT — encender/apagar y elegir desde qué día se mandan los gastos y los ingresos. */
 export async function PUT(request: NextRequest) {
   const user = await getRouteUser(request);
   if (!user) return unauthorized();
@@ -58,11 +60,14 @@ export async function PUT(request: NextRequest) {
 
   const activo = typeof body.activo === 'boolean' ? body.activo : undefined;
   const desde = typeof body.desde === 'string' ? body.desde : undefined;
-  if (desde !== undefined && (!FECHA.test(desde) || desde > hoyClave())) {
-    return NextResponse.json({ message: 'La fecha tiene que ser de hoy o anterior' }, { status: 422 });
+  const ingresosDesde = typeof body.ingresosDesde === 'string' ? body.ingresosDesde : undefined;
+  for (const fecha of [desde, ingresosDesde]) {
+    if (fecha !== undefined && (!FECHA.test(fecha) || fecha > hoyClave())) {
+      return NextResponse.json({ message: 'La fecha tiene que ser de hoy o anterior' }, { status: 422 });
+    }
   }
 
-  const enlace = await guardarEnlace(user.userId, { activo, desde });
+  const enlace = await guardarEnlace(user.userId, { activo, desde, ingresosDesde });
   // Al encenderlo, o al mover la fecha, se manda lo pendiente sin esperar.
   if (enlace.activo) programarSyncComputo(user.userId);
   return NextResponse.json(await estado(user.userId));
