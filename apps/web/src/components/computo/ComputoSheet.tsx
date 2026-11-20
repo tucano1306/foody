@@ -38,18 +38,21 @@ const PREVISTO: Record<AccionPrevista, { texto: string; clase: string }> = {
 
 /** «Personal → Leonardo · Negocio → Venecoro»: a dónde va cada cosa, cuando ya se sabe. */
 function destinos(estado: EstadoComputo): string {
-  if (!estado.empresa) return 'Tus gastos, en tu contabilidad';
-  if (!estado.empresaNegocio) return `Tus gastos entran en ${estado.empresa}`;
+  if (!estado.empresa) return 'Tus gastos e ingresos, en tu contabilidad';
+  if (!estado.empresaNegocio) return `Tus gastos e ingresos entran en ${estado.empresa}`;
   return `Personal → ${estado.empresa} · Negocio → ${estado.empresaNegocio}`;
 }
+
+/** Los ingresos viajan por el mismo camino que los gastos; solo los distingue la ref. */
+const esIngreso = (ref: string) => ref.startsWith('income:');
 
 /**
  * La hoja del enlace con Computo.
  *
  * Todo lo que el dueño necesita, en el orden en que lo necesita: ¿está
  * encendido?, ¿desde cuándo?, ¿qué hay por enviar? Y antes de mandar nada,
- * «Revisar» pregunta a Computo qué haría con cada gasto: los que ya estaban
- * tecleados a mano salen como «se enlaza», no como duplicados.
+ * «Revisar» pregunta a Computo qué haría con cada cosa: lo que ya estaba
+ * tecleado a mano sale como «se enlaza», no como duplicado.
  */
 export default function ComputoSheet({ computo, onClose }: Props) {
   const { estado, ocupado, error, guardar, sincronizar, simular, probar } = computo;
@@ -105,8 +108,8 @@ export default function ComputoSheet({ computo, onClose }: Props) {
         <div className="rounded-3xl border border-sky-100 bg-white p-4">
           <label className="flex items-center justify-between gap-3">
             <span>
-              <span className="block text-sm font-bold text-black">Enviar mis gastos</span>
-              <span className="block text-xs text-slate-500">Tickets y pagos, al guardarlos</span>
+              <span className="block text-sm font-bold text-black">Enviar mis movimientos</span>
+              <span className="block text-xs text-slate-500">Tickets, pagos y cheques, al guardarlos</span>
             </span>
             <input
               type="checkbox"
@@ -118,11 +121,11 @@ export default function ComputoSheet({ computo, onClose }: Props) {
                 void guardar({ activo: e.target.checked });
               }}
               className="h-6 w-11 cursor-pointer appearance-none rounded-full bg-slate-200 transition before:block before:h-5 before:w-5 before:translate-x-0.5 before:rounded-full before:bg-white before:shadow before:transition checked:bg-sky-500 checked:before:translate-x-[22px]"
-              aria-label="Enviar mis gastos a Computo"
+              aria-label="Enviar mis movimientos a Computo"
             />
           </label>
           <label className="mt-3 flex items-center justify-between gap-3 border-t border-sky-50 pt-3">
-            <span className="text-xs font-bold text-slate-600">Desde</span>
+            <span className="text-xs font-bold text-slate-600">Gastos desde</span>
             <input
               type="date"
               value={estado.desde}
@@ -136,6 +139,26 @@ export default function ComputoSheet({ computo, onClose }: Props) {
               className="rounded-xl bg-sky-50 px-3 py-1.5 text-sm font-semibold text-black focus:outline-none"
             />
           </label>
+          {/* Hasta la primera vez que hay cobros que mandar no hay fecha: la
+              fija Computo, al día siguiente del último ingreso tecleado a mano
+              (lo anterior ya estaba allí). Después se puede mover. */}
+          {estado.ingresosDesde && (
+            <label className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-xs font-bold text-slate-600">Ingresos desde</span>
+              <input
+                type="date"
+                value={estado.ingresosDesde}
+                max={hoy}
+                disabled={ocupado}
+                onChange={(e) => {
+                  setPrevisto(null);
+                  if (e.target.value) void guardar({ ingresosDesde: e.target.value });
+                }}
+                aria-label="Enviar los ingresos desde"
+                className="rounded-xl bg-sky-50 px-3 py-1.5 text-sm font-semibold text-black focus:outline-none"
+              />
+            </label>
+          )}
         </div>
 
         {/* Cómo fue la última vez */}
@@ -177,18 +200,23 @@ export default function ComputoSheet({ computo, onClose }: Props) {
             )}
           </div>
           {pendientes && pendientes.muestra.length > 0 ? (
-            <ul className="flex flex-col gap-2" aria-label="Gastos por enviar">
+            <ul className="flex flex-col gap-2" aria-label="Por enviar">
               {pendientes.muestra.map((g) => {
                 const p = previsto?.[g.ref];
                 const negocio = g.destino === 'negocio';
-                // Lo de negocio no lleva la categoría de Foody: Computo la copia
-                // de lo que el usuario ya apunta allí, y solo se sabe al revisar.
-                const categoria = negocio ? (p?.categoria ?? null) : g.categoria;
+                const ingreso = esIngreso(g.ref);
+                // Lo de negocio y los ingresos no llevan la categoría de Foody:
+                // Computo la copia de lo que el usuario ya apunta allí, y solo
+                // se sabe al revisar.
+                const categoria = negocio || ingreso ? (p?.categoria ?? null) : g.categoria;
                 return (
                   <li key={g.ref} className="rounded-2xl bg-white px-3.5 py-2.5">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 truncate text-sm font-semibold text-black">{g.descripcion}</span>
-                      <span className="shrink-0 text-sm font-extrabold text-black">{fmtMoney(g.monto)}</span>
+                      <span className="shrink-0 text-sm font-extrabold text-black">
+                        {ingreso && '+'}
+                        {fmtMoney(g.monto)}
+                      </span>
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-500">
                       <span>{dia(g.fecha)}</span>
@@ -217,11 +245,11 @@ export default function ComputoSheet({ computo, onClose }: Props) {
               )}
             </ul>
           ) : (
-            <p className="text-sm text-slate-600">Todo lo de Foody desde el {dia(estado.desde)} ya está en Computo.</p>
+            <p className="text-sm text-slate-600">Todo lo de Foody ya está en Computo.</p>
           )}
           {pendientes && pendientes.quitar > 0 && (
             <p className="mt-2 text-[11px] text-slate-600">
-              {pendientes.quitar} {pendientes.quitar === 1 ? 'gasto borrado' : 'gastos borrados'} en Foody saldrán también de Computo.
+              Lo que borraste en Foody ({pendientes.quitar}) sale también de Computo.
             </p>
           )}
         </section>
@@ -247,6 +275,12 @@ export default function ComputoSheet({ computo, onClose }: Props) {
               <li className="flex justify-between gap-3 border-t border-sky-50 pt-1">
                 <span className="text-slate-600">💳 Pagos</span>
                 <span className="text-right font-semibold text-black">{estado.categorias.pagos.join(', ')}</span>
+              </li>
+              <li className="flex justify-between gap-3 border-t border-sky-50 pt-1">
+                <span className="text-slate-600">💵 Cheques y pagos sueltos</span>
+                <span className="text-right font-semibold text-black">
+                  {estado.empresa ?? 'Tu empresa'}, como apuntas tus ingresos
+                </span>
               </li>
               <li className="flex justify-between gap-3 border-t border-sky-50 pt-1">
                 <span className="text-slate-600">💼 Lo de negocio</span>

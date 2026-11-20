@@ -58,3 +58,27 @@ export function planificar(deseados: readonly GastoComputo[], enviados: readonly
 export function planVacio(p: PlanComputo): boolean {
   return p.upserts.length === 0 && p.borrar.length === 0;
 }
+
+/** El día siguiente a uno YYYY-MM-DD, a mediodía UTC para que ningún cambio de hora lo mueva. */
+function diaSiguiente(clave: string): string {
+  const d = new Date(`${clave}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Desde qué día van los ingresos a Computo, la primera vez que hay alguno.
+ *
+ * Lo cobrado hasta el día en que el usuario tecleó a mano su último ingreso en
+ * Computo ya está allí, aunque sea sumado: tres cobros de Foody pueden ser un
+ * único ingreso tecleado con el total. El enlace por importe y fecha no
+ * ve esa suma (ningún cobro suelto coincide con ella), así que mandarlos los
+ * contaría dos veces. Por eso los ingresos empiezan el día SIGUIENTE a ese
+ * tecleo; sin nada tecleado, el día desde el que van los gastos. Nunca antes
+ * de ese día, ni después de hoy.
+ */
+export function inicioDeIngresos(desdeGastos: string, ultimoTecleado: string | null, hoy: string): string {
+  const siguiente = ultimoTecleado ? diaSiguiente(ultimoTecleado) : desdeGastos;
+  const inicio = siguiente > desdeGastos ? siguiente : desdeGastos;
+  return inicio > hoy ? hoy : inicio;
+}

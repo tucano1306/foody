@@ -1,20 +1,22 @@
 /**
- * sync.ts — llevar los gastos de Foody a Computo.
+ * sync.ts — llevar los gastos e ingresos de Foody a Computo.
  *
  * Tres tablas pequeñas, solo del dueño (ver config.ts):
  *
- *   computo_enlace    encendido o no, desde qué día, y cómo fue la última vez
+ *   computo_enlace    encendido o no, desde qué día (gastos e ingresos), y
+ *                     cómo fue la última vez
  *   computo_enviados  lo que ya está en Computo: ref + huella (+ si solo se
- *                     enlazó a un gasto que el usuario ya tenía tecleado)
+ *                     enlazó a algo que el usuario ya tenía tecleado)
  *
  * `sincronizarComputo` calcula el estado deseado (tickets y pagos desde la
- * fecha elegida), lo compara con lo enviado (plan.ts) y manda la diferencia en
- * lotes firmados. Es idempotente: si se corta a mitad, la siguiente vuelta
- * termina el trabajo sin duplicar nada, porque Computo identifica cada gasto
- * por su ref.
+ * fecha elegida, cheques y pagos sueltos desde la suya), lo compara con lo
+ * enviado (plan.ts) y manda la diferencia en lotes firmados. Es idempotente:
+ * si se corta a mitad, la siguiente vuelta termina el trabajo sin duplicar
+ * nada, porque Computo identifica cada cosa por su ref.
  */
 import { sql } from '../db';
-import { ensureExpenseKindSchema, ensureTripSplitsSchema } from '../ensure-schema';
+import { ensureExpenseKindSchema, ensureExpenseScopeSchema, ensureTripSplitsSchema } from '../ensure-schema';
+import { ensureFinanceSchema, mapIncomeRow } from '../finance-data';
 import { aCampoDeFecha } from '../app-time';
 import { configComputo, type ConfigComputo } from './config';
 import {
@@ -25,8 +27,8 @@ import {
   type EmpresasComputo,
   type ResultadoComputo,
 } from './cliente';
-import { gastosDePago, gastosDeTicket, huella, type GastoComputo } from './mapeo';
-import { planificar, planVacio, type Borrado, type Enviado, type PlanComputo } from './plan';
+import { gastosDePago, gastosDeTicket, huella, ingresosAComputo, type GastoComputo } from './mapeo';
+import { inicioDeIngresos, planificar, planVacio, type Borrado, type Enviado, type PlanComputo } from './plan';
 
 /** Una fecha de la base como ISO. Neon devuelve `Date` o texto según el tipo de columna. */
 function asIsoString(valor: unknown): string {
@@ -69,6 +71,10 @@ export function ensureComputoSchema(): Promise<void> {
     `;
     // La empresa de negocio llegó después: lo de negocio va a otra empresa.
     await sql`ALTER TABLE computo_enlace ADD COLUMN IF NOT EXISTS empresa_negocio TEXT`;
+    // Los ingresos llegaron después, y tienen su propio día de arranque: lo
+    // cobrado antes ya lo había tecleado el usuario (ver `inicioDeIngresos`).
+    // NULL = todavía no se ha fijado, y mientras tanto no se manda ninguno.
+    await sql`ALTER TABLE computo_enlace ADD COLUMN IF NOT EXISTS ingresos_desde DATE`;
   })().catch((e) => {
     esquemaListo = null;
     throw e;
@@ -80,8 +86,10 @@ export function ensureComputoSchema(): Promise<void> {
 
 export interface Enlace {
   readonly activo: boolean;
-  /** YYYY-MM-DD. */
+  /** YYYY-MM-DD: desde qué día van los gastos. */
   readonly desde: string;
+  /** YYYY-MM-DD: desde qué día van los ingresos; `null` mientras no se ha fijado. */
+  readonly ingresosDesde: string | null;
   readonly empresa: string | null;
   /** La empresa de Computo donde entra lo de negocio, si Computo tiene una. */
   readonly empresaNegocio: string | null;
@@ -108,6 +116,7 @@ export async function leerEnlace(userId: string): Promise<Enlace | null> {
   return {
     activo: r.activo === true,
     desde: aClave(r.desde),
+    ingresosDesde: r.ingresos_desde ? aClave(r.ingresos_desde) : null,
     empresa: (r.empresa as string | null) ?? null,
     empresaNegocio: (r.empresa_negocio as string | null) ?? null,
     ultimaSync: r.ultima_sync ? asIsoString(r.ultima_sync) : null,
@@ -127,7 +136,10 @@ export function hoyClave(ahora: Date = new Date()): string {
   return aCampoDeFecha(new Date(t % 86_400_000 === 0 ? t + 1 : t).toISOString());
 }
 
-export async function guardarEnlace(userId: string, cambios: { activo?: boolean; desde?: string }): Promise<Enlace> {
+export async function guardarEnlace(
+  userId: string,
+  cambios: { activo?: boolean; desde?: string; ingresosDesde?: string },
+): Promise<Enlace> {
   await ensureComputoSchema();
   const desde = cambios.desde ?? hoyClave();
   await sql`
@@ -138,11 +150,44 @@ export async function guardarEnlace(userId: string, cambios: { activo?: boolean;
       desde = COALESCE(${cambios.desde ?? null}::date, computo_enlace.desde),
       updated_at = now()
   `;
+  if (cambios.ingresosDesde) {
+    await sql`
+      UPDATE computo_enlace SET ingresos_desde = ${cambios.ingresosDesde}::date, updated_at = now()
+       WHERE user_id = ${userId}
+    `;
+  }
   return (await leerEnlace(userId)) as Enlace;
 }
 
-/** Lo que DEBERÍA estar en Computo: tickets y pagos del usuario desde `desde`. */
-export async function cargarDeseados(userId: string, desde: string): Promise<GastoComputo[]> {
+/**
+ * Los cheques y pagos sueltos del usuario desde `desde`, como van a Computo.
+ *
+ * Pasan por `mapIncomeRow`, el mismo que usa el Plan: el día de un cheque sin
+ * fecha propia es el mismo aquí que allí.
+ */
+async function cargarIngresos(userId: string, desde: string): Promise<GastoComputo[]> {
+  await ensureFinanceSchema();
+  await ensureExpenseScopeSchema();
+  // Dos días de margen en SQL, como los gastos; el corte exacto, abajo.
+  const filas = await sql`
+    SELECT * FROM finance_income_sources
+     WHERE user_id = ${userId} AND frequency = 'one_time' AND is_active = true
+       AND COALESCE(received_on, created_at::date) >= ${desde}::date - INTERVAL '2 days'
+  `;
+  return (filas as Record<string, unknown>[])
+    .flatMap((r) => ingresosAComputo(mapIncomeRow(r)))
+    .filter((g) => g.fecha >= desde);
+}
+
+/**
+ * Lo que DEBERÍA estar en Computo: tickets y pagos del usuario desde `desde`,
+ * y sus cheques y pagos sueltos desde `ingresosDesde` (ninguno si es `null`).
+ */
+export async function cargarDeseados(
+  userId: string,
+  desde: string,
+  ingresosDesde: string | null = null,
+): Promise<GastoComputo[]> {
   await ensureExpenseKindSchema();
   await ensureTripSplitsSchema();
   // Dos días de margen en SQL y el corte exacto en JS: la fecha que cuenta es
@@ -190,7 +235,8 @@ export async function cargarDeseados(userId: string, desde: string): Promise<Gas
       }),
     ),
   ];
-  return gastos.filter((g) => g.fecha >= desde && g.monto > 0);
+  const ingresos = ingresosDesde ? await cargarIngresos(userId, ingresosDesde) : [];
+  return [...gastos.filter((g) => g.fecha >= desde && g.monto > 0), ...ingresos];
 }
 
 async function cargarEnviados(userId: string): Promise<Enviado[]> {
@@ -278,9 +324,42 @@ function sumar(a: Partial<Record<AccionComputo, number>>, resultados: readonly R
   return a;
 }
 
-export async function calcularPlan(userId: string, desde: string): Promise<PlanComputo> {
-  const [deseados, enviados] = await Promise.all([cargarDeseados(userId, desde), cargarEnviados(userId)]);
+export async function calcularPlan(userId: string, desde: string, ingresosDesde: string | null = null): Promise<PlanComputo> {
+  const [deseados, enviados] = await Promise.all([cargarDeseados(userId, desde, ingresosDesde), cargarEnviados(userId)]);
   return planificar(deseados, enviados);
+}
+
+/**
+ * Desde qué día van los ingresos: lo guardado o, si todavía no hay nada, se
+ * fija ahora.
+ *
+ * Se fija la primera vez que hay cobros que mandar, preguntándole a Computo el
+ * último día en que el usuario tecleó un ingreso a mano (ver
+ * `inicioDeIngresos`). Desde entonces la fecha queda guardada: lo que el
+ * usuario teclee después ya no la mueve, y él la puede cambiar en la hoja.
+ *
+ * Si este Computo no dice nada de ingresos, es una versión que no los acepta:
+ * no se fija nada y no se manda ninguno. Una ref `income:` le haría rechazar
+ * el lote entero, con los gastos dentro.
+ */
+async function fijarInicioDeIngresos(userId: string, config: ConfigComputo, enlace: Enlace | null): Promise<string | null> {
+  if (enlace?.ingresosDesde) return enlace.ingresosDesde;
+  const desdeGastos = enlace?.desde ?? hoyClave();
+  if ((await cargarIngresos(userId, desdeGastos)).length === 0) return null;
+
+  const ping = await pingComputo(config);
+  await guardarEmpresas(userId, ping);
+  if (!ping.ingresos) return null;
+
+  const inicio = inicioDeIngresos(desdeGastos, ping.ingresos.ultimoTecleado, hoyClave());
+  // COALESCE: si la hoja ya puso una fecha mientras tanto, manda la suya.
+  const filas = await sql`
+    UPDATE computo_enlace SET ingresos_desde = COALESCE(ingresos_desde, ${inicio}::date), updated_at = now()
+     WHERE user_id = ${userId}
+    RETURNING ingresos_desde
+  `;
+  const guardada = (filas[0] as Record<string, unknown> | undefined)?.ingresos_desde;
+  return guardada ? aClave(guardada) : inicio;
 }
 
 /**
@@ -302,7 +381,9 @@ export async function sincronizarComputo(
 
   if (simular) {
     try {
-      const plan = await calcularPlan(userId, desde);
+      // La vista previa no fija la fecha de los ingresos: eso escribe, y
+      // simular no escribe en ningún lado. Sin fecha todavía, no entran.
+      const plan = await calcularPlan(userId, desde, enlace?.ingresosDesde ?? null);
       if (planVacio(plan)) return { estado: 'simulado', resultados: [], borrar: [] };
       const porRef = new Map(plan.upserts.map((g) => [g.ref, g]));
       const respuesta = await enviarLote(config, { upserts: plan.upserts.slice(0, POR_LOTE), borrar: plan.borrar.slice(0, POR_LOTE), simular: true });
@@ -319,7 +400,8 @@ export async function sincronizarComputo(
   if (!(await tomarTurno(userId))) return { estado: 'ocupado' };
 
   try {
-    const plan = await calcularPlan(userId, desde);
+    const ingresosDesde = await fijarInicioDeIngresos(userId, config, enlace);
+    const plan = await calcularPlan(userId, desde, ingresosDesde);
     if (planVacio(plan)) {
       // Sin nada que mandar no se habla con Computo, y entonces nada demostraba
       // que el secreto coincide: la hoja enseñaba «✓ al día» sin haberle

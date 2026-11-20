@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { IncomeSource } from '../finance-engine';
 import {
   categoriaDePago,
+  CATEGORIA_DE_INGRESO,
   CATEGORIA_DE_TICKET,
   destinoDeRef,
   gastoDePago,
@@ -8,6 +10,7 @@ import {
   gastosDePago,
   gastosDeTicket,
   huella,
+  ingresosAComputo,
   repartirPorNegocio,
 } from './mapeo';
 
@@ -171,5 +174,83 @@ describe('huella', () => {
 
   it('cambiar de empresa también la cambia', () => {
     expect(huella({ ...g, destino: 'negocio' })).not.toBe(huella(g));
+  });
+});
+
+/**
+ * Los ingresos: solo el dinero que entró UN día (cheques y pagos sueltos), y
+ * solo lo que es de casa.
+ */
+describe('ingresosAComputo', () => {
+  const cheque = (extra: Partial<IncomeSource> = {}): IncomeSource => ({
+    id: 'i1',
+    name: 'Obra',
+    amount: 1200.5,
+    frequency: 'one_time',
+    isActive: true,
+    note: null,
+    businessShare: 0,
+    receivedOn: '2026-10-31',
+    ...extra,
+  });
+
+  it('un cheque es un ingreso con su día, su importe y su nombre', () => {
+    expect(ingresosAComputo(cheque())).toEqual([
+      {
+        ref: 'income:i1',
+        fecha: '2026-10-31',
+        monto: 1200.5,
+        categoria: CATEGORIA_DE_INGRESO,
+        descripcion: 'Obra',
+        notas: 'Desde Foody · Ingresos',
+        destino: 'personal',
+      },
+    ]);
+    expect(CATEGORIA_DE_INGRESO).toBe('Otros Ingresos');
+  });
+
+  it('un sueldo, una quincena, un anual o un acumulado no dicen qué día entró qué dinero: no van', () => {
+    for (const frequency of ['monthly', 'biweekly', 'weekly', 'yearly', 'ytd'] as const) {
+      expect(ingresosAComputo(cheque({ frequency }))).toEqual([]);
+    }
+  });
+
+  it('apagado o sin día, tampoco', () => {
+    expect(ingresosAComputo(cheque({ isActive: false }))).toEqual([]);
+    expect(ingresosAComputo(cheque({ receivedOn: null }))).toEqual([]);
+    expect(ingresosAComputo(cheque({ receivedOn: undefined }))).toEqual([]);
+  });
+
+  it('la nota del usuario va detrás, recortada para que quepa en Computo', () => {
+    expect(ingresosAComputo(cheque({ note: '  anticipo  ' }))[0].notas).toBe('Desde Foody · Ingresos · anticipo');
+    const larga = ingresosAComputo(cheque({ note: 'x'.repeat(900) }))[0].notas ?? '';
+    expect(larga.length).toBeLessThanOrEqual(500);
+    expect(ingresosAComputo(cheque({ note: '   ' }))[0].notas).toBe('Desde Foody · Ingresos');
+  });
+
+  it('sin nombre, «Ingreso»; el importe, a centavos', () => {
+    const [i] = ingresosAComputo(cheque({ name: '  ', amount: 10.005 }));
+    expect(i.descripcion).toBe('Ingreso');
+    expect(i.monto).toBe(10.01);
+  });
+
+  it('de un cobro con parte de negocio solo va la parte de casa, con la misma ref', () => {
+    const partes = ingresosAComputo(cheque({ amount: 1000, businessShare: 40 }));
+    expect(partes).toEqual([
+      expect.objectContaining({ ref: 'income:i1', monto: 600, destino: 'personal', notas: 'Desde Foody · Ingresos · parte personal (60 %)' }),
+    ]);
+    expect(ingresosAComputo(cheque({ businessShare: 100 }))).toEqual([]);
+  });
+
+  it('un ingreso va siempre a la empresa personal', () => {
+    expect(destinoDeRef('income:i1')).toBe('personal');
+  });
+
+  it('cambiar el importe o el día de un cheque cambia la huella', () => {
+    const [i] = ingresosAComputo(cheque());
+    const [otroDia] = ingresosAComputo(cheque({ receivedOn: '2026-11-01' }));
+    const [otroMonto] = ingresosAComputo(cheque({ amount: 1200.51 }));
+    expect(huella(otroDia)).not.toBe(huella(i));
+    expect(huella(otroMonto)).not.toBe(huella(i));
   });
 });
