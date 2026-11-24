@@ -313,9 +313,25 @@ export interface CashFlow {
    */
   oneTimeIncome: number;
   fixedPayments: number;
+  /**
+   * Lo que el plan resta de super por el mes ENTERO: lo ya gastado más lo que
+   * se prevé hasta el cierre. No es lo que llevas: eso es `groceriesSpent`.
+   */
   groceriesEstimate: number;
+  /**
+   * De `groceriesEstimate`, lo que ya salió de la cuenta este mes —el «Llevas»
+   * de la tarjeta de comida—. Nunca más que el estimado.
+   *
+   * Existe porque «Tu mes» enseñaba solo el estimado («Super −$400») y debajo
+   * la tarjeta de comida decía «Llevas $300»: dos cifras para el super del mes,
+   * sin nada que dijera que una es lo gastado y la otra lo gastado más lo
+   * previsto. Parecía que la app sumaba mal.
+   */
+  groceriesSpent: number;
   /** Comer fuera, farmacia, gasolina, hogar: los tickets que no son de super. */
   otherExpenses: number;
+  /** De `otherExpenses`, lo ya gastado este mes. Mismo motivo que `groceriesSpent`. */
+  otherSpent: number;
   /** Suma de las cuotas de tarjetas y créditos: lo que el plan les aparta. */
   creditPayments: number;
   /**
@@ -1097,6 +1113,13 @@ export function personalOnlyInput(input: PlanInput): PlanInput {
     // del plan personal igual que un pago fijo del negocio.
     groceriesMonthly: splitAmount(
       input.groceriesMonthly,
+      normalizeShare(input.groceriesBusinessShare),
+    ).personal,
+    // Lo gastado, con el mismo reparto: «Tu mes» enseña lo que llevas al lado
+    // de lo que resta, y con el negocio apagado las dos cifras tienen que ser
+    // de la misma parte.
+    groceriesSpentThisMonth: splitAmount(
+      input.groceriesSpentThisMonth,
       normalizeShare(input.groceriesBusinessShare),
     ).personal,
     groceriesBusinessShare: 0,
@@ -2103,6 +2126,11 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
   // Comer fuera y la gasolina no son super, pero salen de la misma cuenta el
   // mismo mes. Restarlos aquí es lo que hace que "te queda libre" sea cierto.
   const otherExpenses = Math.max(0, input.otherExpensesMonthly ?? 0);
+  // Lo gastado, acotado al estimado: el estimado ya nunca baja de lo gastado
+  // (`chooseBaseline`), pero al repartir el negocio cada cifra se redondea por
+  // su lado y un centavo de más haría «previsto» negativo.
+  const groceriesSpent = clamp(input.groceriesSpentThisMonth, 0, groceriesEstimate);
+  const otherSpent = clamp(input.otherSpend?.spentThisMonth ?? 0, 0, otherExpenses);
 
   // La cuota de una tarjeta o un crédito es dinero comprometido igual que la
   // renta: si no se resta aquí, el plan cree que hay más libre del que hay y
@@ -2162,7 +2190,9 @@ export function buildFinancePlan(input: PlanInput): FinancePlan {
     oneTimeIncome: round2(oneTimeIncome),
     fixedPayments: round2(fixedPayments),
     groceriesEstimate: round2(groceriesEstimate),
+    groceriesSpent: round2(groceriesSpent),
     otherExpenses: round2(otherExpenses),
+    otherSpent: round2(otherSpent),
     creditPayments: round2(creditPayments),
     creditMinimums: round2(creditMinimums),
     creditPlanExtra: round2(creditPlanExtra),

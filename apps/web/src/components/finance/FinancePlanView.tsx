@@ -552,6 +552,21 @@ export default function FinancePlanView({ initialData }: Props) {
   );
 
   /**
+   * Lo mismo con lo GASTADO en super y fuera del super. Las tarjetas de comida
+   * y de fuera del super, debajo, enseñan el gasto entero (`data`); «Tu mes»
+   * enseña lo de este plan (`view`). Con el negocio apagado, lo que separa sus
+   * dos «llevas» es esto, y la fila lo dice.
+   */
+  const groceriesBusinessExcluded = Math.max(
+    0,
+    Math.round((data.cashFlow.groceriesSpent - view.cashFlow.groceriesSpent) * 100) / 100,
+  );
+  const otherBusinessExcluded = Math.max(
+    0,
+    Math.round((data.cashFlow.otherSpent - view.cashFlow.otherSpent) * 100) / 100,
+  );
+
+  /**
    * El desglose de la nota, calculado sobre `view` y no sobre `data`: con el
    * negocio apagado el anillo ya enseña otra nota, y la explicación tiene que
    * hablar de ESAS cifras o diría una cosa distinta de la que se ve.
@@ -695,8 +710,9 @@ export default function FinancePlanView({ initialData }: Props) {
       {/* ─── Flujo del mes ───────────────────────────────────────────────── */}
       <CashFlowCard
         cash={cash}
-        groceriesSource={data.groceries.baselineSource}
         creditsBusinessExcluded={creditsBusinessExcluded}
+        groceriesBusinessExcluded={groceriesBusinessExcluded}
+        otherBusinessExcluded={otherBusinessExcluded}
         onOpenIncome={() => setModal({ kind: 'income' })}
         onOpenPayments={() => router.push(personalOnly ? '/payments?scope=personal' : '/payments')}
         onOpenBudget={() => router.push(personalOnly ? '/budget?scope=personal' : '/budget')}

@@ -50,3 +50,36 @@ describe('OtherSpendCard — como la tarjeta de comida', () => {
     expect(screen.getByRole('link', { name: /Agregar ticket/ })).toHaveAttribute('href', '/shopping-trips/new?kind=other');
   });
 });
+
+/** El pie del plan, con el texto entero aunque vaya partido en negritas. */
+function pieDelPlan(): string {
+  const pie = screen.getByText((_, el) => el?.tagName === 'P' && /^El plan resta/.test(el.textContent ?? ''));
+  return pie.textContent ?? '';
+}
+
+/**
+ * La cifra de arriba es lo que llevas; la fila de «Tu mes», lo que resta el
+ * plan. El pie dice de dónde sale la diferencia, con cifra, para que las dos
+ * no parezcan una suma mal hecha.
+ */
+describe('OtherSpendCard — lo que resta el plan', () => {
+  it('es lo que llevas más lo previsto hasta fin de mes', () => {
+    render(<OtherSpendCard other={datos()} onChanged={() => undefined} />);
+    // $110 llevados + $250 de promedio × 9/31 días que faltan.
+    expect(pieDelPlan()).toBe('El plan resta $182.58: lo que llevas y $72.58 previstos hasta fin de mes.');
+  });
+
+  it('sin gasto este mes, lo que resta es el promedio y no hay «lo que llevas»', () => {
+    const vacio = computeOtherSpend({
+      monthlyTotals: [
+        { month: '2026-06', total: 300, trips: 10 },
+        { month: '2026-07', total: 200, trips: 8 },
+      ],
+      byKind: [],
+      places: [],
+      now: NOW,
+    });
+    render(<OtherSpendCard other={vacio} onChanged={() => undefined} />);
+    expect(pieDelPlan()).toBe('El plan resta $250 al mes por esto.');
+  });
+});
