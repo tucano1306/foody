@@ -33,6 +33,9 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
   const paceWidth = g.limit > 0 ? Math.min(100, (g.projectedMonthEnd / g.limit) * 100) : 100;
   const spentWidth = g.limit > 0 ? Math.min(100, (g.spentThisMonth / g.limit) * 100) : 0;
   const mesEnCurso = mesLargo(new Date());
+  // Lo que el plan aparta por encima de lo que ya llevas: es la diferencia
+  // entre «Llevas» y la fila «Super» de «Tu mes», y el pie lo dice con cifra.
+  const previsto = Math.max(0, g.baseline - g.spentThisMonth);
 
   return (
     <section className="rounded-3xl border border-sky-100 bg-sky-50/70 shadow-sm p-5">
@@ -157,8 +160,12 @@ export default function GrocerySpendCard({ groceries: g, history }: Props) {
         <p className="text-[11px] text-slate-500 min-w-0">
           {g.baselineSource === 'limit'
             ? <>Sin compras aún: el plan usa tu límite de <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span>.</>
-            : <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span> al mes de super
-                {g.baselineSource === 'average' ? ', tu promedio real.' : ', según tus tickets.'}</>}
+            : g.baselineSource === 'average'
+              ? <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span> al mes de super, tu promedio real.</>
+              : previsto >= 0.005
+                ? <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span>: lo que llevas
+                    y <span className="font-bold text-slate-700">{fmtMoneyFine(previsto)}</span> previstos hasta fin de mes.</>
+                : <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(g.baseline)}</span> de super: lo que llevas.</>}
         </p>
         <AddTicketButton />
       </div>

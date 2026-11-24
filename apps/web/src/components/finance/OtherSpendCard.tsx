@@ -42,6 +42,9 @@ export default function OtherSpendCard({ other: o, onChanged }: Props) {
   const escala = Math.max(o.projectedMonthEnd, o.avgMonthly, 1) * 1.1;
   const anchoDe = (n: number) => `${Math.min(100, (n / escala) * 100)}%`;
   const diferencia = o.projectedMonthEnd - o.avgMonthly;
+  // Lo que el plan aparta por encima de lo que ya llevas: la diferencia entre
+  // la cifra de arriba y la fila «Fuera del super» de «Tu mes».
+  const previsto = Math.max(0, o.baseline - o.spentThisMonth);
 
   return (
     <section className="rounded-3xl border border-blue-100 bg-blue-50/60 shadow-sm p-5">
@@ -204,9 +207,12 @@ export default function OtherSpendCard({ other: o, onChanged }: Props) {
         {/* Lo que el plan hace con esto, dicho sin rodeos: es la única cifra de
             la tarjeta que afecta a las metas. */}
         <p className="text-[11px] text-slate-500 min-w-0">
-          {o.baseline > 0
-            ? <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(o.baseline)}</span> al mes por esto.</>
-            : 'Todavía no resta nada por este concepto.'}
+          {o.baseline <= 0
+            ? 'Todavía no resta nada por este concepto.'
+            : o.spentThisMonth > 0 && previsto >= 0.005
+              ? <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(o.baseline)}</span>: lo que llevas
+                  y <span className="font-bold text-slate-700">{fmtMoneyFine(previsto)}</span> previstos hasta fin de mes.</>
+              : <>El plan resta <span className="font-bold text-slate-700">{fmtMoneyFine(o.baseline)}</span> al mes por esto.</>}
         </p>
         {/* «Otro» y no «Comida»: esta tarjeta agrupa comida fuera, farmacia,
             gasolina y hogar, así que adivinar cuál sería etiquetar mal el

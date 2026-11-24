@@ -3,19 +3,16 @@
 import { motion } from 'framer-motion';
 import { ChevronRightIcon } from '@heroicons/react/24/solid';
 import type { CashFlow } from '@/lib/finance-engine';
-import type { BaselineSource } from '@/lib/grocery-insights';
 import { CARD, LABEL, NUM, fmtMoney, palabraDelResto } from './finance-ui';
 
-const GROCERY_HINT: Record<BaselineSource, string> = {
-  pace: 'según tus compras reales',
-  average: 'tu promedio de tickets',
-  limit: 'tu límite (aún sin compras)',
-  none: 'sin datos',
-};
+/**
+ * Por debajo de medio dólar una cifra se pinta «$0»: «y $0 previstos» o «$0
+ * del negocio fuera» es ruido de redondeo, no información.
+ */
+const VISIBLE = 0.5;
 
 interface Props {
   readonly cash: CashFlow;
-  readonly groceriesSource: BaselineSource;
   readonly onOpenIncome: () => void;
   readonly onOpenPayments: () => void;
   readonly onOpenBudget: () => void;
@@ -28,6 +25,13 @@ interface Props {
    * personal o el completo; la tarjeta se limita a decirlo cuando lo hay.
    */
   readonly creditsBusinessExcluded?: number;
+  /**
+   * Lo gastado este mes en super y fuera del super que es del NEGOCIO y este
+   * plan no cuenta. La tarjeta de comida, debajo, enseña el gasto entero: sin
+   * decirlo aquí, «Llevas» no cuadraría entre las dos.
+   */
+  readonly groceriesBusinessExcluded?: number;
+  readonly otherBusinessExcluded?: number;
 }
 
 interface Row {
@@ -44,9 +48,26 @@ interface Row {
    * error de la app.
    */
   hintAlways?: boolean;
+  /** Lo que resta la cascada, con su signo. */
   amount: number;
+  /**
+   * Para un gasto que se va llenando durante el mes: lo que ya salió de la
+   * cuenta. La fila enseña ESTO, y lo que falta hasta `amount` va debajo como
+   * previsto.
+   *
+   * La fila del super decía la cifra del mes entero y la tarjeta de comida,
+   * justo debajo, «Llevas» con otra: el dueño leyó que la app sumaba mal. Con
+   * las dos cifras a la vista, cada una dice lo suyo y la cascada sigue
+   * cuadrando con lo libre.
+   */
+  spent?: number;
   bar: string;
   onClick?: () => void;
+}
+
+/** «solo tu parte · $X del negocio fuera»: la misma frase en las tres filas. */
+function soloTuParte(fuera: number): string {
+  return `solo tu parte personal · ${fmtMoney(fuera)} del negocio fuera`;
 }
 
 /** A dónde va lo libre, una vez cubierto lo que pide el mes. */
@@ -67,7 +88,17 @@ interface Destino {
  * cada cosa con su cifra. Todo junto en la cascada, liquidar un 0 % a tiempo se
  * leía como un gasto del mes que no cabía.
  */
-export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOpenPayments, onOpenBudget, onOpenDebts, onOpenTrips, creditsBusinessExcluded = 0 }: Props) {
+export default function CashFlowCard({
+  cash,
+  onOpenIncome,
+  onOpenPayments,
+  onOpenBudget,
+  onOpenDebts,
+  onOpenTrips,
+  creditsBusinessExcluded = 0,
+  groceriesBusinessExcluded = 0,
+  otherBusinessExcluded = 0,
+}: Props) {
   const base = Math.max(
     cash.monthlyIncome,
     cash.fixedPayments + cash.groceriesEstimate + cash.otherExpenses + cash.creditMinimums,
@@ -104,8 +135,10 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       key: 'groceries',
       emoji: '🛒',
       label: 'Super',
-      hint: GROCERY_HINT[groceriesSource],
+      hint: groceriesBusinessExcluded >= VISIBLE ? soloTuParte(groceriesBusinessExcluded) : 'despensa',
+      hintAlways: groceriesBusinessExcluded >= VISIBLE,
       amount: -cash.groceriesEstimate,
+      spent: cash.groceriesSpent,
       bar: 'from-sky-200 to-sky-300',
       onClick: onOpenBudget,
     },
@@ -119,8 +152,10 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       key: 'other',
       emoji: '🍔',
       label: 'Fuera del super',
-      hint: 'comida, farmacia, gasolina',
+      hint: otherBusinessExcluded >= VISIBLE ? soloTuParte(otherBusinessExcluded) : 'comida, farmacia, gasolina',
+      hintAlways: otherBusinessExcluded >= VISIBLE,
       amount: -cash.otherExpenses,
+      spent: cash.otherSpent,
       bar: 'from-sky-300 to-blue-300',
       onClick: onOpenTrips,
     });
@@ -136,10 +171,7 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
       // Cuando hay mínimos del negocio fuera del plan hay que DECIRLO. Si no,
       // esta cifra no cuadra con la suma de las tarjetas que se ven en Deudas y
       // parece un error de la app: «me estás metiendo el coche del negocio».
-      hint:
-        creditsBusinessExcluded > 0
-          ? `solo tu parte personal · ${fmtMoney(creditsBusinessExcluded)} del negocio fuera`
-          : 'lo que pide el banco',
+      hint: creditsBusinessExcluded > 0 ? soloTuParte(creditsBusinessExcluded) : 'lo que pide el banco',
       hintAlways: creditsBusinessExcluded > 0,
       amount: -cash.creditMinimums,
       bar: 'from-blue-400 to-blue-500',
@@ -178,34 +210,60 @@ export default function CashFlowCard({ cash, groceriesSource, onOpenIncome, onOp
 
       <div className="space-y-3">
         {rows.map((row, i) => {
-          const width = Math.min(100, (Math.abs(row.amount) / base) * 100);
+          const total = Math.abs(row.amount);
+          const width = Math.min(100, (total / base) * 100);
+          // Lo que la fila enseña: lo gastado si es un gasto que se va llenando,
+          // y si no la cifra entera. Lo previsto es lo que falta hasta lo que
+          // resta la cascada.
+          const shown = row.spent ?? total;
+          const previsto = row.spent === undefined ? 0 : Math.max(0, total - row.spent);
+          const spentWidth = Math.min(100, (shown / base) * 100);
           const Wrapper = row.onClick ? 'button' : 'div';
+          const ease = [0.22, 0.61, 0.36, 1] as const;
           return (
             <Wrapper
               key={row.key}
               {...(row.onClick ? { type: 'button' as const, onClick: row.onClick } : {})}
               className="w-full text-left group"
             >
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+              <div className="flex items-baseline justify-between gap-3 mb-1">
+                <span className="min-w-0 text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <span aria-hidden="true">{row.emoji}</span>
                   {row.label}
                   <span className={`font-normal text-slate-400 ${row.hintAlways ? '' : 'hidden sm:inline'}`}>
                     · {row.hint}
                   </span>
                 </span>
-                <span className={`text-sm font-black tabular-nums ${NUM}`}>
-                  {row.amount >= 0 ? '+' : '−'}{fmtMoney(Math.abs(row.amount))}
+                {/* Sin `nowrap`, una pista larga («solo tu parte personal…»)
+                    partía la cifra en «−» y «$240» en dos líneas. */}
+                <span className={`shrink-0 whitespace-nowrap text-sm font-black tabular-nums ${NUM}`}>
+                  {/* El día 1, sin compras, «−$0» parece un error de signo. */}
+                  {Math.round(shown) === 0 ? '' : row.amount >= 0 ? '+' : '−'}{fmtMoney(shown)}
                 </span>
               </div>
-              <div className="h-2.5 rounded-full bg-white/80 overflow-hidden">
+              <div className="relative h-2.5 rounded-full bg-white/80 overflow-hidden">
+                {/* Lo previsto, translúcido debajo de lo gastado: el mismo
+                    lenguaje que el ritmo de las tarjetas de comida. */}
+                {row.spent !== undefined && (
+                  <motion.div
+                    className={`absolute inset-y-0 left-0 rounded-full bg-linear-to-r ${row.bar} opacity-50`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${width}%` }}
+                    transition={{ duration: 0.8, delay: i * 0.08, ease }}
+                  />
+                )}
                 <motion.div
-                  className={`h-full rounded-full bg-linear-to-r ${row.bar} group-hover:brightness-105`}
+                  className={`absolute inset-y-0 left-0 rounded-full bg-linear-to-r ${row.bar} group-hover:brightness-105`}
                   initial={{ width: 0 }}
-                  animate={{ width: `${width}%` }}
-                  transition={{ duration: 0.8, delay: i * 0.08, ease: [0.22, 0.61, 0.36, 1] }}
+                  animate={{ width: `${spentWidth}%` }}
+                  transition={{ duration: 0.8, delay: i * 0.08, ease }}
                 />
               </div>
+              {previsto >= VISIBLE && (
+                <p className={`mt-1 text-right text-[11px] tabular-nums ${LABEL}`}>
+                  y {fmtMoney(previsto)} previstos hasta fin de mes
+                </p>
+              )}
             </Wrapper>
           );
         })}

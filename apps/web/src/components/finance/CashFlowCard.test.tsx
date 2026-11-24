@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { buildFinancePlan, type CreditInput, type PlanInput } from '@/lib/finance-engine';
+import { EMPTY_OTHER_SPEND } from '@/lib/other-spend';
 import CashFlowCard from './CashFlowCard';
 
 const NOW = new Date(2026, 10, 15, 12); // 15 nov 2026
@@ -38,7 +39,11 @@ function planInput(over: Partial<PlanInput> = {}): PlanInput {
   };
 }
 
-function montar(over: Partial<PlanInput> = {}, creditsBusinessExcluded = 0) {
+function montar(
+  over: Partial<PlanInput> = {},
+  creditsBusinessExcluded = 0,
+  negocioFuera: { groceriesBusinessExcluded?: number; otherBusinessExcluded?: number } = {},
+) {
   const cash = buildFinancePlan(planInput(over)).cashFlow;
   const handlers = {
     onOpenIncome: vi.fn(),
@@ -50,8 +55,8 @@ function montar(over: Partial<PlanInput> = {}, creditsBusinessExcluded = 0) {
   render(
     <CashFlowCard
       cash={cash}
-      groceriesSource="limit"
       creditsBusinessExcluded={creditsBusinessExcluded}
+      {...negocioFuera}
       {...handlers}
     />,
   );
@@ -142,5 +147,61 @@ describe('CashFlowCard — cuando no alcanza', () => {
     montar({ incomes: [{ ...SUELDO, amount: 1000 }] });
     expect(screen.getByText('Te falta cada mes')).toBeInTheDocument();
     expect(screen.getByText('$300')).toBeInTheDocument();
+  });
+});
+
+/**
+ * «Tu mes» decía «Super −$400» y la tarjeta de comida, justo debajo,
+ * «Llevas $180». Las dos eran ciertas —una es lo que el plan resta por el mes
+ * entero, la otra lo gastado— pero nada lo decía y parecía que la app sumaba
+ * mal. La fila enseña ahora lo que llevas, y lo previsto debajo con su cifra.
+ */
+describe('CashFlowCard — lo que llevas y lo previsto', () => {
+  it('la fila del super enseña lo que llevas, la misma cifra que «Llevas»', () => {
+    montar();
+    expect(importeDe('Super')).toBe('−$180');
+  });
+
+  it('lo que falta hasta lo que resta el plan va debajo, como previsto', () => {
+    montar();
+    // $400 que resta el plan − $180 gastados.
+    expect(screen.getByText('y $220 previstos hasta fin de mes')).toBeInTheDocument();
+  });
+
+  it('la cascada sigue cuadrando: lo libre resta lo gastado y lo previsto', () => {
+    montar();
+    // $3,000 − $900 de renta − $180 gastados − $220 previstos.
+    expect(screen.getByText('Te queda libre').nextElementSibling).toHaveTextContent('$1,700');
+  });
+
+  it('fuera del super, lo mismo', () => {
+    montar({
+      otherExpensesMonthly: 250,
+      otherSpend: { ...EMPTY_OTHER_SPEND, spentThisMonth: 150, baseline: 250, hasData: true },
+    });
+    expect(importeDe('Fuera del super')).toBe('−$150');
+    expect(screen.getByText('y $100 previstos hasta fin de mes')).toBeInTheDocument();
+  });
+
+  it('cuando ya no queda nada previsto, no hay línea que explicar', () => {
+    montar({ groceriesMonthly: 180 });
+    expect(importeDe('Super')).toBe('−$180');
+    expect(screen.queryByText(/previstos hasta fin de mes/)).toBeNull();
+  });
+
+  it('el día 1, sin compras: $0 sin signo, y todo lo del mes como previsto', () => {
+    montar({ groceriesSpentThisMonth: 0 });
+    expect(importeDe('Super')).toBe('$0');
+    expect(screen.getByText('y $400 previstos hasta fin de mes')).toBeInTheDocument();
+  });
+
+  it('con el negocio fuera, lo dice en la fila para que «Llevas» cuadre con la tarjeta', () => {
+    montar({}, 0, { groceriesBusinessExcluded: 60, otherBusinessExcluded: 0 });
+    expect(screen.getByText(/solo tu parte personal · \$60 del negocio fuera/)).toBeInTheDocument();
+  });
+
+  it('centavos de reparto no se pintan como «$0 del negocio fuera»', () => {
+    montar({}, 0, { groceriesBusinessExcluded: 0.2 });
+    expect(screen.queryByText(/del negocio fuera/)).toBeNull();
   });
 });
